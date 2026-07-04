@@ -44,7 +44,7 @@ class Frames:
     # per-object cargo, workforce and pending construction resources
     station_cargo: pd.DataFrame = None       # id, ware, amount
     workforce_all: pd.DataFrame = None       # id, race, amount
-    build_demand: pd.DataFrame = None        # id, ware, amount (missing)
+    build_demand: pd.DataFrame = None        # id, ware, amount, kind (missing)
     buy_offers: pd.DataFrame = None          # id, ware, amount (wanted)
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
 
@@ -335,7 +335,7 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         workforce_all=pd.DataFrame(save.workforce,
                                    columns=["id", "race", "amount"]),
         build_demand=pd.DataFrame(save.build_resources,
-                                  columns=["id", "ware", "amount"]),
+                                  columns=["id", "ware", "amount", "kind"]),
         buy_offers=pd.DataFrame(save.buy_offers,
                                 columns=["id", "ware", "amount"]),
         floating_wares=pd.DataFrame(save.floating_wares,

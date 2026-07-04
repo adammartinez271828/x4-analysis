@@ -55,9 +55,11 @@ class SaveData:
     npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
     resources: list = field(default_factory=list)      # (sector_macro, ware, yield)
     cargo: list = field(default_factory=list)          # (object_id, ware, amount)
-    # materials missing for constructions (<insufficient>/<shortage> under
-    # <build><resources>); object_id is "" for free-floating build storages
-    build_resources: list = field(default_factory=list)  # (object_id, ware, amount)
+    # materials missing for builds (<insufficient>/<shortage> under
+    # <build><resources>); host is "" for free-floating build storages.
+    # kind: "insufficient" = station construction, "shortage" = shipyard
+    # ship-order backlog
+    build_resources: list = field(default_factory=list)  # (host, ware, amount, kind)
     # open buy offers: how much a station still wants of a ware
     buy_offers: list = field(default_factory=list)     # (object_id, ware, amount)
     # free-floating ware objects in space (scrap cubes, dropped cargo)
@@ -219,6 +221,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         comp_stack[-1][1] if comp_stack else "",
                         elem.get("ware", ""),
                         float(elem.get("amount", 0) or 0),
+                        parent,
                     ))
 
             elif tag == "trade":

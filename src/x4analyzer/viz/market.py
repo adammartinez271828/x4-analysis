@@ -150,8 +150,12 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         stock = stock.add(floating.groupby("ware")["amount"].sum(),
                           fill_value=0.0)
 
-    # outstanding construction resources
+    # outstanding STATION-construction resources ("insufficient"). Shipyard
+    # <shortage> blocks are the backlog of endlessly queued NPC ship orders
+    # — not near-term demand (their actionable needs appear as buy offers)
     build = frames.build_demand
+    build = build[build["kind"] == "insufficient"] if not build.empty \
+        else build
     build_by_ware = build.groupby("ware")["amount"].sum() if not build.empty \
         else pd.Series(dtype=float)
 
@@ -296,8 +300,9 @@ buyers holding less than
 {UNDERSTOCK_PCT:.0%} of their target level (stock + open buy amount) — works
 for end-tier and raw wares without module consumers, and many understocked
 buyers despite high global cover indicates a logistics (distribution)
-problem. Build demand = materials still missing for constructions
-(insufficient/shortage). Traded volume is estimated from station stock
+problem. Build demand = materials still missing for station constructions
+(shipyard ship-order backlogs are excluded; their near-term needs show up
+as buy offers). Traded volume is estimated from station stock
 increases between logged trade events (deliveries; includes some production
 accumulation). Cr/h values that volume at the ware's average game price.
 Click a row for detail.</p>
