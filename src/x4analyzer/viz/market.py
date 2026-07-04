@@ -280,9 +280,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         target = float(fill_target.get(w, 0))
         fill = 100.0 * float(fill_held.get(w, 0)) / target if target > 0 \
             else None
-        # hours until every open order could be filled at current rates;
-        # ">=" = demand-pressure fallback (gap / deliveries) when there is
-        # no production surplus to close the gap
+        # hours until every open order could be filled from the production
+        # surplus. Without a surplus the market can never converge —
+        # consumption regenerates the order book — so we report the standing
+        # backlog depth instead (open demand as hours of total delivery flow)
         gap = float(buy_demand.get(w, 0)) + float(build_by_ware.get(w, 0))
         surplus = prod - cons
         if gap <= 0:
@@ -290,7 +291,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         elif surplus > 0:
             satisfy_h, satisfy_flag = gap / surplus, ""
         elif traded_h > 0:
-            satisfy_h, satisfy_flag = gap / traded_h, ">="
+            satisfy_h, satisfy_flag = gap / traded_h, "backlog"
         else:
             satisfy_h, satisfy_flag = None, "never"
         summary.append({
@@ -461,9 +462,12 @@ not a supply problem.</li>
 <li><b>Fill %</b> — buyer-side satisfaction: buyers' stock vs their target
 level. Producer hoards don't count. Low = open market gap.</li>
 <li><b>Satisfy (h)</b> — hours until all open buy+build demand could be
-filled from the production surplus; <b>&ge;</b> = no surplus, floor
-estimated from deliveries; <b>never</b> = no surplus and no deliveries.
-Optimistic floors — good for ranking gaps, not scheduling.</li>
+filled from the production surplus (optimistic floor — good for ranking,
+not scheduling). Without a surplus the market can never converge, since
+consumption regenerates the order book: shown as
+<b>never (Xh backlog)</b>, where X is the standing order book measured in
+hours of the market's total delivery flow — small X = tight but liquid
+market, large X = deep chronic deficit.</li>
 <li><b>Traded/h, Cr/h</b> — deliveries estimated from station stock
 increases between logged trade events, valued at average game price.</li>
 <li><b>Best sell</b> — highest open buy-offer price, with premium vs the
@@ -572,9 +576,17 @@ const table = $('#market').DataTable({{
       if (t === 'display') {{
         if (flag === 'sat') return '&mdash;';
         if (flag === 'never') return "<span class=warn>never</span>";
-        return (flag === '>=' ? '&ge;' : '') + fmt(d) + 'h';
+        if (flag === 'backlog') return "<span class=warn title='no production "
+          + "surplus: consumption regenerates demand, so the market cannot "
+          + "converge; value = open orders as hours of current delivery flow'>"
+          + "never (" + d + "h backlog)</span>";
+        return fmt(d) + 'h';
       }}
-      return flag === 'never' ? 1e12 : (flag === 'sat' ? 0 : d);
+      // sort: real fill times, then chronic markets by backlog depth, then never
+      if (flag === 'sat') return 0;
+      if (flag === 'backlog') return 1e6 + d;
+      if (flag === 'never') return 1e12;
+      return d;
     }}}},
     {{targets: [16, 17, 18, 19], visible: false}},
   ],
