@@ -223,6 +223,11 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     _STATION_TRANSPORT = {"container", "solid", "liquid", "condensate"}
     transport = dict(zip(ref.wares["id"], ref.wares["transport"].fillna("")))
 
+    # minable wares have no producing modules; their effective production is
+    # what miners actually deliver to stations (the traded-volume estimate)
+    minable = {i for i, t in zip(ref.wares["id"], ref.wares["tags"].fillna(""))
+               if "minable" in t}
+
     wares = sorted(set(total.index) | set(traded.index) | set(stock.index))
     summary = []
     for w in wares:
@@ -235,6 +240,9 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         st = float(stock.get(w, 0))
         cover_h = st / cons if cons > 0 else None
         traded_h = float(traded["sum"].get(w, 0)) / span_h
+        est = w in minable
+        if est:
+            prod = traded_h
         summary.append({
             "ware": w, "name": ref.ware_name.get(w, w),
             "prod": round(prod), "cons": round(cons),
@@ -249,6 +257,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             # cash volume estimated at average game price (the global trade
             # events record volume only)
             "cr_h": round(traded_h * price_avg.get(w, 0)),
+            "est": est,
         })
     summary.sort(key=lambda r: r["cr_h"], reverse=True)
 
@@ -266,6 +275,12 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             d["volume"] = [float(v) for v in hourly.values]
             d["stations"] = [str(s) for s in top.index]
             d["svolume"] = [float(v) for v in top.values]
+            if w in minable:
+                # deliveries by receiving faction = who gets the mined supply
+                by_fac = (grp.groupby("faction")["dv"].sum() / span_h) \
+                    .sort_values(ascending=False)
+                d["delf"] = list(by_fac.index)
+                d["delv"] = [float(v) for v in by_fac.values]
     for w, grp in rates.groupby("ware"):
         d = detail.setdefault(w, {})
         fp = grp.groupby("faction")[["prod", "cons"]].sum()
@@ -290,7 +305,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
         r["cover"], r["buy"], r["build"], r["buyers"], r["under"],
-        r["traded_h"], r["cr_h"], r["ware"],
+        r["traded_h"], r["cr_h"], r["ware"], r["est"],
     ] for r in summary], separators=(",", ":"))
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
@@ -336,7 +351,10 @@ problem. Build demand = materials still missing for station constructions
 as buy offers). Traded volume is estimated from station stock
 increases between logged trade events (deliveries; includes some production
 accumulation). Cr/h values that volume at the ware's average game price.
-Click a row for detail.</p>
+For minable wares (~ in Prod/h) production is estimated from actual
+deliveries into stations — mined supply that reached the economy; slight
+overcount when loads hop through trade stations, and player-internal mining
+may not be logged. Click a row for detail.</p>
 <p><label><input type='checkbox' id='buildonly'>
 show ship/station build wares only</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
@@ -377,7 +395,11 @@ const table = $('#market').DataTable({{
   data: ROWS,
   order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [1, 2, 4, 6, 7, 8, 10, 11], render: numCol}},
+    {{targets: [2, 4, 6, 7, 8, 10, 11], render: numCol}},
+    {{targets: 1, render: (d, t, row) => t === 'display'
+      ? (row[13] ? "<span class=warn title='estimated from deliveries'>~"
+                   + fmt(d) + "</span>" : fmt(d))
+      : d}},
     {{targets: 3, render: (d, t) => t === 'display'
       ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d) + "</span>"
       : d}},
@@ -427,6 +449,11 @@ function render() {{
       y:d.cprod, marker:{{color:'#4ecf71'}}}});
     traces.push({{type:'bar', name:'Consumption/h', x:cf,
       y:d.ccons.map(v => -v), marker:{{color:'#ff6b6b'}}}});
+  }}
+  if (d.delf && d.delf.length) {{
+    // minable wares: who actually receives the mined supply
+    traces.push({{type:'bar', name:'Deliveries/h (est. production)',
+      x:d.delf, y:d.delv, marker:{{color:'#4e9fd1'}}}});
   }}
   Plotly.react('byfaction', traces, Object.assign({{}}, LAYOUT, {{
     title:{{text:'Capacity by faction (units/h)', font:{{size:15}}}},
