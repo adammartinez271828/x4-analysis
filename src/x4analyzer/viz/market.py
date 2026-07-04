@@ -212,9 +212,15 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         understocked = held < (UNDERSTOCK_PCT / (1 - UNDERSTOCK_PCT)) * wanted
         under = understocked.groupby(level="ware").sum()
         n_buyers = wanted.groupby(level="ware").count()
+        # buyer-side market fill: how close buyers are to their target level
+        # (their stock + what they still want); producer hoards don't count
+        fill_held = held.groupby(level="ware").sum()
+        fill_target = (held + wanted).groupby(level="ware").sum()
     else:
         under = pd.Series(dtype=int)
         n_buyers = pd.Series(dtype=int)
+        fill_held = pd.Series(dtype=float)
+        fill_target = pd.Series(dtype=float)
     buy_demand = buys.groupby("ware")["amount"].sum() if not buys.empty \
         else pd.Series(dtype=float)
     # money on the table: what stations offer to pay right now, and the best
@@ -270,6 +276,23 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         avg = float(price_avg.get(w, 0))
         bp = float(best_price.get(w, 0))
         premium = (bp / avg - 1.0) * 100.0 if avg > 0 and bp > 0 else None
+
+        target = float(fill_target.get(w, 0))
+        fill = 100.0 * float(fill_held.get(w, 0)) / target if target > 0 \
+            else None
+        # hours until every open order could be filled at current rates;
+        # ">=" = demand-pressure fallback (gap / deliveries) when there is
+        # no production surplus to close the gap
+        gap = float(buy_demand.get(w, 0)) + float(build_by_ware.get(w, 0))
+        surplus = prod - cons
+        if gap <= 0:
+            satisfy_h, satisfy_flag = 0.0, "sat"
+        elif surplus > 0:
+            satisfy_h, satisfy_flag = gap / surplus, ""
+        elif traded_h > 0:
+            satisfy_h, satisfy_flag = gap / traded_h, ">="
+        else:
+            satisfy_h, satisfy_flag = None, "never"
         summary.append({
             "ware": w, "name": ref.ware_name.get(w, w),
             "prod": round(prod), "cons": round(cons),
@@ -288,8 +311,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             "best_price": round(bp) if bp > 0 else None,
             "premium": round(premium, 1) if premium is not None else None,
             "demand_cr": round(float(demand_cr.get(w, 0))),
-            "supply_pct": round(100.0 * traded_h / cons, 1) if cons > 0
+            "fill": round(fill, 1) if fill is not None else None,
+            "satisfy_h": round(satisfy_h, 1) if satisfy_h is not None
             else None,
+            "satisfy_flag": satisfy_flag,
             "vol": int(vol_map.get(w, 0) or 0),
         })
     summary.sort(key=lambda r: r["cr_h"], reverse=True)
@@ -371,7 +396,8 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
         r["cover"], r["buy"], r["build"], r["buyers"], r["under"],
         r["traded_h"], r["cr_h"], r["premium"], r["demand_cr"],
-        r["supply_pct"], r["ware"], r["est"], r["best_price"],
+        r["fill"], r["satisfy_h"], r["satisfy_flag"], r["ware"], r["est"],
+        r["best_price"],
     ] for r in summary], separators=(",", ":"))
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
@@ -421,8 +447,13 @@ For minable wares (~ in Prod/h) production is estimated from actual
 deliveries into stations — mined supply that reached the economy; slight
 overcount when loads hop through trade stations, and player-internal mining
 may not be logged. Best sell = highest open buy-offer price (premium vs
-average game price); Demand (Cr) = credits stations offer right now;
-Supply % = deliveries vs consumption capacity (low = underserved market).
+average game price); Demand (Cr) = credits stations offer right now.
+Fill % = buyer-side satisfaction: buyers' stock vs their target level
+(stock + still-wanted; producer hoards don't count) — low = open market gap.
+Satisfy (h) = hours until all open buy+build demand could be filled from the
+production surplus; "&ge;" = no surplus, floor estimated from deliveries;
+"never" = no surplus and no deliveries. Both are optimistic floors — good
+for ranking gaps, not scheduling.
 Click a row for detail: best places to sell/buy and demand by sector.</p>
 <p><label><input type='checkbox' id='buildonly'>
 show ship/station build wares only</label></p>
@@ -431,7 +462,7 @@ show ship/station build wares only</label></p>
 <th>Stock</th><th>Cover (h)</th><th>Buy demand</th><th>Build demand</th>
 <th>Buyers</th><th>Understocked</th><th>Traded/h</th>
 <th>Cr/h (est.)</th><th>Best sell</th><th>Demand (Cr)</th>
-<th>Supply %</th></tr></thead>
+<th>Fill %</th><th>Satisfy (h)</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select> <span id='wareinfo' class='note'></span></p>
@@ -468,7 +499,7 @@ function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 const sel = document.getElementById('ware');
 ROWS.forEach(r => {{
   const o = document.createElement('option');
-  o.value = r[15]; o.textContent = r[0]; sel.appendChild(o);
+  o.value = r[17]; o.textContent = r[0]; sel.appendChild(o);
 }});
 
 // numeric data with display-only rendering so every column sorts numerically
@@ -479,7 +510,7 @@ const table = $('#market').DataTable({{
   columnDefs: [
     {{targets: [2, 4, 6, 7, 8, 10, 11, 13], render: numCol}},
     {{targets: 1, render: (d, t, row) => t === 'display'
-      ? (row[16] ? "<span class=warn title='estimated from deliveries'>~"
+      ? (row[18] ? "<span class=warn title='estimated from deliveries'>~"
                    + fmt(d) + "</span>" : fmt(d))
       : d}},
     {{targets: 3, render: (d, t) => t === 'display'
@@ -501,27 +532,36 @@ const table = $('#market').DataTable({{
     }}}},
     {{targets: 12, render: (d, t, row) => {{
       if (t === 'display') return d === null ? '&mdash;'
-        : fmt(row[17]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
+        : fmt(row[19]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
             ? "warn" : "neg")) + "'>(" + (d >= 0 ? "+" : "") + d + "%)</span>";
       return d === null ? -1e12 : d;   // sort by premium over average price
     }}}},
     {{targets: 14, render: (d, t) => {{
       if (t === 'display') return d === null ? '&mdash;'
-        : "<span class='" + (d < 30 ? "pos" : (d > 80 ? "neg" : "warn"))
-          + "'>" + d + "%</span>";     // low saturation = open market gap
+        : "<span class='" + (d < 30 ? "pos" : (d < 70 ? "warn" : ""))
+          + "'>" + d + "%</span>";     // low fill = open market gap
       return d === null ? 1e12 : d;
     }}}},
-    {{targets: [15, 16, 17], visible: false}},
+    {{targets: 15, render: (d, t, row) => {{
+      const flag = row[16];
+      if (t === 'display') {{
+        if (flag === 'sat') return '&mdash;';
+        if (flag === 'never') return "<span class=warn>never</span>";
+        return (flag === '>=' ? '&ge;' : '') + fmt(d) + 'h';
+      }}
+      return flag === 'never' ? 1e12 : (flag === 'sat' ? 0 : d);
+    }}}},
+    {{targets: [16, 17, 18, 19], visible: false}},
   ],
 }});
 $('#market tbody').on('click', 'tr', function() {{
-  sel.value = ROWS[table.row(this).index()][15];
+  sel.value = ROWS[table.row(this).index()][17];
   render();
 }});
 
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (!document.getElementById('buildonly').checked) return true;
-  return BUILD_WARES.has(rowData[15]);
+  return BUILD_WARES.has(rowData[17]);
 }});
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
@@ -610,7 +650,7 @@ function render() {{
 }}
 sel.addEventListener('change', render);
 document.getElementById('minvol').addEventListener('input', render);
-if (ROWS.length) {{ sel.value = ROWS[0][15]; render(); }}
+if (ROWS.length) {{ sel.value = ROWS[0][17]; render(); }}
 </script>
 <script>
 (function() {{
