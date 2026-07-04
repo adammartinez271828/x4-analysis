@@ -317,16 +317,26 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         d["ccons"] = [float(v) for v in fp["cons"]]
         d["cons"] = float(fp["cons"].sum())  # capacity line in volume chart
 
-    # best open buy offers (sell here), cheapest sell offers (buy here) and
-    # unmet demand by sector, per ware
+    # full offer books per ware (compact [label_idx, price, amount] triples
+    # with a shared label table) so the min-volume slider can re-rank
+    # client-side; plus unmet demand by sector
+    olabels: list[str] = []
+    oindex: dict[str, int] = {}
+
+    def _li(label: str) -> int:
+        i = oindex.get(label)
+        if i is None:
+            i = len(olabels)
+            olabels.append(label)
+            oindex[label] = i
+        return i
+
     if not buys.empty:
         for w, grp in buys.groupby("ware"):
             d = detail.setdefault(w, {})
-            top = grp.sort_values("price", ascending=False).head(10)
-            d["tb_l"] = list(top["label"])
-            d["tb_v"] = [float(v) for v in top["amount"] * top["price"]]
-            d["tb_t"] = [f"{p:,.0f} Cr × {a:,.0f}"
-                         for p, a in zip(top["price"], top["amount"])]
+            g = grp.sort_values("price", ascending=False)
+            d["bo"] = [[_li(l), float(p), float(a)] for l, p, a in
+                       zip(g["label"], g["price"], g["amount"])]
             sec = (grp.groupby(grp["label"].str.split(" — ").str[-1])
                    ["amount"].sum().sort_values(ascending=False).head(12))
             d["sec_l"] = list(sec.index)
@@ -334,11 +344,9 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     if not sells.empty:
         for w, grp in sells.groupby("ware"):
             d = detail.setdefault(w, {})
-            low = grp.sort_values("price").head(10)
-            d["ts_l"] = list(low["label"])
-            d["ts_v"] = [float(v) for v in low["amount"] * low["price"]]
-            d["ts_t"] = [f"{p:,.0f} Cr × {a:,.0f}"
-                         for p, a in zip(low["price"], low["amount"])]
+            g = grp.sort_values("price")
+            d["so"] = [[_li(l), float(p), float(a)] for l, p, a in
+                       zip(g["label"], g["price"], g["amount"])]
 
     # wares used to build ships, equipment or station modules (for the
     # "build wares only" filter) — derived from the build recipes of ship/
@@ -422,6 +430,10 @@ show ship/station build wares only</label></p>
 <hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select></p>
 <div id='volume' style='height:320px'></div>
+<p><label for='minvol'>Min offer volume:</label>
+<input type='range' id='minvol' min='0' max='100' value='0'
+       style='width:280px;vertical-align:middle'>
+<span id='minvol_lbl'>0</span> units</p>
 <div style='display:flex'>
   <div id='topbuyers' style='height:400px;width:50%'></div>
   <div id='topsellers' style='height:400px;width:50%'></div>
@@ -436,6 +448,7 @@ const ROWS = {table_rows};
 const DETAIL = {json.dumps(detail, separators=(",", ":"))};
 const WNAMES = {json.dumps(ware_names, separators=(",", ":"))};
 const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
+const OLABELS = {json.dumps(olabels, separators=(",", ":"))};
 const LAYOUT = () => ({{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
   font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
@@ -550,26 +563,30 @@ function render() {{
     margin:{{t:40,l:260,r:20,b:40}},
   }}), CFG);
 
-  Plotly.react('topbuyers', [
-    {{type:'bar', orientation:'h', y:(d.tb_l || []).slice().reverse(),
-      x:(d.tb_v || []).slice().reverse(),
-      text:(d.tb_t || []).slice().reverse(), textposition:'auto',
-      marker:{{color:'#4ecf71'}}, name:'Open buy offers'}},
-  ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Sell here — best open buy offers (bar = Cr on the table)',
-            font:{{size:15}}}},
-    margin:{{t:40,l:340,r:20,b:40}},
-  }}), CFG);
-
-  Plotly.react('topsellers', [
-    {{type:'bar', orientation:'h', y:(d.ts_l || []).slice().reverse(),
-      x:(d.ts_v || []).slice().reverse(),
-      text:(d.ts_t || []).slice().reverse(), textposition:'auto',
-      marker:{{color:'#c9a44e'}}, name:'Open sell offers'}},
-  ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Buy here — cheapest open sell offers', font:{{size:15}}}},
-    margin:{{t:40,l:340,r:20,b:40}},
-  }}), CFG);
+  // min-volume slider: cubic curve scaled to the ware's largest offer
+  const pos = +document.getElementById('minvol').value;
+  const maxA = Math.max(1, ...(d.bo || []).map(o => o[2]),
+                        ...(d.so || []).map(o => o[2]));
+  const minv = Math.round(maxA * Math.pow(pos / 100, 3));
+  document.getElementById('minvol_lbl').textContent = fmt(minv);
+  const offerChart = (id, offers, colour, title) => {{
+    const top = (offers || []).filter(o => o[2] >= minv).slice(0, 10);
+    Plotly.react(id, [
+      {{type:'bar', orientation:'h',
+        y:top.map(o => OLABELS[o[0]]).reverse(),
+        x:top.map(o => o[1] * o[2]).reverse(),
+        text:top.map(o => fmt(o[1]) + ' Cr × ' + fmt(o[2])).reverse(),
+        textposition:'auto', marker:{{color:colour}}, name:'Open offers'}},
+    ], Object.assign({{}}, LAYOUT(), {{
+      title:{{text:title, font:{{size:15}}}},
+      margin:{{t:40,l:340,r:20,b:40}},
+    }}), CFG);
+  }};
+  offerChart('topbuyers', d.bo, '#4ecf71',
+    'Sell here — best open buy offers ≥ ' + fmt(minv)
+    + ' units (bar = Cr on the table)');
+  offerChart('topsellers', d.so, '#c9a44e',
+    'Buy here — cheapest open sell offers ≥ ' + fmt(minv) + ' units');
 
   Plotly.react('bysector', [
     {{type:'bar', x:d.sec_l || [], y:d.sec_v || [],
@@ -580,6 +597,7 @@ function render() {{
   }}), CFG);
 }}
 sel.addEventListener('change', render);
+document.getElementById('minvol').addEventListener('input', render);
 if (ROWS.length) {{ sel.value = ROWS[0][15]; render(); }}
 </script>
 <script>
