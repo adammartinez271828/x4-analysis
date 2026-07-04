@@ -3,6 +3,8 @@ name = "x4analyzer"
 version = "0.1.0"
 description = "Savegame analysis and visualization for X4: Foundations (Python port of X4SaveGameAnalysis)"
 readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 authors = [
     { name = "Adam Martinez", email = "adam.paul.martinez@gmail.com" }
 ]
