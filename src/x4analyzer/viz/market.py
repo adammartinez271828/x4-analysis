@@ -197,10 +197,17 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         pd.to_numeric(ref.wares["price_avg"], errors="coerce").fillna(0),
     ))
 
+    # station-economy wares only: transport classes a station can store and
+    # trade. Excludes player inventory items, equipment, ships, research etc.
+    _STATION_TRANSPORT = {"container", "solid", "liquid", "condensate"}
+    transport = dict(zip(ref.wares["id"], ref.wares["transport"].fillna("")))
+
     wares = sorted(set(total.index) | set(traded.index) | set(stock.index))
     summary = []
     for w in wares:
         if w == WORKUNIT:
+            continue
+        if transport.get(w, "container") not in _STATION_TRANSPORT:
             continue
         prod = float(total["prod"].get(w, 0))
         cons = float(total["cons"].get(w, 0))
