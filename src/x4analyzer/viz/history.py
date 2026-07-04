@@ -219,6 +219,15 @@ document.getElementById('obj').addEventListener('change', render);
 document.getElementById('side').addEventListener('change', render);
 document.getElementById('redirect').addEventListener('change', render);
 render();
+</script>
+<script>
+(function() {{
+  function post() {{
+    parent.postMessage({{x4h: document.body.scrollHeight + 24}}, '*');
+  }}
+  new ResizeObserver(post).observe(document.body);
+  window.addEventListener('load', function() {{ setTimeout(post, 400); }});
+}})();
 </script></body></html>"""
 
     name = f"Trade History_{guid}.html"

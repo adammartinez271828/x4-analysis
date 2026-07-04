@@ -581,6 +581,15 @@ function render() {{
 }}
 sel.addEventListener('change', render);
 if (ROWS.length) {{ sel.value = ROWS[0][15]; render(); }}
+</script>
+<script>
+(function() {{
+  function post() {{
+    parent.postMessage({{x4h: document.body.scrollHeight + 24}}, '*');
+  }}
+  new ResizeObserver(post).observe(document.body);
+  window.addEventListener('load', function() {{ setTimeout(post, 400); }});
+}})();
 </script></body></html>"""
 
     name = f"Market_{guid}.html"

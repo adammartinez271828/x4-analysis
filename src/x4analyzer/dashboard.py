@@ -41,6 +41,15 @@ section.active{{display:block;}}
 """
 
 _JS = """
+// dynamic pages (Market, Trade History) report their content height so the
+// iframe never clips them (direct DOM access is blocked for file:// origins)
+window.addEventListener('message', e => {
+  if (!e.data || !e.data.x4h) return;
+  document.querySelectorAll('iframe').forEach(f => {
+    if (f.contentWindow === e.source) f.style.height = e.data.x4h + 'px';
+  });
+});
+
 function showTab(id) {
   document.querySelectorAll('nav button').forEach(
     b => b.classList.toggle('active', b.dataset.tab === id));
