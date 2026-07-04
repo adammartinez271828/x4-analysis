@@ -439,7 +439,7 @@ show ship/station build wares only</label></p>
 <p><label for='minvol'>Min offer volume:</label>
 <input type='range' id='minvol' min='0' max='100' value='0'
        style='width:280px;vertical-align:middle'>
-<span id='minvol_lbl'>0</span> units</p>
+<span id='minvol_lbl'>0 units</span></p>
 <div style='display:flex'>
   <div id='topbuyers' style='height:400px;width:50%'></div>
   <div id='topsellers' style='height:400px;width:50%'></div>
@@ -578,7 +578,8 @@ function render() {{
   const maxA = Math.max(1, ...(d.bo || []).map(o => o[2]),
                         ...(d.so || []).map(o => o[2]));
   const minv = Math.round(maxA * Math.pow(pos / 100, 3));
-  document.getElementById('minvol_lbl').textContent = fmt(minv);
+  document.getElementById('minvol_lbl').textContent = fmt(minv)
+    + ' units = ' + fmt(minv * (WVOL[w] || 0)) + ' m\u00b3';
   const offerChart = (id, offers, colour, title) => {{
     const top = (offers || []).filter(o => o[2] >= minv).slice(0, 10);
     Plotly.react(id, [
