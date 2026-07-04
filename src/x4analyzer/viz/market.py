@@ -261,6 +261,18 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         d["cprod"] = [float(v) for v in fp["prod"]]
         d["ccons"] = [float(v) for v in fp["cons"]]
 
+    # wares used to build ships, equipment or station modules (for the
+    # "build wares only" filter) — derived from the build recipes of ship/
+    # equipment-transport wares and module wares
+    targets = ref.wares[
+        ref.wares["transport"].isin(["ship", "equipment"])
+        | ref.wares["tags"].fillna("").str.contains("module")
+    ]["id"]
+    rec_all = ref.recipes
+    build_wares = sorted(set(
+        rec_all[rec_all["ware"].isin(set(targets))]["input_ware"].dropna()
+    ) - {""})
+
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
@@ -310,6 +322,8 @@ as buy offers). Traded volume is estimated from station stock
 increases between logged trade events (deliveries; includes some production
 accumulation). Cr/h values that volume at the ware's average game price.
 Click a row for detail.</p>
+<p><label><input type='checkbox' id='buildonly'>
+show ship/station build wares only</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>Prod/h</th><th>Cons/h</th><th>Balance/h</th>
 <th>Stock</th><th>Cover (h)</th><th>Buy demand</th><th>Build demand</th>
@@ -327,6 +341,7 @@ Click a row for detail.</p>
 const ROWS = {table_rows};
 const DETAIL = {json.dumps(detail, separators=(",", ":"))};
 const WNAMES = {json.dumps(ware_names, separators=(",", ":"))};
+const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
 const LAYOUT = {{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
   font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
@@ -372,6 +387,13 @@ $('#market tbody').on('click', 'tr', function() {{
   sel.value = ROWS[table.row(this).index()][12];
   render();
 }});
+
+$.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
+  if (!document.getElementById('buildonly').checked) return true;
+  return BUILD_WARES.has(rowData[12]);
+}});
+document.getElementById('buildonly').addEventListener(
+  'change', () => table.draw());
 
 function render() {{
   const w = sel.value, d = DETAIL[w] || {{}}, name = WNAMES[w] || w;
