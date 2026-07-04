@@ -371,7 +371,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
         r["cover"], r["buy"], r["build"], r["buyers"], r["under"],
         r["traded_h"], r["cr_h"], r["premium"], r["demand_cr"],
-        r["supply_pct"], r["vol"], r["ware"], r["est"], r["best_price"],
+        r["supply_pct"], r["ware"], r["est"], r["best_price"],
     ] for r in summary], separators=(",", ":"))
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
@@ -431,7 +431,7 @@ show ship/station build wares only</label></p>
 <th>Stock</th><th>Cover (h)</th><th>Buy demand</th><th>Build demand</th>
 <th>Buyers</th><th>Understocked</th><th>Traded/h</th>
 <th>Cr/h (est.)</th><th>Best sell</th><th>Demand (Cr)</th>
-<th>Supply %</th><th>m³/unit</th></tr></thead>
+<th>Supply %</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select> <span id='wareinfo' class='note'></span></p>
@@ -456,6 +456,7 @@ const WNAMES = {json.dumps(ware_names, separators=(",", ":"))};
 const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
 const OLABELS = {json.dumps(olabels, separators=(",", ":"))};
 const TRANSPORT = {json.dumps({r['ware']: transport.get(r['ware'], '') for r in summary}, separators=(',', ':'))};
+const WVOL = {json.dumps({r['ware']: r['vol'] for r in summary}, separators=(',', ':'))};
 const LAYOUT = () => ({{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
   font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
@@ -467,7 +468,7 @@ function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 const sel = document.getElementById('ware');
 ROWS.forEach(r => {{
   const o = document.createElement('option');
-  o.value = r[16]; o.textContent = r[0]; sel.appendChild(o);
+  o.value = r[15]; o.textContent = r[0]; sel.appendChild(o);
 }});
 
 // numeric data with display-only rendering so every column sorts numerically
@@ -478,7 +479,7 @@ const table = $('#market').DataTable({{
   columnDefs: [
     {{targets: [2, 4, 6, 7, 8, 10, 11, 13], render: numCol}},
     {{targets: 1, render: (d, t, row) => t === 'display'
-      ? (row[17] ? "<span class=warn title='estimated from deliveries'>~"
+      ? (row[16] ? "<span class=warn title='estimated from deliveries'>~"
                    + fmt(d) + "</span>" : fmt(d))
       : d}},
     {{targets: 3, render: (d, t) => t === 'display'
@@ -500,7 +501,7 @@ const table = $('#market').DataTable({{
     }}}},
     {{targets: 12, render: (d, t, row) => {{
       if (t === 'display') return d === null ? '&mdash;'
-        : fmt(row[18]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
+        : fmt(row[17]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
             ? "warn" : "neg")) + "'>(" + (d >= 0 ? "+" : "") + d + "%)</span>";
       return d === null ? -1e12 : d;   // sort by premium over average price
     }}}},
@@ -510,29 +511,25 @@ const table = $('#market').DataTable({{
           + "'>" + d + "%</span>";     // low saturation = open market gap
       return d === null ? 1e12 : d;
     }}}},
-    {{targets: 15, render: (d, t, row) => t === 'display'
-      ? "<span title='" + (TRANSPORT[row[16]] || '') + "'>" + d + "</span>"
-      : d}},
-    {{targets: [16, 17, 18], visible: false}},
+    {{targets: [15, 16, 17], visible: false}},
   ],
 }});
 $('#market tbody').on('click', 'tr', function() {{
-  sel.value = ROWS[table.row(this).index()][16];
+  sel.value = ROWS[table.row(this).index()][15];
   render();
 }});
 
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (!document.getElementById('buildonly').checked) return true;
-  return BUILD_WARES.has(rowData[16]);
+  return BUILD_WARES.has(rowData[15]);
 }});
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
 
 function render() {{
   const w = sel.value, d = DETAIL[w] || {{}}, name = WNAMES[w] || w;
-  const row = ROWS.find(r => r[16] === w);
-  document.getElementById('wareinfo').textContent = row
-    ? row[15] + ' m\u00b3/unit \u00b7 ' + (TRANSPORT[w] || '?') : '';
+  document.getElementById('wareinfo').textContent =
+    (WVOL[w] || '?') + ' m\u00b3/unit \u00b7 ' + (TRANSPORT[w] || '?');
   const vol_traces = [
     {{type:'bar', x:d.hours || [], y:d.volume || [],
       marker:{{color:'#4e9fd1'}}, name:'Deliveries'}},
@@ -588,7 +585,8 @@ function render() {{
       {{type:'bar', orientation:'h',
         y:top.map(o => OLABELS[o[0]]).reverse(),
         x:top.map(o => o[1] * o[2]).reverse(),
-        text:top.map(o => fmt(o[1]) + ' Cr × ' + fmt(o[2])).reverse(),
+        text:top.map(o => fmt(o[1]) + ' Cr × ' + fmt(o[2]) + ' = '
+          + fmt(o[2] * (WVOL[w] || 0)) + ' m³').reverse(),
         textposition:'auto', marker:{{color:colour}}, name:'Open offers'}},
     ], Object.assign({{}}, LAYOUT(), {{
       title:{{text:title, font:{{size:15}}}},
@@ -611,7 +609,7 @@ function render() {{
 }}
 sel.addEventListener('change', render);
 document.getElementById('minvol').addEventListener('input', render);
-if (ROWS.length) {{ sel.value = ROWS[0][16]; render(); }}
+if (ROWS.length) {{ sel.value = ROWS[0][15]; render(); }}
 </script>
 <script>
 (function() {{
