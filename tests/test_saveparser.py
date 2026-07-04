@@ -143,7 +143,7 @@ def test_fixture_parse(save_file: Path) -> None:
         ("cluster_01_sector001_macro", "silicon", 200.0),
     ]
 
-    assert ("[0x20]", "energycells", 500.0) in d.buy_offers
+    assert ("[0x20]", "buy", "energycells", 500.0, 1.0) in d.trade_offers
     assert ("[0x20]", "claytronics", 1000.0, "insufficient") \
         in d.build_resources
     assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \

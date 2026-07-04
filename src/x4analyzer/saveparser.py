@@ -61,8 +61,9 @@ class SaveData:
     # kind: "insufficient" = station construction, "shortage" = shipyard
     # ship-order backlog
     build_resources: list = field(default_factory=list)  # (host, ware, amount, kind)
-    # open buy offers: how much a station still wants of a ware
-    buy_offers: list = field(default_factory=list)     # (object_id, ware, amount)
+    # open trade offers: (object_id, side, ware, amount, price_cr)
+    # side "buy" = station wants to buy `amount` at `price`; "sell" mirrors
+    trade_offers: list = field(default_factory=list)
     # free-floating ware objects in space (scrap cubes, dropped cargo)
     floating_wares: list = field(default_factory=list)  # (sector_macro, ware, amount)
     log_entries: list = field(default_factory=list)    # dict per <entry>
@@ -237,12 +238,14 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     build_type_stack.pop()
 
             elif tag == "trade":
-                if elem.get("ware") and elem.get("buyer") \
-                        and "offers" in tag_stack:
-                    d.buy_offers.append((
+                if elem.get("ware") and "offers" in tag_stack \
+                        and (elem.get("buyer") or elem.get("seller")):
+                    d.trade_offers.append((
                         object_stack[-1] if object_stack else "",
+                        "buy" if elem.get("buyer") else "sell",
                         elem.get("ware", ""),
                         float(elem.get("amount", 0) or 0),
+                        float(elem.get("price", 0) or 0) / 100.0,
                     ))
 
             elif tag == "area":

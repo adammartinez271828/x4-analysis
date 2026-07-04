@@ -131,12 +131,12 @@ box to attribute every trade to the ship that executed it.</p>
 const DATA = {data_json};
 const OBJECTS = {objects_json};
 const TIME_NOW = {frames.time_now};
-const LAYOUT = {{
+const LAYOUT = () => ({{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
   font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
   xaxis:{{gridcolor:'#3a3a3a'}}, yaxis:{{gridcolor:'#3a3a3a'}},
   legend:{{orientation:'h', y:1.12}},
-}};
+}});
 const CFG = {{displaylogo:false}};
 let table = null;
 
@@ -170,7 +170,7 @@ function render() {{
       marker:{{color:'#ff6b6b'}}}},
     {{type:'scatter', name:'Cumulative net', x:hours, y:net, mode:'lines',
       line:{{color:'#e8e8e8', dash:'dash'}}}},
-  ], Object.assign({{}}, LAYOUT, {{
+  ], Object.assign({{}}, LAYOUT(), {{
     title:{{text: obj + ' — hourly trade volume', font:{{size:15}}}},
     barmode:'relative',
     xaxis:{{title:'Hours until Now', gridcolor:'#3a3a3a'}},
@@ -192,7 +192,7 @@ function render() {{
     {{type:'bar', name:'Buys', orientation:'h', y:cs.slice().reverse(),
       x:cs.slice().reverse().map(c => -byC[c].buy / 1e6),
       marker:{{color:'#ff6b6b'}}}},
-  ], Object.assign({{}}, LAYOUT, {{
+  ], Object.assign({{}}, LAYOUT(), {{
     title:{{text:'By commodity', font:{{size:15}}}},
     barmode:'relative',
     xaxis:{{title:'Credits (millions)', gridcolor:'#3a3a3a'}},

@@ -175,19 +175,31 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     build_by_ware = build.groupby("ware")["amount"].sum() if not build.empty \
         else pd.Series(dtype=float)
 
+    # open trade offers with prices, enriched with station label + sector
+    sec_name = dict(zip(frames.sectors["macro"], frames.sectors["name"]))
+    off = frames.trade_offers
+    off = off[off["id"].isin(stations) & (off["amount"] > 0)
+              & (off["price"] > 0)].copy() if not off.empty else off
+    if not off.empty:
+        name = off["id"].map(uni["name"]).replace("", pd.NA)
+        fac = off["id"].map(uni["owner"]).map(ref.faction_short).fillna("OTH")
+        off["label"] = (name.fillna(fac + " Station")
+                        + " (" + off["id"].map(uni["code"]).fillna("?") + ") — "
+                        + off["id"].map(uni["sector.macro"]).map(sec_name)
+                        .fillna("?"))
+    buys = off[off["side"] == "buy"] if not off.empty else off
+    sells = off[off["side"] == "sell"] if not off.empty else off
+
     # buyers = stations with open buy offers PLUS constructions missing
     # materials; a buyer holding less than UNDERSTOCK_PCT of its target level
     # (stock + still-wanted amount) is understocked. Covers module consumers,
     # shipyards stocking end-tier parts, raw material buyers and builds alike.
-    offers = frames.buy_offers
-    offers = offers[offers["id"].isin(stations) & (offers["amount"] > 0)] \
-        if not offers.empty else offers
     build_hosts = build[(build["id"] != "") & (build["amount"] > 0)] \
         if not build.empty else build
 
     wanted = pd.concat([
-        offers.groupby(["id", "ware"])["amount"].sum()
-        if not offers.empty else pd.Series(dtype=float),
+        buys.groupby(["id", "ware"])["amount"].sum()
+        if not buys.empty else pd.Series(dtype=float),
         build_hosts.groupby(["id", "ware"])["amount"].sum()
         if not build_hosts.empty else pd.Series(dtype=float),
     ])
@@ -203,7 +215,14 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     else:
         under = pd.Series(dtype=int)
         n_buyers = pd.Series(dtype=int)
-    buy_demand = offers.groupby("ware")["amount"].sum() if not offers.empty \
+    buy_demand = buys.groupby("ware")["amount"].sum() if not buys.empty \
+        else pd.Series(dtype=float)
+    # money on the table: what stations offer to pay right now, and the best
+    # open price you could sell each ware for
+    demand_cr = (buys.assign(v=buys["amount"] * buys["price"])
+                 .groupby("ware")["v"].sum()) if not buys.empty \
+        else pd.Series(dtype=float)
+    best_price = buys.groupby("ware")["price"].max() if not buys.empty \
         else pd.Series(dtype=float)
 
     total = rates.groupby("ware")[["prod", "cons"]].sum()
@@ -243,6 +262,9 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         est = w in minable
         if est:
             prod = traded_h
+        avg = float(price_avg.get(w, 0))
+        bp = float(best_price.get(w, 0))
+        premium = (bp / avg - 1.0) * 100.0 if avg > 0 and bp > 0 else None
         summary.append({
             "ware": w, "name": ref.ware_name.get(w, w),
             "prod": round(prod), "cons": round(cons),
@@ -258,6 +280,11 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             # events record volume only)
             "cr_h": round(traded_h * price_avg.get(w, 0)),
             "est": est,
+            "best_price": round(bp) if bp > 0 else None,
+            "premium": round(premium, 1) if premium is not None else None,
+            "demand_cr": round(float(demand_cr.get(w, 0))),
+            "supply_pct": round(100.0 * traded_h / cons, 1) if cons > 0
+            else None,
         })
     summary.sort(key=lambda r: r["cr_h"], reverse=True)
 
@@ -288,6 +315,30 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         d["cfactions"] = list(fp.index)
         d["cprod"] = [float(v) for v in fp["prod"]]
         d["ccons"] = [float(v) for v in fp["cons"]]
+        d["cons"] = float(fp["cons"].sum())  # capacity line in volume chart
+
+    # best open buy offers (sell here), cheapest sell offers (buy here) and
+    # unmet demand by sector, per ware
+    if not buys.empty:
+        for w, grp in buys.groupby("ware"):
+            d = detail.setdefault(w, {})
+            top = grp.sort_values("price", ascending=False).head(10)
+            d["tb_l"] = list(top["label"])
+            d["tb_v"] = [float(v) for v in top["amount"] * top["price"]]
+            d["tb_t"] = [f"{p:,.0f} Cr × {a:,.0f}"
+                         for p, a in zip(top["price"], top["amount"])]
+            sec = (grp.groupby(grp["label"].str.split(" — ").str[-1])
+                   ["amount"].sum().sort_values(ascending=False).head(12))
+            d["sec_l"] = list(sec.index)
+            d["sec_v"] = [float(v) for v in sec.values]
+    if not sells.empty:
+        for w, grp in sells.groupby("ware"):
+            d = detail.setdefault(w, {})
+            low = grp.sort_values("price").head(10)
+            d["ts_l"] = list(low["label"])
+            d["ts_v"] = [float(v) for v in low["amount"] * low["price"]]
+            d["ts_t"] = [f"{p:,.0f} Cr × {a:,.0f}"
+                         for p, a in zip(low["price"], low["amount"])]
 
     # wares used to build ships, equipment or station modules (for the
     # "build wares only" filter) — derived from the build recipes of ship/
@@ -305,7 +356,8 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
         r["cover"], r["buy"], r["build"], r["buyers"], r["under"],
-        r["traded_h"], r["cr_h"], r["ware"], r["est"],
+        r["traded_h"], r["cr_h"], r["premium"], r["demand_cr"],
+        r["supply_pct"], r["ware"], r["est"], r["best_price"],
     ] for r in summary], separators=(",", ":"))
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
@@ -354,39 +406,48 @@ accumulation). Cr/h values that volume at the ware's average game price.
 For minable wares (~ in Prod/h) production is estimated from actual
 deliveries into stations — mined supply that reached the economy; slight
 overcount when loads hop through trade stations, and player-internal mining
-may not be logged. Click a row for detail.</p>
+may not be logged. Best sell = highest open buy-offer price (premium vs
+average game price); Demand (Cr) = credits stations offer right now;
+Supply % = deliveries vs consumption capacity (low = underserved market).
+Click a row for detail: best places to sell/buy and demand by sector.</p>
 <p><label><input type='checkbox' id='buildonly'>
 show ship/station build wares only</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>Prod/h</th><th>Cons/h</th><th>Balance/h</th>
 <th>Stock</th><th>Cover (h)</th><th>Buy demand</th><th>Build demand</th>
 <th>Buyers</th><th>Understocked</th><th>Traded/h</th>
-<th>Cr/h (est.)</th></tr></thead>
+<th>Cr/h (est.)</th><th>Best sell</th><th>Demand (Cr)</th>
+<th>Supply %</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select></p>
 <div id='volume' style='height:320px'></div>
 <div style='display:flex'>
+  <div id='topbuyers' style='height:400px;width:50%'></div>
+  <div id='topsellers' style='height:400px;width:50%'></div>
+</div>
+<div style='display:flex'>
   <div id='byfaction' style='height:360px;width:50%'></div>
   <div id='bystation' style='height:360px;width:50%'></div>
 </div>
+<div id='bysector' style='height:320px'></div>
 <script>
 const ROWS = {table_rows};
 const DETAIL = {json.dumps(detail, separators=(",", ":"))};
 const WNAMES = {json.dumps(ware_names, separators=(",", ":"))};
 const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
-const LAYOUT = {{
+const LAYOUT = () => ({{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
   font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
   xaxis:{{gridcolor:'#3a3a3a'}}, yaxis:{{gridcolor:'#3a3a3a'}},
-}};
+}});
 const CFG = {{displaylogo:false}};
 function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 
 const sel = document.getElementById('ware');
 ROWS.forEach(r => {{
   const o = document.createElement('option');
-  o.value = r[12]; o.textContent = r[0]; sel.appendChild(o);
+  o.value = r[15]; o.textContent = r[0]; sel.appendChild(o);
 }});
 
 // numeric data with display-only rendering so every column sorts numerically
@@ -395,9 +456,9 @@ const table = $('#market').DataTable({{
   data: ROWS,
   order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [2, 4, 6, 7, 8, 10, 11], render: numCol}},
+    {{targets: [2, 4, 6, 7, 8, 10, 11, 13], render: numCol}},
     {{targets: 1, render: (d, t, row) => t === 'display'
-      ? (row[13] ? "<span class=warn title='estimated from deliveries'>~"
+      ? (row[16] ? "<span class=warn title='estimated from deliveries'>~"
                    + fmt(d) + "</span>" : fmt(d))
       : d}},
     {{targets: 3, render: (d, t) => t === 'display'
@@ -417,27 +478,46 @@ const table = $('#market').DataTable({{
            + "</span>");
       return ratio;                    // sort by understocked share
     }}}},
-    {{targets: 12, visible: false}},
+    {{targets: 12, render: (d, t, row) => {{
+      if (t === 'display') return d === null ? '&mdash;'
+        : fmt(row[17]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
+            ? "warn" : "neg")) + "'>(" + (d >= 0 ? "+" : "") + d + "%)</span>";
+      return d === null ? -1e12 : d;   // sort by premium over average price
+    }}}},
+    {{targets: 14, render: (d, t) => {{
+      if (t === 'display') return d === null ? '&mdash;'
+        : "<span class='" + (d < 30 ? "pos" : (d > 80 ? "neg" : "warn"))
+          + "'>" + d + "%</span>";     // low saturation = open market gap
+      return d === null ? 1e12 : d;
+    }}}},
+    {{targets: [15, 16, 17], visible: false}},
   ],
 }});
 $('#market tbody').on('click', 'tr', function() {{
-  sel.value = ROWS[table.row(this).index()][12];
+  sel.value = ROWS[table.row(this).index()][15];
   render();
 }});
 
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (!document.getElementById('buildonly').checked) return true;
-  return BUILD_WARES.has(rowData[12]);
+  return BUILD_WARES.has(rowData[15]);
 }});
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
 
 function render() {{
   const w = sel.value, d = DETAIL[w] || {{}}, name = WNAMES[w] || w;
-  Plotly.react('volume', [
+  const vol_traces = [
     {{type:'bar', x:d.hours || [], y:d.volume || [],
-      marker:{{color:'#4e9fd1'}}, name:'Volume'}},
-  ], Object.assign({{}}, LAYOUT, {{
+      marker:{{color:'#4e9fd1'}}, name:'Deliveries'}},
+  ];
+  if (d.cons > 0 && (d.hours || []).length) {{
+    vol_traces.push({{type:'scatter', mode:'lines',
+      x:[Math.min(...d.hours), 0], y:[d.cons, d.cons],
+      name:'Consumption capacity/h',
+      line:{{color:'#ff6b6b', dash:'dash'}}}});
+  }}
+  Plotly.react('volume', vol_traces, Object.assign({{}}, LAYOUT(), {{
     title:{{text:name + ' — traded volume per hour', font:{{size:15}}}},
     xaxis:{{title:'Hours until Now', gridcolor:'#3a3a3a'}},
     yaxis:{{title:'Units', gridcolor:'#3a3a3a'}},
@@ -455,7 +535,7 @@ function render() {{
     traces.push({{type:'bar', name:'Deliveries/h (est. production)',
       x:d.delf, y:d.delv, marker:{{color:'#4e9fd1'}}}});
   }}
-  Plotly.react('byfaction', traces, Object.assign({{}}, LAYOUT, {{
+  Plotly.react('byfaction', traces, Object.assign({{}}, LAYOUT(), {{
     title:{{text:'Capacity by faction (units/h)', font:{{size:15}}}},
     barmode:'relative', legend:{{orientation:'h', y:1.15}},
   }}), CFG);
@@ -465,13 +545,42 @@ function render() {{
     {{type:'bar', orientation:'h', y:st,
       x:(d.svolume || []).slice().reverse(),
       marker:{{color:'#c9a44e'}}, name:'Traded volume'}},
-  ], Object.assign({{}}, LAYOUT, {{
+  ], Object.assign({{}}, LAYOUT(), {{
     title:{{text:'Top trading stations (units)', font:{{size:15}}}},
     margin:{{t:40,l:260,r:20,b:40}},
   }}), CFG);
+
+  Plotly.react('topbuyers', [
+    {{type:'bar', orientation:'h', y:(d.tb_l || []).slice().reverse(),
+      x:(d.tb_v || []).slice().reverse(),
+      text:(d.tb_t || []).slice().reverse(), textposition:'auto',
+      marker:{{color:'#4ecf71'}}, name:'Open buy offers'}},
+  ], Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Sell here — best open buy offers (bar = Cr on the table)',
+            font:{{size:15}}}},
+    margin:{{t:40,l:340,r:20,b:40}},
+  }}), CFG);
+
+  Plotly.react('topsellers', [
+    {{type:'bar', orientation:'h', y:(d.ts_l || []).slice().reverse(),
+      x:(d.ts_v || []).slice().reverse(),
+      text:(d.ts_t || []).slice().reverse(), textposition:'auto',
+      marker:{{color:'#c9a44e'}}, name:'Open sell offers'}},
+  ], Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Buy here — cheapest open sell offers', font:{{size:15}}}},
+    margin:{{t:40,l:340,r:20,b:40}},
+  }}), CFG);
+
+  Plotly.react('bysector', [
+    {{type:'bar', x:d.sec_l || [], y:d.sec_v || [],
+      marker:{{color:'#b06ad1'}}, name:'Unmet buy demand'}},
+  ], Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Unmet buy demand by sector (units)', font:{{size:15}}}},
+    margin:{{t:40,l:60,r:20,b:90}},
+  }}), CFG);
 }}
 sel.addEventListener('change', render);
-if (ROWS.length) {{ sel.value = ROWS[0][12]; render(); }}
+if (ROWS.length) {{ sel.value = ROWS[0][15]; render(); }}
 </script></body></html>"""
 
     name = f"Market_{guid}.html"
