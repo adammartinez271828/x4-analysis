@@ -90,8 +90,8 @@ def load_refdata(data_dir: Path) -> RefData:
         return pd.DataFrame(columns=cols)
 
     modules = _optional("modules.csv",
-                        ["macro", "name", "ware", "method", "workforce",
-                         "source"])
+                        ["macro", "name", "ware", "method", "scale",
+                         "workforce", "source"])
     recipes = _optional("recipes.csv",
                         ["ware", "method", "time", "amount", "input_ware",
                          "input_amount"])

@@ -1,66 +1,69 @@
-macro,name,ware,method,workforce,source
-landmarks_player_hq_01_research_macro,Unknown Module,,default,,
-xenon_small_station_01_solarpanel_01_macro,Matrix Solar Panel,energycells,default,,
-prod_arg_foodrations_macro,Food Ration Production,foodrations,argon,90,
-prod_arg_meat_macro,Meat Production,meat,argon,75,
-prod_arg_medicalsupplies_macro,Argon Medical Supply Production,medicalsupplies,default,90,
-prod_arg_spacefuel_macro,Spacefuel Production,spacefuel,argon,225,
-prod_arg_wheat_macro,Wheat Production,wheat,argon,75,
-prod_gen_advancedcomposites_macro,Advanced Composite Production,advancedcomposites,default,315,
-prod_gen_advancedelectronics_macro,Advanced Electronics Production,advancedelectronics,default,540,
-prod_gen_antimattercells_macro,Antimatter Cell Production,antimattercells,default,180,
-prod_gen_antimatterconverters_macro,Antimatter Converter Production,antimatterconverters,default,1080,
-prod_gen_claytronics_macro,Claytronics Production,claytronics,default,1215,
-prod_gen_dronecomponents_macro,Drone Component Production,dronecomponents,default,675,
-prod_gen_energycells_macro,Energy Cell Production,energycells,default,90,
-prod_gen_engineparts_macro,Engine Part Production,engineparts,default,225,
-prod_gen_fieldcoils_macro,Field Coil Production,fieldcoils,default,810,
-prod_gen_graphene_macro,Graphene Production,graphene,default,180,
-prod_gen_hullparts_macro,Hull Part Production,hullparts,default,270,
-prod_gen_microchips_macro,Microchip Production,microchips,default,450,
-prod_gen_missilecomponents_macro,Missile Component Production,missilecomponents,default,22,
-prod_gen_plasmaconductors_macro,Plasma Conductor Production,plasmaconductors,default,225,
-prod_gen_quantumtubes_macro,Quantum Tube Production,quantumtubes,default,225,
-prod_gen_refinedmetals_macro,Refined Metal Production,refinedmetals,default,225,
-prod_gen_scanningarrays_macro,Scanning Array Production,scanningarrays,default,315,
-prod_gen_scrap_recycler_macro,Scrap Recycler,claytronics hullparts,default,1250,
-prod_gen_scrap_recyclerkhaak_macro,Allographyne Scrap Recycler,khaakalloy,recycling,1250,
-prod_gen_shieldcomponents_macro,Shield Component Production,shieldcomponents,default,225,
-prod_gen_siliconwafers_macro,Silicon Wafer Production,siliconwafers,default,225,
-prod_gen_smartchips_macro,Smart Chip Production,smartchips,default,60,
-prod_gen_spices_macro,Spice Production,spices,default,60,
-prod_gen_superfluidcoolant_macro,Superfluid Coolant Production,superfluidcoolant,default,180,
-prod_gen_turretcomponents_macro,Turret Component Production,turretcomponents,default,225,
-prod_gen_water_macro,Water Production,water,default,180,
-prod_gen_weaponcomponents_macro,Weapon Component Production,weaponcomponents,default,225,
-prod_par_majadust_macro,Maja Dust Production,majadust,paranid,123,
-prod_par_majasnails_macro,Maja Snail Production,majasnails,paranid,175,
-prod_par_medicalsupplies_macro,Paranid Medical Supply Production,medicalsupplies,paranid,90,
-prod_par_sojabeans_macro,Soja Bean Production,sojabeans,paranid,175,
-prod_par_sojahusk_macro,Soja Husk Production,sojahusk,paranid,99,
-prod_tel_advancedcomposites_macro,Teladi Advanced Composite Production,advancedcomposites,teladi,315,
-prod_tel_engineparts_macro,Teladi Engine Part Production,engineparts,teladi,225,
-prod_tel_hullparts_macro,Teladi Hull Part Production,hullparts,teladi,270,
-prod_tel_medicalsupplies_macro,Teladi Medical Supply Production,medicalsupplies,teladi,90,
-prod_tel_nostropoil_macro,Nostrop Oil Production,nostropoil,teladi,120,
-prod_tel_scanningarrays_macro,Teladi Scanning Array Production,scanningarrays,teladi,315,
-prod_tel_spaceweed_macro,Spaceweed Production,spaceweed,teladi,90,
-prod_tel_sunriseflowers_macro,Sunrise Flower Production,sunriseflowers,teladi,50,
-prod_tel_swampplant_macro,Swamp Plant Production,swampplant,teladi,50,
-prod_tel_teladianium_macro,Teladianium Production,teladianium,teladi,225,
-prod_bor_bofu_macro,BoFu Production,bofu,default,125,ego_dlc_boron
-prod_bor_bogas_macro,BoGas Production,bogas,default,100,ego_dlc_boron
-prod_bor_medicalsupplies_macro,Boron Medical Supply Production,medicalsupplies,boron,90,ego_dlc_boron
-prod_bor_plankton_macro,Plankton Production,plankton,default,40,ego_dlc_boron
-prod_spl_cheltmeat_macro,Chelt Production,cheltmeat,default,90,ego_dlc_split
-prod_spl_medicalsupplies_macro,Split Medical Supply Production,medicalsupplies,split,90,ego_dlc_split
-prod_spl_scruffinfruit_macro,Scruffin Production,scruffinfruits,default,90,ego_dlc_split
-prod_ter_computronicsubstrate_macro,Computronic Substrate Production,computronicsubstrate,default,1500,ego_dlc_terran
-prod_ter_energycells_macro,Terran Energy Cell Production,energycells,terran,45,ego_dlc_terran
-prod_ter_medicalsupplies_macro,Terran Medical Supply Production,medicalsupplies,terran,90,ego_dlc_terran
-prod_ter_metallicmicrolattice_macro,Metallic Microlattice Production,metallicmicrolattice,default,120,ego_dlc_terran
-prod_ter_mre_macro,Terran MRE Production,terranmre,default,135,ego_dlc_terran
-prod_ter_proteinpaste_macro,Protein Paste Production,proteinpaste,default,180,ego_dlc_terran
-prod_ter_scrap_recycler_macro,Terran Scrap Recycler,computronicsubstrate siliconcarbide,default,1250,ego_dlc_terran
-prod_ter_siliconcarbide_macro,Silicon Carbide Production,siliconcarbide,default,750,ego_dlc_terran
-prod_ter_stimulants_macro,Stimulant Production,stimulants,default,300,ego_dlc_terran
+macro,name,ware,method,scale,workforce,source
+xenon_small_station_01_solarpanel_01_macro,Matrix Solar Panel,energycells,default,1.0,,
+proc_gen_scrapworks_macro,Scrap Processor,scrapmetal,processing,150.0,,
+proc_gen_scrapworkskhaak_macro,Allographyne Scrap Processor,khaakscrapmetal,processing,50.0,,
+prod_arg_foodrations_macro,Food Ration Production,foodrations,argon,1.0,90,
+prod_arg_meat_macro,Meat Production,meat,argon,1.0,75,
+prod_arg_medicalsupplies_macro,Argon Medical Supply Production,medicalsupplies,default,1.0,90,
+prod_arg_spacefuel_macro,Spacefuel Production,spacefuel,argon,1.0,225,
+prod_arg_wheat_macro,Wheat Production,wheat,argon,1.0,75,
+prod_gen_advancedcomposites_macro,Advanced Composite Production,advancedcomposites,default,1.0,315,
+prod_gen_advancedelectronics_macro,Advanced Electronics Production,advancedelectronics,default,1.0,540,
+prod_gen_antimattercells_macro,Antimatter Cell Production,antimattercells,default,1.0,180,
+prod_gen_antimatterconverters_macro,Antimatter Converter Production,antimatterconverters,default,1.0,1080,
+prod_gen_claytronics_macro,Claytronics Production,claytronics,default,1.0,1215,
+prod_gen_dronecomponents_macro,Drone Component Production,dronecomponents,default,1.0,675,
+prod_gen_energycells_macro,Energy Cell Production,energycells,default,1.0,90,
+prod_gen_engineparts_macro,Engine Part Production,engineparts,default,1.0,225,
+prod_gen_fieldcoils_macro,Field Coil Production,fieldcoils,default,1.0,810,
+prod_gen_graphene_macro,Graphene Production,graphene,default,1.0,180,
+prod_gen_hullparts_macro,Hull Part Production,hullparts,default,1.0,270,
+prod_gen_microchips_macro,Microchip Production,microchips,default,1.0,450,
+prod_gen_missilecomponents_macro,Missile Component Production,missilecomponents,default,1.0,22,
+prod_gen_plasmaconductors_macro,Plasma Conductor Production,plasmaconductors,default,1.0,225,
+prod_gen_quantumtubes_macro,Quantum Tube Production,quantumtubes,default,1.0,225,
+prod_gen_refinedmetals_macro,Refined Metal Production,refinedmetals,default,1.0,225,
+prod_gen_scanningarrays_macro,Scanning Array Production,scanningarrays,default,1.0,315,
+prod_gen_scrap_recycler_macro,Scrap Recycler,claytronics,recycling,1.0,1250,
+prod_gen_scrap_recycler_macro,Scrap Recycler,hullparts,recycling,1.0,1250,
+prod_gen_scrap_recyclerkhaak_macro,Allographyne Scrap Recycler,khaakalloy,recycling,1.0,1250,
+prod_gen_shieldcomponents_macro,Shield Component Production,shieldcomponents,default,1.0,225,
+prod_gen_siliconwafers_macro,Silicon Wafer Production,siliconwafers,default,1.0,225,
+prod_gen_smartchips_macro,Smart Chip Production,smartchips,default,1.0,60,
+prod_gen_spices_macro,Spice Production,spices,default,1.0,60,
+prod_gen_superfluidcoolant_macro,Superfluid Coolant Production,superfluidcoolant,default,1.0,180,
+prod_gen_turretcomponents_macro,Turret Component Production,turretcomponents,default,1.0,225,
+prod_gen_water_macro,Water Production,water,default,1.0,180,
+prod_gen_weaponcomponents_macro,Weapon Component Production,weaponcomponents,default,1.0,225,
+prod_par_majadust_macro,Maja Dust Production,majadust,paranid,1.0,123,
+prod_par_majasnails_macro,Maja Snail Production,majasnails,paranid,1.0,175,
+prod_par_medicalsupplies_macro,Paranid Medical Supply Production,medicalsupplies,paranid,1.0,90,
+prod_par_sojabeans_macro,Soja Bean Production,sojabeans,paranid,1.0,175,
+prod_par_sojahusk_macro,Soja Husk Production,sojahusk,paranid,1.0,99,
+prod_tel_advancedcomposites_macro,Teladi Advanced Composite Production,advancedcomposites,teladi,1.0,315,
+prod_tel_engineparts_macro,Teladi Engine Part Production,engineparts,teladi,1.0,225,
+prod_tel_hullparts_macro,Teladi Hull Part Production,hullparts,teladi,1.0,270,
+prod_tel_medicalsupplies_macro,Teladi Medical Supply Production,medicalsupplies,teladi,1.0,90,
+prod_tel_nostropoil_macro,Nostrop Oil Production,nostropoil,teladi,1.0,120,
+prod_tel_scanningarrays_macro,Teladi Scanning Array Production,scanningarrays,teladi,1.0,315,
+prod_tel_spaceweed_macro,Spaceweed Production,spaceweed,teladi,1.0,90,
+prod_tel_sunriseflowers_macro,Sunrise Flower Production,sunriseflowers,teladi,1.0,50,
+prod_tel_swampplant_macro,Swamp Plant Production,swampplant,teladi,1.0,50,
+prod_tel_teladianium_macro,Teladianium Production,teladianium,teladi,1.0,225,
+prod_bor_bofu_macro,BoFu Production,bofu,default,1.0,125,ego_dlc_boron
+prod_bor_bogas_macro,BoGas Production,bogas,default,1.0,100,ego_dlc_boron
+prod_bor_medicalsupplies_macro,Boron Medical Supply Production,medicalsupplies,boron,1.0,90,ego_dlc_boron
+prod_bor_plankton_macro,Plankton Production,plankton,default,1.0,40,ego_dlc_boron
+prod_spl_cheltmeat_macro,Chelt Production,cheltmeat,default,1.0,90,ego_dlc_split
+prod_spl_medicalsupplies_macro,Split Medical Supply Production,medicalsupplies,split,1.0,90,ego_dlc_split
+prod_spl_scruffinfruit_macro,Scruffin Production,scruffinfruits,default,1.0,90,ego_dlc_split
+prod_ter_computronicsubstrate_macro,Computronic Substrate Production,computronicsubstrate,default,1.0,1500,ego_dlc_terran
+prod_ter_energycells_macro,Terran Energy Cell Production,energycells,terran,1.0,45,ego_dlc_terran
+prod_ter_medicalsupplies_macro,Terran Medical Supply Production,medicalsupplies,terran,1.0,90,ego_dlc_terran
+prod_ter_metallicmicrolattice_macro,Metallic Microlattice Production,metallicmicrolattice,default,1.0,120,ego_dlc_terran
+prod_ter_mre_macro,Terran MRE Production,terranmre,default,1.0,135,ego_dlc_terran
+prod_ter_proteinpaste_macro,Protein Paste Production,proteinpaste,default,1.0,180,ego_dlc_terran
+prod_ter_scrap_recycler_macro,Terran Scrap Recycler,computronicsubstrate,recycling,1.0,1250,ego_dlc_terran
+prod_ter_scrap_recycler_macro,Terran Scrap Recycler,siliconcarbide,recycling,1.0,1250,ego_dlc_terran
+prod_ter_siliconcarbide_macro,Silicon Carbide Production,siliconcarbide,default,1.0,750,ego_dlc_terran
+prod_ter_stimulants_macro,Stimulant Production,stimulants,default,1.0,300,ego_dlc_terran

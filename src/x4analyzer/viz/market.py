@@ -57,15 +57,21 @@ def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
     def faction_of(sid):
         return ref.faction_short.get(uni["owner"].get(sid, ""), "OTH")
 
-    # module production/consumption
+    # module production/consumption. A module with several queue options
+    # (e.g. Scrap Recycler: claytronics OR hullparts) can only run one at a
+    # time; assume an even split across its queues. Processing modules run
+    # the ware's "processing" recipe scaled by their batch size.
     mods = frames.station_modules
     if not mods.empty and not ref.modules.empty:
-        inst = mods.merge(ref.modules[["macro", "ware", "method"]], on="macro")
+        mref = ref.modules[["macro", "ware", "method", "scale"]].copy()
+        mref["scale"] = pd.to_numeric(mref["scale"], errors="coerce").fillna(1)
+        mref["weight"] = 1.0 / mref.groupby("macro")["macro"].transform("count")
+        inst = mods.merge(mref, on="macro")
         inst = inst[inst["ware"] != ""]
         for (sid, ware, method), grp in inst.groupby(["id", "ware", "method"]):
             if sid not in stations:
                 continue
-            n = len(grp)
+            units = float((grp["weight"] * grp["scale"]).sum())
             use = method if (ware, method) in methods else "default"
             recipe = rec[(rec["ware"] == ware) & (rec["method"] == use)]
             if recipe.empty:
@@ -73,14 +79,24 @@ def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
             time, amount = recipe.iloc[0]["time"], recipe.iloc[0]["amount"]
             fac = faction_of(sid)
             rows.append({"id": sid, "faction": fac, "ware": ware,
-                         "prod": amount / time * 3600.0 * n, "cons": 0.0})
+                         "prod": amount / time * 3600.0 * units, "cons": 0.0})
             for inp in recipe.itertuples():
                 if isinstance(inp.input_ware, str) and inp.input_ware:
                     rows.append({
                         "id": sid, "faction": fac, "ware": inp.input_ware,
                         "prod": 0.0,
-                        "cons": inp.input_amount / time * 3600.0 * n,
+                        "cons": inp.input_amount / time * 3600.0 * units,
                     })
+
+        # Protectyon (ware id "condensate"): the shield generator module has
+        # no recipe — its Tide consumption is scripted, ~1 unit/h per module
+        # (user-observed)
+        shields = mods[mods["macro"] == "storage_pir_l_condensate_01_macro"]
+        for sid, n in shields.groupby("id").size().items():
+            if sid in stations:
+                rows.append({"id": sid, "faction": faction_of(sid),
+                             "ware": "condensate", "prod": 0.0,
+                             "cons": 1.0 * n})
 
     # population needs: workforce x per-race workunit recipe
     wf = frames.workforce_all
@@ -302,23 +318,32 @@ ROWS.forEach(r => {{
   o.value = r[12]; o.textContent = r[0]; sel.appendChild(o);
 }});
 
+// numeric data with display-only rendering so every column sorts numerically
+const numCol = (d, t) => t === 'display' ? fmt(d) : d;
 const table = $('#market').DataTable({{
-  data: ROWS.map(r => {{
-    const cover = r[5] === null ? '&mdash;'
-      : (r[5] < {COVER_LOW_H:g} ? "<span class=neg>" + r[5] + "</span>"
-         : (r[5] < 10 ? "<span class=warn>" + r[5] + "</span>" : r[5]));
-    const under = r[8] === 0 ? '&mdash;'
-      : ((r[9] / r[8] > 0.4 ? "<span class=neg>" : (r[9] / r[8] > 0.15
-          ? "<span class=warn>" : "<span>")) + r[9] + " / " + r[8] + "</span>");
-    return [
-      r[0], fmt(r[1]), fmt(r[2]),
-      (r[3] >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(r[3])
-        + "</span>",
-      fmt(r[4]), cover, fmt(r[6]), fmt(r[7]), r[8], under, fmt(r[10]),
-      fmt(r[11]),
-    ];
-  }}),
+  data: ROWS,
   order: [], pageLength: 15,
+  columnDefs: [
+    {{targets: [1, 2, 4, 6, 7, 8, 10, 11], render: numCol}},
+    {{targets: 3, render: (d, t) => t === 'display'
+      ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d) + "</span>"
+      : d}},
+    {{targets: 5, render: (d, t) => {{
+      if (t === 'display') return d === null ? '&mdash;'
+        : (d < {COVER_LOW_H:g} ? "<span class=neg>" + d + "</span>"
+           : (d < 10 ? "<span class=warn>" + d + "</span>" : d));
+      return d === null ? 1e12 : d;   // no consumption sorts last
+    }}}},
+    {{targets: 9, render: (d, t, row) => {{
+      const ratio = row[8] > 0 ? d / row[8] : 0;
+      if (t === 'display') return row[8] === 0 ? '&mdash;'
+        : ((ratio > 0.4 ? "<span class=neg>" : (ratio > 0.15
+            ? "<span class=warn>" : "<span>")) + d + " / " + row[8]
+           + "</span>");
+      return ratio;                    // sort by understocked share
+    }}}},
+    {{targets: 12, visible: false}},
+  ],
 }});
 $('#market tbody').on('click', 'tr', function() {{
   sel.value = ROWS[table.row(this).index()][12];

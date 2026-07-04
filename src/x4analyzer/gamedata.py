@@ -203,8 +203,16 @@ _SIZE_BY_CLASS = {
 
 
 def extract_modules(gf: GameFiles, tdb: TextDB) -> list[list]:
-    """Production station modules: macro -> product ware + recipe method."""
-    rows = {}
+    """Production/processing station modules, one row per (macro, ware,
+    method) the module can run.
+
+    Queue forms: `<queue ware= method=/>` (single) or `<queue><item ware=
+    method=/>...</queue>` (multi-ware, e.g. Scrap Recyclers). Processing
+    modules (Scrap Processors) instead declare `<products><ware ware=
+    amount=/>` and run the ware's "processing" recipe scaled by amount.
+    """
+    rows: list[list] = []
+    seen: set[tuple] = set()
     paths = gf.glob(
         r"(extensions/[^/]+/)?assets/structures/.*/macros/.*\.xml$"
     )
@@ -215,22 +223,45 @@ def extract_modules(gf: GameFiles, tdb: TextDB) -> list[list]:
         source = gf.source_of(path)
         for m in root.iter("macro"):
             macro = (m.get("name") or "").lower()
-            prod = m.find("properties/production")
-            if not macro or prod is None:
+            if not macro:
                 continue
-            queue = prod.find("queue")
+            prod = m.find("properties/production")
+            products = m.find("properties/products")
+
+            entries: list[tuple[str, str, float]] = []  # (ware, method, scale)
+            if prod is not None:
+                for q in prod.findall("queue"):
+                    if q.get("ware"):
+                        entries.append((q.get("ware"),
+                                        q.get("method", "default"), 1.0))
+                    for item in q.findall("item"):
+                        if item.get("ware"):
+                            entries.append((item.get("ware"),
+                                            item.get("method", "default"), 1.0))
+                if not entries and prod.get("wares"):
+                    entries = [(w, "default", 1.0)
+                               for w in prod.get("wares", "").split()]
+            elif products is not None:
+                for pw in products.findall("ware"):
+                    if pw.get("ware"):
+                        entries.append((pw.get("ware"), "processing",
+                                        float(pw.get("amount", 1) or 1)))
+            if not entries:
+                continue
+
             ident = m.find("properties/identification")
             wf = m.find("properties/workforce")
-            rows[macro] = [
-                macro,
-                tdb.resolve(ident.get("name", "")) if ident is not None else macro,
-                queue.get("ware", prod.get("wares", "")) if queue is not None
-                else prod.get("wares", ""),
-                queue.get("method", "default") if queue is not None else "default",
-                wf.get("max", "") if wf is not None else "",
-                source,
-            ]
-    return list(rows.values())
+            name = tdb.resolve(ident.get("name", "")) if ident is not None \
+                else macro
+            for ware, method, scale in entries:
+                key = (macro, ware, method)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append([macro, name or macro, ware, method, scale,
+                             wf.get("max", "") if wf is not None else "",
+                             source])
+    return rows
 
 
 def extract_recipes(gf: GameFiles) -> list[list]:
@@ -367,7 +398,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     log("Extracting production modules")
     _write_csv(
         cfg.data_dir / "modules.csv",
-        ["macro", "name", "ware", "method", "workforce", "source"],
+        ["macro", "name", "ware", "method", "scale", "workforce", "source"],
         extract_modules(gf, tdb),
     )
 
