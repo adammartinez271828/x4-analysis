@@ -1,0 +1,148 @@
+import gzip
+from pathlib import Path
+
+import pytest
+
+from x4analyzer.saveparser import parse_savegame
+
+FIXTURE = """<?xml version="1.0"?>
+<savegame>
+  <info>
+    <save name="#001" date="1700000000"/>
+    <game guid="ABCD-1234" version="900" time="5000.5" modified="1"/>
+    <player name="Test Pilot" money="123456"/>
+  </info>
+  <universe>
+    <factions>
+      <faction id="player">
+        <custom><name name="Testers"/></custom>
+      </faction>
+      <faction id="argon"/>
+    </factions>
+    <component class="galaxy" id="[0x1]" connection="space">
+      <connections><connection connection="galaxy">
+      <component class="cluster" macro="cluster_01_macro" id="[0x10]" connection="galaxy">
+        <connections><connection connection="cluster">
+        <component class="sector" macro="cluster_01_sector001_macro" id="[0x11]"
+                   owner="argon" knownto="player" contested="1" connection="cluster">
+          <resourceareas>
+            <area yieldid="sphere_large_ore_high_slow" yield="1000" starttime="0"/>
+            <area yieldid="sphere_medium_silicon_low" yield="200" starttime="0"/>
+          </resourceareas>
+          <connections><connection connection="sector">
+          <component class="station" macro="station_macro" id="[0x20]" owner="player"
+                     code="STA-001" connection="sector">
+            <control>
+              <post id="manager" component="[0x99]"/>
+            </control>
+            <workforces lasttime="1.0"><workforce race="argon" amount="50"/></workforces>
+            <construction><sequence>
+              <entry id="[0x50]" index="1" macro="mod_a_macro"/>
+              <entry id="[0x51]" index="3" macro="mod_b_macro"/>
+            </sequence></construction>
+            <trade><offers><production>
+              <trade id="[0xT1]" buyer="[0x21]" ware="energycells"
+                     price="100" amount="500" desired="500"/>
+            </production></offers></trade>
+            <build><resources><insufficient>
+              <ware ware="claytronics" amount="1000"/>
+            </insufficient></resources></build>
+            <connections>
+              <connection connection="subordinates" id="[0xC1]"/>
+              <connection connection="dock">
+              <component class="ship_s" macro="ship_test_macro" id="[0x30]"
+                         owner="player" code="SHP-001" connection="dock">
+                <control><post id="aipilot" component="[0x99]"/></control>
+                <connections>
+                  <connection connection="commander" id="[0xC9]">
+                    <connected connection="[0xC1]"/>
+                  </connection>
+                </connections>
+                <component class="npc" macro="char_macro" id="[0x99]" owner="player"
+                           name="Jane Doe" code="NPC-001" connection="crew">
+                  <skills piloting="9" morale="7" engineering="3"/>
+                </component>
+              </component>
+              </connection>
+            </connections>
+          </component>
+          </connection></connections>
+        </component>
+        </connection></connections>
+      </component>
+      </connection></connections>
+    </component>
+  </universe>
+  <economylog>
+    <entries type="trade">
+      <log time="10.5" type="trade" ware="energycells" buyer="[0x20]"
+           seller="[0x77]" price="1600" v="100"/>
+      <log time="11.0" type="trade" ware="ice" owner="[0x20]" v="50"/>
+    </entries>
+    <removed>
+      <object id="115" owner="teladi" name="TEL Trader" code="TDR-001"/>
+    </removed>
+  </economylog>
+  <log>
+    <entry time="100.0" category="upkeep" title="Test entry" text="text"/>
+  </log>
+</savegame>
+"""
+
+
+@pytest.fixture(params=["plain", "gz"])
+def save_file(tmp_path: Path, request) -> Path:
+    if request.param == "gz":
+        p = tmp_path / "save.xml.gz"
+        with gzip.open(p, "wt") as fh:
+            fh.write(FIXTURE)
+    else:
+        p = tmp_path / "save.xml"
+        p.write_text(FIXTURE)
+    return p
+
+
+def test_fixture_parse(save_file: Path) -> None:
+    d = parse_savegame(save_file)
+
+    assert d.guid == "ABCD-1234"
+    assert d.game_version == "900"
+    assert d.game_time == 5000.5
+    assert d.modified is True
+    assert d.player_name == "Test Pilot"
+    assert d.player_faction_name == "Testers"
+
+    classes = {c[1] for c in d.components}
+    assert classes == {"cluster", "sector", "station", "ship_s"}
+    ship = next(c for c in d.components if c[1] == "ship_s")
+    # ancestry: cluster and sector ids/macros propagated
+    assert ship[10] == "[0x10]" and ship[12] == "[0x11]"
+    sector = next(c for c in d.components if c[1] == "sector")
+    assert sector[7] == "1"  # contested
+
+    assert ("[0x20]", "manager", "[0x99]") in d.posts
+    assert ("[0x30]", "aipilot", "[0x99]") in d.posts
+    assert ("[0x20]", "argon", 50.0) in d.workforce
+    # module count keeps max construction index; macro kept for market stats
+    assert max(i for sid, i, _m in d.modules if sid == "[0x20]") == 3
+    assert ("[0x20]", 1, "mod_a_macro") in d.modules
+
+    assert len(d.npcs) == 1
+    npc = d.npcs[0]
+    assert npc[1] == "Jane Doe" and npc[4]["piloting"] == 9.0
+
+    assert d.commander_links == [("[0x30]", "[0xC1]")]
+    assert d.subordinate_conns == [("[0x20]", "[0xC1]")]
+
+    assert d.resources == [
+        ("cluster_01_sector001_macro", "ore", 1000.0),
+        ("cluster_01_sector001_macro", "silicon", 200.0),
+    ]
+
+    assert ("[0x20]", "energycells", 500.0) in d.buy_offers
+    assert ("[0x20]", "claytronics", 1000.0) in d.build_resources
+
+    assert len(d.trades) == 2  # frames layer filters the owner-only entry
+    assert d.trades[0]["ware"] == "energycells"
+    assert d.removed_objects[0]["name"] == "TEL Trader"
+    assert d.log_entries[0]["title"] == "Test entry"

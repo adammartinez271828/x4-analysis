@@ -1,0 +1,1916 @@
+id,name,group,transport,volume,tags,price_avg,source
+advancedcomposites,Advanced Composites,hightech,container,32,container economy stationbuilding,540,
+advancedelectronics,Advanced Electronics,shiptech,container,30,container economy stationbuilding,1014,
+antimattercells,Antimatter Cells,refined,container,18,container economy,202,
+antimatterconverters,Antimatter Converters,shiptech,container,10,container economy,354,
+bomb_player_limpet_emp_01_mk1,Spacesuit EMP,hardware,inventory,1,bomb crafting inventory personalupgrade,120000,
+bomb_player_limpet_mine_01_mk1,Spacesuit Bomb,hardware,inventory,1,bomb crafting inventory personalupgrade,90000,
+claytronics,Claytronics,shiptech,container,24,container economy stationbuilding,2040,
+clothingmod_0001,Clothing Mod 0001,,inventory,1,clothingmod inventory,1,
+clothingmod_0002,Clothing Mod 0002,,inventory,1,clothingmod inventory,1,
+clothingmod_0003,Clothing Mod 0001,,inventory,1,clothingmod inventory,1,
+countermeasure_flares_01,Flares,countermeasures,equipment,1,countermeasure equipment,2421,
+credits,Credits,,inventory,1,,1,
+crew,Crewman,,passenger,1,,7500,
+dronecomponents,Drone Components,shiptech,container,30,container economy,914,
+energycells,Energy Cells,energy,container,1,container economy stationbuilding,16,
+engineparts,Engine Parts,hightech,container,15,container economy,182,
+engine_arg_l_allround_01_mk1,ARG L All-round Engine Mk1,engines,equipment,1,engine equipment,357242,
+engine_arg_l_travel_01_mk1,ARG L Travel Engine Mk1,engines,equipment,1,engine equipment,375104,
+engine_arg_m_allround_01_mk1,ARG M All-round Engine Mk1,engines,equipment,1,engine equipment,13074,
+engine_arg_m_allround_01_mk2,ARG M All-round Engine Mk2,engines,equipment,1,engine equipment,64629,
+engine_arg_m_allround_01_mk3,ARG M All-round Engine Mk3,engines,equipment,1,engine equipment,319691,
+engine_arg_m_combat_01_mk1,ARG M Combat Engine Mk1,engines,equipment,1,engine equipment,15952,
+engine_arg_m_combat_01_mk2,ARG M Combat Engine Mk2,engines,equipment,1,engine equipment,77457,
+engine_arg_m_combat_01_mk3,ARG M Combat Engine Mk3,engines,equipment,1,engine equipment,383827,
+engine_arg_m_travel_01_mk1,ARG M Travel Engine Mk1,engines,equipment,1,engine equipment,14513,
+engine_arg_m_travel_01_mk2,ARG M Travel Engine Mk2,engines,equipment,1,engine equipment,72482,
+engine_arg_m_travel_01_mk3,ARG M Travel Engine Mk3,engines,equipment,1,engine equipment,367793,
+engine_arg_s_allround_01_mk1,ARG S All-round Engine Mk1,engines,equipment,1,engine equipment,6140,
+engine_arg_s_allround_01_mk2,ARG S All-round Engine Mk2,engines,equipment,1,engine equipment,29300,
+engine_arg_s_allround_01_mk3,ARG S All-round Engine Mk3,engines,equipment,1,engine equipment,137001,
+engine_arg_s_combat_01_mk1,ARG S Combat Engine Mk1,engines,equipment,1,engine equipment,9017,
+engine_arg_s_combat_01_mk2,ARG S Combat Engine Mk2,engines,equipment,1,engine equipment,45005,
+engine_arg_s_combat_01_mk3,ARG S Combat Engine Mk3,engines,equipment,1,engine equipment,201137,
+engine_arg_s_travel_01_mk1,ARG S Travel Engine Mk1,engines,equipment,1,engine equipment,7579,
+engine_arg_s_travel_01_mk2,ARG S Travel Engine Mk2,engines,equipment,1,engine equipment,38591,
+engine_arg_s_travel_01_mk3,ARG S Travel Engine Mk3,engines,equipment,1,engine equipment,185103,
+engine_arg_xl_allround_01_mk1,ARG XL All-round Engine Mk1,engines,equipment,1,engine equipment,471179,
+engine_arg_xl_travel_01_mk1,ARG XL Travel Engine Mk1,engines,equipment,1,engine equipment,494737,
+engine_gen_spacesuit_01_mk1,Spacesuit Thrusters Mk1,engines,inventory,1,disallowdrop engine equipment inventory noblueprint nocustomgamestart noplayerblueprint personalupgrade,1000,
+engine_gen_spacesuit_01_mk2,Spacesuit Thrusters Mk2,engines,inventory,1,disallowdrop engine equipment inventory noblueprint noplayerblueprint personalupgrade,60000,
+engine_kha_l_destroyer_01_allround_01_mk1,Kha'ak L Engine,engines,equipment,1,engine equipment noblueprint noplayerblueprint,0,
+engine_kha_m_combat_01_mk1,KHA M Combat Engine Mk1,engines,equipment,1,engine equipment noblueprint noplayerblueprint,0,
+engine_kha_m_combat_02_mk1,KHA M Combat Engine Array Mk1,engines,equipment,1,engine equipment noblueprint noplayerblueprint,0,
+engine_kha_s_combat_01_mk1,KHA S Combat Engine Mk1,engines,equipment,1,engine equipment noblueprint noplayerblueprint,0,
+engine_kha_xl_battleship_01_allround_01_mk1,Kha'ak XL Engine,engines,equipment,1,engine equipment noblueprint noplayerblueprint,0,
+engine_par_l_allround_01_mk1,PAR L All-round Engine Mk1,engines,equipment,1,engine equipment,360814,
+engine_par_l_travel_01_mk1,PAR L Travel Engine Mk1,engines,equipment,1,engine equipment,378855,
+engine_par_m_allround_01_mk1,PAR M All-round Engine Mk1,engines,equipment,1,engine equipment,13074,
+engine_par_m_allround_01_mk2,PAR M All-round Engine Mk2,engines,equipment,1,engine equipment,64629,
+engine_par_m_allround_01_mk3,PAR M All-round Engine Mk3,engines,equipment,1,engine equipment,319691,
+engine_par_m_combat_01_mk1,PAR M Combat Engine Mk1,engines,equipment,1,engine equipment,15952,
+engine_par_m_combat_01_mk2,PAR M Combat Engine Mk2,engines,equipment,1,engine equipment,77457,
+engine_par_m_combat_01_mk3,PAR M Combat Engine Mk3,engines,equipment,1,engine equipment,383827,
+engine_par_m_travel_01_mk1,PAR M Travel Engine Mk1,engines,equipment,1,engine equipment,14513,
+engine_par_m_travel_01_mk2,PAR M Travel Engine Mk2,engines,equipment,1,engine equipment,72482,
+engine_par_m_travel_01_mk3,PAR M Travel Engine Mk3,engines,equipment,1,engine equipment,367793,
+engine_par_s_allround_01_mk1,PAR S All-round Engine Mk1,engines,equipment,1,engine equipment,6140,
+engine_par_s_allround_01_mk2,PAR S All-round Engine Mk2,engines,equipment,1,engine equipment,29300,
+engine_par_s_allround_01_mk3,PAR S All-round Engine Mk3,engines,equipment,1,engine equipment,137001,
+engine_par_s_combat_01_mk1,PAR S Combat Engine Mk1,engines,equipment,1,engine equipment,9017,
+engine_par_s_combat_01_mk2,PAR S Combat Engine Mk2,engines,equipment,1,engine equipment,45005,
+engine_par_s_combat_01_mk3,PAR S Combat Engine Mk3,engines,equipment,1,engine equipment,201137,
+engine_par_s_travel_01_mk1,PAR S Travel Engine Mk1,engines,equipment,1,engine equipment,7579,
+engine_par_s_travel_01_mk2,PAR S Travel Engine Mk2,engines,equipment,1,engine equipment,38591,
+engine_par_s_travel_01_mk3,PAR S Travel Engine Mk3,engines,equipment,1,engine equipment,185103,
+engine_par_xl_allround_01_mk1,PAR XL All-round Engine Mk1,engines,equipment,1,engine equipment,475890,
+engine_par_xl_travel_01_mk1,PAR XL Travel Engine Mk1,engines,equipment,1,engine equipment,499685,
+engine_tel_l_allround_01_mk1,TEL L All-round Engine Mk1,engines,equipment,1,engine equipment,356928,
+engine_tel_l_travel_01_mk1,TEL L Travel Engine Mk1,engines,equipment,1,engine equipment,374774,
+engine_tel_m_allround_01_mk1,TEL M All-round Engine Mk1,engines,equipment,1,engine equipment,13064,
+engine_tel_m_allround_01_mk2,TEL M All-round Engine Mk2,engines,equipment,1,engine equipment,64575,
+engine_tel_m_allround_01_mk3,TEL M All-round Engine Mk3,engines,equipment,1,engine equipment,319421,
+engine_tel_m_combat_01_mk1,TEL M Combat Engine Mk1,engines,equipment,1,engine equipment,15939,
+engine_tel_m_combat_01_mk2,TEL M Combat Engine Mk2,engines,equipment,1,engine equipment,77391,
+engine_tel_m_combat_01_mk3,TEL M Combat Engine Mk3,engines,equipment,1,engine equipment,383501,
+engine_tel_m_travel_01_mk1,TEL M Travel Engine Mk1,engines,equipment,1,engine equipment,14501,
+engine_tel_m_travel_01_mk2,TEL M Travel Engine Mk2,engines,equipment,1,engine equipment,72421,
+engine_tel_m_travel_01_mk3,TEL M Travel Engine Mk3,engines,equipment,1,engine equipment,367481,
+engine_tel_s_allround_01_mk1,TEL S All-round Engine Mk1,engines,equipment,1,engine equipment,6135,
+engine_tel_s_allround_01_mk2,TEL S All-round Engine Mk2,engines,equipment,1,engine equipment,29276,
+engine_tel_s_allround_01_mk3,TEL S All-round Engine Mk3,engines,equipment,1,engine equipment,136885,
+engine_tel_s_combat_01_mk1,TEL S Combat Engine Mk1,engines,equipment,1,engine equipment,9011,
+engine_tel_s_combat_01_mk2,TEL S Combat Engine Mk2,engines,equipment,1,engine equipment,44967,
+engine_tel_s_combat_01_mk3,TEL S Combat Engine Mk3,engines,equipment,1,engine equipment,200966,
+engine_tel_s_travel_01_mk1,TEL S Travel Engine Mk1,engines,equipment,1,engine equipment,7573,
+engine_tel_s_travel_01_mk2,TEL S Travel Engine Mk2,engines,equipment,1,engine equipment,38559,
+engine_tel_s_travel_01_mk3,TEL S Travel Engine Mk3,engines,equipment,1,engine equipment,221935,
+engine_tel_xl_allround_01_mk1,TEL XL All-round Engine Mk1,engines,equipment,1,engine equipment,470766,
+engine_tel_xl_travel_01_mk1,TEL XL Travel Engine Mk1,engines,equipment,1,engine equipment,494304,
+engine_xen_l_allround_01_mk1,XEN L All-round Engine Mk1,engines,equipment,1,engine equipment noplayerblueprint,357024,
+engine_xen_l_allround_02_mk1,XEN L All-round Engine Mk1,engines,equipment,1,engine equipment,357024,
+engine_xen_m_combat_01_mk1,XEN M Combat Engine Mk1,engines,equipment,1,engine equipment noplayerblueprint,17568,
+engine_xen_m_travel_01_mk1,XEN M Travel Engine Mk1,engines,equipment,1,engine equipment noplayerblueprint,15840,
+engine_xen_m_virtual_01_mk1,XEN M Combat Engine Mk1,engines,equipment,1,engine equipment,17568,
+engine_xen_s_combat_01_mk1,XEN S Combat Engine Mk1,engines,equipment,1,engine equipment noplayerblueprint,6816,
+engine_xen_s_virtual_01_mk1,XEN S Combat Engine Mk1,engines,equipment,1,engine equipment,6816,
+engine_xen_xl_allround_01_mk1,XEN XL All-round Engine Mk1,engines,equipment,1,engine equipment noplayerblueprint,471264,
+fieldcoils,Field Coils,shiptech,container,15,container economy stationbuilding,412,
+foodrations,Food Rations,food,container,1,container economy,21,
+graphene,Graphene,refined,container,20,container economy,166,
+helium,Helium,gases,liquid,6,economy gas liquid minable,44,
+hullparts,Hull Parts,hightech,container,12,container economy stationbuilding,209,
+hydrogen,Hydrogen,gases,liquid,6,economy gas liquid minable,58,
+ice,Ice,ice,solid,8,economy minable mineral solid,30,
+inv_advancedtargetingmodule,Advanced Targeting Module,hardware,inventory,1,inventory tradeonly,10056,
+inv_agidevice_01,AGI Processor,contraband,inventory,1,crafting inventory,10585,
+inv_agidevice_02,AGI Heuristic Core,contraband,inventory,1,crafting inventory,4563,
+inv_agidevice_03,AGI Neural Network,contraband,inventory,1,crafting inventory,9983,
+inv_algaescrubber,Algae Scrubber,generalitem,inventory,1,inventory tradeonly,872,
+inv_antimatter_injection_sensor,Antimatter Injection Sensor,,inventory,1,inventory missiononly,1,
+inv_aquamarine_pearl,Aquamarine Pearl,,inventory,1,inventory missiononly,1,
+inv_aquaponicvegetable,Aquaponic Vegetables,luxuryitem,inventory,1,bribe crafting inventory,5056,
+inv_argnusteak,Argnu Steak,luxuryitem,inventory,1,crafting inventory,757,
+inv_argnu_softtoy,Argnu Soft Toy,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_argon_voting_ballot,Argon Voting Ballot,,inventory,1,inventory missiononly,1,
+inv_artificial_paranid_eye,Artificial Paranid Eye,,inventory,1,inventory missiononly,1,
+inv_bandages,Bandages,generalitem,inventory,1,crafting inventory,112,
+inv_biometric_data,Biometric Data,,inventory,1,inventory missiononly,1,
+inv_bionic_augmentation,Bionic Augmentation,,inventory,1,inventory missiononly,1,
+inv_bofu_burger,BoFu Burger,,inventory,1,inventory missiononly,1,
+inv_bone_fragments,Bone Fragments,,inventory,1,inventory missiononly,1,
+inv_boost_injection_regulator,Boost Injection Regulator,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_bootleg_entertainment,Bootleg Entertainment,,inventory,1,inventory missiononly,1,
+inv_boron_pheromone_sample,Boron Pheromone Sample,,inventory,1,inventory missiononly,1,
+inv_bottle_musk,Bottle of Musk,,inventory,1,inventory missiononly,1,
+inv_bridge_display_node,Bridge Display Node,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_cahoonas,Cahoonas,luxuryitem,inventory,1,crafting inventory,265,
+inv_capacitor,Capacitor,hardware,inventory,1,crafting inventory,432,
+inv_carbonfilter,Carbon Filter,generalitem,inventory,1,inventory tradeonly,812,
+inv_charged_particle_regulator,Charged Particle Regulator,,inventory,1,inventory missiononly,1,
+inv_command_terminal_connector,Command Terminal Connector,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_confidential_dossier,Confidential Dossier,,inventory,1,inventory missiononly,1,
+inv_contaminated_soil_sample,Contaminated Soil Sample,,inventory,1,inventory missiononly,1,
+inv_cosmetics_kit,Cosmetics Kit,,inventory,1,inventory missiononly,1,
+inv_counterfeit_luxury_goods,Counterfeit Luxury Goods,,inventory,1,inventory missiononly,1,
+inv_crystalbinder,Crystal Binder,generalitem,inventory,1,crafting inventory,833,
+inv_crystalbit,Crystal Bit,curiosity,inventory,1,crafting inventory,972,
+inv_crystal_01,Bandannite Crystal,curiosity,inventory,1,crafting inventory,1000,
+inv_crystal_02,Menelaene Crystal,curiosity,inventory,1,inventory tradeonly,10000,
+inv_crystal_03,Aguilite Crystal,curiosity,inventory,1,inventory tradeonly,15000,
+inv_crystal_04,Mitonene Crystal,curiosity,inventory,1,inventory tradeonly,20000,
+inv_crystal_05,Burnite Crystal,curiosity,inventory,1,inventory tradeonly,125000,
+inv_damagedsingularityengine,Damaged Singularity Engine,hardware,inventory,1,inventory tradeonly,118514,
+inv_damaged_keycard,Damaged Key Card,,inventory,1,inventory missiononly,1,
+inv_datafragment,Data Fragment,hardware,inventory,1,crafting inventory,1280,
+inv_decryptionmodule,Decryption Module,contraband,inventory,1,crafting inventory,9021,
+inv_digitalseminar_boarding,Digital Seminar (Boarding),,inventory,1,deprecated gift inventory,100,
+inv_digitalseminar_engineering,Digital Seminar (Engineering),,inventory,1,deprecated gift inventory,100,
+inv_digitalseminar_management,Digital Seminar (Management),,inventory,1,deprecated gift inventory,100,
+inv_digitalseminar_morale,Digital Seminar (Morale),,inventory,1,deprecated gift inventory,100,
+inv_digitalseminar_piloting,Digital Seminar (Piloting),,inventory,1,deprecated gift inventory,100,
+inv_dna_sample,DNA Sample,,inventory,1,inventory missiononly,1,
+inv_electronics,Electronics,generalitem,inventory,1,crafting inventory,20068,
+inv_encrypted_accesskey,Encrypted Access Key,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_contract,Encrypted Contract,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_espionagedocument,Encrypted Espionage Documents,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_evidence,Encrypted Evidence,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_malware,Encrypted Malware,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_recording,Encrypted Recording,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_report,Encrypted Report,,inventory,1,inventory missiononly tradeonly,1,
+inv_encrypted_researchpaper,Encrypted Research Paper,,inventory,1,inventory missiononly tradeonly,1,
+inv_experimental_medicine,Experimental Vaccine,,inventory,1,inventory missiononly,1,
+inv_eyepatch,Eye Patch,,inventory,1,inventory missiononly,1,
+inv_familyheirloom,Family Heirloom,,inventory,1,inventory missiononly tradeonly,1,
+inv_fidget_toy,Fidget Toy,,inventory,1,inventory missiononly,1,
+inv_finemeal,Fine Meal,luxuryitem,inventory,1,bribe crafting inventory,15042,
+inv_firstaidkit,First Aid Kit,generalitem,inventory,1,crafting inventory,10523,
+inv_fluxcapacitor,Flux Capacitor,generalitem,inventory,1,inventory tradeonly,129819,
+inv_glass_figurine,Glass Figurine,,inventory,1,inventory missiononly,1,
+inv_glowmalt,Glow Malt,luxuryitem,inventory,1,crafting inventory,2164,
+inv_hallucinogenics,Hallucinogenics,contraband,inventory,1,crafting inventory,8352,
+inv_harddrug_01,Delirium,contraband,inventory,1,crafting inventory,60895,
+inv_harmonicresonator,Harmonic Resonator,luxuryitem,inventory,1,bribe crafting inventory,12500,
+inv_hatikvah_dossier_dalbusta,Hatikvah Dossier: Dal Busta,,inventory,1,inventory missiononly,1,
+inv_head_of_split,Head of a Split,,inventory,1,inventory missiononly,10000000,
+inv_herbicide,Herbicide,generalitem,inventory,1,inventory tradeonly,236,
+inv_holyorder_cipher,Holy Order Cipher,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_hotdogs,"Jar of ""Cerberus"" Brand Hotdogs",,inventory,1,inventory missiononly,1,
+inv_hydraulicpump,Hydraulic Pump,generalitem,inventory,1,inventory tradeonly,479,
+inv_infusedbeverage,Infused Beverage,luxuryitem,inventory,1,bribe crafting inventory,9839,
+inv_interfaceunit,Interface Unit,hardware,inventory,1,crafting inventory,954,
+inv_kyondevice_01,Kyon Crystallite,curiosity,inventory,1,inventory,20023,
+inv_kyondevice_02,Kyon Crystal Shard,curiosity,inventory,1,inventory,40639,
+inv_kyondevice_03,Kyon Crystal,curiosity,inventory,1,inventory,80545,
+inv_lastwill_testament,Last Will and Testament,,inventory,1,inventory missiononly,1,
+inv_leather_journal,Leather Journal,,inventory,1,inventory missiononly,1,
+inv_lostfragment,Lost Fragment,curiosity,inventory,1,crafting inventory,738,
+inv_magneticmaterial,Lodestone,curiosity,inventory,1,crafting inventory,54,
+inv_majaglit,Majaglit,luxuryitem,inventory,1,bribe crafting inventory,3333,
+inv_massompowder,Massom Powder,luxuryitem,inventory,1,crafting inventory,943,
+inv_microbrewdrink,Microbrew Drink,luxuryitem,inventory,1,bribe crafting inventory,10169,
+inv_microgimble,Micro-Gimbal,generalitem,inventory,1,inventory tradeonly,650,
+inv_micromotor,Micro-Motor,generalitem,inventory,1,inventory tradeonly,567,
+inv_mixedfruit,Mixed Fruit,luxuryitem,inventory,1,crafting inventory,402,
+inv_modulartrigger,Modular Trigger,hardware,inventory,1,inventory tradeonly,567,
+inv_morpher_globe,Morpher Globe,,inventory,1,inventory missiononly,1,
+inv_nanite_fabricator,Nanite Fabricator,,inventory,1,inventory missiononly,1,
+inv_nautical_telescope,Brass Nautical Telescope,,inventory,1,inventory missiononly,1,
+inv_needle,Needle,generalitem,inventory,1,crafting inventory,640,
+inv_neuralstimulator,Neural Stimulator,contraband,inventory,1,bribe crafting inventory,13342,
+inv_nishala_oceanwater_sample,Nishala Ocean Water Sample,,inventory,1,inventory missiononly,1,
+inv_nividiumdreams_scalemodel,Nividium Dreams Scale Model,,inventory,1,inventory missiononly,1,
+inv_nividiumjewel,Nividium Jewel,luxuryitem,inventory,1,bribe crafting inventory,15581,
+inv_nividium_hifi_cable,Nividium-plated Hi-fi Cable,,inventory,1,inventory missiononly,1,
+inv_nividium_scalescraper,Nividium Scale-Scraper,,inventory,1,inventory missiononly,1,
+inv_nyanasfortune_scalemodel,Nyana's Fortune Scale Model,,inventory,1,inventory missiononly,1,
+inv_paranid_religious_tract,Paranid Religious Tract,,inventory,1,inventory missiononly,1,
+inv_preciousring,Precious Ring,,inventory,1,inventory missiononly tradeonly,1,
+inv_pricelessart,Priceless Art,,inventory,1,inventory missiononly tradeonly,1,
+inv_processing_panel_12G,Processing Panel Unit 12G,curiosity,inventory,1,inventory nocustomgamestart,46746,
+inv_processing_panel_19L,Processing Panel Unit 19L,curiosity,inventory,1,inventory nocustomgamestart,23850,
+inv_processing_panel_46B,Processing Panel Unit 46B,curiosity,inventory,1,inventory nocustomgamestart,6678,
+inv_processing_panel_7A,Processing Panel Unit 7A,curiosity,inventory,1,inventory nocustomgamestart,2862,
+inv_processing_panel_8X,Processing Panel Unit 8X,curiosity,inventory,1,inventory nocustomgamestart,12402,
+inv_produce,Produce,luxuryitem,inventory,1,crafting inventory,114,
+inv_programmablefieldarray,Programmable Field Array,hardware,inventory,1,inventory tradeonly,141176,
+inv_quantum_data_shard,AGI Quantum Data Shard,curiosity,inventory,1,inventory nocustomgamestart tradeonly,56042,
+inv_rapidsandfilter,Rapid Sand Filter,generalitem,inventory,1,inventory tradeonly,791,
+inv_rareartefact,Rare Artifact,curiosity,inventory,1,bribe crafting inventory,9154,
+inv_rarespices,Rare Spices,luxuryitem,inventory,1,crafting inventory,963,
+inv_reactor_control_fuse,Reactor Control Fuse,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_remotedetonator,Remote Detonator,hardware,inventory,1,crafting inventory,15897,
+inv_salvagedelectronics,Salvaged Electronics,generalitem,inventory,1,crafting inventory,145,
+inv_sandwell_archive_pass,Sandwell Archive Pass,,inventory,1,inventory missiononly,1,
+inv_sealed_vacuum_tubes,Sealed Vacuum Tube,,inventory,1,inventory missiononly,1,
+inv_securecontainer,Secure Container,generalitem,inventory,1,crafting inventory,4561,
+inv_securitybypasssystem,Security Bypass System,contraband,inventory,1,crafting inventory,155605,
+inv_securitydecryptionsystem,Security Decryption System,contraband,inventory,1,crafting inventory,165606,
+inv_securityslicer,Security Slicer,contraband,inventory,1,crafting inventory,159605,
+inv_sedative,Sedative,generalitem,inventory,1,crafting inventory,262,
+inv_segarian_research,Qualitative Research on Segarian Terraforming,,inventory,1,inventory missiononly,1,
+inv_seminar_management_0,Basic Seminar (Management),,inventory,1,gift inventory level0 management seminar,4620,
+inv_seminar_management_1,Seminar for 1-Star Crew (Management),,inventory,1,gift inventory level1 management seminar,9900,
+inv_seminar_management_2,Seminar for 2-Star Crew (Management),,inventory,1,gift inventory level2 management seminar,19680,
+inv_seminar_management_3,Seminar for 3-Star Crew (Management),,inventory,1,gift inventory level3 management seminar,65400,
+inv_seminar_management_4,Advanced Seminar for 4-Star Crew (Management),,inventory,1,gift inventory level4 management seminar,102000,
+inv_seminar_piloting_0,Basic Seminar (Piloting),,inventory,1,gift inventory level0 piloting seminar,4290,
+inv_seminar_piloting_1,Seminar for 1-Star Crew (Piloting),,inventory,1,gift inventory level1 piloting seminar,9000,
+inv_seminar_piloting_2,Seminar for 2-Star Crew (Piloting),,inventory,1,gift inventory level2 piloting seminar,17760,
+inv_seminar_piloting_3,Seminar for 3-Star Crew (Piloting),,inventory,1,gift inventory level3 piloting seminar,58800,
+inv_seminar_piloting_4,Advanced Seminar for 4-Star Crew (Piloting),,inventory,1,gift inventory level4 piloting seminar,91500,
+inv_sensitivedatapacket,Sensitive Data Packet,,inventory,1,inventory missiononly tradeonly,1,
+inv_ship_in_a_bottle,Ship in a Bottle,,inventory,1,inventory missiononly,1,
+inv_snailshells,Snail Shells,luxuryitem,inventory,1,crafting inventory,105,
+inv_spacedyepizza,Space-Dye Pizza,luxuryitem,inventory,1,bribe crafting inventory,10871,
+inv_spaceflycaviar,Spacefly Caviar,luxuryitem,inventory,1,crafting gift inventory,1057000,
+inv_spaceflyeggs,Spacefly Eggs,luxuryitem,inventory,1,crafting inventory,10570,
+inv_spacefly_larvae,Spacefly Larvae,,inventory,1,inventory missiononly,1,
+inv_speech_manuscript,Speech Manuscript,,inventory,1,inventory missiononly,1,
+inv_speech_pattern_analyzer,Speech Pattern Analyser,,inventory,1,inventory missiononly,1,
+inv_spherical_artifact,Spherical Artefact,,inventory,1,inventory missiononly,1,
+inv_split_ceremonial_dagger,Split Ceremonial Dagger,,inventory,1,inventory missiononly,15000000,
+inv_split_hunting_trophy,Split Hunting Trophy,,inventory,1,inventory missiononly,1,
+inv_tacky_knickknack,Tacky Knick-knack,,inventory,1,inventory missiononly,1,
+inv_taxreturn_warrant,Tax Return Warrant,,inventory,1,inventory missiononly,1,
+inv_terracotta_teladi_egg,Terracotta Teladi Egg,,inventory,1,inventory missiononly,1,
+inv_timewarp,SETA,,inventory,1,disallowdrop inventory nocustomgamestart,1947545,
+inv_towel,Towel,,inventory,1,inventory missiononly,1,
+inv_travel_drive_coupling,Travel Drive Coupling,,inventory,1,inventory missiononly nocustomgamestart,1,
+inv_tube_grease,Tube of Grease,,inventory,1,inventory missiononly,1,
+inv_unmarked_black_box,Unmarked Black Box,,inventory,1,inventory missiononly,1,
+inv_unrefined_ore_sample,Unrefined Ore Sample,,inventory,1,inventory missiononly,1,
+inv_unstablecrystal,Unstable Crystal,curiosity,inventory,1,crafting inventory,5440,
+inv_vial_green_liquid,Vial of Green Liquid,,inventory,1,inventory missiononly,1,
+inv_virtual_pet,Virtual Pet,,inventory,1,inventory missiononly,1,
+inv_wenendra_score,Wenendra Score,,inventory,1,inventory missiononly,1,
+inv_xenoinscriptions,Xeno-Inscription,curiosity,inventory,1,crafting inventory,4186,
+inv_xenoterran_implant,Xenoterran Implant,,inventory,1,inventory missiononly,1,
+inv_xenotext,Xenotexts,curiosity,inventory,1,bribe crafting inventory,16398,
+khaakalloy,Allographyne,hightech,container,20,container economy transmutable,1400,
+khaakscrapmetal,Allographyne Fragments,refined,solid,10,economy recycling solid,220,
+majadust,Maja Dust,pharmaceutical,container,6,container economy,208,
+majasnails,Maja Snails,agricultural,container,6,container economy,58,
+meat,Meat,agricultural,container,6,container economy,48,
+medicalsupplies,Medical Supplies,pharmaceutical,container,2,container economy,66,
+methane,Methane,gases,liquid,6,economy gas liquid minable,48,
+microchips,Microchips,hightech,container,22,container economy,948,
+missilecomponents,Missile Components,shiptech,container,1,container economy,9,
+missile_cluster_heavy_mk1,Heavy Cluster Missile Mk1,missiles,equipment,1,deprecated,1800,
+missile_cluster_light_mk1,Light Cluster Missile Mk1,missiles,equipment,1,deprecated,800,
+missile_dumbfire_heavy_mk1,Heavy Dumbfire Missile Mk1,missiles,equipment,1,deprecated,530,
+missile_dumbfire_heavy_mk2,Heavy Dumbfire Missile Mk2,missiles,equipment,1,deprecated,1810,
+missile_dumbfire_light_mk1,Light Dumbfire Missile Mk1,missiles,equipment,1,deprecated,250,
+missile_dumbfire_light_mk2,Light Dumbfire Missile Mk2,missiles,equipment,1,deprecated,650,
+missile_emp_mk1,EMP Missile Mk1,missiles,equipment,1,deprecated,950,
+missile_gen_l_dumbfire_01_mk1,Heavy Cluster Rocket,missiles,equipment,1,equipment missile,2278,
+missile_gen_l_guided_01_mk1,Heavy Guided Missile,missiles,equipment,1,equipment missile,3447,
+missile_gen_m_dumbfire_01_mk1,Medium Dumbfire Rocket,missiles,equipment,1,equipment missile,1036,
+missile_gen_m_dumbfire_01_mk2,Medium Breaching Rocket,missiles,equipment,1,equipment missile,1245,
+missile_gen_m_guided_01_mk1,Medium Guided Missile,missiles,equipment,1,equipment missile,1966,
+missile_gen_m_smart_01_mk1,Medium Smart Missile,missiles,equipment,1,equipment missile,2477,
+missile_gen_s_dumbfire_01_mk1,Light Dumbfire Rocket,missiles,equipment,1,equipment missile,580,
+missile_gen_s_dumbfire_01_mk2,Light Breaching Rocket,missiles,equipment,1,equipment missile,702,
+missile_gen_s_emp_01_mk1,Light Guided EMP Missile,missiles,equipment,1,equipment missile,1196,
+missile_gen_s_guided_01_mk1,Light Guided Missile,missiles,equipment,1,equipment missile,1009,
+missile_gen_s_heatseeker_01_mk1,Light Heatseeker Missile,missiles,equipment,1,equipment missile,857,
+missile_gen_s_smart_01_mk1,Light Smart Missile,missiles,equipment,1,equipment missile,1135,
+missile_gen_s_swarm_01_mk1,Light Swarm Missile,missiles,equipment,1,equipment missile,1010,
+missile_gen_s_torpedo_01_mk1,Light Torpedo,missiles,equipment,1,equipment missile,2324,
+missile_guided_heavy_mk1,Heavy Guided Missile Mk1,missiles,equipment,1,deprecated,2253,
+missile_guided_light_mk1,Light Guided Missile Mk1,missiles,equipment,1,deprecated,858,
+missile_heatseeker_heavy_mk1,Heavy Heatseeker Missile Mk1,missiles,equipment,1,deprecated,2563,
+missile_heatseeker_light_mk1,Light Heatseeker Missile Mk1,missiles,equipment,1,deprecated,988,
+missile_smart_heavy_mk1,Heavy Smart Missile Mk1,missiles,equipment,1,deprecated,2900,
+missile_smart_light_mk1,Light Smart Missile Mk1,missiles,equipment,1,deprecated,1425,
+missile_swarm_heavy_mk1,Heavy Swarm Missile Mk1,missiles,equipment,1,deprecated,2275,
+missile_swarm_light_mk1,Light Swarm Missile Mk1,missiles,equipment,1,deprecated,1138,
+missile_torpedo_heavy_mk1,Heavy Torpedo Missile Mk1,missiles,equipment,1,deprecated,20663,
+missile_torpedo_light_mk1,Light Torpedo Missile Mk1,missiles,equipment,1,deprecated,4613,
+modpart_enginefuelinjector_t1,Basic Engine Fuel Injector,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_enginefuelinjector_t2,Advanced Engine Fuel Injector,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_enginefuelinjector_t3,Exceptional Engine Fuel Injector,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_extendedfuelcontainer,Extended Fuel Container,,inventory,1,crafting equipmentmodpart inventory,1,
+modpart_highenergycatalyst,High Energy Catalyst,,inventory,1,crafting equipmentmodpart inventory,1,
+modpart_nividiumcrystallite,Nividium Crystallite,,inventory,1,crafting equipmentmodpart inventory,1,
+modpart_nividiumoxide,Nividium Oxide,,inventory,1,crafting equipmentmodpart inventory,1,
+modpart_shieldgeneratorcoil_t1,Basic Shield Generator Coil,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_shieldgeneratorcoil_t2,Advanced Shield Generator Coil,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_shieldgeneratorcoil_t3,Exceptional Shield Generator Coil,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_shipnanoweave_t1,Basic Ship Nanoweave,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_shipnanoweave_t2,Advanced Ship Nanoweave,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_shipnanoweave_t3,Exceptional Ship Nanoweave,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_tuningsoftware,Tuning Software,,inventory,1,crafting equipmentmodpart inventory,1,
+modpart_weaponchamber_t1,Basic Weapon Chamber,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_weaponchamber_t2,Advanced Weapon Chamber,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+modpart_weaponchamber_t3,Exceptional Weapon Chamber,,inventory,1,crafting equipmentmodpart inventory primarymodpart,1,
+module_arg_conn_arc_01,Argon Arc Connection Structure 01,,container,1,module,119531,
+module_arg_conn_base_01,Argon Base Connection Structure 01,,container,1,module,108662,
+module_arg_conn_base_02,Argon Base Connection Structure 02,,container,1,module,88924,
+module_arg_conn_base_03,Argon Base Connection Structure 03,,container,1,module,116284,
+module_arg_conn_cross_01,Argon Cross Connection Structure 01,,container,1,module,76824,
+module_arg_conn_cross_02,Argon Cross Connection Structure 02,,container,1,module,75189,
+module_arg_conn_cross_03,Argon Cross Connection Structure 03,,container,1,module,70084,
+module_arg_conn_cross_04,Argon T Connection Structure 01,,container,1,module,65016,
+module_arg_conn_cross_05,Argon L Connection Structure 01,,container,1,module,59911,
+module_arg_conn_vertical_01,Argon Vertical Connection Structure 01,,container,1,module,63676,
+module_arg_conn_vertical_02,Argon Vertical Connection Structure 02,,container,1,module,83398,
+module_arg_def_claim_01,Argon Administrative Centre,,container,1,module,876386,
+module_arg_def_disc_01,Argon Disc Defence Platform,,container,1,module,627224,
+module_arg_def_tube_01,Argon Bridge Defence Platform,,container,1,module,544342,
+module_arg_dock_m_01,1M6S Standard Dock Area,,container,1,module,345708,
+module_arg_dock_m_01_hightech,1M6S Luxury Dock Area,,container,1,module,370972,
+module_arg_dock_m_01_lowtech,1M6S Basic Dock Area,,container,1,module,325454,
+module_arg_dock_m_02,3M6S Standard Dock Area,,container,1,module,498308,
+module_arg_dock_m_02_hightech,3M6S Luxury Dock Area,,container,1,module,512520,
+module_arg_dock_m_02_lowtech,3M6S Basic Dock Area,,container,1,module,479634,
+module_arg_dock_tradestation_02,8M Luxury Dock Area,,container,1,module,741944,
+module_arg_hab_l_01,Argon L Habitat,,container,1,module,19562016,
+module_arg_hab_m_01,Argon M Habitat,,container,1,module,13828576,
+module_arg_hab_s_01,Argon S Habitat,,container,1,module,9614848,
+module_arg_pier_l_01,Argon 3-Dock T Pier,,container,1,module,3466084,
+module_arg_pier_l_02,Argon 1-Dock Pier,,container,1,module,2001402,
+module_arg_pier_l_03,Argon 3-Dock E Pier,,container,1,module,3998842,
+module_arg_pier_l_04,Argon 1-Dock Short Pier,,container,1,module,1441009,
+module_arg_pier_tradestation_01,Argon Trading Station 1-Dock Pier,,container,1,module noblueprint,1266032,
+module_arg_prod_foodrations_01,Food Ration Production,,container,1,module,1677512,
+module_arg_prod_meat_01,Meat Production,,container,1,module,1588056,
+module_arg_prod_medicalsupplies_01,Argon Medical Supply Production,,container,1,module,1439418,
+module_arg_prod_spacefuel_01,Spacefuel Production,,container,1,module,2041378,
+module_arg_prod_wheat_01,Wheat Production,,container,1,module,1894304,
+module_arg_radar_dish_01,Wide Area Sensor Array,,container,1,module,1055588,
+module_arg_stor_container_l_01,Argon L Container Storage,,container,1,module,735886,
+module_arg_stor_container_m_01,Argon M Container Storage,,container,1,module,524088,
+module_arg_stor_container_s_01,Argon S Container Storage,,container,1,module,332028,
+module_arg_stor_liquid_l_01,Argon L Liquid Storage,,container,1,module,735886,
+module_arg_stor_liquid_m_01,Argon M Liquid Storage,,container,1,module,524088,
+module_arg_stor_liquid_s_01,Argon S Liquid Storage,,container,1,module,332028,
+module_arg_stor_solid_l_01,Argon L Solid Storage,,container,1,module,735886,
+module_arg_stor_solid_m_01,Argon M Solid Storage,,container,1,module,524088,
+module_arg_stor_solid_s_01,Argon S Solid Storage,,container,1,module,332028,
+module_arg_stor_tradestation_l_01,Argon L Universal Storage,,container,1,module noblueprint,786414,
+module_gen_build_dockarea_m_01,S/M Ship Fabrication Bay,,container,1,module,101186848,
+module_gen_build_l_01,L Ship Fabrication Bay,,container,1,module,211937860,
+module_gen_build_m_01,M Ship Fabrication Bay,,container,1,module noplayerblueprint,8801724,
+module_gen_build_s_01,S Ship Fabrication Bay,,container,1,module noplayerblueprint,8801724,
+module_gen_build_xl_01,XL Ship Fabrication Bay,,container,1,module,215570740,
+module_gen_conn_observationdeck_01,Conservatory Observation Deck,,container,1,module,224348,
+module_gen_conn_observationdeck_02,Pavilion Observation Deck,,container,1,module,235471,
+module_gen_conn_observationdeck_03,Penthouse Observation Deck,,container,1,module,254687,
+module_gen_conn_venturerbase_01,Venture Base Connection Structure 01,,container,1,module,108662,
+module_gen_conn_venturerbase_02,Venture Base Connection Structure 02,,container,1,module,88924,
+module_gen_conn_venturerbase_03,Venture Base Connection Structure 03,,container,1,module,116284,
+module_gen_conn_venturercross_01,Venture Cross Connection Structure 01,,container,1,module,76824,
+module_gen_conn_venturervertical_01,Venture Vertical Connection Structure 01,,container,1,module,63676,
+module_gen_conn_venturervertical_02,Venture Vertical Connection Structure 02,,container,1,module,83398,
+module_gen_dock_m_showroom_01,Small & Medium Ship Showroom,,container,1,module,463715,
+module_gen_dock_m_venturer_01,S/M Venture Sendoff Dock,,container,1,module,308700,
+module_gen_dock_s_showroom_01,Small Ship Showroom 01,,container,1,module,408069,
+module_gen_dock_s_showroom_02,Small Ship Showroom 02,,container,1,module,426618,
+module_gen_dock_xl_venturer_01,L/XL Venture Sendoff Dock,,container,1,module noplayerblueprint,896108,
+module_gen_equip_dockarea_m_01,S/M Ship Maintenance Bay,,container,1,module,30651624,
+module_gen_equip_l_01,L Ship Maintenance Bay,,container,1,module,56124070,
+module_gen_equip_xl_01,XL Ship Maintenance Bay,,container,1,module,57977136,
+module_gen_proc_scrapworks,Scrap Processor,,container,1,module,1167545,
+module_gen_proc_scrapworkskhaak_01,Allographyne Scrap Processor,,container,1,module,1401054,
+module_gen_prod_advancedcomposites_01,Advanced Composite Production,,container,1,module,4146948,
+module_gen_prod_advancedelectronics_01,Advanced Electronics Production,,container,1,module,3085608,
+module_gen_prod_antimattercells_01,Antimatter Cell Production,,container,1,module,441738,
+module_gen_prod_antimatterconverters_01,Antimatter Converter Production,,container,1,module,11390056,
+module_gen_prod_claytronics_01,Claytronics Production,,container,1,module,18055920,
+module_gen_prod_dronecomponents_01,Drone Component Production,,container,1,module,7837962,
+module_gen_prod_energycells_01,Energy Cell Production,,container,1,module,1663316,
+module_gen_prod_engineparts_01,Engine Part Production,,container,1,module,2490222,
+module_gen_prod_fieldcoils_01,Field Coil Production,,container,1,module,11101966,
+module_gen_prod_graphene_01,Graphene Production,,container,1,module,179960,
+module_gen_prod_hullparts_01,Hull Part Production,,container,1,module,3929640,
+module_gen_prod_microchips_01,Microchip Production,,container,1,module,4849964,
+module_gen_prod_missilecomponents_01,Missile Component Production,,container,1,module,225462,
+module_gen_prod_plasmaconductors_01,Plasma Conductor Production,,container,1,module,3026942,
+module_gen_prod_quantumtubes_01,Quantum Tube Production,,container,1,module,2433120,
+module_gen_prod_refinedmetals_01,Refined Metal Production,,container,1,module,232036,
+module_gen_prod_scanningarrays_01,Scanning Array Production,,container,1,module,4026186,
+module_gen_prod_scrap_recycler,Scrap Recycler,,container,1,module,1915875,
+module_gen_prod_scrap_recyclerkhaak,Allographyne Scrap Recycler,,container,1,module,2299050,
+module_gen_prod_shieldcomponents_01,Shield Component Production,,container,1,module,2765164,
+module_gen_prod_siliconwafers_01,Silicon Wafer Production,,container,1,module,474624,
+module_gen_prod_smartchips_01,Smart Chip Production,,container,1,module,807700,
+module_gen_prod_spices_01,Spice Production,,container,1,module,890050,
+module_gen_prod_superfluidcoolant_01,Superfluid Coolant Production,,container,1,module,161270,
+module_gen_prod_turretcomponents_01,Turret Component Production,,container,1,module,3040622,
+module_gen_prod_water_01,Water Production,,container,1,module,230472,
+module_gen_prod_weaponcomponents_01,Weapon Component Production,,container,1,module,2535208,
+module_gen_ventureplatform_cross_01,Venture Platform,,container,1,module,302900,
+module_gen_welfare_gamblinghall_01,Gambling Den,,container,1,missiononly module,2465159,
+module_par_conn_base_01,Paranid Base Connection Structure 01,,container,1,module,75776,
+module_par_conn_base_02,Paranid Base Connection Structure 02,,container,1,module,108146,
+module_par_conn_base_03,Paranid Base Connection Structure 03,,container,1,module,134974,
+module_par_conn_cross_01,Paranid Cross Connection Structure 01,,container,1,module,64724,
+module_par_conn_cross_02,Paranid Cross Connection Structure 02,,container,1,module,134974,
+module_par_conn_cross_03,Paranid Y Connection Structure 01,,container,1,module,108146,
+module_par_conn_vertical_01,Paranid Vertical Connection Structure 01,,container,1,module,63676,
+module_par_conn_vertical_02,Paranid Vertical Connection Structure 02,,container,1,module,83398,
+module_par_def_claim_01,Paranid Administrative Centre,,container,1,module,895060,
+module_par_def_claim_story_01,Paranid Faction Capital,,container,1,hiddenwithoutlicence module nocustomgamestart nodiplomacyblueprint,450000000,
+module_par_def_disc_01,Paranid Disc Defence Platform,,container,1,module,627224,
+module_par_def_tube_01,Paranid Bridge Defence Platform,,container,1,module,544342,
+module_par_hab_l_01,Paranid L Dome,,container,1,module,21485696,
+module_par_hab_m_01,Paranid M Dome,,container,1,module,13828576,
+module_par_hab_s_01,Paranid S Dome,,container,1,module,9614848,
+module_par_pier_l_01,Paranid 3-Dock T Pier,,container,1,module,3601042,
+module_par_pier_l_02,Paranid 1-Dock Pier,,container,1,module,2078758,
+module_par_pier_l_03,Paranid 3-Dock E Pier,,container,1,module,4158016,
+module_par_prod_majadust_01,Maja Dust Production,,container,1,module,2387086,
+module_par_prod_majasnails_01,Maja Snail Production,,container,1,module,1588056,
+module_par_prod_medicalsupplies_01,Paranid Medical Supply Production,,container,1,module,1445976,
+module_par_prod_sojabeans_01,Soja Bean Production,,container,1,module,1894304,
+module_par_prod_sojahusk_01,Soja Husk Production,,container,1,module,2023220,
+module_par_stor_container_l_01,Paranid L Container Storage,,container,1,module,792972,
+module_par_stor_container_m_01,Paranid M Container Storage,,container,1,module,538300,
+module_par_stor_container_s_01,Paranid S Container Storage,,container,1,module,357824,
+module_par_stor_landmark_l_01,Argon L Container Storage,,container,1,module noblueprint,844016,
+module_par_stor_liquid_l_01,Paranid L Liquid Storage,,container,1,module,792972,
+module_par_stor_liquid_m_01,Paranid M Liquid Storage,,container,1,module,538300,
+module_par_stor_liquid_s_01,Paranid S Liquid Storage,,container,1,module,357824,
+module_par_stor_solid_l_01,Paranid L Solid Storage,,container,1,module,792972,
+module_par_stor_solid_m_01,Paranid M Solid Storage,,container,1,module,538300,
+module_par_stor_solid_s_01,Paranid S Solid Storage,,container,1,module,357824,
+module_player_prod_hq_01_macro,Unknown Module,,container,1,module noblueprint,0,
+module_tel_conn_base_01,Teladi Base Connection Structure 01,,container,1,module,108662,
+module_tel_conn_base_02,Teladi Base Connection Structure 02,,container,1,module,88924,
+module_tel_conn_base_03,Teladi Base Connection Structure 03,,container,1,module,116284,
+module_tel_conn_cross_01,Teladi Cross Connection Structure 01,,container,1,module,76824,
+module_tel_conn_vertical_01,Teladi Vertical Connection Structure 01,,container,1,module,63676,
+module_tel_conn_vertical_02,Teladi Vertical Connection Structure 02,,container,1,module,83398,
+module_tel_def_claim_01,Teladi Administrative Centre,,container,1,module,881912,
+module_tel_def_disc_01,Teladi Disc Defence Platform,,container,1,module,627224,
+module_tel_def_tube_01,Teladi Bridge Defence Platform,,container,1,module,544342,
+module_tel_hab_l_01,Teladi L Biome,,container,1,module,18614848,
+module_tel_hab_m_01,Teladi M Biome,,container,1,module,12388768,
+module_tel_hab_s_01,Teladi S Biome,,container,1,module,8789632,
+module_tel_pier_l_01,Teladi 3-Dock T Pier,,container,1,module,3466084,
+module_tel_pier_l_02,Teladi 1-Dock Pier,,container,1,module,2001402,
+module_tel_pier_l_03,Teladi 3-Dock E Pier,,container,1,module,3998842,
+module_tel_prod_advancedcomposites_01,Teladi Advanced Composite Production,,container,1,module,4018840,
+module_tel_prod_engineparts_01,Teladi Engine Part Production,,container,1,module,2521368,
+module_tel_prod_hullparts_01,Teladi Hull Part Production,,container,1,module,3929384,
+module_tel_prod_medicalsupplies_01,Teladi Medical Supply Production,,container,1,module,1434392,
+module_tel_prod_nostropoil_01,Nostrop Oil Production,,container,1,module,1851914,
+module_tel_prod_scanningarrays_01,Teladi Scanning Array Production,,container,1,module,4076458,
+module_tel_prod_spaceweed_01,Spaceweed Production,,container,1,module,4088282,
+module_tel_prod_sunriseflowers_01,Sunrise Flower Production,,container,1,module,1895852,
+module_tel_prod_swampplant_01,Swamp Plant Production,,container,1,module,4088282,
+module_tel_prod_teladianium_01,Teladianium Production,,container,1,module,320976,
+module_tel_stor_container_l_01,Teladi L Container Storage,,container,1,module,715632,
+module_tel_stor_container_m_01,Teladi M Container Storage,,container,1,module,498840,
+module_tel_stor_container_s_01,Teladi S Container Storage,,container,1,module,326502,
+module_tel_stor_liquid_l_01,Teladi L Liquid Storage,,container,1,module,715632,
+module_tel_stor_liquid_m_01,Teladi M Liquid Storage,,container,1,module,498840,
+module_tel_stor_liquid_s_01,Teladi S Liquid Storage,,container,1,module,326502,
+module_tel_stor_solid_l_01,Teladi L Solid Storage,,container,1,module,715632,
+module_tel_stor_solid_m_01,Teladi M Solid Storage,,container,1,module,498840,
+module_tel_stor_solid_s_01,Teladi S Solid Storage,,container,1,module,326502,
+module_tel_tradestation_conn_bridge_01,Habitat Bridge,,container,1,module noplayerblueprint,284052,
+module_tel_tradestation_conn_centercylinder_01,Sensor Array,,container,1,module noplayerblueprint,179065,
+module_tel_tradestation_conn_centerfill_01,Ventilation,,container,1,module noplayerblueprint,284052,
+module_tel_tradestation_conn_column_01,Habitat Ring Column,,container,1,module noplayerblueprint,284052,
+module_tel_tradestation_conn_column_02,Support Structure,,container,1,module noplayerblueprint,284052,
+module_tel_tradestation_conn_inside_ring_03,Habitat Service Section,,container,1,module noplayerblueprint,402178,
+module_tel_tradestation_conn_radar_01,Command Relay,,container,1,module noplayerblueprint,284052,
+module_tel_tradestation_conn_ring_01,Habitat Ring,,container,1,module noplayerblueprint,1270691,
+module_tel_tradestation_def_centerend_01,Maintenance Area,,container,1,module noplayerblueprint,2073007,
+module_tel_tradestation_def_center_01,Habitat Centre Complex,,container,1,module noplayerblueprint,2073007,
+module_tel_tradestation_def_extension_01,Habitat Ring Extension,,container,1,module noplayerblueprint,2539342,
+module_tel_tradestation_def_ringcenter_01,Habitat Centre Ring,,container,1,module noplayerblueprint,1036496,
+module_tel_tradestation_def_ringclamp_01,Habitat Ring Clamp,,container,1,module noplayerblueprint,1466381,
+module_tel_tradestation_def_ringclamp_02,Habitat Ring Clamp,,container,1,module noplayerblueprint,1466381,
+module_tel_tradestation_dock_m_dockarea_01,Habitat Dock Area,,container,1,module noplayerblueprint,1795658,
+module_tel_tradestation_hab_inside_ring_01,Habitat City,,container,1,module noplayerblueprint,49770634,
+module_tel_tradestation_hab_inside_ring_02,Habitat City,,container,1,module noplayerblueprint,49770634,
+module_tel_tradestation_pier_tradelocation_01,Habitat Trade Centre,,container,1,module noplayerblueprint,3214490,
+module_tel_tradestation_stor_storage_01,Habitat Storage B,,container,1,module noplayerblueprint,1760354,
+module_tel_tradestation_stor_storage_ring_01,Habitat Storage A,,container,1,module noplayerblueprint,3519546,
+module_xen_build_m_01,M Ship Assembly Matrix,,container,1,module noplayerblueprint,919660,
+module_xen_build_s_01,S Ship Assembly Matrix,,container,1,module noplayerblueprint,919660,
+module_xen_build_xl_01,XL Ship Assembly Matrix,,container,1,module noplayerblueprint,1627086,
+module_xen_def_base_01,Xenon Base Module,,container,1,module noplayerblueprint,465026,
+module_xen_dock_m_01,Xenon Dock,,container,1,module noplayerblueprint,121388,
+module_xen_prod_energycells_01,Matrix Solar Panel,,container,1,module noplayerblueprint,182332,
+module_xen_stor_01,Matrix Storage,,container,1,module noplayerblueprint,51178,
+mod_engine_boostduration_01_mk1,Creatine (Boost Duration Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_boostthrust_01_mk1,Juno (Boost Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_boostthrust_01_mk2,Antares (Boost Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_engine_boostthrust_01_mk3,Atlas (Boost Thrust Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_engine_boostthrust_02_mk1,Minuteman (Boost Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_boostthrust_02_mk2,Delta (Boost Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_engine_forwardthrust_01_mk1,Pusher (Forward Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_forwardthrust_01_mk2,Propeller (Forward Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_engine_forwardthrust_01_mk3,Slingshot (Forward Thrust Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_engine_forwardthrust_02_mk1,Nudger (Forward Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_forwardthrust_02_mk2,Impeller (Forward Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_engine_rotationthrust_01_mk1,Spinner (Rotation Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_rotationthrust_01_mk3,Whirlygig (Rotation Thrust Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_engine_rotationthrust_02_mk1,Twister (Rotation Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_strafethrust_01_mk1,Crab (Strafe Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_strafethrust_02_mk1,Sidewinder (Strafe Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelattacktime_01_mk1,Spur (Travel Attack Time Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelchargetime_01_mk1,Overdrive (Travel Charge Time Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelreleasetime_01_mk1,Anchor (Travel Release Time Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelstartthrust_01_mk1,Afterburner (Travel Start Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelthrust_01_mk1,Aestus (Travel Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelthrust_01_mk2,Mira (Travel Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_engine_travelthrust_01_mk3,Vikas (Travel Thrust Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_engine_travelthrust_02_mk1,Reaver (Travel Thrust Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_engine_travelthrust_02_mk2,Vinci (Travel Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_shield_capacity_01_mk1,Buckler (Capacity Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_shield_capacity_01_mk2,Kite (Capacity Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_shield_capacity_01_mk3,Pavise (Capacity Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_shield_capacity_02_mk3,Targe (Capacity Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_shield_rechargedelay_01_mk1,Medic (Recharge Delay Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_shield_rechargerate_01_mk1,Bandage (Recharge Rate Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_shield_rechargerate_01_mk2,Cast (Recharge Rate Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_shield_rechargerate_01_mk3,Traction (Recharge Rate Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_ship_countermeasurecapacity_01_mk1,Barrage (Countermeasure Capacity Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_deployablecapacity_01_mk1,Rack (Deployable Capacity Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_drag_01_mk1,Polisher (Drag Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_drag_01_mk2,Lubricator (Drag Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_ship_hidecargo_01,Mirage (Illegal Ware Concealment Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_ship_mass_01_mk1,Honeycomb (Mass Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_mass_01_mk2,Composite (Mass Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_ship_mass_01_mk3,Nanotube (Mass Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_ship_maxhull_01_mk1,Buttress (Max Hull Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_missilecapacity_01_mk1,Bandolier (Missile Capacity Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_radarcloak_01_mk1,Cloak (Radar Visibility Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_radarcloak_01_mk2,Veil (Radar Visibility Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_ship_radarcloak_01_mk3,Shroud (Radar Visibility Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_ship_radarrange_01_mk1,Scope (Radar Range Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_regiondamage_01_mk1,Grit (Hazardous Region Damage Reduction Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_ship_regiondamage_01_mk2,Mettle (Hazardous Region Damage Reduction Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_ship_regiondamage_01_mk3,Tenacity (Hazardous Region Damage Reduction Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_ship_unitcapacity_01_mk1,Garage (Unit Capacity Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_beamlength_01_mk1,Lens (Beam Length Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_chargetime_01_mk1,Jumper (Charge Time Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_cooling_01_mk1,Tramontane (Cooling Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_cooling_01_mk2,Labrador (Cooling Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_cooling_02_mk1,Gregale (Cooling Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_cooling_02_mk2,Humboldt (Cooling Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_cooling_03_mk1,Mistral (Cooling Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_cooling_03_mk2,Kuril (Cooling Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_cooling_04_mk2,Okhotsk (Cooling Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_cooling_05_mk2,Benguela (Cooling Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_damage_01_mk1,Piercer (Damage Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_damage_01_mk2,Assassin (Damage Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_damage_01_mk3,Obliterator (Damage Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_weapon_damage_02_mk1,Stabber (Damage Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_damage_02_mk2,Exterminator (Damage Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_damage_02_mk3,Annihilator (Damage Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_weapon_damage_03_mk1,Slasher (Damage Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_damage_03_mk2,Butcher (Damage Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_damage_04_mk2,Executioner (Damage Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_damage_05_mk2,Slayer (Damage Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_lifetime_01_mk1,Endurance (Projectile Lifetime Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_mining_01_mk1,Digger (Mining Multiplier Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_mining_01_mk3,Excavator (Mining Multiplier Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_weapon_reload_01_mk1,Cowboy (Reload Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_rotationspeed_01_mk1,Gimbal (Rotation Speed Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_speed_01_mk1,Dispatcher (Projectile Speed Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_speed_01_mk3,Expediter (Projectile Speed Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+mod_weapon_sticktime_01_mk1,Gum (Sticky Projectile Time Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_sticktime_01_mk2,Cement (Sticky Projectile Time Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_sticktime_02_mk2,Glue (Sticky Projectile Time Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_sticktime_03_mk2,Adhesive (Sticky Projectile Time Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_surfaceelement_01_mk1,Intruder (Surface Element Damage Mod - Basic Quality),,inventory,1,crafting equipmentmod,50000,
+mod_weapon_surfaceelement_01_mk2,Infiltrator (Surface Element Damage Mod - Enhanced Quality),,inventory,1,crafting equipmentmod,250000,
+mod_weapon_surfaceelement_01_mk3,Invader (Surface Element Damage Mod - Exceptional Quality),,inventory,1,crafting equipmentmod,1250000,
+nividium,Nividium,minerals,solid,10,economy minable mineral solid,510,
+nividiumgems,nividiumgems,,container,2,,1077,
+nostropoil,Nostrop Oil,food,container,1,container economy,34,
+ore,Ore,minerals,solid,10,economy minable mineral solid,50,
+paintmod_0001,Shade of Innocence,,inventory,1,inventory paintmod,1,
+paintmod_0002,Federation Pennon,,inventory,1,inventory paintmod,1,
+paintmod_0003,Republic Standard,,inventory,1,inventory paintmod,1,
+paintmod_0004,Company Skin,,inventory,1,inventory paintmod,1,
+paintmod_0005,Scale Plate Greenback,,inventory,1,inventory paintmod,1,
+paintmod_0006,Foundation Blue,,inventory,1,inventory paintmod,1,
+paintmod_0007,Hatikvah Banner,,inventory,1,inventory paintmod,1,
+paintmod_0008,Origin Unknown,,inventory,1,inventory paintmod,1,
+paintmod_0009,Godrealm Pride,,inventory,1,inventory paintmod,1,
+paintmod_0010,Order Wrath,,inventory,1,inventory paintmod,1,
+paintmod_0011,Alliance Honour,,inventory,1,inventory paintmod,1,
+paintmod_0012,Ministry Buck,,inventory,1,inventory paintmod,1,
+paintmod_0013,Act of Distraction,,inventory,1,inventory paintmod,1,
+paintmod_0014,Ianamus Ztealth,,inventory,1,inventory paintmod,1,
+paintmod_0015,Not Like This,,inventory,1,inventory paintmod,1,
+paintmod_0016,Washout,,inventory,1,inventory paintmod,1,
+paintmod_0017,Black Steel,,inventory,1,inventory paintmod,1,
+paintmod_0018,Grey Steel,,inventory,1,inventory paintmod,1,
+paintmod_0019,Foundation X,,inventory,1,inventory paintmod,1,
+paintmod_0020,Matrix Annihilation,,inventory,1,inventory paintmod,1,
+paintmod_0021,Verbillion,,inventory,1,inventory paintmod,1,
+paintmod_0022,Splatter,,inventory,1,inventory paintmod,1,
+paintmod_0023,Cracked Surface,,inventory,1,inventory paintmod,1,
+paintmod_0024,Federation Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0025,Federation Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0026,Federation Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0027,Republic Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0028,Republic Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0029,Republic Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0030,Company Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0031,Company Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0032,Company Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0033,Scale Plate Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0034,Scale Plate Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0035,Scale Plate Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0036,Godrealm Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0037,Godrealm Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0038,Godrealm Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0039,Holy Order Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0040,Holy Order Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0041,Holy Order Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0042,Alliance Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0043,Alliance Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0044,Alliance Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0045,Ministry Camo 1,,inventory,1,inventory paintmod,1,
+paintmod_0046,Ministry Camo 2,,inventory,1,inventory paintmod,1,
+paintmod_0047,Ministry Camo 3,,inventory,1,inventory paintmod,1,
+paintmod_0048,Foundation Red,,inventory,1,inventory paintmod,1,
+paintmod_0049,Foundation Green,,inventory,1,inventory paintmod,1,
+paintmod_0050,Foundation Yellow,,inventory,1,inventory paintmod,1,
+paintmod_0051,Roadkill,,inventory,1,inventory paintmod,1,
+paintmod_0052,Scorched,,inventory,1,inventory paintmod,1,
+paintmod_0053,End of Line,,inventory,1,inventory paintmod,1,
+paintmod_0054,Bzzzzz!,,inventory,1,inventory paintmod,1,
+paintmod_0055,Violence,,inventory,1,inventory paintmod,1,
+paintmod_0056,Obsidian X,,inventory,1,inventory paintmod,1,
+paintmod_0057,Legitimate Business,,inventory,1,inventory paintmod,1,
+paintmod_0058,Aldrin,,inventory,1,inventory paintmod,1,
+paintmod_0059,Cold Metal,,inventory,1,inventory paintmod,1,
+paintmod_0060,Captain Pearle,,inventory,1,inventory paintmod,1,
+paintmod_0061,Mineral Rush,,inventory,1,inventory paintmod,1,
+paintmod_0062,Corsair's Gambit,,inventory,1,inventory paintmod,1,
+paintmod_0063,Cascade Alpha,,inventory,1,inventory paintmod,1,
+paintmod_0064,Sinister Fume,,inventory,1,inventory paintmod,1,
+paintmod_0065,Silent Sanctuary,,inventory,1,inventory paintmod,1,
+paintmod_0066,Warden,,inventory,1,inventory paintmod,1,
+paintmod_0067,J.B.C.,,inventory,1,inventory paintmod,1,
+paintmod_0068,Extraction,,inventory,1,inventory paintmod,1,
+paintmod_0069,Smokestack,,inventory,1,inventory paintmod,1,
+paintmod_0070,Relic Hunter,,inventory,1,inventory paintmod,1,
+paintmod_0071,Crystal Thief,,inventory,1,inventory paintmod,1,
+paintmod_0072,Disposal Unit 3,,inventory,1,inventory paintmod,1,
+paintmod_0073,Woodland Pasture,,inventory,1,inventory paintmod,1,
+paintmod_0074,The Vindicator,,inventory,1,inventory paintmod,1,
+paintmod_0075,Scream,,inventory,1,inventory paintmod,1,
+paintmod_0076,Forty-Two,,inventory,1,inventory paintmod,1,
+paintmod_0077,Path to Glory,,inventory,1,inventory paintmod,1,
+paintmod_0078,Digital Templar,,inventory,1,inventory paintmod,1,
+paintmod_0079,Rising Star,,inventory,1,inventory paintmod,1,
+paintmod_0080,Opportunity,,inventory,1,inventory paintmod,1,
+paintmod_0081,Kilroy,,inventory,1,inventory paintmod,1,
+paintmod_0082,Distinct Past,,inventory,1,inventory paintmod,1,
+paintmod_0083,Worm God,,inventory,1,inventory paintmod,1,
+paintmod_0084,Woody Valley,,inventory,1,inventory paintmod,1,
+paintmod_0085,Leap of Faith,,inventory,1,inventory paintmod,1,
+paintmod_0086,FHD040,,inventory,1,inventory paintmod,1,
+paintmod_0087,Snakebite,,inventory,1,inventory paintmod,1,
+paintmod_0088,Court Order,,inventory,1,inventory paintmod,1,
+paintmod_0089,Free Spirit,,inventory,1,inventory paintmod,1,
+paintmod_0090,Family Standard,,inventory,1,inventory paintmod,1,
+paintmod_0091,Family Shadow,,inventory,1,inventory paintmod,1,
+paintmod_0092,Family Veil,,inventory,1,inventory paintmod,1,
+paintmod_0093,Evasive Action,,inventory,1,inventory paintmod,1,
+paintmod_0094,Covert Operation,,inventory,1,inventory paintmod,1,
+paintmod_0095,Privy Court,,inventory,1,inventory paintmod,1,
+paintmod_0096,Cabal Covert,,inventory,1,inventory paintmod,1,
+paintmod_0097,Cardinal,,inventory,1,inventory paintmod,1,
+paintmod_0098,Cobalt,,inventory,1,inventory paintmod,1,
+paintmod_0099,Sage,,inventory,1,inventory paintmod,1,
+paintmod_0100,Saffron,,inventory,1,inventory paintmod,1,
+paintmod_0101,LootBoy,,inventory,1,inventory paintmod,1,
+paintmod_0102,Trinity Device,,inventory,1,inventory paintmod,1,
+paintmod_0103,Band of Buccaneers,,inventory,1,inventory paintmod,1,
+paintmod_0104,Tempest Livery,,inventory,1,inventory paintmod,1,
+paintmod_0105,Checkmate,,inventory,1,inventory paintmod,1,
+paintmod_0106,Neon Dream,,inventory,1,inventory paintmod,1,
+paintmod_0107,Terracotta,,inventory,1,inventory paintmod,1,
+paintmod_0108,Jade,,inventory,1,inventory paintmod,1,
+paintmod_0109,Ocean,,inventory,1,inventory paintmod,1,
+paintmod_0110,Canary,,inventory,1,inventory paintmod,1,
+paintmod_0111,Mock Turtle,,inventory,1,inventory paintmod,1,
+paintmod_0112,Jagged Amethyst,,inventory,1,inventory paintmod,1,
+paintmod_0113,Bubble Up,,inventory,1,inventory paintmod,1,
+paintmod_0114,Alpha Zone,,inventory,1,inventory paintmod,1,
+paintmod_0115,Alautun,,inventory,1,inventory paintmod,1,
+paintmod_0116,Verdant,,inventory,1,inventory paintmod,1,
+paintmod_0117,Solset,,inventory,1,inventory paintmod,1,
+paintmod_0118,Solset Dapple,,inventory,1,inventory paintmod,1,
+paintmod_0119,Solset Canopy,,inventory,1,inventory paintmod,1,
+paintmod_0120,Cerulean Utopia,,inventory,1,inventory paintmod,1,
+paintmod_0121,Azureous Utopia,,inventory,1,inventory paintmod,1,
+paintmod_0122,Utopia,,inventory,1,inventory paintmod,1,
+paintmod_0123,Violaceous,,inventory,1,inventory paintmod,1,
+paintmod_0124,Violaceous Cybershroud,,inventory,1,inventory paintmod,1,
+paintmod_0125,Violaceous Xenomask,,inventory,1,inventory paintmod,1,
+paintmod_0126,Iveshead,,inventory,1,inventory paintmod,1,
+paintmod_0127,Rustbucket,,inventory,1,inventory paintmod,1,
+paintmod_0128,Afterglow,,inventory,1,inventory paintmod,1,
+paintmod_0129,Dune,,inventory,1,inventory paintmod,1,
+paintmod_0130,Bloodgorged,,inventory,1,inventory paintmod,1,
+paintmod_0131,Bounty Hunter,,inventory,1,inventory paintmod,1,
+paintmod_0132,Haggard,,inventory,1,inventory paintmod,1,
+paintmod_0133,Scarecrow,,inventory,1,inventory paintmod,1,
+paintmod_0134,Thistle,,inventory,1,inventory paintmod,1,
+paintmod_0135,Nuts and Bolts,,inventory,1,inventory paintmod,1,
+paintmod_0136,Corrosive,,inventory,1,inventory paintmod,1,
+paintmod_0137,Blade's Edge,,inventory,1,inventory paintmod,1,
+paintmod_0138,Zorba,,inventory,1,inventory paintmod,1,
+paintmod_0139,Pannacotta,,inventory,1,inventory paintmod,1,
+paintmod_0140,Ericaceous,,inventory,1,inventory paintmod,1,
+paintmod_0141,Wildwood,,inventory,1,inventory paintmod,1,
+paintmod_0142,Spectrum,,inventory,1,inventory paintmod,1,
+paintmod_0143,Rockpool,,inventory,1,inventory paintmod,1,
+paintmod_0144,Amaranthus,,inventory,1,inventory paintmod,1,
+paintmod_0145,Boneshard,,inventory,1,inventory paintmod,1,
+paintmod_0146,Arcturus,,inventory,1,inventory paintmod,1,
+paintmod_0147,Constellation,,inventory,1,inventory paintmod,1,
+paintmod_0148,Diploria,,inventory,1,inventory paintmod,1,
+paintmod_0149,Sanguine,,inventory,1,inventory paintmod,1,
+paintmod_0150,Radiance,,inventory,1,inventory paintmod,1,
+paintmod_0151,Vineyard,,inventory,1,inventory paintmod,1,
+paintmod_0152,Illucid,,inventory,1,inventory paintmod,1,
+paintmod_0153,Parchment,,inventory,1,inventory paintmod,1,
+paintmod_0154,Ironclad,,inventory,1,inventory paintmod,1,
+paintmod_0155,Clickbait,,inventory,1,inventory paintmod,1,
+paintmod_0156,Dewdrop,,inventory,1,inventory paintmod,1,
+paintmod_0157,Serpentine,,inventory,1,inventory paintmod,1,
+paintmod_0158,Thunderstruck,,inventory,1,inventory paintmod,1,
+paintmod_0159,Gloomfire,,inventory,1,inventory paintmod,1,
+paintmod_0160,Cyan Aura,,inventory,1,inventory paintmod,1,
+paintmod_0161,Bleached Peach,,inventory,1,inventory paintmod,1,
+paintmod_0162,Midnight Bliss,,inventory,1,inventory paintmod,1,
+paintmod_0163,Mellow Mocha,,inventory,1,inventory paintmod,1,
+paintmod_0164,Burnt Umber,,inventory,1,inventory paintmod,1,
+paintmod_0165,Molten Core,,inventory,1,inventory paintmod,1,
+paintmod_0166,Pearl Prospect,,inventory,1,inventory paintmod,1,
+paintmod_0167,Arctic Whisper,,inventory,1,inventory paintmod,1,
+paintmod_0168,Razzle Dazzle,,inventory,1,inventory paintmod,1,
+paintmod_0169,Lava Lamp,,inventory,1,inventory paintmod,1,
+paintmod_0170,Spice of Life,,inventory,1,inventory paintmod,1,
+paintmod_0171,Top Brass,,inventory,1,inventory paintmod,1,
+paintmod_0172,Frozen in Time,,inventory,1,inventory paintmod,1,
+paintmod_0173,Eternal Hunger,,inventory,1,inventory paintmod,1,
+paintmod_0174,Glistening Ambition,,inventory,1,inventory paintmod,1,
+paintmod_0175,Cosmic Velvet,,inventory,1,inventory paintmod,1,
+paintmod_0176,Lunar Desire,,inventory,1,inventory paintmod,1,
+paintmod_0177,Sweet Corruption,,inventory,1,inventory paintmod,1,
+paintmod_0178,Patient Zero,,inventory,1,inventory paintmod,1,
+paintmod_0179,Grains of Sand,,inventory,1,inventory paintmod,1,
+paintmod_0180,Chaos Theory,,inventory,1,inventory paintmod,1,
+paintmod_0181,Rain Check,,inventory,1,inventory paintmod,1,
+paintmod_0182,Down in Flames,,inventory,1,inventory paintmod,1,
+paintmod_0183,X Marks the Spot,,inventory,1,inventory paintmod,1,
+paintmod_0184,Omega Shift,,inventory,1,inventory paintmod,1,
+paintmod_0185,Cast Asunder,,inventory,1,inventory paintmod,1,
+paintmod_0186,Agent of Glory,,inventory,1,inventory paintmod,1,
+paintmod_0187,Argnu Dreams,,inventory,1,inventory paintmod,1,
+paintmod_0188,Scruffin Fool,,inventory,1,inventory paintmod,1,
+paintmod_0189,Nostrop Rush,,inventory,1,inventory paintmod,1,
+paintmod_0190,Maja Blast,,inventory,1,inventory paintmod,1,
+paintmod_0191,BoFu Marinade,,inventory,1,inventory paintmod,1,
+paintmod_0192,Margin of Error,,inventory,1,inventory paintmod,1,
+paintmod_0193,Force of Nature,,inventory,1,inventory paintmod,1,
+paintmod_0194,Instruments of Darkness,,inventory,1,inventory paintmod,1,
+paintmod_0195,Symphony of Stars,,inventory,1,inventory paintmod,1,
+paintmod_0196,Reflections of Reality,,inventory,1,inventory paintmod,1,
+paintmod_0197,Hostage to Fortune,,inventory,1,inventory paintmod,1,
+paintmod_0198,Eye of the Needle,,inventory,1,inventory paintmod,1,
+paintmod_0199,Cloak and Dagger,,inventory,1,inventory paintmod,1,
+paintmod_0200,Beyond the Event Horizon,,inventory,1,inventory paintmod,1,
+paintmod_0201,Caveat Emptor,,inventory,1,inventory paintmod,1,
+paintmod_0202,Carpe Diem,,inventory,1,inventory paintmod,1,
+paintmod_0203,Wake Up!,,inventory,1,inventory paintmod,1,
+paintmod_0204,Keeper of the Wheel,,inventory,1,inventory paintmod,1,
+paintmod_0205,There and Back Again,,inventory,1,inventory paintmod,1,
+paintmod_0206,Mind the Gap,,inventory,1,inventory paintmod,1,
+paintmod_0207,Eternal Golden Braid,,inventory,1,inventory paintmod,1,
+paintmod_0208,Thought Crime,,inventory,1,inventory paintmod,1,
+paintmod_0209,Nebular Cartography,,inventory,1,inventory paintmod,1,
+paintmod_0210,In Xanadu,,inventory,1,inventory paintmod,1,
+paintmod_0211,Blush Response,,inventory,1,inventory paintmod,1,
+paintmod_0212,Skaï Mauve,,inventory,1,inventory paintmod,1,
+paintmod_0213,Forbidden Colours,,inventory,1,inventory paintmod,1,
+paintmod_0214,Electric Dreamscape,,inventory,1,inventory paintmod,1,
+paintmod_0215,Sound of Silence,,inventory,1,inventory paintmod,1,
+paintmod_0216,Fade to Grey,,inventory,1,inventory paintmod,1,
+paintmod_0217,Risk Factor,,inventory,1,inventory paintmod,1,
+paintmod_0218,Mornington Crescent,,inventory,1,inventory paintmod,1,
+paintmod_0219,Fractal Dimension,,inventory,1,inventory paintmod,1,
+paintmod_0220,Sierpinski Triangle,,inventory,1,inventory paintmod,1,
+paintmod_0221,Brownian Motion,,inventory,1,inventory paintmod,1,
+paintmod_0222,Non-Euclidean Geometry,,inventory,1,inventory paintmod,1,
+paintmod_0223,Parabolic Trajectory,,inventory,1,inventory paintmod,1,
+paintmod_0224,Premature Optimisation,,inventory,1,inventory paintmod,1,
+paintmod_0225,Sanity Check,,inventory,1,inventory paintmod,1,
+paintmod_0226,Critical Hit,,inventory,1,inventory paintmod,1,
+paintmod_0227,Twenty Credits,,inventory,1,inventory paintmod,1,
+paintmod_0228,Codebreaker,,inventory,1,inventory paintmod,1,
+paintmod_0229,Octree,,inventory,1,inventory paintmod,1,
+paintmod_0230,Nutmeg,,inventory,1,inventory paintmod,1,
+paintmod_0231,Domesday,,inventory,1,inventory paintmod,1,
+paintmod_0232,Prehistorica,,inventory,1,inventory paintmod,1,
+paintmod_0233,Inflorescence,,inventory,1,inventory paintmod,1,
+paintmod_0234,Roundabout,,inventory,1,inventory paintmod,1,
+paintmod_0235,Lachrymose,,inventory,1,inventory paintmod,1,
+paintmod_0236,Scrimshaw,,inventory,1,inventory paintmod,1,
+paintmod_0237,Glagolitic,,inventory,1,inventory paintmod,1,
+paintmod_0238,Fahrenheit,,inventory,1,inventory paintmod,1,
+paintmod_0239,Wildfire,,inventory,1,inventory paintmod,1,
+paintmod_0240,Zosimos,,inventory,1,inventory paintmod,1,
+paintmod_0241,Carborundum,,inventory,1,inventory paintmod,1,
+paintmod_0242,Uenuku,,inventory,1,inventory paintmod,1,
+paintmod_0243,PJK,,inventory,1,inventory paintmod,1,
+paintmod_0244,Marazion,,inventory,1,inventory paintmod,1,
+paintmod_0245,Blackcomb,,inventory,1,inventory paintmod,1,
+paintmod_0246,Redcoat,,inventory,1,inventory paintmod,1,
+paintmod_0247,Greenbelt,,inventory,1,inventory paintmod,1,
+paintmod_0248,Bluegrass,,inventory,1,inventory paintmod,1,
+paintmod_0249,Yellowhammer,,inventory,1,inventory paintmod,1,
+paintmod_0250,Hypermint,,inventory,1,inventory paintmod,1,
+paintmod_0251,Mandarin,,inventory,1,inventory paintmod,1,
+paintmod_0252,Ultramarine,,inventory,1,inventory paintmod,1,
+paintmod_0253,Shocking,,inventory,1,inventory paintmod,1,
+paintmod_0254,Hollow Garnet,,inventory,1,inventory paintmod,1,
+paintmod_0255,Goldeneye,,inventory,1,inventory paintmod,1,
+paintmod_0256,Sand Castle,,inventory,1,inventory paintmod,1,
+paintmod_0257,Moss Pillow,,inventory,1,inventory paintmod,1,
+paintmod_0258,Indigo Drift,,inventory,1,inventory paintmod,1,
+paintmod_0259,Mulled Wine,,inventory,1,inventory paintmod,1,
+paintmod_0260,Diamond Fuchsia,,inventory,1,inventory paintmod,1,
+paintmod_0261,Cinnamon Swirl,,inventory,1,inventory paintmod,1,
+paintmod_0262,Ink Blot,,inventory,1,inventory paintmod,1,
+paintmod_0263,Ash Plume,,inventory,1,inventory paintmod,1,
+paintmod_0264,Alabaster Shell,,inventory,1,inventory paintmod,1,
+paintmod_0265,Carbon Copy,,inventory,1,inventory paintmod,1,
+paintmod_0266,Solar Blaze,,inventory,1,inventory paintmod,1,
+paintmod_0267,Deep Space Glitter,,inventory,1,inventory paintmod,1,
+paintmod_0268,Starry Nightfall,,inventory,1,inventory paintmod,1,
+paintmod_0269,Aurora Haze,,inventory,1,inventory paintmod,1,
+paintmod_0270,Infinite Horizon,,inventory,1,inventory paintmod,1,
+paintmod_0271,Twilight Mirage,,inventory,1,inventory paintmod,1,
+paintmod_0272,Quantum Pathfinder,,inventory,1,inventory paintmod,1,
+paintmod_0273,Crimson Comet,,inventory,1,inventory paintmod,1,
+paintmod_0274,Interstellar Inferno,,inventory,1,inventory paintmod,1,
+paintmod_0275,Hypernova Heatwave,,inventory,1,inventory paintmod,1,
+paintmod_0276,Sapphire Storm,,inventory,1,inventory paintmod,1,
+paintmod_0277,Molten Meteor,,inventory,1,inventory paintmod,1,
+paintmod_0278,Oceanic Odyssey,,inventory,1,inventory paintmod,1,
+paintmod_0279,Dawn to Dusk,,inventory,1,inventory paintmod,1,
+paintmod_0280,Carnelian,,inventory,1,inventory paintmod,1,
+paintmod_0281,Periwinkle,,inventory,1,inventory paintmod,1,
+paintmod_0282,Goldenrod,,inventory,1,inventory paintmod,1,
+paintmod_0283,Mulberry,,inventory,1,inventory paintmod,1,
+paintmod_0284,Lofoten Green,,inventory,1,inventory paintmod,1,
+paintmod_0285,Extract of Indigo,,inventory,1,inventory paintmod,1,
+paintmod_0286,Soft Rime,,inventory,1,inventory paintmod,1,
+paintmod_0287,Burnt Umber,,inventory,1,inventory paintmod,1,
+paintmod_0288,Ochre Mutation,,inventory,1,inventory paintmod,1,
+paintmod_0289,Amber Codon,,inventory,1,inventory paintmod,1,
+paintmod_0290,Pearly Queen,,inventory,1,inventory paintmod,1,
+paintmod_0291,Heart of Onyx,,inventory,1,inventory paintmod,1,
+paintmod_0292,Construction Zone,,inventory,1,inventory paintmod,1,
+plasmaconductors,Plasma Conductors,hightech,container,32,container economy stationbuilding,1026,
+quantumtubes,Quantum Tubes,hightech,container,22,container economy,300,
+rawkhaakscrap,Allographyne Scrap,refined,solid,10,processed recycling solid,40,
+rawscrap,Raw Scrap,refined,solid,10,processed recycling solid,180,
+refinedmetals,Refined Metals,refined,container,14,container economy,148,
+research_agentslot_01,Embassy Management - Upgrade I,,research,1,nocustomgamestart research,1,
+research_agentslot_02,Embassy Management - Upgrade II,,research,1,nocustomgamestart research,1,
+research_diplomacy_network,Diplomacy Network,,research,1,nocustomgamestart research,1,
+research_equipment_xenon,Xenon Special Equipment,,research,1,nocustomgamestart research,1,
+research_high_mass_teleportation,High-mass Teleportation,,research,1,research,1,
+research_interference_network,Undercover Interference Network,,research,1,nocustomgamestart research,1,
+research_module_build,Build Module Hack,,research,1,hidden research,1,
+research_module_defence,Defence Module Hack,,research,1,research,1,
+research_module_dock,Dock Module Hack,,research,1,research,1,
+research_module_habitation,Habitation Module Hack,,research,1,research,1,
+research_module_production,Production Module Hack,,research,1,research,1,
+research_module_storage,Storage Module Hack,,research,1,research,1,
+research_module_venture,Venture Docks,,research,1,hidden research,1,
+research_module_welfare_1,Welfare Module - Gambling Den,,research,1,research,1,
+research_module_welfare_1_pre,Investigate nearby station.,,research,1,missiononly research,1,
+research_mod_engine_mk1,Basic Engine Mods,,research,1,research,1,
+research_mod_engine_mk2,Advanced Engine Mods,,research,1,research,1,
+research_mod_engine_mk3,Exceptional Engine Mods,,research,1,research,1,
+research_mod_engine_pre,Acquire Engine Sensors,,research,1,missiononly research,1,
+research_mod_shield_mk1,Basic Shield Mods,,research,1,research,1,
+research_mod_shield_mk2,Advanced Shield Mods,,research,1,research,1,
+research_mod_shield_mk3,Exceptional Shield Mods,,research,1,research,1,
+research_mod_shield_pre,Acquire Weapon Damage Data,,research,1,missiononly research,1,
+research_mod_ship_mk1,Basic Chassis Mods,,research,1,research,1,
+research_mod_ship_mk2,Advanced Chassis Mods,,research,1,research,1,
+research_mod_ship_mk3,Exceptional Chassis Mods,,research,1,research,1,
+research_mod_ship_pre,Acquire Nanites,,research,1,missiononly research,1,
+research_mod_weapon_mk1,Basic Weapon Mods,,research,1,research,1,
+research_mod_weapon_mk2,Advanced Weapon Mods,,research,1,research,1,
+research_mod_weapon_mk3,Exceptional Weapon Mods,,research,1,research,1,
+research_mod_weapon_pre,Acquire Regulators,,research,1,missiononly research,1,
+research_radioreceiver,Radio Receiver,,research,1,hidden research,1,
+research_sensorbooster,Sensor Booster,,research,1,hidden research,1,
+research_seta,Time Compression,,research,1,research,1,
+research_seta_pre,Time Compression Prerequisite,,research,1,missiononly research,1,
+research_teleportation,Teleportation,,research,1,research,1,
+research_teleportation_range_01,Teleportation - Range I,,research,1,research,1,
+research_teleportation_range_02,Teleportation - Range II,,research,1,research,1,
+research_teleportation_range_03,Teleportation - Range III,,research,1,research,1,
+research_tradeinterface,Trade Interface,,research,1,hidden research,1,
+research_warp_hq_01,High-mass Teleportation I,,research,1,research,1,
+research_warp_hq_02,High-mass Teleportation II,,research,1,research,1,
+research_xenon_crisis_01,Fleet-Wide Sensor Analytics,,research,1,nocustomgamestart research,1,
+research_xenon_crisis_02,Xenon Intelligence Study,,research,1,nocustomgamestart research,1,
+resourceprobe_01,Resource Probe,,equipment,1,equipment resourceprobe,6175,
+satellite_mk1,Satellite,,equipment,1,equipment satellite,4885,
+satellite_mk2,Advanced Satellite,,equipment,1,equipment satellite,52215,
+scanningarrays,Scanning Arrays,hightech,container,38,container economy,1053,
+scrapmetal,Scrap Metal,refined,solid,10,economy recycling solid,375,
+shieldcomponents,Shield Components,shiptech,container,10,container economy stationbuilding,188,
+shield_arg_l_standard_01_mk1,ARG L Shield Generator Mk1,shields,equipment,1,equipment shield,46851,
+shield_arg_l_standard_01_mk2,ARG L Shield Generator Mk2,shields,equipment,1,equipment shield,228494,
+shield_arg_m_standard_01_mk1,ARG M Shield Generator Mk1,shields,equipment,1,equipment shield,17117,
+shield_arg_m_standard_01_mk2,ARG M Shield Generator Mk2,shields,equipment,1,equipment shield,82820,
+shield_arg_m_standard_02_mk1,ARG M Shield Generator Mk1,shields,equipment,1,equipment shield,17117,
+shield_arg_m_standard_02_mk2,ARG M Shield Generator Mk2,shields,equipment,1,equipment shield,82129,
+shield_arg_s_standard_01_mk1,ARG S Shield Generator Mk1,shields,equipment,1,equipment shield,1354,
+shield_arg_s_standard_01_mk2,ARG S Shield Generator Mk2,shields,equipment,1,equipment shield,11318,
+shield_arg_s_standard_01_mk3,ARG S Shield Generator Mk3,shields,equipment,1,equipment shield,55436,
+shield_arg_xl_standard_01_mk1,ARG XL Shield Generator Mk1,shields,equipment,1,equipment shield,250745,
+shield_kha_l_standard_01_mk1,KHA L Shield Generator Mk1,shields,equipment,1,equipment noblueprint noplayerblueprint shield,0,
+shield_kha_m_standard_01_mk1,KHA M Shield Generator Mk1,shields,equipment,1,equipment noblueprint noplayerblueprint shield,0,
+shield_kha_m_standard_02_mk1,KHA M Shield Generator Mk1,shields,equipment,1,equipment noblueprint noplayerblueprint shield,0,
+shield_kha_m_standard_03_mk1,KHA M Shield Generator Mk1,shields,equipment,1,equipment noblueprint noplayerblueprint shield,0,
+shield_kha_s_standard_01_mk1,KHA S Shield Generator Mk1,shields,equipment,1,equipment noblueprint noplayerblueprint shield,0,
+shield_kha_xl_standard_01_mk1,KHA XL Shield Generator Mk1,shields,equipment,1,equipment noblueprint noplayerblueprint shield,0,
+shield_par_l_standard_01_mk1,PAR L Shield Generator Mk1,shields,equipment,1,equipment shield,52473,
+shield_par_l_standard_01_mk2,PAR L Shield Generator Mk2,shields,equipment,1,equipment shield,255913,
+shield_par_m_standard_01_mk1,PAR M Shield Generator Mk1,shields,equipment,1,equipment shield,18828,
+shield_par_m_standard_01_mk2,PAR M Shield Generator Mk2,shields,equipment,1,equipment shield,91102,
+shield_par_m_standard_02_mk1,PAR M Shield Generator Mk1,shields,equipment,1,equipment shield,17622,
+shield_par_m_standard_02_mk2,PAR M Shield Generator Mk2,shields,equipment,1,equipment shield,38219,
+shield_par_s_standard_01_mk1,PAR S Shield Generator Mk1,shields,equipment,1,equipment shield,1516,
+shield_par_s_standard_01_mk2,PAR S Shield Generator Mk2,shields,equipment,1,equipment shield,12676,
+shield_par_s_standard_01_mk3,PAR S Shield Generator Mk3,shields,equipment,1,equipment shield,62088,
+shield_par_xl_standard_01_mk1,PAR XL Shield Generator Mk1,shields,equipment,1,equipment shield,280834,
+shield_tel_l_standard_01_mk1,TEL L Shield Generator Mk1,shields,equipment,1,equipment shield,46851,
+shield_tel_l_standard_01_mk2,TEL L Shield Generator Mk2,shields,equipment,1,equipment shield,228494,
+shield_tel_m_standard_01_mk1,TEL M Shield Generator Mk1,shields,equipment,1,equipment shield,17117,
+shield_tel_m_standard_01_mk2,TEL M Shield Generator Mk2,shields,equipment,1,equipment shield,82820,
+shield_tel_m_standard_02_mk1,TEL M Shield Generator Mk1,shields,equipment,1,equipment shield,16020,
+shield_tel_m_standard_02_mk2,TEL M Shield Generator Mk2,shields,equipment,1,equipment shield,34745,
+shield_tel_s_standard_01_mk1,TEL S Shield Generator Mk1,shields,equipment,1,equipment shield,1354,
+shield_tel_s_standard_01_mk2,TEL S Shield Generator Mk2,shields,equipment,1,equipment shield,11318,
+shield_tel_s_standard_01_mk3,TEL S Shield Generator Mk3,shields,equipment,1,equipment shield,55436,
+shield_tel_xl_standard_01_mk1,TEL XL Shield Generator Mk1,shields,equipment,1,equipment shield,250745,
+shield_xen_l_standard_01_mk1,XEN L Shield Generator Mk1,shields,equipment,1,equipment noplayerblueprint shield,45984,
+shield_xen_l_standard_01_mk2,XEN L Shield Generator Mk2,shields,equipment,1,equipment noplayerblueprint shield,123072,
+shield_xen_l_standard_02_mk1,XEN L Shield Generator Mk1,shields,equipment,1,equipment shield,45984,
+shield_xen_l_standard_02_mk2,XEN L Shield Generator Mk2,shields,equipment,1,equipment shield,123072,
+shield_xen_m_standard_01_mk1,XEN M Shield Generator Mk1,shields,equipment,1,equipment noplayerblueprint shield,17971,
+shield_xen_m_standard_01_mk2,XEN M Shield Generator Mk2,shields,equipment,1,equipment noplayerblueprint shield,37094,
+shield_xen_m_standard_02_mk1,XEN M Shield Generator Mk1,shields,equipment,1,equipment noplayerblueprint shield,17971,
+shield_xen_m_standard_02_mk2,XEN M Shield Generator Mk2,shields,equipment,1,equipment noplayerblueprint shield,37094,
+shield_xen_m_standard_04_mk1,XEN M Shield Generator Mk1,shields,equipment,1,equipment shield,17971,
+shield_xen_m_virtual_01_mk1,XEN M Shield Generator Mk1,shields,equipment,1,equipment shield,17971,
+shield_xen_s_standard_01_mk1,XEN S Shield Generator Mk1,shields,equipment,1,equipment noplayerblueprint shield,2112,
+shield_xen_s_standard_01_mk2,XEN S Shield Generator Mk2,shields,equipment,1,equipment noplayerblueprint shield,5088,
+shield_xen_s_virtual_01_mk1,XEN S Shield Generator Mk1,shields,equipment,1,equipment shield,2112,
+shield_xen_xl_standard_01_mk1,XEN XL Shield Generator Mk1,shields,equipment,1,equipment noplayerblueprint shield,246104,
+ship_arg_l_destroyer_01_a,Behemoth Vanguard,,ship,1,ship,4713125,
+ship_arg_l_destroyer_01_b,Behemoth Sentinel,,ship,1,ship,5641250,
+ship_arg_l_destroyer_02_a,Behemoth E,,ship,1,ship,9250830,
+ship_arg_l_miner_liquid_01_a,Magnetar (Gas) Vanguard,,ship,1,ship,1307600,
+ship_arg_l_miner_liquid_01_b,Magnetar (Gas) Sentinel,,ship,1,ship,1589310,
+ship_arg_l_miner_solid_01_a,Magnetar (Mineral) Vanguard,,ship,1,ship,1304385,
+ship_arg_l_miner_solid_01_b,Magnetar (Mineral) Sentinel,,ship,1,ship,1586095,
+ship_arg_l_trans_container_01_a,Veles Vanguard,,ship,1,ship,3065695,
+ship_arg_l_trans_container_01_b,Veles Sentinel,,ship,1,ship,3694780,
+ship_arg_l_trans_container_02_a,Mokosi Vanguard,,ship,1,ship,3182880,
+ship_arg_l_trans_container_02_b,Mokosi Sentinel,,ship,1,ship,3824825,
+ship_arg_l_trans_container_03_a,Incarcatura Vanguard,,ship,1,ship,3096880,
+ship_arg_l_trans_container_03_b,Incarcatura Sentinel,,ship,1,ship,4999085,
+ship_arg_l_trans_container_04_a,Shuyaku Vanguard,,ship,1,ship,4520540,
+ship_arg_l_trans_container_04_b,Shuyaku Sentinel,,ship,1,ship,5429245,
+ship_arg_l_trans_container_05_a,Sonra Vanguard,,ship,1,ship,3587240,
+ship_arg_l_trans_container_05_b,Sonra Sentinel,,ship,1,ship,4294770,
+ship_arg_m_bomber_01_a,Minotaur Vanguard,,ship,1,ship,750580,
+ship_arg_m_bomber_01_b,Minotaur Sentinel,,ship,1,ship,888430,
+ship_arg_m_bomber_02_a,Minotaur Raider,,ship,1,ship,741015,
+ship_arg_m_frigate_01_a,Cerberus Vanguard,,ship,1,ship,963665,
+ship_arg_m_frigate_01_b,Cerberus Sentinel,,ship,1,ship,1145000,
+ship_arg_m_miner_liquid_01_a,Sunder (Gas) Vanguard,,ship,1,ship,127545,
+ship_arg_m_miner_liquid_01_b,Sunder (Gas) Sentinel,,ship,1,ship,161380,
+ship_arg_m_miner_solid_01_a,Drill (Mineral) Vanguard,,ship,1,ship,131965,
+ship_arg_m_miner_solid_01_b,Drill (Mineral) Sentinel,,ship,1,ship,155915,
+ship_arg_m_trans_container_01_a,Mercury Vanguard,,ship,1,ship,173355,
+ship_arg_m_trans_container_01_b,Mercury Sentinel,,ship,1,ship,208235,
+ship_arg_m_trans_container_02_a,Ides Vanguard,,ship,1,ship,199358,
+ship_arg_m_trans_container_02_b,Ides Sentinel,,ship,1,ship,239470,
+ship_arg_s_fighter_01_a,Nova Vanguard,,ship,1,ship,131970,
+ship_arg_s_fighter_01_b,Nova Sentinel,,ship,1,ship,160100,
+ship_arg_s_fighter_02_a,Elite Vanguard,,ship,1,ship,76755,
+ship_arg_s_fighter_02_b,Elite Sentinel,,ship,1,ship,92990,
+ship_arg_s_fighter_03_a,Pulsar Vanguard,,ship,1,ship,113565,
+ship_arg_s_fighter_04_a,Quasar Vanguard,,ship,1,ship,100545,
+ship_arg_s_heavyfighter_01_a,Eclipse Vanguard,,ship,1,,187105,
+ship_arg_s_heavyfighter_01_b,Eclipse Sentinel,,ship,1,,226005,
+ship_arg_s_heavyfighter_02_a,Eclipse Vanguard,,ship,1,ship,169745,
+ship_arg_s_miner_solid_01_a,Courier (Mineral),,ship,1,ship,83265,
+ship_arg_s_scout_01_a,Discoverer Vanguard,,ship,1,ship,87605,
+ship_arg_s_scout_01_b,Discoverer Sentinel,,ship,1,ship,105930,
+ship_arg_s_trans_container_01_a,Courier Vanguard,,ship,1,ship,155760,
+ship_arg_s_trans_container_01_b,Courier Sentinel,,ship,1,ship,185980,
+ship_arg_s_trans_container_02_a,Callisto Vanguard,,ship,1,ship,80050,
+ship_arg_s_trans_container_02_b,Callisto Sentinel,,ship,1,ship,98455,
+ship_arg_xl_builder_01_a,Mammoth Vanguard,,ship,1,ship,9123765,
+ship_arg_xl_builder_01_b,Mammoth Sentinel,,ship,1,ship,10948470,
+ship_arg_xl_carrier_01_a,Colossus Vanguard,,ship,1,ship,10090050,
+ship_arg_xl_carrier_01_b,Colossus Sentinel,,ship,1,ship,12102675,
+ship_arg_xl_carrier_02_a,Colossus E,,ship,1,ship,15359641,
+ship_arg_xl_resupplier_01_a,Nomad Vanguard,,ship,1,ship,8600515,
+ship_arg_xl_resupplier_01_b,Nomad Sentinel,,ship,1,ship,10313175,
+ship_arg_xs_police_01_a,Argon Station Security Vessel,drones,equipment,1,drone equipment noplayerblueprint,11420,
+ship_gen_m_transdrone_container_01_a,Medium Drop Drone,drones,ship,1,noplayerbuild ship,46600,
+ship_gen_m_tugboat_01_a,Manticore,,ship,1,ship,402755,
+ship_gen_s_fighter_01_a,Nodan Vanguard,,ship,1,ship,77630,
+ship_gen_s_fighter_01_b,Nodan Sentinel,,ship,1,ship,95390,
+ship_gen_s_fightingdrone_01_a,Defence Drone,drones,equipment,1,drone equipment,13660,
+ship_gen_s_lasertower_01_a,Laser Tower Mk2,,equipment,1,equipment lasertower,14770,
+ship_gen_s_miningdrone_liquid_01_a,Gas Collector Drone,drones,equipment,1,drone equipment,13860,
+ship_gen_s_miningdrone_solid_01_a,Mining Drone,drones,equipment,1,drone equipment,13860,
+ship_gen_s_transdrone_container_01_a,Small Drop Drone,drones,ship,1,noplayerbuild ship,23300,
+ship_gen_xs_buildingdrone_01_a,Building Drone,drones,equipment,1,drone equipment,15270,
+ship_gen_xs_cargodrone_empty_01_a,Cargo Drone,drones,equipment,1,drone equipment,16150,
+ship_gen_xs_lasertower_01_a,Laser Tower Mk1,,equipment,1,equipment lasertower,9450,
+ship_gen_xs_repairdrone_01_a,Repair Drone,drones,equipment,1,drone equipment,15270,
+ship_kha_l_destroyer_01_a,Ravager,,ship,1,noblueprint noplayerblueprint ship,0,
+ship_kha_m_fighter_01_a,Queen's Guard,,ship,1,noblueprint noplayerblueprint ship,0,
+ship_kha_m_fighter_02_a,Hive Guard,,ship,1,noblueprint noplayerblueprint ship,0,
+ship_kha_s_fighter_01_a,Protector,,ship,1,noblueprint noplayerblueprint ship,0,
+ship_kha_s_fighter_02_a,Forager,,ship,1,noblueprint noplayerblueprint ship,0,
+ship_kha_xl_battleship_01_a,Obliterator,,ship,1,noblueprint noplayerblueprint ship,0,
+ship_par_l_destroyer_01_a,Odysseus Vanguard,,ship,1,ship,5030940,
+ship_par_l_destroyer_01_b,Odysseus Sentinel,,ship,1,ship,6042095,
+ship_par_l_destroyer_02_a,Odysseus E,,ship,1,ship,9791150,
+ship_par_l_miner_liquid_01_a,Chthonios (Gas) Vanguard,,ship,1,ship,1154890,
+ship_par_l_miner_liquid_01_b,Chthonios (Gas) Sentinel,,ship,1,ship,1395770,
+ship_par_l_miner_liquid_02_a,Chthonios E (Gas),,ship,1,ship,1591620,
+ship_par_l_miner_solid_01_a,Chthonios (Mineral) Vanguard,,ship,1,ship,1154890,
+ship_par_l_miner_solid_01_b,Chthonios (Mineral) Sentinel,,ship,1,ship,1395770,
+ship_par_l_miner_solid_02_a,Chthonios E (Mineral),,ship,1,ship,1591625,
+ship_par_l_trans_container_01_a,Helios Vanguard,,ship,1,ship,1995760,
+ship_par_l_trans_container_01_b,Helios Sentinel,,ship,1,ship,2410810,
+ship_par_l_trans_container_02_a,Selene Vanguard,,ship,1,ship,1995760,
+ship_par_l_trans_container_02_b,Selene Sentinel,,ship,1,ship,2410810,
+ship_par_l_trans_container_03_a,Helios E,,ship,1,ship,3470000,
+ship_par_m_corvette_01_a,Nemesis Vanguard,,ship,1,ship,622295,
+ship_par_m_corvette_01_b,Nemesis Sentinel,,ship,1,ship,746320,
+ship_par_m_frigate_01_a,Gorgon Vanguard,,ship,1,ship,1098300,
+ship_par_m_frigate_01_b,Gorgon Sentinel,,ship,1,ship,1323040,
+ship_par_m_miner_liquid_01_a,Plutus (Gas) Vanguard,,ship,1,ship,133010,
+ship_par_m_miner_liquid_01_b,Plutus (Gas) Sentinel,,ship,1,ship,162505,
+ship_par_m_miner_solid_01_a,Plutus (Mineral) Vanguard,,ship,1,ship,133010,
+ship_par_m_miner_solid_01_b,Plutus (Mineral) Sentinel,,ship,1,ship,162505,
+ship_par_m_trans_container_01_a,Demeter Vanguard,,ship,1,ship,176650,
+ship_par_m_trans_container_01_b,Demeter Sentinel,,ship,1,ship,229050,
+ship_par_m_trans_container_02_a,Hermes Vanguard,,ship,1,ship,176650,
+ship_par_m_trans_container_02_b,Hermes Sentinel,,ship,1,ship,229050,
+ship_par_m_trans_container_03_a,Prometheus,,ship,1,ship,292080,
+ship_par_s_fighter_01_a,Perseus Vanguard,,ship,1,ship,156805,
+ship_par_s_fighter_01_b,Perseus Sentinel,,ship,1,ship,188150,
+ship_par_s_fighter_02_a,Theseus Vanguard,,ship,1,ship,177380,
+ship_par_s_fighter_02_b,Theseus Sentinel,,ship,1,ship,211940,
+ship_par_s_heavyfighter_01_a,Ares,,ship,1,ship,243540,
+ship_par_s_miner_solid_01_a,Tethys (Mineral),,ship,1,ship,83265,
+ship_par_s_scout_01_a,Pegasus Vanguard,,ship,1,ship,80050,
+ship_par_s_scout_01_b,Pegasus Sentinel,,ship,1,ship,97330,
+ship_par_s_trans_container_01_a,Tethys Vanguard,,ship,1,ship,150295,
+ship_par_s_trans_container_01_b,Tethys Sentinel,,ship,1,ship,183810,
+ship_par_xl_builder_01_a,Heracles Vanguard,,ship,1,ship,9123765,
+ship_par_xl_builder_01_b,Heracles Sentinel,,ship,1,ship,10948470,
+ship_par_xl_carrier_01_a,Zeus Vanguard,,ship,1,ship,13127715,
+ship_par_xl_carrier_01_b,Zeus Sentinel,,ship,1,ship,15747905,
+ship_par_xl_carrier_02_a,Zeus E,,ship,1,ship,17540630,
+ship_par_xl_resupplier_01_a,Atlas Vanguard,,ship,1,ship,9640505,
+ship_par_xl_resupplier_01_b,Atlas Sentinel,,ship,1,ship,11568815,
+ship_par_xl_resupplier_02_a,Atlas E,,ship,1,ship,15457615,
+ship_par_xs_police_01_a,Paranid Station Security Vessel,drones,equipment,1,drone equipment noplayerblueprint,11420,
+ship_tel_l_destroyer_01_a,Phoenix Vanguard,,ship,1,ship,5273360,
+ship_tel_l_destroyer_01_b,Phoenix Sentinel,,ship,1,ship,6307905,
+ship_tel_l_destroyer_02_a,Phoenix E,,ship,1,ship,6034866,
+ship_tel_l_miner_liquid_01_a,Crane (Gas) Vanguard,,ship,1,ship,1503310,
+ship_tel_l_miner_liquid_01_b,Crane (Gas) Sentinel,,ship,1,ship,1804390,
+ship_tel_l_miner_liquid_02_a,Crane E (Gas),,ship,1,ship,1922187,
+ship_tel_l_miner_solid_01_a,Crane (Mineral) Vanguard,,ship,1,ship,1503310,
+ship_tel_l_miner_solid_01_b,Crane (Mineral) Sentinel,,ship,1,ship,1804390,
+ship_tel_l_miner_solid_02_a,Crane E (Mineral),,ship,1,ship,1922187,
+ship_tel_l_trans_container_01_a,Pelican Vanguard,,ship,1,ship,2652815,
+ship_tel_l_trans_container_01_b,Pelican Sentinel,,ship,1,ship,3199035,
+ship_tel_l_trans_container_02_a,Heron Vanguard,,ship,1,ship,2436610,
+ship_tel_l_trans_container_02_b,Heron Sentinel,,ship,1,ship,2908725,
+ship_tel_l_trans_container_03_a,Heron E,,ship,1,ship,3551033,
+ship_tel_m_bomber_01_a,Peregrine Vanguard,,ship,1,ship,735710,
+ship_tel_m_bomber_01_b,Peregrine Sentinel,,ship,1,ship,870425,
+ship_tel_m_frigate_01_a,Osprey Vanguard,,ship,1,ship,1044205,
+ship_tel_m_frigate_01_b,Osprey Sentinel,,ship,1,ship,1263720,
+ship_tel_m_miner_liquid_01_a,Manorina (Gas) Vanguard,,ship,1,ship,118865,
+ship_tel_m_miner_liquid_01_b,Manorina (Gas) Sentinel,,ship,1,ship,143940,
+ship_tel_m_miner_solid_01_a,Manorina (Mineral) Vanguard,,ship,1,ship,118865,
+ship_tel_m_miner_solid_01_b,Manorina (Mineral) Sentinel,,ship,1,ship,143940,
+ship_tel_m_trans_container_01_a,Vulture Vanguard,,ship,1,ship,266020,
+ship_tel_m_trans_container_01_b,Vulture Sentinel,,ship,1,ship,308615,
+ship_tel_m_trans_container_02_a,Tern Vanguard,,ship,1,ship,266020,
+ship_tel_m_trans_container_02_b,Tern Sentinel,,ship,1,ship,308615,
+ship_tel_m_trans_container_03_a,Cormorant Vanguard,,ship,1,ship,418830,
+ship_tel_s_fighter_01_a,Falcon Vanguard,,ship,1,ship,164360,
+ship_tel_s_fighter_01_b,Falcon Sentinel,,ship,1,ship,195705,
+ship_tel_s_fighter_02_a,Buzzard Vanguard,,ship,1,ship,157850,
+ship_tel_s_fighter_02_b,Buzzard Sentinel,,ship,1,ship,190320,
+ship_tel_s_miner_solid_01_a,Magpie (Mineral),,ship,1,ship,90820,
+ship_tel_s_scout_01_a,Kestrel Vanguard,,ship,1,ship,91945,
+ship_tel_s_scout_01_b,Kestrel Sentinel,,ship,1,ship,110350,
+ship_tel_s_scout_02_a,Guillemot Vanguard,,ship,1,ship,139525,
+ship_tel_s_scout_02_b,Guillemot Sentinel,,ship,1,ship,166530,
+ship_tel_s_trans_container_01_a,Magpie Vanguard,,ship,1,ship,168700,
+ship_tel_s_trans_container_01_b,Magpie Sentinel,,ship,1,ship,200045,
+ship_tel_s_trans_container_02_a,Raven,,ship,1,noblueprint nocustomgamestart noplayerbuild ship,566090,
+ship_tel_xl_builder_01_a,Albatross Vanguard,,ship,1,ship,9123765,
+ship_tel_xl_builder_01_b,Albatross Sentinel,,ship,1,ship,10948470,
+ship_tel_xl_carrier_01_a,Condor Vanguard,,ship,1,ship,11170550,
+ship_tel_xl_carrier_01_b,Condor Sentinel,,ship,1,ship,13409595,
+ship_tel_xl_resupplier_01_a,Stork Vanguard,,ship,1,ship,7784855,
+ship_tel_xl_resupplier_01_b,Stork Sentinel,,ship,1,ship,9342630,
+ship_tel_xs_police_01_a,Teladi Station Security Vessel A,drones,equipment,1,drone equipment noplayerblueprint,11420,
+ship_tel_xs_police_02_a,Teladi Station Security Vessel B,drones,equipment,1,drone equipment noplayerblueprint,11420,
+ship_tel_xs_police_03_a,Teladi Station Security Vessel C,drones,equipment,1,drone equipment noplayerblueprint,11420,
+ship_xen_l_terraformer_01_a,H,,ship,1,nocustomgamestart ship,1676240,
+ship_xen_m_corvette_01_a,B,,ship,1,nocustomgamestart ship,99600,
+ship_xen_m_corvette_02_a,PE,,ship,1,nocustomgamestart ship,85300,
+ship_xen_m_fighter_01_a,P,,ship,1,noplayerblueprint ship,78620,
+ship_xen_m_miner_01_a,S,,ship,1,noplayerblueprint ship,71350,
+ship_xen_m_miner_solid_01_a,SE,,ship,1,nocustomgamestart ship,71350,
+ship_xen_s_fighter_01_a,N,,ship,1,noplayerblueprint ship,34530,
+ship_xen_s_fighter_02_a,M,,ship,1,noplayerblueprint ship,39840,
+ship_xen_s_heavyfighter_01_a,F,,ship,1,nocustomgamestart ship,67800,
+ship_xen_s_scout_01_a,T,,ship,1,noplayerblueprint ship,25880,
+ship_xen_xl_carrier_01_a,I,,ship,1,noplayerblueprint ship,5059920,
+ship_xen_xl_destroyer_01_a,K,,ship,1,noplayerblueprint ship,2432440,
+silicon,Silicon,minerals,solid,10,economy minable mineral solid,130,
+siliconwafers,Silicon Wafers,refined,container,18,container economy,299,
+smartchips,Smart Chips,shiptech,container,2,container economy,57,
+sm_gen_lockbox_common_01,Lockbox,,inventory,1,lockbox,1,
+software_dockmk1,Docking Computer Mk1,software,software,1,equipment noblueprint software,7500,
+software_dockmk2,Docking Computer Mk2,software,software,1,equipment noblueprint software,32768,
+software_economymk1,Economy Analytics Software Mk1,software,software,1,noblueprint,7500,
+software_flightassistmk1,Flight Assist Software Mk1,software,software,1,equipment noblueprint software,9100,
+software_hackerspacesuitmk1,Hacking Tool,software,inventory,1,disallowdrop inventory noblueprint nocustomgamestart noplayerblueprint personalupgrade,1,
+software_oxygenspacesuitmk1,Oxygen Upgrade,software,inventory,1,disallowdrop inventory noblueprint nocustomgamestart noplayerblueprint personalupgrade,1,
+software_scannerlongrangemk1,Long Range Scanner Software Mk1,software,equipment,1,equipment noblueprint scanner software,32526,
+software_scannerlongrangemk2,Long Range Scanner Software Mk2,software,equipment,1,equipment noblueprint scanner software,65052,
+software_scannerminingmk1,Mining Scanner Software Mk1,software,equipment,1,noblueprint noplayerblueprint scanner,24238,
+software_scannerminingmk2,Mining Scanner Software Mk2,software,equipment,1,noblueprint noplayerblueprint scanner,72329,
+software_scannerobjectmk1,Basic Scanner,software,equipment,1,equipment noblueprint scanner software,12119,
+software_scannerobjectmk2,Police Scanner,software,equipment,1,equipment noblueprint scanner software,40815,
+software_scannerobjectmk3,Spacesuit Scanner,software,inventory,1,disallowdrop equipment inventory noblueprint personalupgrade scanner software,1000,
+software_targetmk1,Targeting Computer Extension Mk1,software,software,1,equipment noblueprint software,8192,
+software_targetmk2,Targeting Computer Extension Mk2,software,software,1,noblueprint,7500,
+software_trademk1,Trading Computer Extension Mk1,software,software,1,equipment noblueprint software,11250,
+software_trademk2,Trading Computer Extension Mk2,software,software,1,noblueprint,7500,
+software_trademk3,Trading Computer Extension Mk3,software,software,1,noblueprint,7500,
+sojabeans,Soja Beans,agricultural,container,5,container economy,67,
+sojahusk,Soja Husk,food,container,1,container economy,32,
+spacefuel,Spacefuel,pharmaceutical,container,2,container economy,133,
+spaceweed,Spaceweed,pharmaceutical,container,3,container economy,166,
+spices,Spices,agricultural,container,3,container economy,20,
+sunriseflowers,Sunrise Flowers,agricultural,container,5,container economy,80,
+superfluidcoolant,Superfluid Coolant,refined,container,16,container economy,150,
+swampplant,Swamp Plant,agricultural,container,6,container economy,84,
+teladianium,Teladianium,refined,container,16,container economy,202,
+thruster_gen_l_allround_01_mk1,L All-round Thrusters Mk1,thrusters,equipment,1,equipment thruster,281595,
+thruster_gen_l_allround_01_mk2,L All-round Thrusters Mk2,thrusters,equipment,1,equipment thruster,1406821,
+thruster_gen_l_allround_01_mk3,L All-round Thrusters Mk3,thrusters,equipment,1,equipment thruster,7031799,
+thruster_gen_m_allround_01_mk1,M All-round Thrusters Mk1,thrusters,equipment,1,equipment thruster,13019,
+thruster_gen_m_allround_01_mk2,M All-round Thrusters Mk2,thrusters,equipment,1,equipment thruster,64519,
+thruster_gen_m_allround_01_mk3,M All-round Thrusters Mk3,thrusters,equipment,1,equipment thruster,321445,
+thruster_gen_m_combat_01_mk1,M Combat Thrusters Mk1,thrusters,equipment,1,equipment thruster,16555,
+thruster_gen_m_combat_01_mk2,M Combat Thrusters Mk2,thrusters,equipment,1,equipment thruster,82198,
+thruster_gen_m_combat_01_mk3,M Combat Thrusters Mk3,thrusters,equipment,1,equipment thruster,409838,
+thruster_gen_s_allround_01_mk1,S All-round Thrusters Mk1,thrusters,equipment,1,equipment thruster,5948,
+thruster_gen_s_allround_01_mk2,S All-round Thrusters Mk2,thrusters,equipment,1,equipment thruster,44169,
+thruster_gen_s_allround_01_mk3,S All-round Thrusters Mk3,thrusters,equipment,1,equipment thruster,175495,
+thruster_gen_s_combat_01_mk1,S Combat Thrusters Mk1,thrusters,equipment,1,equipment thruster,6934,
+thruster_gen_s_combat_01_mk2,S Combat Thrusters Mk2,thrusters,equipment,1,equipment thruster,93298,
+thruster_gen_s_combat_01_mk3,S Combat Thrusters Mk3,thrusters,equipment,1,equipment thruster,221952,
+thruster_gen_xl_allround_01_mk1,XL All-round Thrusters Mk1,thrusters,equipment,1,equipment thruster,598162,
+thruster_gen_xl_allround_01_mk2,XL All-round Thrusters Mk2,thrusters,equipment,1,equipment thruster,2989659,
+thruster_gen_xl_allround_01_mk3,XL All-round Thrusters Mk3,thrusters,equipment,1,equipment thruster,14945991,
+turretcomponents,Turret Components,shiptech,container,20,container economy stationbuilding,273,
+turret_arg_l_beam_01_mk1,ARG L Beam Turret Mk1,turrets,equipment,1,equipment turret,64735,
+turret_arg_l_dumbfire_01_mk1,ARG L Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,49950,
+turret_arg_l_guided_01_mk1,ARG L Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,69930,
+turret_arg_l_laser_01_mk1,ARG L Pulse Turret Mk1,turrets,equipment,1,equipment turret,48085,
+turret_arg_l_mining_01_mk1,ARG L Mining Turret Mk1,turrets,equipment,1,equipment turret,16650,
+turret_arg_l_plasma_01_mk1,ARG L Plasma Turret Mk1,turrets,equipment,1,equipment turret,114685,
+turret_arg_m_beam_01_mk1,ARG M Beam Turret Mk1,turrets,equipment,1,equipment turret,32368,
+turret_arg_m_beam_02_mk1,ARG M Beam Turret Mk1,turrets,equipment,1,equipment turret,32368,
+turret_arg_m_dumbfire_01_mk1,ARG M Dumbfire Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,24975,
+turret_arg_m_dumbfire_02_mk1,ARG M Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,24975,
+turret_arg_m_flak_01_mk1,ARG M Flak Turret Mk1,turrets,equipment,1,equipment turret,65668,
+turret_arg_m_flak_02_mk1,ARG M Flak Turret Mk1,turrets,equipment,1,equipment turret,65668,
+turret_arg_m_gatling_01_mk1,ARG M Bolt Turret Mk1,turrets,equipment,1,equipment turret,40693,
+turret_arg_m_gatling_02_mk1,ARG M Bolt Turret Mk1,turrets,equipment,1,equipment turret,40693,
+turret_arg_m_guided_01_mk1,ARG M Tracking Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,34965,
+turret_arg_m_guided_02_mk1,ARG M Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,34965,
+turret_arg_m_laser_01_mk1,ARG M Pulse Turret Mk1,turrets,equipment,1,equipment turret,24043,
+turret_arg_m_laser_02_mk1,ARG M Pulse Turret Mk1,turrets,equipment,1,equipment turret,24043,
+turret_arg_m_mining_01_mk1,ARG M Mining Turret Mk1,turrets,equipment,1,equipment turret,8325,
+turret_arg_m_mining_02_mk1,ARG M Mining Turret Mk1,turrets,equipment,1,equipment turret,8325,
+turret_arg_m_plasma_01_mk1,ARG M Plasma Turret Mk1,turrets,equipment,1,equipment turret,64935,
+turret_arg_m_plasma_02_mk1,ARG M Plasma Turret Mk1,turrets,equipment,1,equipment turret,64935,
+turret_arg_m_shotgun_01_mk1,ARG M Shard Turret Mk1,turrets,equipment,1,equipment turret,49018,
+turret_arg_m_shotgun_02_mk1,ARG M Shard Turret Mk1,turrets,equipment,1,equipment turret,49018,
+turret_gen_m_scrapbeam_01_mk1,Scrap Tractor,turrets,equipment,1,equipment turret,15718,
+turret_kha_l_beam_01_mk1,KHA L Kyon Turret Mk1,turrets,equipment,1,equipment noblueprint noplayerblueprint turret,0,
+turret_kha_m_beam_01_mk1,KHA M Kyon Turret Mk1,turrets,equipment,1,equipment noblueprint noplayerblueprint turret,0,
+turret_par_l_beam_01_mk1,PAR L Mass Driver Turret Mk1,turrets,equipment,1,equipment turret,164635,
+turret_par_l_dumbfire_01_mk1,PAR L Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,49950,
+turret_par_l_guided_01_mk1,PAR L Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,69930,
+turret_par_l_laser_01_mk1,PAR L Pulse Turret Mk1,turrets,equipment,1,equipment turret,48085,
+turret_par_l_mining_01_mk1,PAR L Mining Turret Mk1,turrets,equipment,1,equipment turret,16650,
+turret_par_l_plasma_01_mk1,PAR L Plasma Turret Mk1,turrets,equipment,1,equipment turret,114685,
+turret_par_m_beam_01_mk1,PAR M Mass Driver Turret Mk1,turrets,equipment,1,equipment turret,82318,
+turret_par_m_beam_02_mk1,PAR M Mass Driver Turret Mk1,turrets,equipment,1,equipment turret,82318,
+turret_par_m_dumbfire_01_mk1,PAR M Dumbfire Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,24975,
+turret_par_m_dumbfire_02_mk1,PAR M Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,24975,
+turret_par_m_gatling_01_mk1,PAR M Bolt Turret Mk1,turrets,equipment,1,equipment turret,40693,
+turret_par_m_gatling_02_mk1,PAR M Bolt Turret Mk1,turrets,equipment,1,equipment turret,40693,
+turret_par_m_guided_01_mk1,PAR M Tracking Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,34965,
+turret_par_m_guided_02_mk1,PAR M Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,34965,
+turret_par_m_laser_01_mk1,PAR M Pulse Turret Mk1,turrets,equipment,1,equipment turret,15718,
+turret_par_m_laser_02_mk1,PAR M Pulse Turret Mk1,turrets,equipment,1,equipment turret,15718,
+turret_par_m_mining_01_mk1,PAR M Mining Turret Mk1,turrets,equipment,1,equipment turret,8325,
+turret_par_m_mining_02_mk1,PAR M Mining Turret Mk1,turrets,equipment,1,equipment turret,8325,
+turret_par_m_plasma_01_mk1,PAR M Plasma Turret Mk1,turrets,equipment,1,equipment turret,57343,
+turret_par_m_plasma_02_mk1,PAR M Plasma Turret Mk1,turrets,equipment,1,equipment turret,57343,
+turret_par_m_shotgun_01_mk1,PAR M Blast Mortar Turret Mk1,turrets,equipment,1,equipment turret,73993,
+turret_par_m_shotgun_02_mk1,PAR M Blast Mortar Turret Mk1,turrets,equipment,1,equipment turret,73993,
+turret_tel_l_beam_01_mk1,TEL L Beam Turret Mk1,turrets,equipment,1,equipment turret,64735,
+turret_tel_l_dumbfire_01_mk1,TEL L Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,49950,
+turret_tel_l_guided_01_mk1,TEL L Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,69930,
+turret_tel_l_laser_01_mk1,TEL L Pulse Turret Mk1,turrets,equipment,1,equipment turret,31435,
+turret_tel_l_mining_01_mk1,TEL L Mining Turret Mk1,turrets,equipment,1,equipment turret,16650,
+turret_tel_l_plasma_01_mk1,TEL L Plasma Shard Turret Mk1,turrets,equipment,1,equipment turret,98035,
+turret_tel_m_beam_01_mk1,TEL M Beam Turret Mk1,turrets,equipment,1,equipment turret,32368,
+turret_tel_m_beam_02_mk1,TEL M Beam Turret Mk1,turrets,equipment,1,equipment turret,32368,
+turret_tel_m_dumbfire_01_mk1,TEL M Dumbfire Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,24975,
+turret_tel_m_dumbfire_02_mk1,TEL M Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,24975,
+turret_tel_m_gatling_01_mk1,TEL M Bolt Turret Mk1,turrets,equipment,1,equipment turret,40693,
+turret_tel_m_gatling_02_mk1,TEL M Bolt Turret Mk1,turrets,equipment,1,equipment turret,40693,
+turret_tel_m_guided_01_mk1,TEL M Tracking Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,34965,
+turret_tel_m_guided_02_mk1,TEL M Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,34965,
+turret_tel_m_laser_01_mk1,TEL M Pulse Turret Mk1,turrets,equipment,1,equipment turret,15718,
+turret_tel_m_laser_02_mk1,TEL M Pulse Turret Mk1,turrets,equipment,1,equipment turret,15718,
+turret_tel_m_mining_01_mk1,TEL M Mining Turret Mk1,turrets,equipment,1,equipment turret,8325,
+turret_tel_m_mining_02_mk1,TEL M Mining Turret Mk1,turrets,equipment,1,equipment turret,8325,
+turret_tel_m_plasma_01_mk1,TEL M Plasma Turret Mk1,turrets,equipment,1,equipment turret,57343,
+turret_tel_m_plasma_02_mk1,TEL M Plasma Turret Mk1,turrets,equipment,1,equipment turret,57343,
+turret_tel_m_shotgun_01_mk1,TEL M Muon Blaster Turret Mk1,turrets,equipment,1,equipment turret,49018,
+turret_tel_m_shotgun_02_mk1,TEL M Muon Blaster Turret Mk1,turrets,equipment,1,equipment turret,49018,
+turret_xen_l_laser_01_mk1,XEN L Graviton Turret Mk1,turrets,equipment,1,equipment noplayerblueprint turret,67972,
+turret_xen_l_plasma_01_mk1,XEN L Seismic Charge Turret Mk1,turrets,equipment,1,equipment turret,102937,
+turret_xen_m_beam_02_mk1,XEN M Positron Turret Mk1,turrets,equipment,1,equipment noplayerblueprint turret,24476,
+turret_xen_m_gatling_01_mk1,XEN M Needler Turret Mk1,turrets,equipment,1,equipment turret,16503,
+turret_xen_m_gatling_02_mk1,XEN M Needler Turret Mk1,turrets,equipment,1,equipment turret,16503,
+turret_xen_m_laser_01_mk1,XEN M Impulse Turret Mk1,turrets,equipment,1,equipment noplayerblueprint turret,25245,
+turret_xen_m_laser_02_mk1,XEN M Impulse Turret Mk1,turrets,equipment,1,equipment noplayerblueprint turret,25245,
+water,Water,water,container,6,container economy stationbuilding,53,
+waypointmarker_01,Nav Beacon,,equipment,1,equipment navbeacon,1330,
+weaponcomponents,Weapon Components,shiptech,container,20,container economy,285,
+weapon_arg_l_destroyer_01_mk1,ARG Behemoth Main Battery,weapons,equipment,1,equipment weapon,1394238,
+weapon_arg_m_ion_01_mk1,ARG M Ion Blaster Mk1,weapons,equipment,1,equipment weapon,36996,
+weapon_arg_m_ion_01_mk2,ARG M Ion Blaster Mk2,weapons,equipment,1,equipment weapon,281185,
+weapon_arg_s_ion_01_mk1,ARG S Ion Blaster Mk1,weapons,equipment,1,equipment weapon,24664,
+weapon_arg_s_ion_01_mk2,ARG S Ion Blaster Mk2,weapons,equipment,1,equipment weapon,187457,
+weapon_gen_mine_01,Mine,weapons,equipment,1,equipment mine,5698,
+weapon_gen_mine_02,Tracker Mine,weapons,equipment,1,equipment mine,10653,
+weapon_gen_mine_03,Friend/Foe Mine,weapons,equipment,1,equipment mine,20563,
+weapon_gen_m_beam_01_mk1,M Beam Emitter Mk1,weapons,equipment,1,equipment weapon,36996,
+weapon_gen_m_beam_01_mk2,M Beam Emitter Mk2,weapons,equipment,1,equipment weapon,281185,
+weapon_gen_m_dumbfire_01_mk1,M Dumbfire Launcher Mk1,weapons,equipment,1,deprecated,25064,
+weapon_gen_m_dumbfire_01_mk2,M Dumbfire Launcher Mk2,weapons,equipment,1,deprecated,124170,
+weapon_gen_m_dumbfire_02_mk1,M Dumbfire Launcher,weapons,equipment,1,equipment missilelauncher weapon,31219,
+weapon_gen_m_gatling_01_mk1,M Bolt Repeater Mk1,weapons,equipment,1,equipment weapon,53646,
+weapon_gen_m_gatling_01_mk2,M Bolt Repeater Mk2,weapons,equipment,1,equipment weapon,347785,
+weapon_gen_m_guided_01_mk1,M Tracking Launcher Mk1,weapons,equipment,1,deprecated,49745,
+weapon_gen_m_guided_01_mk2,M Tracking Launcher Mk2,weapons,equipment,1,deprecated,247572,
+weapon_gen_m_guided_02_mk1,M Tracking Launcher,weapons,equipment,1,equipment missilelauncher weapon,47203,
+weapon_gen_m_laser_01_mk1,M Pulse Laser Mk1,weapons,equipment,1,equipment weapon,20346,
+weapon_gen_m_laser_01_mk2,M Pulse Laser Mk2,weapons,equipment,1,equipment weapon,133866,
+weapon_gen_m_mining_01_mk1,M Mining Drill Mk1,weapons,equipment,1,equipment weapon,12954,
+weapon_gen_m_mining_01_mk2,M Mining Drill Mk2,weapons,equipment,1,equipment weapon,29604,
+weapon_gen_m_plasma_01_mk1,M Plasma Cannon Mk1,weapons,equipment,1,equipment weapon,86946,
+weapon_gen_m_plasma_01_mk2,M Plasma Cannon Mk2,weapons,equipment,1,equipment weapon,480985,
+weapon_gen_m_shotgun_01_mk1,M Shard Battery Mk1,weapons,equipment,1,equipment weapon,70296,
+weapon_gen_m_shotgun_01_mk2,M Shard Battery Mk2,weapons,equipment,1,equipment weapon,414385,
+weapon_gen_m_torpedo_01_mk1,M Torpedo Launcher Mk1,weapons,equipment,1,deprecated,86710,
+weapon_gen_m_torpedo_01_mk2,M Torpedo Launcher Mk2,weapons,equipment,1,deprecated,432400,
+weapon_gen_m_torpedo_02_mk1,M Torpedo Launcher,weapons,equipment,1,equipment missilelauncher weapon,67433,
+weapon_gen_spacesuit_demolition_01_mk1,Bomb Launcher,weapons,inventory,1,disallowdrop equipment inventory noblueprint noplayerblueprint personalupgrade weapon,200000,
+weapon_gen_spacesuit_laser_01_mk1,Hand Laser,weapons,inventory,1,disallowdrop equipment inventory noblueprint noplayerblueprint personalupgrade weapon,60000,
+weapon_gen_spacesuit_laser_02_mk1,Personal Blaster,weapons,inventory,1,disallowdrop equipment inventory noblueprint noplayerblueprint personalupgrade weapon,100000,
+weapon_gen_spacesuit_repairlaser_01_mk1,Repair Laser,weapons,inventory,1,disallowdrop equipment inventory noblueprint noplayerblueprint personalupgrade weapon,1000,
+weapon_gen_s_beam_01_mk1,S Beam Emitter Mk1,weapons,equipment,1,equipment weapon,24664,
+weapon_gen_s_beam_01_mk2,S Beam Emitter Mk2,weapons,equipment,1,equipment weapon,187457,
+weapon_gen_s_burst_01_mk1,S Burst Ray Mk1,weapons,equipment,1,equipment weapon,69064,
+weapon_gen_s_burst_01_mk2,S Burst Ray Mk2,weapons,equipment,1,equipment weapon,320657,
+weapon_gen_s_cannon_01_mk1,S Blast Mortar Mk1,weapons,equipment,1,equipment weapon,69064,
+weapon_gen_s_cannon_01_mk2,S Blast Mortar Mk2,weapons,equipment,1,equipment weapon,365057,
+weapon_gen_s_dumbfire_01_mk1,S Dumbfire Launcher Mk1,weapons,equipment,1,deprecated,7439,
+weapon_gen_s_dumbfire_01_mk2,S Dumbfire Launcher Mk2,weapons,equipment,1,deprecated,14855,
+weapon_gen_s_dumbfire_02_mk1,S Dumbfire Launcher,weapons,equipment,1,equipment missilelauncher weapon,19980,
+weapon_gen_s_gatling_01_mk1,S Bolt Repeater Mk1,weapons,equipment,1,equipment weapon,35764,
+weapon_gen_s_gatling_01_mk2,S Bolt Repeater Mk2,weapons,equipment,1,equipment weapon,231857,
+weapon_gen_s_guided_01_mk1,S Tracking Launcher Mk1,weapons,equipment,1,deprecated,9197,
+weapon_gen_s_guided_01_mk2,S Tracking Launcher Mk2,weapons,equipment,1,deprecated,44832,
+weapon_gen_s_guided_02_mk1,S Tracking Launcher,weapons,equipment,1,equipment missilelauncher weapon,29837,
+weapon_gen_s_laser_01_mk1,S Pulse Laser Mk1,weapons,equipment,1,equipment weapon,13564,
+weapon_gen_s_laser_01_mk2,S Pulse Laser Mk2,weapons,equipment,1,equipment weapon,89244,
+weapon_gen_s_mining_01_mk1,S Mining Drill Mk1,weapons,equipment,1,equipment weapon,8636,
+weapon_gen_s_mining_01_mk2,S Mining Drill Mk2,weapons,equipment,1,equipment weapon,19736,
+weapon_gen_s_plasma_01_mk1,S Plasma Cannon Mk1,weapons,equipment,1,equipment weapon,57964,
+weapon_gen_s_plasma_01_mk2,S Plasma Cannon Mk2,weapons,equipment,1,equipment weapon,320657,
+weapon_gen_s_shotgun_01_mk1,S Shard Battery Mk1,weapons,equipment,1,equipment weapon,46864,
+weapon_gen_s_shotgun_01_mk2,S Shard Battery Mk2,weapons,equipment,1,equipment weapon,276257,
+weapon_gen_s_torpedo_01_mk1,S Torpedo Launcher Mk1,weapons,equipment,1,deprecated,25064,
+weapon_gen_s_torpedo_01_mk2,S Torpedo Launcher Mk2,weapons,equipment,1,deprecated,124170,
+weapon_gen_s_torpedo_02_mk1,S Torpedo Launcher,weapons,equipment,1,equipment missilelauncher weapon,42624,
+weapon_kha_l_beam_01_mk1,KHA Ravager Main Battery,weapons,equipment,1,equipment noblueprint noplayerblueprint weapon,0,
+weapon_kha_m_laser_01_mk1,KHA M Kyon Emitter Mk1,weapons,equipment,1,equipment noblueprint noplayerblueprint weapon,0,
+weapon_kha_s_laser_01_mk1,KHA S Kyon Emitter Mk1,weapons,equipment,1,equipment noblueprint noplayerblueprint weapon,0,
+weapon_kha_xl_battleship_01_mk1,KHA Obliterator Main Battery,weapons,equipment,1,equipment noblueprint noplayerblueprint weapon,0,
+weapon_par_l_destroyer_01_mk1,PAR Odysseus Main Battery,weapons,equipment,1,equipment weapon,1227438,
+weapon_par_m_railgun_01_mk1,PAR M Mass Driver Mk1,weapons,equipment,1,equipment weapon,120246,
+weapon_par_m_railgun_01_mk2,PAR M Mass Driver Mk2,weapons,equipment,1,equipment weapon,614185,
+weapon_par_s_railgun_01_mk1,PAR S Mass Driver Mk1,weapons,equipment,1,equipment weapon,126984,
+weapon_par_s_railgun_01_mk2,PAR S Mass Driver Mk2,weapons,equipment,1,equipment weapon,409457,
+weapon_tel_l_destroyer_01_mk1,TEL Phoenix Main Battery,weapons,equipment,1,equipment weapon,1060938,
+weapon_tel_m_charge_01_mk1,TEL M Muon Disintegrator Mk1,weapons,equipment,1,equipment weapon,70296,
+weapon_tel_m_charge_01_mk2,TEL M Muon Disintegrator Mk2,weapons,equipment,1,equipment weapon,414385,
+weapon_tel_s_charge_01_mk1,TEL S Muon Disintegrator Mk1,weapons,equipment,1,equipment weapon,46864,
+weapon_tel_s_charge_01_mk2,TEL S Muon Disintegrator Mk2,weapons,equipment,1,equipment weapon,276257,
+weapon_xen_m_beam_01_mk1,XEN M Plasma Cutter Beam Mk1,weapons,equipment,1,equipment weapon,38846,
+weapon_xen_m_laser_01_mk1,XEN M Impulse Projector Mk1,weapons,equipment,1,equipment noplayerblueprint weapon,56329,
+weapon_xen_m_laser_02_mk1,XEN M Impulse Projector Mk1,weapons,equipment,1,equipment weapon,56329,
+weapon_xen_m_mining_01_mk1,XEN M Mining Drill Mk1,weapons,equipment,1,equipment noplayerblueprint weapon,13601,
+weapon_xen_m_mining_02_mk1,XEN M Mining Drill Mk1,weapons,equipment,1,equipment weapon,13601,
+weapon_xen_s_gatling_01_mk1,XEN S Needler Gun Mk1,weapons,equipment,1,equipment weapon,37552,
+weapon_xen_s_laser_01_mk1,XEN S Impulse Projector Mk1,weapons,equipment,1,equipment noplayerblueprint weapon,25897,
+wheat,Wheat,agricultural,container,4,container economy,31,
+workunit_busy,Busy Workunit,,workunit,1,workunit,68,
+workunit_idle,Idle Workunit,,workunit,1,workunit,45,
+bofu,BoFu,food,container,4,container economy,101,ego_dlc_boron
+bogas,BoGas,refined,container,4,container economy,73,ego_dlc_boron
+engine_bor_l_travel_01_mk1,BOR L All-round Engine Mk1,engines,equipment,1,engine equipment,411336,ego_dlc_boron
+engine_bor_m_allround_01_mk1,BOR M All-round Engine Mk1,engines,equipment,1,engine equipment,13090,ego_dlc_boron
+engine_bor_m_allround_01_mk2,BOR M All-round Engine Mk2,engines,equipment,1,engine equipment,62044,ego_dlc_boron
+engine_bor_m_allround_01_mk3,BOR M All-round Engine Mk3,engines,equipment,1,engine equipment,298703,ego_dlc_boron
+engine_bor_s_allround_01_mk1,BOR S All-round Engine Mk1,engines,equipment,1,engine equipment,8890,ego_dlc_boron
+engine_bor_s_allround_01_mk2,BOR S All-round Engine Mk2,engines,equipment,1,engine equipment,43236,ego_dlc_boron
+engine_bor_s_allround_01_mk3,BOR S All-round Engine Mk3,engines,equipment,1,engine equipment,184800,ego_dlc_boron
+engine_bor_xl_travel_01_mk1,BOR XL All-round Engine Mk1,engines,equipment,1,engine equipment,725280,ego_dlc_boron
+module_bor_build_dockarea_m_01,Boron S/M Ship Fabrication Bay,,container,1,module,111305533,ego_dlc_boron
+module_bor_build_l_01,Boron L Ship Fabrication Bay,,container,1,module,233131646,ego_dlc_boron
+module_bor_build_xl_01,Boron XL Ship Fabrication Bay,,container,1,module,237127814,ego_dlc_boron
+module_bor_conn_base_01,Boron Base Connection Structure 01,,container,1,module,97817,ego_dlc_boron
+module_bor_conn_base_02,Boron Base Connection Structure 02,,container,1,module,119529,ego_dlc_boron
+module_bor_conn_base_03,Boron Base Connection Structure 03,,container,1,module,127913,ego_dlc_boron
+module_bor_conn_base_04,Boron Base Connection Structure 04,,container,1,module,135186,ego_dlc_boron
+module_bor_conn_base_05,Boron Base Connection Structure 05,,container,1,module,148347,ego_dlc_boron
+module_bor_conn_cross_01,Boron Y Connection Structure 01,,container,1,module,84507,ego_dlc_boron
+module_bor_conn_cross_02,Boron Hex Connection Structure 01,,container,1,module,105320,ego_dlc_boron
+module_bor_conn_vertical_01,Boron Vertical Connection Structure 01,,container,1,module,70044,ego_dlc_boron
+module_bor_conn_vertical_02,Boron Vertical Connection Structure 02,,container,1,module,91738,ego_dlc_boron
+module_bor_def_claim_01,Boron Administrative Centre,,container,1,module,964025,ego_dlc_boron
+module_bor_def_disc_01,Boron Disc Defence Platform,,container,1,module,689947,ego_dlc_boron
+module_bor_def_tube_01,Boron Bridge Defence Platform,,container,1,module,598777,ego_dlc_boron
+module_bor_dock_m_01_standard,Boron 4M14S Luxury Dock Area,,container,1,module,585772,ego_dlc_boron
+module_bor_equip_dockarea_m_01,Boron S/M Ship Maintenance Bay,,container,1,module,33716786,ego_dlc_boron
+module_bor_equip_l_01,Boron L Ship Maintenance Bay,,container,1,module,61736477,ego_dlc_boron
+module_bor_equip_xl_01,Boron XL Ship Maintenance Bay,,container,1,module,63774850,ego_dlc_boron
+module_bor_hab_l_01,Boron L Oasis,,container,1,module,21518218,ego_dlc_boron
+module_bor_hab_m_01,Boron M Oasis,,container,1,module,15211434,ego_dlc_boron
+module_bor_hab_s_01,Boron S Oasis,,container,1,module,10576333,ego_dlc_boron
+module_bor_pier_l_01,Boron 4-Dock T Pier,,container,1,module,3812693,ego_dlc_boron
+module_bor_pier_l_02,Boron 1-Dock Pier,,container,1,module,2201543,ego_dlc_boron
+module_bor_pier_l_03,Boron 3-Dock E Pier,,container,1,module,4398727,ego_dlc_boron
+module_bor_pier_l_04,Boron Trading Station 4-Dock Pier,,container,1,module,3098727,ego_dlc_boron
+module_bor_pier_tradestation_01,Boron Trading Station Hexa-Dock Pier,,container,1,module,4730030,ego_dlc_boron
+module_bor_prod_bofu_01,BoFu Production,,container,1,module,1845263,ego_dlc_boron
+module_bor_prod_bogas_01,BoGas Production,,container,1,module,1746862,ego_dlc_boron
+module_bor_prod_medicalsupplies_01,Boron Medical Supply Production,,container,1,module,1583360,ego_dlc_boron
+module_bor_prod_plankton_01,Plankton Production,,container,1,module,1083734,ego_dlc_boron
+module_bor_stor_container_l_01,Boron L Container Storage,,container,1,module,809475,ego_dlc_boron
+module_bor_stor_container_m_01,Boron M Container Storage,,container,1,module,576497,ego_dlc_boron
+module_bor_stor_container_s_01,Boron S Container Storage,,container,1,module,365231,ego_dlc_boron
+module_bor_stor_liquid_l_01,Boron L Liquid Storage,,container,1,module,809475,ego_dlc_boron
+module_bor_stor_liquid_m_01,Boron M Liquid Storage,,container,1,module,576497,ego_dlc_boron
+module_bor_stor_liquid_s_01,Boron S Liquid Storage,,container,1,module,365231,ego_dlc_boron
+module_bor_stor_solid_l_01,Boron L Solid Storage,,container,1,module,809475,ego_dlc_boron
+module_bor_stor_solid_m_01,Boron M Solid Storage,,container,1,module,576497,ego_dlc_boron
+module_bor_stor_solid_s_01,Boron S Solid Storage,,container,1,module,365231,ego_dlc_boron
+plankton,Plankton,agricultural,container,1,container economy,18,ego_dlc_boron
+shield_bor_l_standard_01_mk1,BOR L Shield Generator Mk1,shields,equipment,1,equipment shield,46612,ego_dlc_boron
+shield_bor_l_standard_01_mk2,BOR L Shield Generator Mk2,shields,equipment,1,equipment shield,232351,ego_dlc_boron
+shield_bor_l_standard_01_mk3,BOR L Shield Generator Mk3,shields,equipment,1,equipment shield,1438818,ego_dlc_boron
+shield_bor_m_standard_01_mk1,BOR M Shield Generator Mk1,shields,equipment,1,equipment shield,20212,ego_dlc_boron
+shield_bor_m_standard_01_mk2,BOR M Shield Generator Mk2,shields,equipment,1,equipment shield,90084,ego_dlc_boron
+shield_bor_m_standard_01_mk3,BOR M Shield Generator Mk3,shields,equipment,1,equipment shield,397486,ego_dlc_boron
+shield_bor_m_standard_02_mk1,BOR M Shield Generator Mk1,shields,equipment,1,equipment shield,20212,ego_dlc_boron
+shield_bor_m_standard_02_mk2,BOR M Shield Generator Mk2,shields,equipment,1,equipment shield,90084,ego_dlc_boron
+shield_bor_m_standard_02_mk3,BOR M Shield Generator Mk3,shields,equipment,1,equipment shield,397486,ego_dlc_boron
+shield_bor_s_standard_01_mk1,BOR S Shield Generator Mk1,shields,equipment,1,equipment shield,2512,ego_dlc_boron
+shield_bor_s_standard_01_mk2,BOR S Shield Generator Mk2,shields,equipment,1,equipment shield,17648,ego_dlc_boron
+shield_bor_s_standard_01_mk3,BOR S Shield Generator Mk3,shields,equipment,1,equipment shield,83606,ego_dlc_boron
+shield_bor_xl_standard_01_mk1,BOR XL Shield Generator Mk1,shields,equipment,1,equipment shield,394932,ego_dlc_boron
+shield_bor_xl_standard_01_mk2,BOR XL Shield Generator Mk2,shields,equipment,1,equipment shield,2434026,ego_dlc_boron
+ship_bor_l_carrier_01_a,Guppy,,ship,1,ship,6513220,ego_dlc_boron
+ship_bor_l_destroyer_01_a,Ray,,ship,1,ship,8249396,ego_dlc_boron
+ship_bor_l_miner_liquid_01_a,Rorqual (Gas),,ship,1,ship,1381332,ego_dlc_boron
+ship_bor_l_miner_solid_01_a,Rorqual (Mineral),,ship,1,ship,1359733,ego_dlc_boron
+ship_bor_l_trans_container_01_a,Sturgeon,,ship,1,ship,4401675,ego_dlc_boron
+ship_bor_m_corvette_01_a,Hydra,,ship,1,ship,1468656,ego_dlc_boron
+ship_bor_m_corvette_02_a,Hydra Regal,,ship,1,limited nocustomgamestart nodiplomacyblueprint ship,1624234,ego_dlc_boron
+ship_bor_m_gunboat_01_a,Thresher,,ship,1,ship,1252370,ego_dlc_boron
+ship_bor_m_miner_liquid_01_a,Porpoise (Gas),,ship,1,ship,164592,ego_dlc_boron
+ship_bor_m_miner_solid_01_a,Porpoise (Mineral),,ship,1,ship,172090,ego_dlc_boron
+ship_bor_m_trans_container_01_a,Dolphin,,ship,1,ship,255620,ego_dlc_boron
+ship_bor_s_fighter_01_a,Mako,,ship,1,ship,133165,ego_dlc_boron
+ship_bor_s_heavyfighter_01_a,Barracuda,,ship,1,ship,356250,ego_dlc_boron
+ship_bor_s_miner_solid_01_a,Grouper (Mineral),,ship,1,ship,83723,ego_dlc_boron
+ship_bor_s_miner_solid_01_story,Grouper (Mineral),,ship,1,noblueprint noplayerblueprint,83723,ego_dlc_boron
+ship_bor_s_scout_01_a,Piranha,,ship,1,ship,102657,ego_dlc_boron
+ship_bor_s_scout_02_a,Irukandji,,ship,1,ship,119702,ego_dlc_boron
+ship_bor_s_trans_container_01_a,Terrapin,,ship,1,ship,198595,ego_dlc_boron
+ship_bor_xl_builder_01_a,Walrus,,ship,1,ship,11954185,ego_dlc_boron
+ship_bor_xl_carrier_01_a,Shark,,ship,1,ship,24464165,ego_dlc_boron
+ship_bor_xl_resupplier_01_a,Orca,,ship,1,ship,17596810,ego_dlc_boron
+turret_bor_l_disruptor_01_mk1,BOR L Kinetic Ion Railgun Mk1,weapons,equipment,1,equipment turret,144469,ego_dlc_boron
+turret_bor_l_flak_01_mk1,BOR L Ion Flak Turret Mk1,weapons,equipment,1,equipment turret,141392,ego_dlc_boron
+turret_bor_l_laser_01_mk1,BOR L Phase Turret Mk1,weapons,equipment,1,equipment turret,89524,ego_dlc_boron
+turret_bor_l_mining_01_mk1,BOR L Mining Turret Mk1,weapons,equipment,1,equipment turret,18315,ego_dlc_boron
+turret_bor_m_arc_01_mk1,BOR M Arc Turret Mk1,turrets,equipment,1,equipment turret,35604,ego_dlc_boron
+turret_bor_m_arc_02_mk1,BOR M Arc Turret Mk1,turrets,equipment,1,equipment turret,35604,ego_dlc_boron
+turret_bor_m_dumbfire_01_mk1,BOR M Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,27473,ego_dlc_boron
+turret_bor_m_guided_01_mk1,BOR M Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,38462,ego_dlc_boron
+turret_bor_m_laser_01_mk1,BOR M Phase Turret Mk1,turrets,equipment,1,equipment turret,26447,ego_dlc_boron
+turret_bor_m_laser_02_mk1,BOR M Phase Turret Mk1,turrets,equipment,1,equipment turret,26447,ego_dlc_boron
+turret_bor_m_mining_01_mk1,BOR M Mining Turret Mk1,turrets,equipment,1,equipment turret,9158,ego_dlc_boron
+turret_bor_m_mining_02_mk1,BOR M Mining Turret Mk1,turrets,equipment,1,equipment turret,9158,ego_dlc_boron
+turret_bor_m_railgun_01_mk1,BOR M Ion Pulse Turret Mk1,turrets,equipment,1,equipment turret,53919,ego_dlc_boron
+turret_bor_m_railgun_02_mk1,BOR M Ion Pulse Turret Mk1,turrets,equipment,1,equipment turret,53919,ego_dlc_boron
+weapon_bor_l_beam_01_mk1,BOR Ray Ion Projector,weapons,equipment,1,equipment weapon,937802,ego_dlc_boron
+weapon_bor_m_dumbfire_01_mk1,BOR M Dumbfire Launcher Mk1,weapons,equipment,1,deprecated,25064,ego_dlc_boron
+weapon_bor_m_flak_01_mk1,BOR M Ion Atomiser Mk1,weapons,equipment,1,equipment weapon,169231,ego_dlc_boron
+weapon_bor_m_guided_01_mk1,BOR M Tracking Launcher Mk1,weapons,equipment,1,deprecated,49745,ego_dlc_boron
+weapon_bor_m_laser_01_mk1,BOR M Phase Cannon Mk1,weapons,equipment,1,equipment weapon,147253,ego_dlc_boron
+weapon_bor_m_mining_01_mk1,BOR M Mining Drill Mk1,weapons,equipment,1,equipment weapon,14249,ego_dlc_boron
+weapon_bor_m_railgun_01_mk1,BOR M Ion Pulse Railgun Mk1,weapons,equipment,1,equipment weapon,209524,ego_dlc_boron
+weapon_bor_m_torpedo_01_mk1,BOR M Torpedo Launcher Mk1,weapons,equipment,1,deprecated,86710,ego_dlc_boron
+weapon_bor_s_arc_01_mk1,BOR S Arc Gun Mk1,weapons,equipment,1,equipment weapon,112820,ego_dlc_boron
+weapon_bor_s_dumbfire_01_mk1,BOR S Dumbfire Launcher Mk1,weapons,equipment,1,deprecated,7439,ego_dlc_boron
+weapon_bor_s_gatling_01_mk1,BOR S Ion Gatling Mk1,weapons,equipment,1,equipment weapon,127472,ego_dlc_boron
+weapon_bor_s_guided_01_mk1,BOR S Tracking Launcher Mk1,weapons,equipment,1,deprecated,9197,ego_dlc_boron
+weapon_bor_s_laser_01_mk1,BOR S Phase Gun Mk1,weapons,equipment,1,equipment weapon,98168,ego_dlc_boron
+weapon_bor_s_mining_01_mk1,BOR S Mining Drill Mk1,weapons,equipment,1,equipment weapon,9499,ego_dlc_boron
+weapon_bor_s_torpedo_01_mk1,BOR S Torpedo Launcher Mk1,weapons,equipment,1,deprecated,25064,ego_dlc_boron
+welfare_bor_artacademy_01,Pheromone Art Gallery,,container,1,missiononly module,5843545,ego_dlc_boron
+ship_par_l_expeditionary_01_a,Hyperion,,ship,1,hiddenwithoutlicence ship,3118015,ego_dlc_mini_01
+weapon_par_l_expeditionary_01_mk1,PAR Hyperion Main Battery,weapons,equipment,1,equipment hiddenwithoutlicence weapon,1060838,ego_dlc_mini_01
+engine_arg_m_corvette_01_mk1,ARG Envoy M Engine Mk1,engines,equipment,1,engine equipment hiddenwithoutlicence onlyownerbuild,239890,ego_dlc_mini_02
+engine_arg_m_corvette_01_mk2,ARG Envoy M Engine Mk2,engines,equipment,1,engine equipment hiddenwithoutlicence onlyownerbuild,575740,ego_dlc_mini_02
+engine_tel_m_corvette_01_mk1,TEL Envoy M Engine Mk1,engines,equipment,1,engine equipment hiddenwithoutlicence onlyownerbuild,201340,ego_dlc_mini_02
+engine_tel_m_corvette_01_mk2,TEL Envoy M Engine Mk2,engines,equipment,1,engine equipment hiddenwithoutlicence onlyownerbuild,483210,ego_dlc_mini_02
+research_ship_gen_m_corvette_02,Cypher,,research,1,nocustomgamestart research,1,ego_dlc_mini_02
+shield_gen_m_corvette_01_mk1,Envoy M Shield Generator,shields,equipment,1,equipment hiddenwithoutlicence onlyownerbuild shield,88020,ego_dlc_mini_02
+ship_gen_m_corvette_01,Envoy,,ship,1,hiddenwithoutlicence onlyownerbuild ship,1275085,ego_dlc_mini_02
+ship_gen_m_corvette_02,Cypher,,ship,1,hiddenwithoutlicence nocustomgamestart nodiplomacyblueprint ship,914640,ego_dlc_mini_02
+turret_gen_m_disabler_01_mk1,TEL M Distortion Turret Mk1,turrets,equipment,1,equipment hiddenwithoutlicence onlyownerbuild turret,57343,ego_dlc_mini_02
+turret_gen_m_gatling_01_mk1,M Autocannon Turret Mk1,turrets,equipment,1,equipment turret,49018,ego_dlc_mini_02
+turret_gen_m_shieldpierce_01_mk1,ARG M Scalar Aperture Turret Mk1,turrets,equipment,1,equipment hiddenwithoutlicence onlyownerbuild turret,151685,ego_dlc_mini_02
+weapon_gen_m_disabler_01_mk1,M Heavy Distortion Pulsor Mk1,weapons,equipment,1,equipment hiddenwithoutlicence onlyownerbuild weapon,414252,ego_dlc_mini_02
+weapon_gen_m_shieldpierce_01_mk1,M Heavy Scalar Aperture Emitter Mk1,weapons,equipment,1,equipment hiddenwithoutlicence onlyownerbuild weapon,307093,ego_dlc_mini_02
+condensate,Protectyon,,condensate,10,condensate economy,25000,ego_dlc_pirate
+engine_gen_m_yacht_01_mk1,Astrid M Engine,engines,equipment,1,engine equipment,707400,ego_dlc_pirate
+engine_pir_xl_battleship_01_allround_01_mk1,Erlking XL Engine,engines,equipment,1,engine equipment,53850,ego_dlc_pirate
+inv_condensate_sample,Condensate Sample,,inventory,1,inventory missiononly,1,ego_dlc_pirate
+inv_research_blackbox,Research Black Box,,inventory,1,inventory missiononly,1,ego_dlc_pirate
+inv_securityapparatus,Security Apparatus,contraband,inventory,1,crafting inventory missiononly,42837,ego_dlc_pirate
+inv_securityapparatus_chip,Security Apparatus Chip,contraband,inventory,1,crafting inventory missiononly,4347,ego_dlc_pirate
+inv_wormwood_protocols,Woodworm Security Protocols,,inventory,1,inventory missiononly,25000,ego_dlc_pirate
+module_conn_lndm_piratestation_01_core_01,Drill Support Structure,,container,1,module noblueprint,504549,ego_dlc_pirate
+module_conn_lndm_piratestation_01_exit_01,Drill Access Module,,container,1,module noblueprint,504549,ego_dlc_pirate
+module_def_lndm_piratestation_02_ring_01,Defence Array,,container,1,module noblueprint,5513386,ego_dlc_pirate
+module_gen_welfare_casino_01,Casino,,container,1,missiononly module,3895697,ego_dlc_pirate
+module_hab_lndm_piratestation_01_port_01,Dormitory Module,,container,1,module noblueprint,62479590,ego_dlc_pirate
+module_hab_lndm_piratestation_02_port_01,Dormitory Module,,container,1,module noblueprint,62479590,ego_dlc_pirate
+module_hab_lndm_piratestation_02_ring_02,Half-Ring Dormitory,,container,1,module noblueprint,62479590,ego_dlc_pirate
+module_pir_hab_l_01,Argon L Dormitory,,container,1,module,22037202,ego_dlc_pirate
+module_pir_hab_m_01,Argon M Dormitory,,container,1,module,15581052,ego_dlc_pirate
+module_pir_hab_s_01,Argon S Dormitory,,container,1,module,10804878,ego_dlc_pirate
+module_pir_stor_condensate_l_01,Protectyon Shield Generator,,container,1,module,1790186,ego_dlc_pirate
+module_pir_stor_condensate_s_01,Condensate Containment Facility,,container,1,missiononly module nocustomgamestart nodiplomacyblueprint,567097,ego_dlc_pirate
+module_stor_lndm_piratestation_01_ring_01,Storage Ring,,container,1,module noblueprint,1908590,ego_dlc_pirate
+module_stor_lndm_piratestation_02_storage_01,Storage Arm,,container,1,module noblueprint,1908590,ego_dlc_pirate
+module_stor_lndm_piratestation_02_storage_02,Storage Arm,,container,1,module noblueprint,1908590,ego_dlc_pirate
+research_condensate_sample,Condensate Sample,,research,1,nocustomgamestart research,1,ego_dlc_pirate
+research_condensate_sample_pre,Condensate Sample Prerequisite,,research,1,missiononly research,1,ego_dlc_pirate
+research_erlking_core,Erlking Power Core,,research,1,research,1,ego_dlc_pirate
+research_module_welfare_2,Welfare Module - Casino,,research,1,research,1,ego_dlc_pirate
+research_module_welfare_2_pre,Investigate leisure habits.,,research,1,hidden missiononly research,1,ego_dlc_pirate
+shield_gen_m_yacht_01_mk1,Astrid M Shield Generator,shields,equipment,1,equipment shield,74765,ego_dlc_pirate
+shield_pir_xl_battleship_01_standard_01_mk1,Erlking XL Shield Generator,shields,equipment,1,equipment shield,120096,ego_dlc_pirate
+ship_gen_m_yacht_01_a,Astrid,,ship,1,limited nocustomgamestart nodiplomacyblueprint ship,2170000,ego_dlc_pirate
+ship_pir_l_miner_solid_01_a,Donia,,ship,1,ship,1564470,ego_dlc_pirate
+ship_pir_l_scavenger_01_a,Barbarossa,,ship,1,ship,7714025,ego_dlc_pirate
+ship_pir_l_scavenger_01_a_storyhighcapacity,Barbarossa,,ship,1,noblueprint noplayerblueprint,4599250,ego_dlc_pirate
+ship_pir_l_scrapper_01,Teuta,,ship,1,ship,4322065,ego_dlc_pirate
+ship_pir_s_fighter_01_a,Kyd,,ship,1,ship,53080,ego_dlc_pirate
+ship_pir_s_fighter_02_a,Lux,,ship,1,ship,175140,ego_dlc_pirate
+ship_pir_s_heavyfighter_01_a,Shih,,ship,1,ship,274485,ego_dlc_pirate
+ship_pir_s_trans_condensate_01_a,Raleigh (Condensate),,ship,1,ship,217900,ego_dlc_pirate
+ship_pir_s_trans_container_01_a,Raleigh (Container),,ship,1,ship,203995,ego_dlc_pirate
+ship_pir_xl_battleship_01_a,Erlking,,ship,1,nocustomgamestart ship,14920415,ego_dlc_pirate
+ship_pir_xl_builder_01,Gannascus,,ship,1,ship,11470775,ego_dlc_pirate
+turret_gen_m_yacht_01_mk1,Astrid M Turret,weapons,equipment,1,equipment turret,32368,ego_dlc_pirate
+turret_pir_l_battleship_01_laser_01_mk1,Erlking L Turret,turrets,equipment,1,equipment turret,114685,ego_dlc_pirate
+turret_pir_m_battleship_01_gatling_02_mk1,Erlking M Turret,turrets,equipment,1,equipment turret,57343,ego_dlc_pirate
+weapon_gen_m_yacht_01_mk1,Astrid Primary Weapon,weapons,equipment,1,equipment weapon,53646,ego_dlc_pirate
+weapon_pir_xl_battleship_01_mk1,Erlking Main Battery,weapons,equipment,1,equipment weapon,1160838,ego_dlc_pirate
+cheltmeat,Chelt Meat,agricultural,container,7,container economy,51,ego_dlc_split
+engine_spl_l_allround_01_mk1,SPL L All-round Engine Mk1,engines,equipment,1,engine equipment,368448,ego_dlc_split
+engine_spl_l_travel_01_mk1,SPL L Travel Engine Mk1,engines,equipment,1,engine equipment,380897,ego_dlc_split
+engine_spl_m_allround_01_mk1,SPL M All-round Engine Mk1,engines,equipment,1,engine equipment,12654,ego_dlc_split
+engine_spl_m_allround_01_mk2,SPL M All-round Engine Mk2,engines,equipment,1,engine equipment,61948,ego_dlc_split
+engine_spl_m_allround_01_mk3,SPL M All-round Engine Mk3,engines,equipment,1,engine equipment,301234,ego_dlc_split
+engine_spl_m_combat_01_mk1,SPL M Combat Engine Mk1,engines,equipment,1,engine equipment,14695,ego_dlc_split
+engine_spl_m_combat_01_mk2,SPL M Combat Engine Mk2,engines,equipment,1,engine equipment,74180,ego_dlc_split
+engine_spl_m_combat_01_mk3,SPL M Combat Engine Mk3,engines,equipment,1,engine equipment,362360,ego_dlc_split
+engine_spl_m_combat_01_mk4,SPL M Combat Engine Mk4,engines,equipment,1,engine equipment,1811825,ego_dlc_split
+engine_spl_m_travel_01_mk1,SPL M Travel Engine Mk1,engines,equipment,1,engine equipment,13657,ego_dlc_split
+engine_spl_m_travel_01_mk2,SPL M Travel Engine Mk2,engines,equipment,1,engine equipment,69084,ego_dlc_split
+engine_spl_m_travel_01_mk3,SPL M Travel Engine Mk3,engines,equipment,1,engine equipment,347073,ego_dlc_split
+engine_spl_s_allround_01_mk1,SPL S All-round Engine Mk1,engines,equipment,1,engine equipment,5119,ego_dlc_split
+engine_spl_s_allround_01_mk2,SPL S All-round Engine Mk2,engines,equipment,1,engine equipment,28340,ego_dlc_split
+engine_spl_s_allround_01_mk3,SPL S All-round Engine Mk3,engines,equipment,1,engine equipment,131077,ego_dlc_split
+engine_spl_s_combat_01_mk1,SPL S Combat Engine Mk1,engines,equipment,1,engine equipment,7193,ego_dlc_split
+engine_spl_s_combat_01_mk2,SPL S Combat Engine Mk2,engines,equipment,1,engine equipment,42659,ego_dlc_split
+engine_spl_s_combat_01_mk3,SPL S Combat Engine Mk3,engines,equipment,1,engine equipment,192227,ego_dlc_split
+engine_spl_s_combat_01_mk4,SPL S Combat Engine Mk4,engines,equipment,1,engine equipment,961168,ego_dlc_split
+engine_spl_s_travel_01_mk1,SPL S Travel Engine Mk1,engines,equipment,1,engine equipment,6156,ego_dlc_split
+engine_spl_s_travel_01_mk2,SPL S Travel Engine Mk2,engines,equipment,1,engine equipment,36583,ego_dlc_split
+engine_spl_s_travel_01_mk3,SPL S Travel Engine Mk3,engines,equipment,1,engine equipment,176882,ego_dlc_split
+engine_spl_xl_allround_01_mk1,SPL XL All-round Engine Mk1,engines,equipment,1,engine equipment,486335,ego_dlc_split
+engine_spl_xl_travel_01_mk1,SPL XL Travel Engine Mk1,engines,equipment,1,engine equipment,503356,ego_dlc_split
+missile_disruptor_light_mk1,Light Disruptor Missile Mk1,missiles,equipment,1,deprecated,1632,ego_dlc_split
+missile_gen_s_disruptor_01_mk1,Light Disruptor Missile,missiles,equipment,1,equipment missile,1018,ego_dlc_split
+missile_gen_s_interceptor_01_mk1,Light Interceptor Missile,missiles,equipment,1,equipment missile,2209,ego_dlc_split
+missile_interceptor_light_mk1,Light Interceptor Missile Mk1,missiles,equipment,1,deprecated,1490,ego_dlc_split
+missile_scatter_heavy_mk1,Heavy Scatter Missile Mk1,missiles,equipment,1,deprecated,1268,ego_dlc_split
+missile_starburst_heavy_mk1,Heavy Starburst Missile Mk1,missiles,equipment,1,deprecated,2000,ego_dlc_split
+module_spl_conn_base_01,Split Base Connection Structure 01,,container,1,module,108662,ego_dlc_split
+module_spl_conn_base_02,Split Base Connection Structure 02,,container,1,module,88924,ego_dlc_split
+module_spl_conn_base_03,Split Base Connection Structure 03,,container,1,module,116284,ego_dlc_split
+module_spl_conn_cross_01,Split Y Connection Structure 01,,container,1,module,76824,ego_dlc_split
+module_spl_conn_vertical_01,Split Vertical Connection Structure 01,,container,1,module,63676,ego_dlc_split
+module_spl_conn_vertical_02,Split Vertical Connection Structure 02,,container,1,module,83398,ego_dlc_split
+module_spl_def_claim_01,Split Administrative Centre,,container,1,module,882960,ego_dlc_split
+module_spl_def_disc_01,Split Disc Defence Platform,,container,1,module,671694,ego_dlc_split
+module_spl_def_tube_01,Split Bridge Defence Platform,,container,1,module,671694,ego_dlc_split
+module_spl_hab_l_01,Split L Parlour,,container,1,module,19562016,ego_dlc_split
+module_spl_hab_m_01,Split M Parlour,,container,1,module,13828576,ego_dlc_split
+module_spl_hab_s_01,Split S Parlour,,container,1,module,9614848,ego_dlc_split
+module_spl_pier_l_01,Split 4-Dock T Pier,,container,1,module,3466084,ego_dlc_split
+module_spl_pier_l_02,Split 1-Dock Pier,,container,1,module,2001402,ego_dlc_split
+module_spl_pier_l_03,Split 3-Dock E Pier,,container,1,module,3998842,ego_dlc_split
+module_spl_prod_cheltmeat_01,Chelt Production,,container,1,module,821398,ego_dlc_split
+module_spl_prod_medicalsupplies_01,Split Medical Supply Production,,container,1,module,1439418,ego_dlc_split
+module_spl_prod_scruffinfruits_01,Scruffin Production,,container,1,module,976073,ego_dlc_split
+module_spl_stor_container_l_01,Split L Container Storage,,container,1,module,863754,ego_dlc_split
+module_spl_stor_container_m_01,Split M Container Storage,,container,1,module,575664,ego_dlc_split
+module_spl_stor_container_s_01,Split S Container Storage,,container,1,module,389646,ego_dlc_split
+module_spl_stor_liquid_l_01,Split L Liquid Storage,,container,1,module,863754,ego_dlc_split
+module_spl_stor_liquid_m_01,Split M Liquid Storage,,container,1,module,575664,ego_dlc_split
+module_spl_stor_liquid_s_01,Split S Liquid Storage,,container,1,module,389646,ego_dlc_split
+module_spl_stor_solid_l_01,Split L Solid Storage,,container,1,module,863754,ego_dlc_split
+module_spl_stor_solid_m_01,Split M Solid Storage,,container,1,module,575664,ego_dlc_split
+module_spl_stor_solid_s_01,Split S Solid Storage,,container,1,module,389646,ego_dlc_split
+scruffinfruits,Scruffin Fruit,agricultural,container,6,container economy,28,ego_dlc_split
+shield_spl_l_standard_01_mk1,SPL L Shield Generator Mk1,shields,equipment,1,equipment shield,45874,ego_dlc_split
+shield_spl_l_standard_01_mk2,SPL L Shield Generator Mk2,shields,equipment,1,equipment shield,226085,ego_dlc_split
+shield_spl_m_standard_01_mk1,SPL M Shield Generator Mk1,shields,equipment,1,equipment shield,17072,ego_dlc_split
+shield_spl_m_standard_01_mk2,SPL M Shield Generator Mk2,shields,equipment,1,equipment shield,78824,ego_dlc_split
+shield_spl_m_standard_02_mk1,SPL M Shield Generator Mk1,shields,equipment,1,equipment shield,17072,ego_dlc_split
+shield_spl_m_standard_02_mk2,SPL M Shield Generator Mk2,shields,equipment,1,equipment shield,78824,ego_dlc_split
+shield_spl_s_standard_01_mk1,SPL S Shield Generator Mk1,shields,equipment,1,equipment shield,1528,ego_dlc_split
+shield_spl_s_standard_01_mk2,SPL S Shield Generator Mk2,shields,equipment,1,equipment shield,11035,ego_dlc_split
+shield_spl_s_standard_01_mk3,SPL S Shield Generator Mk3,shields,equipment,1,equipment shield,52166,ego_dlc_split
+shield_spl_xl_standard_01_mk1,SPL XL Shield Generator Mk1,shields,equipment,1,equipment shield,238442,ego_dlc_split
+ship_spl_l_destroyer_01_a,Rattlesnake,,ship,1,ship,15290790,ego_dlc_split
+ship_spl_l_miner_liquid_01_a,Wyvern (Gas),,ship,1,ship,1610285,ego_dlc_split
+ship_spl_l_miner_solid_01_a,Wyvern (Mineral),,ship,1,ship,1610285,ego_dlc_split
+ship_spl_l_trans_container_01_a,Buffalo,,ship,1,ship,2938525,ego_dlc_split
+ship_spl_m_corvette_01_a,Dragon,,ship,1,ship,1243415,ego_dlc_split
+ship_spl_m_corvette_01_b,Dragon Raider,,ship,1,ship,739265,ego_dlc_split
+ship_spl_m_frigate_01_a,Cobra,,ship,1,ship,2172540,ego_dlc_split
+ship_spl_m_miner_liquid_01_a,Alligator (Gas),,ship,1,ship,212670,ego_dlc_split
+ship_spl_m_miner_solid_01_a,Alligator (Mineral),,ship,1,ship,236300,ego_dlc_split
+ship_spl_m_trans_container_01_a,Boa,,ship,1,ship,373740,ego_dlc_split
+ship_spl_s_fighter_01_a,Mamba,,ship,1,ship,194430,ego_dlc_split
+ship_spl_s_fighter_02_a,Asp,,ship,1,ship,255275,ego_dlc_split
+ship_spl_s_fighter_02_b,Asp Raider,,ship,1,ship,123940,ego_dlc_split
+ship_spl_s_heavyfighter_01_a,Chimera,,ship,1,ship,350477,ego_dlc_split
+ship_spl_s_heavyfighter_02_a,Balaur,,ship,1,ship,352755,ego_dlc_split
+ship_spl_s_miner_solid_01_a,Tuatara (Mineral),,ship,1,ship,128200,ego_dlc_split
+ship_spl_s_scout_01_a,Jaguar,,ship,1,ship,146365,ego_dlc_split
+ship_spl_s_trans_container_01_a,Tuatara,,ship,1,ship,247800,ego_dlc_split
+ship_spl_xl_builder_01_a,Elephant,,ship,1,ship,12022990,ego_dlc_split
+ship_spl_xl_carrier_01_a,Raptor,,ship,1,nocustomgamestart ship,32605075,ego_dlc_split
+ship_spl_xl_resupplier_01_a,Monitor,,ship,1,ship,17231160,ego_dlc_split
+ship_spl_xs_police_01_a,Split Station Security Vessel,drones,equipment,1,drone equipment noplayerblueprint,9410,ego_dlc_split
+turret_spl_l_beam_01_mk1,SPL L Boson Lance Turret Mk1,turrets,equipment,1,equipment turret,155384,ego_dlc_split
+turret_spl_l_dumbfire_01_mk1,SPL L Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,52448,ego_dlc_split
+turret_spl_l_guided_01_mk1,SPL L Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,73427,ego_dlc_split
+turret_spl_l_laser_01_mk1,SPL L Pulse Turret Mk1,turrets,equipment,1,equipment turret,33007,ego_dlc_split
+turret_spl_l_mining_01_mk1,SPL L Mining Turret Mk1,turrets,equipment,1,equipment turret,17483,ego_dlc_split
+turret_spl_l_plasma_01_mk1,SPL L Plasma Turret Mk1,turrets,equipment,1,equipment turret,120419,ego_dlc_split
+turret_spl_m_beam_01_mk1,SPL M Boson Lance Turret Mk1,turrets,equipment,1,equipment turret,77692,ego_dlc_split
+turret_spl_m_beam_02_mk1,SPL M Boson Lance Turret Mk1,turrets,equipment,1,equipment turret,77692,ego_dlc_split
+turret_spl_m_dumbfire_01_mk1,SPL M Dumbfire Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,26224,ego_dlc_split
+turret_spl_m_dumbfire_02_mk1,SPL M Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,26224,ego_dlc_split
+turret_spl_m_flak_01_mk1,SPL M Flak Turret Mk1,turrets,equipment,1,equipment turret,65305,ego_dlc_split
+turret_spl_m_flak_02_mk1,SPL M Flak Turret Mk1,turrets,equipment,1,equipment turret,65305,ego_dlc_split
+turret_spl_m_gatling_01_mk1,SPL M Neutron Gatling Turret Mk1,turrets,equipment,1,equipment turret,51468,ego_dlc_split
+turret_spl_m_gatling_02_mk1,SPL M Neutron Gatling Turret Mk1,turrets,equipment,1,equipment turret,51468,ego_dlc_split
+turret_spl_m_guided_01_mk1,SPL M Tracking Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,36713,ego_dlc_split
+turret_spl_m_guided_02_mk1,SPL M Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,36713,ego_dlc_split
+turret_spl_m_laser_01_mk1,SPL M Pulse Turret Mk1,turrets,equipment,1,equipment turret,16503,ego_dlc_split
+turret_spl_m_laser_02_mk1,SPL M Pulse Turret Mk1,turrets,equipment,1,equipment turret,16503,ego_dlc_split
+turret_spl_m_mining_01_mk1,SPL M Mining Turret Mk1,turrets,equipment,1,equipment turret,8741,ego_dlc_split
+turret_spl_m_mining_02_mk1,SPL M Mining Turret Mk1,turrets,equipment,1,equipment turret,8741,ego_dlc_split
+turret_spl_m_plasma_01_mk1,SPL M Plasma Turret Mk1,turrets,equipment,1,equipment turret,60210,ego_dlc_split
+turret_spl_m_plasma_02_mk1,SPL M Plasma Turret Mk1,turrets,equipment,1,equipment turret,60210,ego_dlc_split
+turret_spl_m_shotgun_01_mk1,SPL M Tau Accelerator Turret Mk1,turrets,equipment,1,equipment turret,42727,ego_dlc_split
+turret_spl_m_shotgun_02_mk1,SPL M Tau Accelerator Turret Mk1,turrets,equipment,1,equipment turret,42727,ego_dlc_split
+weapon_spl_l_destroyer_01_mk1,SPL Rattlesnake Main Battery,weapons,equipment,1,equipment weapon,1483915,ego_dlc_split
+weapon_spl_m_gatling_01_mk1,SPL M Neutron Gatling Mk1,,equipment,1,equipment weapon,73811,ego_dlc_split
+weapon_spl_m_gatling_01_mk2,SPL M Neutron Gatling Mk2,,equipment,1,equipment weapon,435104,ego_dlc_split
+weapon_spl_m_railgun_01_mk1,SPL M Boson Lance Mk1,,equipment,1,equipment weapon,126259,ego_dlc_split
+weapon_spl_m_railgun_01_mk2,SPL M Boson Lance Mk2,,equipment,1,equipment weapon,644894,ego_dlc_split
+weapon_spl_m_shotgun_01_mk1,SPL M Tau Accelerator Mk1,,equipment,1,equipment weapon,21364,ego_dlc_split
+weapon_spl_m_shotgun_01_mk2,SPL M Tau Accelerator Mk2,,equipment,1,equipment weapon,140559,ego_dlc_split
+weapon_spl_m_sticky_01_mk1,SPL M Thermal Disintegrator Mk1,,equipment,1,equipment weapon,38846,ego_dlc_split
+weapon_spl_m_sticky_01_mk2,SPL M Thermal Disintegrator Mk2,,equipment,1,equipment weapon,295244,ego_dlc_split
+weapon_spl_s_gatling_01_mk1,SPL S Neutron Gatling Mk1,,equipment,1,equipment weapon,49207,ego_dlc_split
+weapon_spl_s_gatling_01_mk2,SPL S Neutron Gatling Mk2,,equipment,1,equipment weapon,290070,ego_dlc_split
+weapon_spl_s_railgun_01_mk1,SPL S Boson Lance Mk1,,equipment,1,equipment weapon,133333,ego_dlc_split
+weapon_spl_s_railgun_01_mk2,SPL S Boson Lance Mk2,,equipment,1,equipment weapon,429930,ego_dlc_split
+weapon_spl_s_shotgun_01_mk1,SPL S Tau Accelerator Mk1,,equipment,1,equipment weapon,14242,ego_dlc_split
+weapon_spl_s_shotgun_01_mk2,SPL S Tau Accelerator Mk2,,equipment,1,equipment weapon,93706,ego_dlc_split
+weapon_spl_s_sticky_01_mk1,SPL S Thermal Disintegrator Mk1,,equipment,1,equipment weapon,25897,ego_dlc_split
+weapon_spl_s_sticky_01_mk2,SPL S Thermal Disintegrator Mk2,,equipment,1,equipment weapon,196830,ego_dlc_split
+computronicsubstrate,Computronic Substrate,hightech,container,50,container economy stationbuilding,8280,ego_dlc_terran
+engine_spacesuit_weak,Disrupted Engine,engines,inventory,1,disallowdrop engine equipment inventory noblueprint nocustomgamestart noplayerblueprint personalupgrade,1000,ego_dlc_terran
+engine_ter_l_allround_01_mk1,TER L All-round Engine Mk1,,equipment,1,engine equipment,857432,ego_dlc_terran
+engine_ter_l_travel_01_mk1,TER L Travel Engine Mk1,,equipment,1,engine equipment,819320,ego_dlc_terran
+engine_ter_m_allround_01_mk1,TER M All-round Engine Mk1,,equipment,1,engine equipment,31408,ego_dlc_terran
+engine_ter_m_allround_01_mk2,TER M All-round Engine Mk2,,equipment,1,engine equipment,155227,ego_dlc_terran
+engine_ter_m_allround_01_mk3,TER M All-round Engine Mk3,,equipment,1,engine equipment,767289,ego_dlc_terran
+engine_ter_m_combat_01_mk1,TER M Combat Engine Mk1,,equipment,1,engine equipment,38317,ego_dlc_terran
+engine_ter_m_combat_01_mk2,TER M Combat Engine Mk2,,equipment,1,engine equipment,185997,ego_dlc_terran
+engine_ter_m_combat_01_mk3,TER M Combat Engine Mk3,,equipment,1,engine equipment,921282,ego_dlc_terran
+engine_ter_m_travel_01_mk1,TER M Travel Engine Mk1,,equipment,1,engine equipment,34922,ego_dlc_terran
+engine_ter_m_travel_01_mk2,TER M Travel Engine Mk2,,equipment,1,engine equipment,173987,ego_dlc_terran
+engine_ter_m_travel_01_mk3,TER M Travel Engine Mk3,,equipment,1,engine equipment,882728,ego_dlc_terran
+engine_ter_s_allround_01_mk1,TER S All-round Engine Mk1,,equipment,1,engine equipment,14797,ego_dlc_terran
+engine_ter_s_allround_01_mk2,TER S All-round Engine Mk2,,equipment,1,engine equipment,70351,ego_dlc_terran
+engine_ter_s_allround_01_mk3,TER S All-round Engine Mk3,,equipment,1,engine equipment,328901,ego_dlc_terran
+engine_ter_s_combat_01_mk1,TER S Combat Engine Mk1,,equipment,1,engine equipment,21705,ego_dlc_terran
+engine_ter_s_combat_01_mk2,TER S Combat Engine Mk2,,equipment,1,engine equipment,108071,ego_dlc_terran
+engine_ter_s_combat_01_mk3,TER S Combat Engine Mk3,,equipment,1,engine equipment,482734,ego_dlc_terran
+engine_ter_s_travel_01_mk1,TER S Travel Engine Mk1,,equipment,1,engine equipment,18192,ego_dlc_terran
+engine_ter_s_travel_01_mk2,TER S Travel Engine Mk2,,equipment,1,engine equipment,92665,ego_dlc_terran
+engine_ter_s_travel_01_mk3,TER S Travel Engine Mk3,,equipment,1,engine equipment,444340,ego_dlc_terran
+engine_ter_xl_allround_01_mk1,TER XL All-round Engine Mk1,,equipment,1,engine equipment,1096945,ego_dlc_terran
+engine_ter_xl_travel_01_mk1,TER XL Travel Engine Mk1,,equipment,1,engine equipment,1009282,ego_dlc_terran
+metallicmicrolattice,Metallic Microlattice,hightech,container,1,container economy stationbuilding,50,ego_dlc_terran
+module_ter_build_dockarea_m_01,Terran S/M Ship Fabrication Bay,,container,1,module,109036303,ego_dlc_terran
+module_ter_build_l_01,Terran L Ship Fabrication Bay,,container,1,module,262942912,ego_dlc_terran
+module_ter_build_xl_01,Terran XL Ship Fabrication Bay,,container,1,module,267186553,ego_dlc_terran
+module_ter_conn_base_01,Terran Base Connection Structure 01,,container,1,module,72482,ego_dlc_terran
+module_ter_conn_base_02,Terran Base Connection Structure 02,,container,1,module,100944,ego_dlc_terran
+module_ter_conn_base_03,Terran Base Connection Structure 03,,container,1,module,129515,ego_dlc_terran
+module_ter_conn_cross_01,Terran Cross Connection Structure 01,,container,1,module,129515,ego_dlc_terran
+module_ter_conn_vertical_01,Terran Vertical Connection Structure 01,,container,1,module,72482,ego_dlc_terran
+module_ter_conn_vertical_02,Terran Vertical Connection Structure 02,,container,1,module,100944,ego_dlc_terran
+module_ter_def_claim_01,Terran Administrative Centre,,container,1,module,2036696,ego_dlc_terran
+module_ter_def_disc_01,Terran Disc Defence Platform,,container,1,module,1449230,ego_dlc_terran
+module_ter_def_tube_01,Terran Bridge Defence Platform,,container,1,module,1019921,ego_dlc_terran
+module_ter_dock_m_01_hightech,Terran 4M10S Luxury Dock Area,,container,1,module,281021,ego_dlc_terran
+module_ter_equip_dockarea_m_01,Terran S/M Ship Maintenance Bay,,container,1,module,37852341,ego_dlc_terran
+module_ter_equip_l_01,Terran L Ship Maintenance Bay,,container,1,module,67911898,ego_dlc_terran
+module_ter_equip_xl_01,Terran XL Ship Maintenance Bay,,container,1,module,70300342,ego_dlc_terran
+module_ter_hab_l_01,Terran L Living Quarters,,container,1,module,14483168,ego_dlc_terran
+module_ter_hab_m_01,Terran M Living Quarters,,container,1,module,10305632,ego_dlc_terran
+module_ter_hab_s_01,Terran S Living Quarters,,container,1,module,7252768,ego_dlc_terran
+module_ter_pier_01,Terran 3-Dock T Pier,,container,1,module,3716600,ego_dlc_terran
+module_ter_pier_02,Terran 1-Dock Pier,,container,1,module,2159631,ego_dlc_terran
+module_ter_pier_03,Terran 3-Dock E Pier,,container,1,module,4300632,ego_dlc_terran
+module_ter_pier_04,Terran 4-Dock T Pier,,container,1,module,2159631,ego_dlc_terran
+module_ter_pier_tradestation_01,Terran Trading Station Hexa-Dock Pier,,container,1,module,2702896,ego_dlc_terran
+module_ter_prod_computronicsubstrate_01,Computronic Substrate Production,,container,1,module,4964793,ego_dlc_terran
+module_ter_prod_energycells_01,Terran Energy Cell Production,,container,1,module,471369,ego_dlc_terran
+module_ter_prod_medicalsupplies_01,Terran Medical Supply Production,,container,1,module,354431,ego_dlc_terran
+module_ter_prod_metallicmicrolattice_01,Metallic Microlattice Production,,container,1,module,125481,ego_dlc_terran
+module_ter_prod_proteinpaste_01,Protein Paste Production,,container,1,module,1521084,ego_dlc_terran
+module_ter_prod_scrap_recycler,Terran Scrap Recycler,,container,1,module,1915898,ego_dlc_terran
+module_ter_prod_siliconcarbide_01,Silicon Carbide Production,,container,1,module,834308,ego_dlc_terran
+module_ter_prod_stimulants_01,Stimulant Production,,container,1,module,2923177,ego_dlc_terran
+module_ter_prod_terranmre_01,Terran MRE Production,,container,1,module,627371,ego_dlc_terran
+module_ter_stor_container_l_01,Terran L Container Storage,,container,1,module,915651,ego_dlc_terran
+module_ter_stor_container_m_01,Terran M Container Storage,,container,1,module,612603,ego_dlc_terran
+module_ter_stor_container_m_tradestation,Terran M Trading Station Container Storage,,container,1,module noplayerblueprint,362076,ego_dlc_terran
+module_ter_stor_container_s_01,Terran S Container Storage,,container,1,module,356792,ego_dlc_terran
+module_ter_stor_liquid_l_01,Terran L Liquid Storage,,container,1,module,915651,ego_dlc_terran
+module_ter_stor_liquid_m_01,Terran M Liquid Storage,,container,1,module,612603,ego_dlc_terran
+module_ter_stor_liquid_s_01,Terran S Liquid Storage,,container,1,module,356792,ego_dlc_terran
+module_ter_stor_liquid_s_tradestation,Terran S Trading Station Liquid Storage,,container,1,module noplayerblueprint,259586,ego_dlc_terran
+module_ter_stor_solid_l_01,Terran L Solid Storage,,container,1,module,915651,ego_dlc_terran
+module_ter_stor_solid_m_01,Terran M Solid Storage,,container,1,module,612603,ego_dlc_terran
+module_ter_stor_solid_s_01,Terran S Solid Storage,,container,1,module,356792,ego_dlc_terran
+proteinpaste,Protein Paste,agricultural,container,4,container economy,96,ego_dlc_terran
+research_tf_tech,Terraformer Tech,,research,1,missiononly research,1,ego_dlc_terran
+shield_ter_l_standard_01_mk1,TER L Shield Generator Mk1,shields,equipment,1,equipment shield,112523,ego_dlc_terran
+shield_ter_l_standard_01_mk2,TER L Shield Generator Mk2,shields,equipment,1,equipment shield,438795,ego_dlc_terran
+shield_ter_l_standard_01_mk3,TER L Shield Generator Mk3,shields,equipment,1,equipment shield,1127732,ego_dlc_terran
+shield_ter_m_standard_01_mk1,TER M Shield Generator Mk1,shields,equipment,1,equipment shield,41137,ego_dlc_terran
+shield_ter_m_standard_01_mk2,TER M Shield Generator Mk2,shields,equipment,1,equipment shield,184962,ego_dlc_terran
+shield_ter_m_standard_01_mk3,TER M Shield Generator Mk3,shields,equipment,1,equipment shield,808104,ego_dlc_terran
+shield_ter_m_standard_02_mk1,TER M Shield Generator Mk1,shields,equipment,1,equipment shield,41137,ego_dlc_terran
+shield_ter_m_standard_02_mk2,TER M Shield Generator Mk2,shields,equipment,1,equipment shield,183387,ego_dlc_terran
+shield_ter_m_standard_02_mk3,TER M Shield Generator Mk3,shields,equipment,1,equipment shield,808104,ego_dlc_terran
+shield_ter_s_standard_01_mk1,TER S Shield Generator Mk1,shields,equipment,1,equipment shield,3349,ego_dlc_terran
+shield_ter_s_standard_01_mk2,TER S Shield Generator Mk2,shields,equipment,1,equipment shield,27243,ego_dlc_terran
+shield_ter_s_standard_01_mk3,TER S Shield Generator Mk3,shields,equipment,1,equipment shield,133124,ego_dlc_terran
+shield_ter_xl_standard_01_mk1,TER XL Shield Generator Mk1,shields,equipment,1,equipment shield,511615,ego_dlc_terran
+shield_ter_xl_standard_01_mk2,TER XL Shield Generator Mk2,shields,equipment,1,equipment shield,2952515,ego_dlc_terran
+ship_atf_l_destroyer_01_a,Syn,,ship,1,blueprintsaleonly nocustomgamestart nodiplomacyblueprint ship,12823980,ego_dlc_terran
+ship_atf_xl_battleship_01_a,Asgard,,ship,1,blueprintsaleonly nocustomgamestart nodiplomacyblueprint ship,26179920,ego_dlc_terran
+ship_gen_m_transdrone_container_02_a,Medium Terraforming Drone,drones,ship,1,noplayerbuild ship,46600,ego_dlc_terran
+ship_gen_s_transdrone_container_02_a,Small Terraforming Drone,drones,ship,1,noplayerbuild ship,23300,ego_dlc_terran
+ship_ter_l_destroyer_01_a,Osaka,,ship,1,ship,8233870,ego_dlc_terran
+ship_ter_l_miner_liquid_01_a,Hokkaido (Gas),,ship,1,ship,2854250,ego_dlc_terran
+ship_ter_l_miner_solid_01_a,Hokkaido (Mineral),,ship,1,ship,2854250,ego_dlc_terran
+ship_ter_l_research_01_a,Okinawa Research,,ship,1,noblueprint noplayerblueprint,4599250,ego_dlc_terran
+ship_ter_l_trans_container_01_a,Okinawa,,ship,1,ship,4472180,ego_dlc_terran
+ship_ter_m_corvette_01_a,Katana,,ship,1,ship,1763540,ego_dlc_terran
+ship_ter_m_frigate_01_a,Falx,,ship,1,ship,2813860,ego_dlc_terran
+ship_ter_m_gunboat_01_a,Jian,,ship,1,ship,2057600,ego_dlc_terran
+ship_ter_m_miner_liquid_01_a,Bolo (Gas),,ship,1,ship,388740,ego_dlc_terran
+ship_ter_m_miner_solid_01_a,Bolo (Mineral),,ship,1,ship,388740,ego_dlc_terran
+ship_ter_m_trans_container_01_a,Baldric,,ship,1,ship,734360,ego_dlc_terran
+ship_ter_s_fighter_01_a,Kukri,,ship,1,ship,327573,ego_dlc_terran
+ship_ter_s_fighter_02_a,Kalis,,ship,1,ship,342750,ego_dlc_terran
+ship_ter_s_fighter_03_a,Takoba,,ship,1,ship,343160,ego_dlc_terran
+ship_ter_s_heavyfighter_01_a,Gladius,,ship,1,ship,470800,ego_dlc_terran
+ship_ter_s_miner_solid_01_a,Kopis (Mineral),,ship,1,ship,171090,ego_dlc_terran
+ship_ter_s_scout_01_a,Rapier,,ship,1,ship,213800,ego_dlc_terran
+ship_ter_s_scout_02_a,Nimcha,,ship,1,ship,342750,ego_dlc_terran
+ship_ter_s_trans_container_01_a,Frog,,ship,1,ship,299630,ego_dlc_terran
+ship_ter_xl_builder_01_a,Kyushu,,ship,1,ship,21146490,ego_dlc_terran
+ship_ter_xl_carrier_01_a,Tokyo,,ship,1,ship,21886875,ego_dlc_terran
+ship_ter_xl_resupplier_01_a,Honshu,,ship,1,ship,26263870,ego_dlc_terran
+ship_ter_xs_police_01_a,Terran Station Security Vessel,drones,equipment,1,drone equipment noplayerblueprint,27418,ego_dlc_terran
+ship_yak_m_corvette_01_a,Kuraokami,,ship,1,nocustomgamestart ship,984025,ego_dlc_terran
+ship_yak_s_fighter_01_a,Moreya,,ship,1,nocustomgamestart ship,269180,ego_dlc_terran
+siliconcarbide,Silicon Carbide,hightech,container,20,container economy stationbuilding,1414,ego_dlc_terran
+stimulants,Stimulants,pharmaceutical,container,12,container economy,340,ego_dlc_terran
+terranmre,Terran MRE,food,container,2,container economy,54,ego_dlc_terran
+turret_ter_l_beam_01_mk1,TER L Meson Stream Turret Mk1,turrets,equipment,1,equipment turret,362570,ego_dlc_terran
+turret_ter_l_dumbfire_01_mk1,TER L Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,99900,ego_dlc_terran
+turret_ter_l_gatling_01_mk1,TER L Proton Barrage Turret Mk1,turrets,equipment,1,equipment turret,196070,ego_dlc_terran
+turret_ter_l_guided_01_mk1,TER L Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,139860,ego_dlc_terran
+turret_ter_l_laser_01_mk1,TER L Pulse Turret Mk1,turrets,equipment,1,equipment turret,96170,ego_dlc_terran
+turret_ter_l_mining_01_mk1,TER L Mining Turret Mk1,turrets,equipment,1,equipment turret,33300,ego_dlc_terran
+turret_ter_m_beam_01_mk1,TER M Meson Stream Turret Mk1,turrets,equipment,1,equipment turret,181285,ego_dlc_terran
+turret_ter_m_beam_02_mk1,TER M Meson Stream Turret Mk1,turrets,equipment,1,equipment turret,181285,ego_dlc_terran
+turret_ter_m_dumbfire_01_mk1,TER M Dumbfire Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,49950,ego_dlc_terran
+turret_ter_m_dumbfire_02_mk1,TER M Dumbfire Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,49950,ego_dlc_terran
+turret_ter_m_gatling_01_mk1,TER M Proton Barrage Turret Mk1,turrets,equipment,1,equipment turret,98035,ego_dlc_terran
+turret_ter_m_gatling_02_mk1,TER M Proton Barrage Turret Mk1,turrets,equipment,1,equipment turret,98035,ego_dlc_terran
+turret_ter_m_guided_01_mk1,TER M Tracking Turret Mk1,turrets,equipment,1,missilelauncher noplayerblueprint turret,69930,ego_dlc_terran
+turret_ter_m_guided_02_mk1,TER M Tracking Turret Mk1,turrets,equipment,1,equipment missilelauncher turret,69930,ego_dlc_terran
+turret_ter_m_laser_01_mk1,TER M Pulse Turret Mk1,turrets,equipment,1,equipment turret,48085,ego_dlc_terran
+turret_ter_m_laser_02_mk1,TER M Pulse Turret Mk1,turrets,equipment,1,equipment turret,48085,ego_dlc_terran
+turret_ter_m_mining_01_mk1,TER M Mining Turret Mk1,turrets,equipment,1,equipment turret,16650,ego_dlc_terran
+turret_ter_m_mining_02_mk1,TER M Mining Turret Mk1,turrets,equipment,1,equipment turret,16650,ego_dlc_terran
+weapon_atf_xl_battleship_01_mk1,ATF XL Main Battery,weapons,equipment,1,equipment nocustomgamestart nodiplomacyblueprint weapon,9248076,ego_dlc_terran
+weapon_clustermine_01,Cluster Mine,weapons,equipment,1,equipment mine,6838,ego_dlc_terran
+weapon_ter_l_destroyer_01_mk1,Terran Main Battery,weapons,equipment,1,equipment weapon,1888276,ego_dlc_terran
+weapon_ter_m_beam_01_mk1,TER M Meson Stream Mk1,weapons,equipment,1,equipment weapon,414252,ego_dlc_terran
+weapon_ter_m_beam_01_mk2,TER M Meson Stream Mk2,weapons,equipment,1,equipment weapon,1923408,ego_dlc_terran
+weapon_ter_m_gatling_01_mk1,TER M Proton Barrage Mk1,weapons,equipment,1,equipment weapon,105444,ego_dlc_terran
+weapon_ter_m_gatling_01_mk2,TER M Proton Barrage Mk2,weapons,equipment,1,equipment weapon,695570,ego_dlc_terran
+weapon_ter_m_laser_01_mk1,TER M Pulse Laser Mk1,weapons,equipment,1,equipment weapon,107293,ego_dlc_terran
+weapon_ter_m_laser_01_mk2,TER M Pulse Laser Mk2,weapons,equipment,1,equipment weapon,562370,ego_dlc_terran
+weapon_ter_s_beam_01_mk1,TER S Meson Stream Mk1,weapons,equipment,1,equipment weapon,276168,ego_dlc_terran
+weapon_ter_s_beam_01_mk2,TER S Meson Stream Mk2,weapons,equipment,1,equipment weapon,907714,ego_dlc_terran
+weapon_ter_s_gatling_01_mk1,TER S Proton Barrage Mk1,weapons,equipment,1,equipment weapon,93728,ego_dlc_terran
+weapon_ter_s_gatling_01_mk2,TER S Proton Barrage Mk2,weapons,equipment,1,equipment weapon,463714,ego_dlc_terran
+weapon_ter_s_laser_01_mk1,TER S Pulse Laser Mk1,weapons,equipment,1,equipment weapon,42917,ego_dlc_terran
+weapon_ter_s_laser_01_mk2,TER S Pulse Laser Mk2,weapons,equipment,1,equipment weapon,374914,ego_dlc_terran
+engine_arg_s_racer_01_mk1,ARG S Racing Engine Mk1,engines,equipment,1,engine equipment,222124,ego_dlc_timelines
+engine_gen_s_racer_01_mk1,S Racing Engine Mk1,engines,equipment,1,engine equipment,241364,ego_dlc_timelines
+engine_gen_s_racer_01_mk2,S Racing Engine Mk2,engines,equipment,1,engine equipment,321819,ego_dlc_timelines
+engine_par_s_racer_01_mk1,PAR S Racing Engine Mk1,engines,equipment,1,engine equipment,222124,ego_dlc_timelines
+engine_tel_s_racer_01_mk1,TEL S Racing Engine Mk1,engines,equipment,1,engine equipment,266322,ego_dlc_timelines
+engine_ter_l_allround_02_mk1,TER L Frontier Engine Mk1,engines,equipment,1,engine equipment nocustomgamestart nodiplomacyblueprint,838785,ego_dlc_timelines
+engine_ter_m_virtual_01_mk1,TER M Frontier Engine Mk1,engines,equipment,1,engine equipment nocustomgamestart nodiplomacyblueprint,95598,ego_dlc_timelines
+engine_ter_s_virtual_01_mk1,TER S Frontier Engine Mk1,engines,equipment,1,engine equipment nocustomgamestart nodiplomacyblueprint,97265,ego_dlc_timelines
+engine_xen_xl_mothership_01_allround_mk1,Xenon XL Engine,engines,equipment,1,engine equipment noplayerblueprint,600400,ego_dlc_timelines
+missile_flagship_heavy_mk1,Heavy Barrage Missile Mk1,missiles,equipment,1,equipment missile,1840,ego_dlc_timelines
+missile_flagship_light_mk1,Light Barrage Missile Mk1,missiles,equipment,1,equipment missile,1558,ego_dlc_timelines
+module_conn_arg_antigonearc_01,Argon Arc Connection Structure 02,,container,1,module rewarded,188410,ego_dlc_timelines
+module_conn_arg_antigonescaffolding_01,Argon Span Connection Structure 02,,container,1,module rewarded,210663,ego_dlc_timelines
+module_conn_arg_antigonestraight_01,Argon Span Connection Structure 01,,container,1,module rewarded,148354,ego_dlc_timelines
+module_hab_arg_antigonepillar_01,Argon L Housing Spire,,container,1,module rewarded,19636578,ego_dlc_timelines
+module_hab_arg_antigonespire_01,Argon XL Housing Spire,,container,1,module rewarded,27778063,ego_dlc_timelines
+mod_engine_boostthrust_escort_scenario,Atlas (Boost Thrust Mod - Exceptional Quality),,inventory,1,crafting equipmentmod noplayerblueprint,250000,ego_dlc_timelines
+mod_engine_travelthrust_transport_refugees,Vinci (Travel Thrust Mod - Enhanced Quality),,inventory,1,crafting equipmentmod noplayerblueprint,250000,ego_dlc_timelines
+mod_weapon_damage_fleet_battle_1,Obliterator (Damage Mod - Exceptional Quality),,inventory,1,crafting equipmentmod noplayerblueprint,1250000,ego_dlc_timelines
+research_ship_arg_s_racing_01,Elite Sport,,research,1,nocustomgamestart research,1,ego_dlc_timelines
+research_ship_par_s_racing_01,Theseus Sport,,research,1,nocustomgamestart research,1,ego_dlc_timelines
+research_ship_tel_s_racing_01,Kestrel Sport,,research,1,nocustomgamestart research,1,ego_dlc_timelines
+research_ship_ter_l_flagship_01,Sapporo,,research,1,nocustomgamestart research,1,ego_dlc_timelines
+research_ship_ter_m_corvette_01,Odachi,,research,1,nocustomgamestart research,1,ego_dlc_timelines
+research_ship_ter_s_fighter_01,Cutlass,,research,1,nocustomgamestart research,1,ego_dlc_timelines
+shield_arg_s_racer_01_mk1,ARG S Shield Generator Mk1,shields,equipment,1,equipment shield,13582,ego_dlc_timelines
+shield_gen_s_racer_01_mk1,S Racing Shield Generator Mk1,shields,equipment,1,equipment shield,14713,ego_dlc_timelines
+shield_par_s_racer_01_mk1,PAR S Shield Generator Mk1,shields,equipment,1,equipment shield,15212,ego_dlc_timelines
+shield_tel_s_racer_01_mk1,TEL S Shield Generator Mk1,shields,equipment,1,equipment shield,13582,ego_dlc_timelines
+shield_ter_l_standard_02_mk1,TER L Frontier Shield Generator Mk1,shields,equipment,1,equipment nocustomgamestart nodiplomacyblueprint shield,116156,ego_dlc_timelines
+shield_ter_l_standard_02_mk2,TER L Frontier Shield Generator Mk2,shields,equipment,1,equipment nocustomgamestart shield,438795,ego_dlc_timelines
+shield_ter_l_standard_02_mk3,TER L Frontier Shield Generator Mk3,shields,equipment,1,equipment nocustomgamestart shield,1127732,ego_dlc_timelines
+shield_ter_m_standard_04_mk1,TER M Frontier Shield Generator Mk1,shields,equipment,1,equipment nocustomgamestart shield,104210,ego_dlc_timelines
+shield_ter_m_standard_04_mk2,TER M Frontier Shield Generator Mk2,shields,equipment,1,equipment nocustomgamestart shield,194059,ego_dlc_timelines
+shield_ter_m_standard_04_mk3,TER M Frontier Shield Generator Mk3,shields,equipment,1,equipment nocustomgamestart shield,849262,ego_dlc_timelines
+shield_ter_m_virtual_01_mk1,TER M Frontier Shield Generator Mk1,shields,equipment,1,equipment nocustomgamestart shield,104210,ego_dlc_timelines
+shield_ter_m_virtual_01_mk2,TER M Frontier Shield Generator Mk2,shields,equipment,1,equipment nocustomgamestart shield,194059,ego_dlc_timelines
+shield_ter_m_virtual_01_mk3,TER M Frontier Shield Generator Mk3,shields,equipment,1,equipment nocustomgamestart shield,849262,ego_dlc_timelines
+shield_ter_s_virtual_01_mk1,TER S Frontier Shield Generator Mk1,shields,equipment,1,equipment nocustomgamestart shield,25095,ego_dlc_timelines
+shield_ter_s_xperimental_01_mk5,TER S Frontier Shield Generator Mk5,shields,equipment,1,equipment nocustomgamestart shield,458600,ego_dlc_timelines
+shield_xen_xl_mothership_01_mk1,Xenon XL Shield Generator,shields,equipment,1,equipment noplayerblueprint shield,385600,ego_dlc_timelines
+ship_arg_s_racer_01_a,Elite Sport,,ship,1,limited nocustomgamestart ship,172350,ego_dlc_timelines
+ship_gen_s_racer_01_a,Dart,,ship,1,limited nocustomgamestart ship,346850,ego_dlc_timelines
+ship_par_s_racer_01_a,Theseus Sport,,ship,1,limited nocustomgamestart ship,191440,ego_dlc_timelines
+ship_tel_s_racer_01_a,Kestrel Sport,,ship,1,limited nocustomgamestart ship,163250,ego_dlc_timelines
+ship_ter_l_flagship_01_a,Sapporo,,ship,1,nocustomgamestart ship,7099138,ego_dlc_timelines
+ship_ter_m_corvette_02_a,Odachi,,ship,1,nocustomgamestart ship,2116165,ego_dlc_timelines
+ship_ter_s_fighter_04_a,Cutlass,,ship,1,nocustomgamestart ship,343801,ego_dlc_timelines
+ship_ter_s_xperimental_01_a,Xperimental Shuttle,,ship,1,limited nocustomgamestart ship,1323258,ego_dlc_timelines
+ship_xen_xl_mothership_01,M0,,ship,1,noplayerblueprint ship,15340000,ego_dlc_timelines
+turret_ter_m_laser_03_mk1,TER M Electromagnetic Turret Mk1,turrets,equipment,1,equipment missiononly turret,147985,ego_dlc_timelines
+turret_ter_m_laser_04_mk1,TER M Electromagnetic Turret Mk1,turrets,equipment,1,equipment missiononly turret,147985,ego_dlc_timelines
+turret_xen_xl_battleship_01_mk1,XEN XL Omega Turret Mk1,turrets,equipment,1,equipment noplayerblueprint turret,49000,ego_dlc_timelines
+weapon_gen_spacesuit_laser_03_mk1,Sporting Rifle,weapons,inventory,1,disallowdrop equipment inventory noblueprint noplayerblueprint personalupgrade weapon,100000,ego_dlc_timelines
+weapon_ter_l_flagship_01_mk1,TER Sapporo Launcher Array,weapons,equipment,1,equipment missilelauncher nocustomgamestart weapon,1998000,ego_dlc_timelines
+weapon_ter_m_laser_02_mk1,TER M Electromagnetic Cannon Mk1,weapons,equipment,1,equipment missiononly weapon,273793,ego_dlc_timelines
+weapon_ter_s_laser_02_mk1,TER S Electromagnetic Gun Mk1,weapons,equipment,1,equipment missiononly weapon,182528,ego_dlc_timelines
+weapon_ter_s_plasma_01_mk1,ARG S Gamma HEPT Mk1,weapons,equipment,1,equipment missiononly weapon,187457,ego_dlc_timelines

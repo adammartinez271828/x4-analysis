@@ -1,0 +1,267 @@
+"""Single-pass streaming parser for X4 savegames (.xml or .xml.gz).
+
+One lxml.iterparse sweep collects every record the analysis needs; elements
+are cleared as soon as they close, so peak memory stays far below the DOM
+approach the original R script used (which needed ~16 GB for large saves).
+
+Component ancestry (which cluster/sector/station/ship an element sits in) is
+tracked with an explicit stack instead of the R script's forward-fill trick.
+"""
+
+from __future__ import annotations
+
+import gzip
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import IO
+
+from lxml import etree
+
+# component classes that become df_universe rows
+_UNIVERSE_CLASSES = ("cluster", "sector", "station")
+_SHIP_RE = re.compile(r"^ship_")
+
+# ware name embedded in a v9 resource-area yieldid, e.g.
+# "sphere_large_ore_high_slow" -> "ore"
+_YIELD_WARE_RE = re.compile(
+    r"_(ore|silicon|nividium|ice|hydrogen|helium|methane|rawscrap|scrap)(?:_|$)"
+)
+
+
+@dataclass
+class SaveData:
+    # /savegame/info
+    guid: str = ""
+    game_version: str = ""
+    game_time: float = 0.0
+    save_date: str = ""
+    player_name: str = ""
+    player_money: float = 0.0
+    player_faction_name: str = ""    # custom name, if renamed
+    modified: bool = False
+
+    # record lists (tuples; column names live in frames.py)
+    components: list = field(default_factory=list)
+    # (id, clazz, macro, name, code, owner, knownto, contested, connection,
+    #  spawntime, cluster_id, cluster_macro, sector_id, sector_macro)
+    # fleet hierarchy: a follower's <connected connection="[X]"> points at the
+    # commander's <connection connection="subordinates" id="[X]"> element
+    commander_links: list = field(default_factory=list)   # (follower_id, conn_ref)
+    subordinate_conns: list = field(default_factory=list)  # (leader_id, conn_id)
+    posts: list = field(default_factory=list)          # (object_id, post, npc_ref)
+    workforce: list = field(default_factory=list)      # (station_id, race, amount)
+    modules: list = field(default_factory=list)        # (station_id, index, macro)
+    npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
+    resources: list = field(default_factory=list)      # (sector_macro, ware, yield)
+    cargo: list = field(default_factory=list)          # (object_id, ware, amount)
+    # materials missing for constructions (<insufficient>/<shortage> under
+    # <build><resources>); object_id is "" for free-floating build storages
+    build_resources: list = field(default_factory=list)  # (object_id, ware, amount)
+    # open buy offers: how much a station still wants of a ware
+    buy_offers: list = field(default_factory=list)     # (object_id, ware, amount)
+    log_entries: list = field(default_factory=list)    # dict per <entry>
+    trades: list = field(default_factory=list)         # dict per economylog <log>
+    removed_objects: list = field(default_factory=list)  # dict per <object>
+
+
+def _open_save(path: Path) -> IO[bytes]:
+    if path.suffix == ".gz":
+        return gzip.open(path, "rb")
+    return open(path, "rb")
+
+
+def parse_savegame(path: Path, progress=None) -> SaveData:
+    data = SaveData()
+    d = data  # short alias
+
+    tag_stack: list[str] = []
+    # ancestry of open <component> elements: (clazz, id, macro)
+    comp_stack: list[tuple[str, str, str]] = []
+    # nearest open station/ship component id, for posts/workforce/modules
+    object_stack: list[str] = []
+    npc_stack: list[list] = []       # open npc records awaiting <skills>
+    sector_macro_stack: list[str] = []
+    in_faction_player = 0
+    n_elems = 0
+
+    with _open_save(path) as fh:
+        for event, elem in etree.iterparse(
+            fh, events=("start", "end"), recover=True, huge_tree=True
+        ):
+            tag = elem.tag
+            if event == "start":
+                tag_stack.append(tag)
+                if tag == "component":
+                    clazz = elem.get("class", "")
+                    cid = elem.get("id", "")
+                    comp_stack.append((clazz, cid, elem.get("macro", "")))
+                    if clazz == "station" or _SHIP_RE.match(clazz):
+                        object_stack.append(cid)
+                    elif clazz == "sector":
+                        sector_macro_stack.append(elem.get("macro", ""))
+                    elif clazz == "npc" and elem.get("owner") == "player":
+                        npc_stack.append([
+                            cid, elem.get("name", ""), elem.get("code", ""),
+                            elem.get("owner", ""), {},
+                        ])
+                elif tag == "faction" and elem.get("id") == "player":
+                    in_faction_player += 1
+                continue
+
+            # ---- end events ----
+            tag_stack.pop()
+            n_elems += 1
+            if progress and n_elems % 5_000_000 == 0:
+                progress(f"  ...{n_elems / 1e6:.0f}M elements")
+
+            if tag == "component":
+                clazz, cid, macro = comp_stack.pop()
+                if clazz == "station" or _SHIP_RE.match(clazz):
+                    if object_stack and object_stack[-1] == cid:
+                        object_stack.pop()
+                elif clazz == "sector":
+                    if sector_macro_stack and sector_macro_stack[-1] == macro:
+                        sector_macro_stack.pop()
+                elif clazz == "npc" and npc_stack and npc_stack[-1][0] == cid:
+                    d.npcs.append(tuple(npc_stack.pop()))
+
+                if clazz in _UNIVERSE_CLASSES or _SHIP_RE.match(clazz):
+                    cluster_id = cluster_macro = sector_id = sector_macro = ""
+                    for pcls, pid, pmacro in comp_stack:
+                        if pcls == "cluster":
+                            cluster_id, cluster_macro = pid, pmacro
+                        elif pcls == "sector":
+                            sector_id, sector_macro = pid, pmacro
+                    if clazz == "cluster":
+                        cluster_id, cluster_macro = cid, macro
+                    elif clazz == "sector":
+                        sector_id, sector_macro = cid, macro
+                    d.components.append((
+                        cid, clazz, macro, elem.get("name", ""),
+                        elem.get("code", ""), elem.get("owner", ""),
+                        elem.get("knownto", ""), elem.get("contested", ""),
+                        elem.get("connection", ""), elem.get("spawntime", ""),
+                        cluster_id, cluster_macro, sector_id, sector_macro,
+                    ))
+
+            elif tag == "connected":
+                parent = elem.getparent()
+                if (object_stack and parent is not None
+                        and parent.tag == "connection"
+                        and parent.get("connection") == "commander"):
+                    d.commander_links.append(
+                        (object_stack[-1], elem.get("connection", "")))
+
+            elif tag == "connection":
+                if object_stack and elem.get("connection") == "subordinates":
+                    d.subordinate_conns.append(
+                        (object_stack[-1], elem.get("id", "")))
+
+            elif tag == "post":
+                # crew assignments live at <control><post id=... component=.../>
+                if object_stack and tag_stack and tag_stack[-1] == "control":
+                    d.posts.append((
+                        object_stack[-1], elem.get("id", ""),
+                        elem.get("component", ""),
+                    ))
+
+            elif tag == "workforce":
+                if object_stack and elem.get("race"):
+                    d.workforce.append((
+                        object_stack[-1], elem.get("race", ""),
+                        float(elem.get("amount", 0) or 0),
+                    ))
+
+            elif tag == "entry":
+                if "log" in tag_stack:
+                    d.log_entries.append(dict(elem.attrib))
+                elif object_stack and elem.get("index") and elem.get("macro"):
+                    try:
+                        d.modules.append((
+                            object_stack[-1], int(elem.get("index")),
+                            elem.get("macro", "").lower(),
+                        ))
+                    except ValueError:
+                        pass
+
+            elif tag == "skills":
+                if npc_stack:
+                    npc_stack[-1][4] = {k: float(v) for k, v in elem.attrib.items()}
+
+            elif tag == "ware":
+                parent = tag_stack[-1] if tag_stack else ""
+                gparent = tag_stack[-2] if len(tag_stack) >= 2 else ""
+                if object_stack and parent == "cargo":
+                    d.cargo.append((
+                        object_stack[-1], elem.get("ware", ""),
+                        float(elem.get("amount", 0) or 0),
+                    ))
+                elif parent in ("insufficient", "shortage") \
+                        and gparent == "resources":
+                    # host = nearest component: the station for expansions,
+                    # the free-floating build storage for new constructions
+                    d.build_resources.append((
+                        comp_stack[-1][1] if comp_stack else "",
+                        elem.get("ware", ""),
+                        float(elem.get("amount", 0) or 0),
+                    ))
+
+            elif tag == "trade":
+                if elem.get("ware") and elem.get("buyer") \
+                        and "offers" in tag_stack:
+                    d.buy_offers.append((
+                        object_stack[-1] if object_stack else "",
+                        elem.get("ware", ""),
+                        float(elem.get("amount", 0) or 0),
+                    ))
+
+            elif tag == "area":
+                if sector_macro_stack and elem.get("yieldid"):
+                    m = _YIELD_WARE_RE.search(elem.get("yieldid", ""))
+                    if m:
+                        d.resources.append((
+                            sector_macro_stack[-1], m.group(1),
+                            float(elem.get("yield", 0) or 0),
+                        ))
+
+            elif tag == "log" and "economylog" in tag_stack:
+                if elem.get("type") == "trade":
+                    d.trades.append(dict(elem.attrib))
+
+            elif tag == "object":
+                if "economylog" in tag_stack and "removed" in tag_stack:
+                    d.removed_objects.append(dict(elem.attrib))
+
+            elif tag == "game":
+                if tag_stack and tag_stack[-1] == "info":
+                    d.guid = elem.get("guid", "")
+                    d.game_version = elem.get("version", "")
+                    d.game_time = float(elem.get("time", 0) or 0)
+                    d.modified = elem.get("modified", "0") == "1"
+
+            elif tag == "save":
+                if tag_stack and tag_stack[-1] == "info":
+                    d.save_date = elem.get("date", "")
+
+            elif tag == "player":
+                if tag_stack and tag_stack[-1] == "info":
+                    d.player_name = elem.get("name", "")
+                    d.player_money = float(elem.get("money", 0) or 0)
+
+            elif tag == "name":
+                if in_faction_player and tag_stack and tag_stack[-1] == "custom":
+                    d.player_faction_name = elem.get("name", "")
+
+            elif tag == "faction":
+                if elem.get("id") == "player":
+                    in_faction_player = max(0, in_faction_player - 1)
+
+            # free memory: drop this element and any closed older siblings
+            elem.clear()
+            parent = elem.getparent()
+            if parent is not None:
+                while elem.getprevious() is not None:
+                    del parent[0]
+
+    return data

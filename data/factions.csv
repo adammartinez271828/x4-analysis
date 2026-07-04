@@ -1,0 +1,32 @@
+id,shortname,name,primaryrace,colour,source
+player,PL,Player,,#4dff4d,
+alliance,ALI,Alliance of the Word,paranid,#660066,
+antigone,ANT,Antigone Republic,argon,#0095ff,
+argon,ARG,Argon Federation,argon,#0069b3,
+buccaneers,BUC,Duke's Buccaneers,paranid,#006466,
+civilian,,Civilian,,#c0c0c0,
+criminal,,Criminal,,#b30000,
+hatikvah,HAT,Hatikvah Free League,argon,#00f9ff,
+holyorder,HOP,Holy Order of the Pontifex,paranid,#ff99ff,
+holyorderfanatic,HOF,Holy Order Faithful,paranid,#660000,
+khaak,KHK,Kha'ak,khaak,#ff00ff,
+ministry,MIN,Ministry of Finance,teladi,#006600,
+outlaw,,Criminal,,#b30000,
+paranid,PAR,Godrealm of the Paranid,paranid,#b300b3,
+scaleplate,SCA,Scale Plate Pact,teladi,#666600,
+smuggler,,Criminal,,#b30000,
+teladi,TEL,Teladi Company,teladi,#b3b300,
+trinity,TRI,Realm of the Trinity,paranid,#ffccff,
+visitor,,Visitor,,#ffff00,
+xenon,XEN,Xenon,xenon,#b30000,
+boron,BOR,Queendom of Boron,boron,#4db5ff,ego_dlc_boron
+loanshark,VIG,Vigor Syndicate,argon,#b38600,ego_dlc_pirate
+scavenger,RIP,Riptide Rakers,argon,#003c66,ego_dlc_pirate
+court,CUB,Court of Curbs,split,#ffbf00,ego_dlc_split
+fallensplit,FAF,Fallen Families,split,#ff9999,ego_dlc_split
+freesplit,FRF,Free Families,split,#ff8b00,ego_dlc_split
+split,ZYA,Zyarth Patriarchy,split,#b36100,ego_dlc_split
+pioneers,PIO,Segaris Pioneers,terran,#00afb3,ego_dlc_terran
+terran,TER,Terran Protectorate,terran,#99d5ff,ego_dlc_timelines
+yaki,YAK,Yaki,argon,#ff4d4d,ego_dlc_terran
+kaori,QUE,Quettanauts,argon,#ffb966,ego_dlc_timelines

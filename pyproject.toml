@@ -1,0 +1,26 @@
+[project]
+name = "x4analyzer"
+version = "0.1.0"
+description = "Savegame analysis and visualization for X4: Foundations (Python port of X4SaveGameAnalysis)"
+readme = "README.md"
+authors = [
+    { name = "Adam Martinez", email = "adam.paul.martinez@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "lxml>=5.0",
+    "pandas>=2.2",
+    "plotly>=5.24",
+]
+
+[project.scripts]
+x4-analyzer = "x4analyzer.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12.0"]
+build-backend = "uv_build"

@@ -1,0 +1,359 @@
+macro,model,class,race,purpose,hull,mass,cargo,crew,price,source
+ship_arg_l_destroyer_01_a_macro,Behemoth Vanguard,L,argon,fight,93000,196.016,,44,4713125,
+ship_arg_l_destroyer_01_b_macro,Behemoth Sentinel,L,argon,fight,111000,235.22,,36,5641250,
+ship_arg_l_destroyer_02_a_macro,Behemoth E,L,argon,fight,153000,285,,48,9250830,
+ship_arg_l_miner_liquid_01_a_macro,Magnetar (Gas) Vanguard,L,argon,mine,40000,205.27,,46,1307600,
+ship_arg_l_miner_liquid_01_b_macro,Magnetar (Gas) Sentinel,L,argon,mine,46000,246.324,,38,1589310,
+ship_arg_l_miner_solid_01_a_macro,Magnetar (Mineral) Vanguard,L,argon,mine,40000,204.245,,46,1304385,
+ship_arg_l_miner_solid_01_b_macro,Magnetar (Mineral) Sentinel,L,argon,mine,46000,245.094,,38,1586095,
+ship_arg_l_trans_container_01_a_macro,Veles Vanguard,L,argon,trade,57000,440.933,,110,3065695,
+ship_arg_l_trans_container_01_b_macro,Veles Sentinel,L,argon,trade,69000,529.12,,91,3694780,
+ship_arg_l_trans_container_02_a_macro,Mokosi Vanguard,L,argon,trade,53000,413.15,,113,3182880,
+ship_arg_l_trans_container_02_b_macro,Mokosi Sentinel,L,argon,trade,64000,495.78,,94,3824825,
+ship_arg_l_trans_container_03_a_macro,Incarcatura Vanguard,L,argon,trade,78000,598.799,,207,3096880,
+ship_arg_l_trans_container_03_b_macro,Incarcatura Sentinel,L,argon,trade,93000,718.559,,172,4999085,
+ship_arg_l_trans_container_04_a_macro,Shuyaku Vanguard,L,argon,trade,84000,650.415,,225,4520540,
+ship_arg_l_trans_container_04_b_macro,Shuyaku Sentinel,L,argon,trade,101000,780.498,,187,5429245,
+ship_arg_l_trans_container_05_a_macro,Sonra Vanguard,L,argon,trade,67000,520,,178,3587240,
+ship_arg_l_trans_container_05_b_macro,Sonra Sentinel,L,argon,trade,80000,590,,148,4294770,
+ship_kha_l_destroyer_01_a_macro,Ravager,L,khaak,fight,136000,304.423,,0,0,
+ship_par_l_destroyer_01_a_macro,Odysseus Vanguard,L,paranid,fight,99000,209.751,,47,5030940,
+ship_par_l_destroyer_01_b_macro,Odysseus Sentinel,L,paranid,fight,119000,251.701,,39,6042095,
+ship_par_l_destroyer_02_a_macro,Odysseus E,L,paranid,fight,140000,325,,60,9791150,
+ship_par_l_miner_liquid_01_a_macro,Chthonios (Gas) Vanguard,L,paranid,mine,23000,180.944,,40,1154890,
+ship_par_l_miner_liquid_01_b_macro,Chthonios (Gas) Sentinel,L,paranid,mine,28000,217.132,,33,1395770,
+ship_par_l_miner_liquid_02_a_macro,Chthonios E (Gas),L,paranid,mine,50000,153.679,,41,1591620,
+ship_par_l_miner_solid_01_a_macro,Chthonios (Mineral) Vanguard,L,paranid,mine,23000,180.944,,40,1154890,
+ship_par_l_miner_solid_01_b_macro,Chthonios (Mineral) Sentinel,L,paranid,mine,28000,217.132,,33,1395770,
+ship_par_l_miner_solid_02_a_macro,Chthonios E (Mineral),L,paranid,mine,50000,153.678,,41,1591625,
+ship_par_l_trans_container_01_a_macro,Helios Vanguard,L,paranid,trade,37000,287.875,,71,1995760,
+ship_par_l_trans_container_01_b_macro,Helios Sentinel,L,paranid,trade,45000,345.45,,59,2410810,
+ship_par_l_trans_container_02_a_macro,Selene Vanguard,L,paranid,trade,33000,259.087,,71,1995760,
+ship_par_l_trans_container_02_b_macro,Selene Sentinel,L,paranid,trade,40000,310.905,,59,2410810,
+ship_par_l_trans_container_03_a_macro,Helios E,L,paranid,trade,55000,294.433,,96,3470000,
+ship_tel_l_destroyer_01_a_macro,Phoenix Vanguard,L,teladi,fight,104000,219.416,,50,5273360,
+ship_tel_l_destroyer_01_b_macro,Phoenix Sentinel,L,teladi,fight,124000,263.299,,41,6307905,
+ship_tel_l_destroyer_02_a_macro,Phoenix E,L,teladi,fight,123200,325,,44,6034866,
+ship_tel_l_miner_liquid_01_a_macro,Crane (Gas) Vanguard,L,teladi,mine,30000,235.019,,52,1503310,
+ship_tel_l_miner_liquid_01_b_macro,Crane (Gas) Sentinel,L,teladi,mine,36000,282.023,,43,1804390,
+ship_tel_l_miner_liquid_02_a_macro,Crane E (Gas),L,teladi,mine,56000,266.716,,49,1922187,
+ship_tel_l_miner_solid_01_a_macro,Crane (Mineral) Vanguard,L,teladi,mine,30000,235.019,,52,1503310,
+ship_tel_l_miner_solid_01_b_macro,Crane (Mineral) Sentinel,L,teladi,mine,36000,282.023,,43,1804390,
+ship_tel_l_miner_solid_02_a_macro,Crane E (Mineral),L,teladi,mine,56000,267.133,,49,1922187,
+ship_tel_l_trans_container_01_a_macro,Pelican Vanguard,L,teladi,trade,52000,402.059,,100,2652815,
+ship_tel_l_trans_container_01_b_macro,Pelican Sentinel,L,teladi,trade,63000,482.471,,83,3199035,
+ship_tel_l_trans_container_02_a_macro,Heron Vanguard,L,teladi,trade,48000,367.5,,101,2436610,
+ship_tel_l_trans_container_02_b_macro,Heron Sentinel,L,teladi,trade,57000,441,,84,2908725,
+ship_tel_l_trans_container_03_a_macro,Heron E,L,teladi,trade,64000,490.528,,121,3551033,
+ship_xen_l_terraformer_01_a_macro,H,L,xenon,fight,112000,238.419,,16,1676240,
+ship_arg_m_bomber_01_a_macro,Minotaur Vanguard,M,argon,fight,16500,28.75,,9,750580,
+ship_arg_m_bomber_01_b_macro,Minotaur Sentinel,M,argon,fight,18800,32,,7,888430,
+ship_arg_m_bomber_02_a_macro,Minotaur Raider,M,argon,fight,14600,25,,15,741015,
+ship_arg_m_frigate_01_a_macro,Cerberus Vanguard,M,argon,fight,19000,34.432,,14,963665,
+ship_arg_m_frigate_01_b_macro,Cerberus Sentinel,M,argon,fight,22000,41.318,,11,1145000,
+ship_arg_m_miner_liquid_01_a_macro,Sunder (Gas) Vanguard,M,argon,mine,6000,30.292,,9,127545,
+ship_arg_m_miner_liquid_01_b_macro,Sunder (Gas) Sentinel,M,argon,mine,7000,38.926,,7,161380,
+ship_arg_m_miner_solid_01_a_macro,Drill (Mineral) Vanguard,M,argon,mine,6000,32.438,,9,131965,
+ship_arg_m_miner_solid_01_b_macro,Drill (Mineral) Sentinel,M,argon,mine,7000,36.351,,7,155915,
+ship_arg_m_trans_container_01_a_macro,Mercury Vanguard,M,argon,trade,6000,38,,17,173355,
+ship_arg_m_trans_container_01_b_macro,Mercury Sentinel,M,argon,trade,7000,44,,14,208235,
+ship_arg_m_trans_container_02_a_macro,Ides Vanguard,M,argon,trade,5400,36,,19,199358,
+ship_arg_m_trans_container_02_b_macro,Ides Sentinel,M,argon,trade,6400,42,,15,239470,
+ship_gen_m_transdrone_container_01_a_macro,Medium Drop Drone,M,,trade,10000,42,,,46600,
+ship_gen_m_tugboat_01_a_macro,Manticore,M,argon,salvage,8000,63.562,,7,402755,
+ship_kha_m_fighter_01_a_macro,Queen's Guard,M,khaak,fight,4000,16,,0,0,
+ship_kha_m_fighter_02_a_macro,Hive Guard,M,khaak,fight,3000,12,,0,0,
+ship_par_m_corvette_01_a_macro,Nemesis Vanguard,M,paranid,fight,13000,22,,8,622295,
+ship_par_m_corvette_01_b_macro,Nemesis Sentinel,M,paranid,fight,15000,26.5,,6,746320,
+ship_par_m_frigate_01_a_macro,Gorgon Vanguard,M,paranid,fight,20500,37,,16,1098300,
+ship_par_m_frigate_01_b_macro,Gorgon Sentinel,M,paranid,fight,23000,44,,13,1323040,
+ship_par_m_miner_liquid_01_a_macro,Plutus (Gas) Vanguard,M,paranid,mine,5100,33,,10,133010,
+ship_par_m_miner_liquid_01_b_macro,Plutus (Gas) Sentinel,M,paranid,mine,6200,39.553,,8,162505,
+ship_par_m_miner_solid_01_a_macro,Plutus (Mineral) Vanguard,M,paranid,mine,5100,33,,10,133010,
+ship_par_m_miner_solid_01_b_macro,Plutus (Mineral) Sentinel,M,paranid,mine,6200,39.553,,8,162505,
+ship_par_m_trans_container_01_a_macro,Demeter Vanguard,M,paranid,trade,6300,46,,19,176650,
+ship_par_m_trans_container_01_b_macro,Demeter Sentinel,M,paranid,trade,7300,50,,15,229050,
+ship_par_m_trans_container_02_a_macro,Hermes Vanguard,M,paranid,trade,5000,38,,20,176650,
+ship_par_m_trans_container_02_b_macro,Hermes Sentinel,M,paranid,trade,5900,42,,16,229050,
+ship_par_m_trans_container_03_a_macro,Prometheus,M,paranid,trade,12300,26,,12,292080,
+ship_tel_m_bomber_01_a_macro,Peregrine Vanguard,M,teladi,fight,16000,32,,9,735710,
+ship_tel_m_bomber_01_b_macro,Peregrine Sentinel,M,teladi,fight,17400,36,,7,870425,
+ship_tel_m_frigate_01_a_macro,Osprey Vanguard,M,teladi,fight,36000,68,,15,1044205,
+ship_tel_m_frigate_01_b_macro,Osprey Sentinel,M,teladi,fight,41000,77,,12,1263720,
+ship_tel_m_miner_liquid_01_a_macro,Manorina (Gas) Vanguard,M,teladi,mine,4750,29,,9,118865,
+ship_tel_m_miner_liquid_01_b_macro,Manorina (Gas) Sentinel,M,teladi,mine,5400,34.47,,7,143940,
+ship_tel_m_miner_solid_01_a_macro,Manorina (Mineral) Vanguard,M,teladi,mine,4750,29,,10,118865,
+ship_tel_m_miner_solid_01_b_macro,Manorina (Mineral) Sentinel,M,teladi,mine,5400,34.47,,8,143940,
+ship_tel_m_trans_container_01_a_macro,Vulture Vanguard,M,teladi,trade,10200,64,,16,266020,
+ship_tel_m_trans_container_01_b_macro,Vulture Sentinel,M,teladi,trade,11800,70,,13,308615,
+ship_tel_m_trans_container_02_a_macro,Tern Vanguard,M,teladi,trade,8800,56,,20,266020,
+ship_tel_m_trans_container_02_b_macro,Tern Sentinel,M,teladi,trade,10000,64,,16,308615,
+ship_tel_m_trans_container_03_a_macro,Cormorant Vanguard,M,teladi,trade,14000,65,,17,418830,
+ship_xen_m_corvette_01_a_macro,B,M,xenon,fight,16600,25,,5,99600,
+ship_xen_m_corvette_02_a_macro,PE,M,xenon,fight,12600,24.634,,1,85300,
+ship_xen_m_fighter_01_a_macro,P,M,xenon,fight,10000,25.959,,0,78620,
+ship_xen_m_miner_01_a_macro,S,M,xenon,mine,8000,49.951,,0,71350,
+ship_xen_m_miner_solid_01_a_macro,SE,M,xenon,mine,8400,46.638,,1,71350,
+ship_arg_s_fighter_01_a_macro,Nova Vanguard,S,argon,fight,3100,6,,3,131970,
+ship_arg_s_fighter_01_b_macro,Nova Sentinel,S,argon,fight,3800,6.75,,2,160100,
+ship_arg_s_fighter_02_a_macro,Elite Vanguard,S,argon,fight,1800,3.772,,2,76755,
+ship_arg_s_fighter_02_b_macro,Elite Sentinel,S,argon,fight,2200,4.526,,1,92990,
+ship_arg_s_fighter_03_a_macro,Pulsar Vanguard,S,argon,fight,3600,11,,3,113565,
+ship_arg_s_fighter_04_a_macro,Quasar Vanguard,S,argon,fight,3300,8.6,,3,100545,
+ship_arg_s_heavyfighter_01_a_macro,Eclipse Vanguard,S,argon,fight,4400,9.304,,3,187105,
+ship_arg_s_heavyfighter_01_b_macro,Eclipse Sentinel,S,argon,fight,5300,11.165,,2,226005,
+ship_arg_s_heavyfighter_02_a_macro,Eclipse Vanguard,S,argon,fight,4000,8.406,,3,169745,
+ship_arg_s_miner_solid_01_a_macro,Courier (Mineral),S,argon,mine,2800,14,,3,83265,
+ship_arg_s_scout_01_a_macro,Discoverer Vanguard,S,argon,fight,1400,6.343,,2,87605,
+ship_arg_s_scout_01_b_macro,Discoverer Sentinel,S,argon,fight,1700,7.611,,1,105930,
+ship_arg_s_trans_container_01_a_macro,Courier Vanguard,S,argon,trade,2800,18,,5,155760,
+ship_arg_s_trans_container_01_b_macro,Courier Sentinel,S,argon,trade,3200,19.5,,4,185980,
+ship_arg_s_trans_container_02_a_macro,Callisto Vanguard,S,argon,trade,2100,12,,3,80050,
+ship_arg_s_trans_container_02_b_macro,Callisto Sentinel,S,argon,trade,2500,13.5,,2,98455,
+ship_gen_s_fighter_01_a_macro,Nodan Vanguard,S,,fight,3900,8.113,,3,77630,
+ship_gen_s_fighter_01_b_macro,Nodan Sentinel,S,paranid,fight,4600,9.736,,2,95390,
+ship_gen_s_fightingdrone_01_a_macro,Defence Drone,S,,fight,1900,7.365,,0,13660,
+ship_gen_s_fightingdrone_explosive_01_a_macro,Defence Drone,S,,fight,1200,7.365,,0,,
+ship_gen_s_lasertower_01_a_macro,Laser Tower Mk2,S,,fight,2500,5,,0,14770,
+ship_gen_s_miningdrone_liquid_01_a_macro,Gas Collector Drone,S,,mine,1700,10.935,,0,13860,
+ship_gen_s_miningdrone_solid_01_a_macro,Mining Drone,S,,mine,1700,10.935,,0,13860,
+ship_gen_s_transdrone_container_01_a_macro,Small Drop Drone,S,,trade,2200,1,,,23300,
+ship_kha_s_fighter_01_a_macro,Protector,S,khaak,fight,800,4,,0,0,
+ship_kha_s_fighter_02_a_macro,Forager,S,khaak,fight,600,3.33,,0,0,
+ship_par_s_fighter_01_a_macro,Perseus Vanguard,S,paranid,fight,3700,7.756,,3,156805,
+ship_par_s_fighter_01_b_macro,Perseus Sentinel,S,paranid,fight,4400,9.307,,2,188150,
+ship_par_s_fighter_02_a_macro,Theseus Vanguard,S,paranid,fight,4200,8.723,,3,177380,
+ship_par_s_fighter_02_b_macro,Theseus Sentinel,S,paranid,fight,5000,10.468,,2,211940,
+ship_par_s_heavyfighter_01_a_macro,Ares,S,paranid,fight,4800,12.038,,2,243540,
+ship_par_s_miner_solid_01_a_macro,Tethys (Mineral),S,paranid,mine,2100,11,,3,83265,
+ship_par_s_scout_01_a_macro,Pegasus Vanguard,S,paranid,fight,1300,5.765,,2,80050,
+ship_par_s_scout_01_b_macro,Pegasus Sentinel,S,paranid,fight,1600,6.918,,1,97330,
+ship_par_s_trans_container_01_a_macro,Tethys Vanguard,S,paranid,trade,2100,16.795,,5,150295,
+ship_par_s_trans_container_01_b_macro,Tethys Sentinel,S,paranid,trade,2600,20.155,,4,183810,
+ship_tel_s_fighter_01_a_macro,Falcon Vanguard,S,teladi,fight,3900,8.091,,3,164360,
+ship_tel_s_fighter_01_b_macro,Falcon Sentinel,S,teladi,fight,4600,9.709,,2,195705,
+ship_tel_s_fighter_02_a_macro,Buzzard Vanguard,S,teladi,fight,4100,8.698,,3,157850,
+ship_tel_s_fighter_02_b_macro,Buzzard Sentinel,S,teladi,fight,5000,10.437,,2,190320,
+ship_tel_s_miner_solid_01_a_macro,Magpie (Mineral),S,teladi,mine,2400,14.5,,3,90820,
+ship_tel_s_scout_01_a_macro,Kestrel Vanguard,S,teladi,fight,2500,6.609,,3,91945,
+ship_tel_s_scout_01_b_macro,Kestrel Sentinel,S,teladi,fight,3100,7.931,,2,110350,
+ship_tel_s_scout_02_a_macro,Guillemot Vanguard,S,teladi,fight,2800,9.899,,3,139525,
+ship_tel_s_scout_02_b_macro,Guillemot Sentinel,S,teladi,fight,3300,11.879,,2,166530,
+ship_tel_s_trans_container_01_a_macro,Magpie Vanguard,S,teladi,trade,2600,18.466,,7,168700,
+ship_tel_s_trans_container_01_b_macro,Magpie Sentinel,S,teladi,trade,3000,22.159,,5,200045,
+ship_tel_s_trans_container_02_a_macro,Raven,S,teladi,trade,6400,24,,5,566090,
+ship_xen_s_fighter_01_a_macro,N,S,xenon,fight,2500,6.508,,0,34530,
+ship_xen_s_fighter_02_a_macro,M,S,xenon,fight,2900,7.622,,0,39840,
+ship_xen_s_heavyfighter_01_a_macro,F,S,xenon,fight,4800,10.139,,2,67800,
+ship_xen_s_scout_01_a_macro,T,S,xenon,fight,1200,5.363,,0,25880,
+ship_arg_xl_builder_01_a_macro,Mammoth Vanguard,XL,argon,build,115000,885.723,,219,9123765,
+ship_arg_xl_builder_01_b_macro,Mammoth Sentinel,XL,argon,build,138000,1062.868,,182,10948470,
+ship_arg_xl_carrier_01_a_macro,Colossus Vanguard,XL,argon,fight,216000,549.202,,123,10090050,
+ship_arg_xl_carrier_01_b_macro,Colossus Sentinel,XL,argon,fight,259000,659.043,,102,12102675,
+ship_arg_xl_carrier_02_a_macro,Colossus E,XL,argon,fight,275000,1200,,131,15359641,
+ship_arg_xl_resupplier_01_a_macro,Nomad Vanguard,XL,argon,auxiliary,174000,820,,220,8600515,
+ship_arg_xl_resupplier_01_b_macro,Nomad Sentinel,XL,argon,auxiliary,200000,1000,,183,10313175,
+ship_kha_xl_battleship_01_a_macro,Obliterator,XL,khaak,fight,275000,487.388,,0,0,
+ship_par_xl_builder_01_a_macro,Heracles Vanguard,XL,paranid,build,149000,1000,,219,9123765,
+ship_par_xl_builder_01_b_macro,Heracles Sentinel,XL,paranid,build,178000,1100,,182,10948470,
+ship_par_xl_carrier_01_a_macro,Zeus Vanguard,XL,paranid,fight,281000,714.616,,159,13127715,
+ship_par_xl_carrier_01_b_macro,Zeus Sentinel,XL,paranid,fight,337000,857.54,,132,15747905,
+ship_par_xl_carrier_02_a_macro,Zeus E,XL,paranid,fight,303000,850,,143,17540630,
+ship_par_xl_resupplier_01_a_macro,Atlas Vanguard,XL,paranid,auxiliary,130000,999.739,,247,9640505,
+ship_par_xl_resupplier_01_b_macro,Atlas Sentinel,XL,paranid,auxiliary,156000,1199.686,,205,11568815,
+ship_par_xl_resupplier_02_a_macro,Atlas E,XL,paranid,auxiliary,178000,1400,,258,15457615,
+ship_tel_xl_builder_01_a_macro,Albatross Vanguard,XL,teladi,build,128000,982.947,,219,9123765,
+ship_tel_xl_builder_01_b_macro,Albatross Sentinel,XL,teladi,build,154000,1179.536,,182,10948470,
+ship_tel_xl_carrier_01_a_macro,Condor Vanguard,XL,teladi,fight,290000,800,,135,11170550,
+ship_tel_xl_carrier_01_b_macro,Condor Sentinel,XL,teladi,fight,310000,950,,112,13409595,
+ship_tel_xl_resupplier_01_a_macro,Stork Vanguard,XL,teladi,auxiliary,162000,896.85,,200,7784855,
+ship_tel_xl_resupplier_01_b_macro,Stork Sentinel,XL,teladi,auxiliary,186000,1076.221,,166,9342630,
+ship_tfm_xl_carrier_01_a_macro,Unknown Ship,XL,xenon,fight,735000,1874.085,,0,,
+ship_tfm_xl_carrier_02_a_macro,Unknown Ship,XL,xenon,fight,1190000,2104.8,,0,,
+ship_xen_xl_carrier_01_a_macro,I,XL,xenon,fight,480000,800,,0,5059920,
+ship_xen_xl_destroyer_01_a_macro,K,XL,xenon,fight,265000,400,,0,2432440,
+ship_arg_xs_cv_01_a_macro,Mass Transporter C,XS,argon,trade,150,3.1,,,,
+ship_arg_xs_cv_02_a_macro,Mass Transporter D,XS,argon,trade,100,3.1,,,,
+ship_arg_xs_police_01_a_macro,Argon Station Security Vessel,XS,argon,fight,281,2.872,,,11420,
+ship_arg_xs_pv_01_a_macro,Civilian Ship A,XS,argon,trade,184,3.121,,,,
+ship_arg_xs_pv_01_b_macro,Civilian Ship A,XS,argon,trade,184,3.121,,,,
+ship_arg_xs_pv_01_c_macro,Civilian Ship A,XS,argon,trade,184,3.021,,,,
+ship_arg_xs_pv_01_d_macro,Civilian Ship A,XS,argon,trade,184,3.121,,,,
+ship_arg_xs_pv_02_a_macro,Tour Bus A,XS,argon,trade,209,3.549,,,,
+ship_arg_xs_pv_03_a_macro,Mass Transporter A,XS,argon,trade,200,1,,,,
+ship_arg_xs_pv_03_b_macro,Mass Transporter A,XS,argon,trade,260,3.72,,,,
+ship_arg_xs_pv_04_a_macro,Mass Transporter B,XS,argon,trade,150,3.1,,,,
+ship_arg_xs_pv_04_b_macro,Mass Transporter B,XS,argon,trade,260,3.72,,,,
+ship_arg_xs_pv_05_a_macro,Short Range Transporter A,XS,argon,trade,100,3.1,,,,
+ship_arg_xs_pv_05_b_macro,Short Range Transporter A,XS,argon,trade,130,3.72,,,,
+ship_arg_xs_pv_05_c_macro,Short Range Transporter A,XS,argon,trade,100,3.1,,,,
+ship_gen_xs_boardingpod_01_a_macro,Boarding Pod,XS,,fight,200,5,,5,,
+ship_gen_xs_buildingdrone_01_a_macro,Building Drone,XS,,build,207,5.283,,,15270,
+ship_gen_xs_cargodrone_container_01_a_macro,Cargo Drone,XS,,trade,523,14,,,,
+ship_gen_xs_cargodrone_empty_01_a_macro,Cargo Drone,XS,,trade,523,13.355,,,16150,
+ship_gen_xs_cargodrone_equipment_01_a_macro,Cargo Drone,XS,,trade,523,14,,,,
+ship_gen_xs_cargodrone_liquid_01_a_macro,Cargo Drone,XS,,trade,523,14,,,,
+ship_gen_xs_cargodrone_pickup_01_a_macro,Cargo Drone,XS,,trade,523,0.7368,,,,
+ship_gen_xs_cargodrone_solid_01_a_macro,Cargo Drone,XS,,trade,523,14,,,,
+ship_gen_xs_distressbeacon_01_a_macro,Autonomous Distress Drone,XS,,fight,250,3.017,,0,,
+ship_gen_xs_escapepod_01_a_macro,Escape Pod,XS,,trade,209,3.549,,3,,
+ship_gen_xs_lasertower_01_a_macro,Laser Tower Mk1,XS,,fight,700,1.5,,,9450,
+ship_gen_xs_repairdrone_01_a_macro,Repair Drone,XS,,build,207,5.283,,,15270,
+ship_par_xs_police_01_a_macro,Paranid Station Security Vessel,XS,paranid,fight,281,2.872,,,11420,
+ship_par_xs_pv_01_a_macro,Civilian Ship B,XS,paranid,trade,184,3.121,,,,
+ship_par_xs_pv_02_a_macro,Mass Transporter E,XS,paranid,trade,184,3.121,,,,
+ship_par_xs_pv_03_a_macro,Civilian Ship C,XS,paranid,trade,184,3.121,,,,
+ship_par_xs_pv_04_a_macro,Short Range Transporter B,XS,paranid,trade,184,3.121,,,,
+ship_tel_xs_police_01_a_macro,Teladi Station Security Vessel A,XS,teladi,fight,281,2.872,,,11420,
+ship_tel_xs_police_02_a_macro,Teladi Station Security Vessel B,XS,teladi,fight,281,2.872,,,11420,
+ship_tel_xs_police_03_a_macro,Teladi Station Security Vessel C,XS,teladi,fight,281,2.872,,,11420,
+ship_tel_xs_pv_01_a_macro,Civilian Ship D,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_01_b_macro,Civilian Ship D,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_02_a_macro,Short Range Transporter C,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_02_b_macro,Short Range Transporter C,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_03_a_macro,Tour Bus B,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_03_b_macro,Tour Bus B,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_04_a_macro,Mass Transporter F,XS,teladi,trade,184,3.121,,,,
+ship_tel_xs_pv_04_b_macro,Mass Transporter F,XS,teladi,trade,184,3.121,,,,
+ship_xen_xs_pv_01_a_macro,Drone 1,XS,xenon,trade,184,3.121,,,,
+ship_xen_xs_pv_02_a_macro,Drone 2,XS,xenon,trade,184,3.121,,,,
+ship_xen_xs_pv_03_a_macro,Drone 3,XS,xenon,trade,184,3.121,,,,
+ship_xen_xs_pv_04_a_macro,Drone 4,XS,xenon,trade,184,3.121,,,,
+ship_bor_l_carrier_01_a_macro,Guppy,L,boron,fight,117000,341.545,,60,6513220,ego_dlc_boron
+ship_bor_l_destroyer_01_a_macro,Ray,L,boron,fight,131000,340,,54,8249396,ego_dlc_boron
+ship_bor_l_miner_liquid_01_a_macro,Rorqual (Gas),L,boron,mine,42000,294.322,,52,1381332,ego_dlc_boron
+ship_bor_l_miner_solid_01_a_macro,Rorqual (Mineral),L,boron,mine,42000,294.322,,52,1359733,ego_dlc_boron
+ship_bor_l_trans_container_01_a_macro,Sturgeon,L,boron,trade,40000,320.723,,63,4401675,ego_dlc_boron
+ship_bor_m_corvette_01_a_macro,Hydra,M,boron,fight,8400,23.782,,6,1468656,ego_dlc_boron
+ship_bor_m_corvette_02_a_macro,Hydra Regal,M,boron,fight,8800,24.216,,6,1624234,ego_dlc_boron
+ship_bor_m_gunboat_01_a_macro,Thresher,M,boron,fight,11500,35,,8,1252370,ego_dlc_boron
+ship_bor_m_miner_liquid_01_a_macro,Porpoise (Gas),M,boron,mine,9600,31.939,,7,164592,ego_dlc_boron
+ship_bor_m_miner_solid_01_a_macro,Porpoise (Mineral),M,boron,mine,9600,31.939,,7,172090,ego_dlc_boron
+ship_bor_m_trans_container_01_a_macro,Dolphin,M,boron,trade,9000,59.553,,21,255620,ego_dlc_boron
+ship_bor_s_fighter_01_a_macro,Mako,S,boron,fight,3100,6.672,,2,133165,ego_dlc_boron
+ship_bor_s_heavyfighter_01_a_macro,Barracuda,S,boron,fight,3700,7.791,,2,356250,ego_dlc_boron
+ship_bor_s_miner_solid_01_a_macro,Grouper (Mineral),S,boron,mine,4000,9.6,,2,83723,ego_dlc_boron
+ship_bor_s_miner_solid_01_story_macro,ship_bor_s_miner_solid_01_story_macro,S,,,,,,,83723,ego_dlc_boron
+ship_bor_s_scout_01_a_macro,Piranha,S,boron,fight,4000,7.5,,2,102657,ego_dlc_boron
+ship_bor_s_scout_02_a_macro,Irukandji,S,boron,fight,2600,5.582,,1,119702,ego_dlc_boron
+ship_bor_s_trans_container_01_a_macro,Terrapin,S,boron,trade,4000,15.639,,4,198595,ego_dlc_boron
+ship_bor_xl_builder_01_a_macro,Walrus,XL,boron,build,178000,1200,,140,11954185,ego_dlc_boron
+ship_bor_xl_carrier_01_a_macro,Shark,XL,boron,fight,383000,1149.882,,405,24464165,ego_dlc_boron
+ship_bor_xl_resupplier_01_a_macro,Orca,XL,boron,auxiliary,190000,1569.585,,154,17596810,ego_dlc_boron
+ship_bor_xs_cv_01_a_macro,Mass Transporter C,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_cv_02_a_macro,Mass Transporter D,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_cv_03_a_macro,Mass Transporter F,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_pv_01_a_macro,Civilian Ship B,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_pv_02_a_macro,Tour Bus B,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_pv_03_a_macro,Short Range Transporter B,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_pv_04_a_macro,Short Range Transporter C,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_bor_xs_pv_05_a_macro,Short Range Transporter D,XS,boron,trade,184,3.121,,,,ego_dlc_boron
+ship_par_l_expeditionary_01_a_macro,Hyperion,L,paranid,fight,64000,63.081,,106,3118015,ego_dlc_mini_01
+ship_gen_m_corvette_01_macro,Envoy,M,argon teladi,fight,13800,32.748,,8,1275085,ego_dlc_mini_02
+ship_gen_m_corvette_02_macro,Cypher,M,teladi,fight,12500,21.615,,6,914640,ego_dlc_mini_02
+ship_pir_l_miner_solid_01_a_macro,Donia,L,argon,mine,40000,195,,31,1564470,ego_dlc_pirate
+ship_pir_l_scavenger_01_a_macro,Barbarossa,L,argon,fight,114000,243.18,,126,7714025,ego_dlc_pirate
+ship_pir_l_scavenger_01_a_storyhighcapacity_macro,Barbarossa,L,argon,fight,114000,243.18,,126,4599250,ego_dlc_pirate
+ship_pir_l_scrapper_01_macro,Teuta,L,argon,dismantling,66000,505.41,,145,4322065,ego_dlc_pirate
+ship_gen_m_yacht_01_a_macro,Astrid,M,argon,trade,9200,30.969,,16,2170000,ego_dlc_pirate
+ship_pir_s_fighter_01_a_macro,Kyd,S,argon,fight,3000,6.846,,2,53080,ego_dlc_pirate
+ship_pir_s_fighter_02_a_macro,Lux,S,argon,fight,2600,5.82,,1,175140,ego_dlc_pirate
+ship_pir_s_heavyfighter_01_a_macro,Shih,S,argon,fight,4900,12,,2,274485,ego_dlc_pirate
+ship_pir_s_trans_condensate_01_a_macro,Raleigh (Condensate),S,argon,trade,2500,19.407,,4,217900,ego_dlc_pirate
+ship_pir_s_trans_container_01_a_macro,Raleigh (Container),S,argon,trade,2500,16.876,,4,203995,ego_dlc_pirate
+ship_pir_xl_battleship_01_a_macro,Erlking,XL,argon,fight,500000,370,,328,14920415,ego_dlc_pirate
+ship_pir_xl_builder_01_macro,Gannascus,XL,argon,build,115000,885.723,,219,11470775,ego_dlc_pirate
+ship_spl_l_destroyer_01_a_macro,Rattlesnake,L,split,fight,242650,260,,92,15290790,ego_dlc_split
+ship_spl_l_miner_liquid_01_a_macro,Wyvern (Gas),L,split,mine,48000,159.275,,29,1610285,ego_dlc_split
+ship_spl_l_miner_solid_01_a_macro,Wyvern (Mineral),L,split,mine,48000,159.275,,29,1610285,ego_dlc_split
+ship_spl_l_trans_container_01_a_macro,Buffalo,L,split,trade,37000,270,,59,2938525,ego_dlc_split
+ship_spl_m_bomber_01_a_macro,Viper,M,split,fight,25000,35.418,,8,,ego_dlc_split
+ship_spl_m_corvette_01_a_macro,Dragon,M,split,fight,21000,23.476,,6,1243415,ego_dlc_split
+ship_spl_m_corvette_01_b_macro,Dragon Raider,M,split,fight,13800,17.607,,5,739265,ego_dlc_split
+ship_spl_m_frigate_01_a_macro,Cobra,M,split,fight,33000,38.045,,25,2172540,ego_dlc_split
+ship_spl_m_miner_liquid_01_a_macro,Alligator (Gas),M,split,mine,5850,36.4,,8,212670,ego_dlc_split
+ship_spl_m_miner_solid_01_a_macro,Alligator (Mineral),M,split,mine,5850,39.8,,8,236300,ego_dlc_split
+ship_spl_m_trans_container_01_a_macro,Boa,M,split,trade,7400,48,,20,373740,ego_dlc_split
+ship_spl_s_fighter_01_a_macro,Mamba,S,split,fight,3600,7.1,,1,194430,ego_dlc_split
+ship_spl_s_fighter_02_a_macro,Asp,S,split,fight,4600,5.6,,2,255275,ego_dlc_split
+ship_spl_s_fighter_02_b_macro,Asp Raider,S,split,fight,2200,4.5,,1,123940,ego_dlc_split
+ship_spl_s_heavyfighter_01_a_macro,Chimera,S,split,fight,6100,12,,2,350477,ego_dlc_split
+ship_spl_s_heavyfighter_02_a_macro,Balaur,S,split,fight,5500,8.65,,1,352755,ego_dlc_split
+ship_spl_s_miner_solid_01_a_macro,Tuatara (Mineral),S,split,mine,1800,10,,2,128200,ego_dlc_split
+ship_spl_s_scout_01_a_macro,Jaguar,S,split,fight,2000,5.147,,1,146365,ego_dlc_split
+ship_spl_s_trans_container_01_a_macro,Tuatara,S,split,trade,2300,17.257,,4,247800,ego_dlc_split
+ship_spl_s_trans_container_01_plot_01_macro,Tuatara,S,split,trade,2300,17.2,,4,,ego_dlc_split
+ship_spl_xl_battleship_01_a_macro,Python,XL,split,fight,230000,353.74,,65,,ego_dlc_split
+ship_spl_xl_builder_01_a_macro,Elephant,XL,split,build,181000,1151.849,,182,12022990,ego_dlc_split
+ship_spl_xl_carrier_01_a_macro,Raptor,XL,split,fight,590000,863.742,,309,32605075,ego_dlc_split
+ship_spl_xl_resupplier_01_a_macro,Monitor,XL,split,auxiliary,220000,1120,,128,17231160,ego_dlc_split
+ship_spl_xs_cv_01_a_macro,Short Range Transporter B,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_cv_01_b_macro,Short Range Transporter B,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_cv_02_a_macro,Short Range Transporter C,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_cv_02_b_macro,Short Range Transporter C,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_cv_03_a_macro,Short Range Transporter D,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_cv_03_b_macro,Short Range Transporter D,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_police_01_a_macro,Split Station Security Vessel,XS,split,trade,281,2.9,,,9410,ego_dlc_split
+ship_spl_xs_pv_01_a_macro,Civilian Ship B,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_01_b_macro,Civilian Ship B,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_01_c_macro,Civilian Ship B,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_02_a_macro,Civilian Ship C,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_02_b_macro,Civilian Ship C,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_02_c_macro,Civilian Ship C,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_03_a_macro,Civilian Ship D,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_03_b_macro,Civilian Ship D,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_spl_xs_pv_03_c_macro,Civilian Ship D,XS,split,trade,184,3.1,,,,ego_dlc_split
+ship_atf_l_destroyer_01_a_macro,Syn,L,terran,fight,180700,260,,187,12823980,ego_dlc_terran
+ship_ter_l_destroyer_01_a_macro,Osaka,L,terran,fight,104000,174,,75,8233870,ego_dlc_terran
+ship_ter_l_miner_liquid_01_a_macro,Hokkaido (Gas),L,terran,mine,58000,140,,33,2854250,ego_dlc_terran
+ship_ter_l_miner_solid_01_a_macro,Hokkaido (Mineral),L,terran,mine,58000,140,,33,2854250,ego_dlc_terran
+ship_ter_l_research_01_a_macro,Okinawa Research,L,terran,trade,36000,260,,57,4599250,ego_dlc_terran
+ship_ter_l_trans_container_01_a_macro,Okinawa,L,terran,trade,36000,240,,57,4472180,ego_dlc_terran
+ship_gen_m_transdrone_container_02_a_macro,Medium Terraforming Drone,M,,trade,10000,42,,,46600,ego_dlc_terran
+ship_ter_m_corvette_01_a_macro,Katana,M,terran,fight,12200,29.28,,6,1763540,ego_dlc_terran
+ship_ter_m_frigate_01_a_macro,Falx,M,terran,fight,26000,45.1,,23,2813860,ego_dlc_terran
+ship_ter_m_gunboat_01_a_macro,Jian,M,terran,fight,13400,34.134,,8,2057600,ego_dlc_terran
+ship_ter_m_miner_liquid_01_a_macro,Bolo (Gas),M,terran,mine,7600,37.781,,7,388740,ego_dlc_terran
+ship_ter_m_miner_solid_01_a_macro,Bolo (Mineral),M,terran,mine,7600,37.781,,7,388740,ego_dlc_terran
+ship_ter_m_trans_container_01_a_macro,Baldric,M,terran,trade,11000,69,,22,734360,ego_dlc_terran
+ship_yak_m_corvette_01_a_macro,Kuraokami,M,paranid,fight,11600,18.9,,9,984025,ego_dlc_terran
+ship_gen_s_transdrone_container_02_a_macro,Small Terraforming Drone,S,,trade,2200,1,,,23300,ego_dlc_terran
+ship_ter_s_fighter_01_a_macro,Kukri,S,terran,fight,3700,7.843,,2,327573,ego_dlc_terran
+ship_ter_s_fighter_02_a_macro,Kalis,S,terran,fight,3300,7.118,,2,342750,ego_dlc_terran
+ship_ter_s_fighter_03_a_macro,Takoba,S,terran,fight,3400,7.335,,2,343160,ego_dlc_terran
+ship_ter_s_heavyfighter_01_a_macro,Gladius,S,terran,fight,4800,9.477,,2,470800,ego_dlc_terran
+ship_ter_s_miner_solid_01_a_macro,Kopis (Mineral),S,terran,mine,2000,8,,2,171090,ego_dlc_terran
+ship_ter_s_scout_01_a_macro,Rapier,S,terran,fight,1400,5.844,,2,213800,ego_dlc_terran
+ship_ter_s_scout_02_a_macro,Nimcha,S,terran,fight,3000,5,,2,342750,ego_dlc_terran
+ship_ter_s_trans_container_01_a_macro,Frog,S,terran,trade,2000,8.5,,3,299630,ego_dlc_terran
+ship_yak_s_fighter_01_a_macro,Moreya,S,paranid,fight,4000,6.484,,3,269180,ego_dlc_terran
+ship_atf_xl_battleship_01_a_macro,Asgard,XL,terran,fight,330000,600,,360,26179920,ego_dlc_terran
+ship_ter_xl_builder_01_a_macro,Kyushu,XL,terran,build,153000,1170.425,,219,21146490,ego_dlc_terran
+ship_ter_xl_carrier_01_a_macro,Tokyo,XL,terran,fight,265000,700,,201,21886875,ego_dlc_terran
+ship_ter_xl_resupplier_01_a_macro,Honshu,XL,terran,auxiliary,238000,1080,,123,26263870,ego_dlc_terran
+ship_ter_xs_cv_01_a_macro,Short Range Transporter,XS,terran,trade,184,3.121,,,,ego_dlc_terran
+ship_ter_xs_cv_02_a_macro,Maintenance Vessel,XS,terran,trade,184,3.121,,,,ego_dlc_terran
+ship_ter_xs_police_01_a_macro,Terran Station Security Vessel,XS,terran,fight,300,1,,,27418,ego_dlc_terran
+ship_ter_xs_pv_01_a_macro,Civilian Ship A,XS,terran,trade,184,3.121,,,,ego_dlc_terran
+ship_ter_xs_pv_02_a_macro,Civilian Ship B,XS,terran,trade,184,3.121,,,,ego_dlc_terran
+ship_ter_xs_pv_03_a_macro,Tour Bus,XS,terran,trade,184,3.121,,,,ego_dlc_terran
+ship_ter_l_flagship_01_a_macro,Sapporo,L,terran,fight,128000,225.943,,84,7099138,ego_dlc_timelines
+ship_ter_l_flagship_01_b_macro,Sapporo,L,terran,fight,128000,225.943,,84,,ego_dlc_timelines
+ship_xen_l_terraformer_01_b_macro,ship_xen_l_terraformer_01_b_macro,L,,,,,,0,,ego_dlc_timelines
+ship_ter_m_corvette_02_a_macro,Odachi,M,terran,fight,16100,20.594,,4,2116165,ego_dlc_timelines
+ship_ter_m_corvette_02_b_macro,Odachi,M,terran,fight,16100,20.594,,4,,ego_dlc_timelines
+ship_xen_m_corvette_01_b_macro,ship_xen_m_corvette_01_b_macro,M,,,,,,,,ego_dlc_timelines
+ship_arg_s_racer_01_a_macro,Elite Sport,S,argon,racing,1800,3.772,,0,172350,ego_dlc_timelines
+ship_gen_s_racer_01_a_macro,Dart,S,,racing,2100,3.2,,0,346850,ego_dlc_timelines
+ship_par_s_racer_01_a_macro,Theseus Sport,S,paranid,racing,4200,6.8,,0,191440,ego_dlc_timelines
+ship_spl_s_scenariofighter_01_a_macro,Chimera,S,split,fight,6100,12,,2,,ego_dlc_timelines
+ship_tel_s_racer_01_a_macro,Kestrel Sport,S,teladi,racing,2500,7,,0,163250,ego_dlc_timelines
+ship_ter_s_fighter_04_a_macro,Cutlass,S,terran,fight,3600,5.35,,1,343801,ego_dlc_timelines
+ship_ter_s_fighter_04_b_macro,Cutlass,S,terran,fight,2500,4.815,,1,,ego_dlc_timelines
+ship_ter_s_fighter_04_c_macro,ship_ter_s_fighter_04_c_macro,S,,,3600,,,,,ego_dlc_timelines
+ship_ter_s_xperimental_01_a_macro,Xperimental Shuttle,S,terran,fight,4580,6,,2,1323258,ego_dlc_timelines
+ship_ter_s_xperimental_01_a_story_macro,ship_ter_s_xperimental_01_a_story_macro,S,,,38000,5,,,,ego_dlc_timelines
+ship_xen_s_heavyfighter_01_b_macro,ship_xen_s_heavyfighter_01_b_macro,S,,,,,,,,ego_dlc_timelines
+ship_spl_xl_ark_01_a_macro,Colony Ship,XL,split,trade,935000,5962.952,,612,,ego_dlc_timelines
+ship_tfm_xl_carrier_02_b_macro,#dace,XL,xenon,fight,1190000,2104.8,,0,,ego_dlc_timelines
+ship_xen_xl_mothership_01_a_macro,M0,XL,xenon,fight,1496000,2796.027,,0,,ego_dlc_timelines

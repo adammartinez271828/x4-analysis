@@ -1,0 +1,100 @@
+import pandas as pd
+
+from x4analyzer import logparse
+
+
+def log_df(rows):
+    df = pd.DataFrame(rows)
+    for col in ("time", "category", "title", "text", "money", "component"):
+        if col not in df.columns:
+            df[col] = pd.NA
+    df["category"] = df["category"].fillna("")
+    return df
+
+
+SECTORS = pd.DataFrame({
+    "name": ["Grand Exchange IV", "Neptune"],
+    "sector.macro": ["cluster_01_sector003_macro", "cluster_110_sector001_macro"],
+})
+
+
+def test_pirate_harassment_real_v9_text():
+    # verbatim text shape from a v9.0 savegame
+    df = log_df([{
+        "time": 25594.6, "category": "", "title": "Pirate Harassment",
+        "text": (r"TM-02-Boa FQC-876 in Grand Exchange IV[\012]"
+                 r"Accosted by Teladi Company pirate ship[\012]"
+                 r"TEL Pillager Minotaur Raider WIG-904.[\012]Response: Wait"),
+    }])
+    out = logparse.parse_pirates(df, SECTORS)
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["ship.name"] == "TM-02-Boa"
+    assert row["ship.code"] == "FQC-876"
+    assert row["sector.name"] == "Grand Exchange IV"
+    assert row["sector.macro"] == "cluster_01_sector003_macro"
+    assert row["pirate.faction"] == "TEL"
+    assert row["pirate.name"] == "Pillager Minotaur Raider"
+    assert row["pirate.code"] == "WIG-904"
+    assert row["response"] == "Wait"
+
+
+def test_police_interdiction():
+    df = log_df([{
+        "time": 10507.4, "category": "", "title": "Police Interdiction",
+        "text": (r"RSS-01-Kestrel Sentinel FFN-055 in Neptune[\012]"
+                 r"Ordered by Terran Protectorate police to stop for a cargo "
+                 r"inspection.[\012]Response: Comply"),
+    }])
+    out = logparse.parse_police(df, SECTORS,
+                                {"Terran Protectorate": "TER"})
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["ship.name"] == "RSS-01-Kestrel Sentinel"
+    assert row["sector.macro"] == "cluster_110_sector001_macro"
+    assert row["police.faction"] == "TER"
+    assert row["response"] == "Comply"
+
+
+def test_ship_construction_sale():
+    df = log_df([{
+        "time": 100.0, "category": "upkeep", "title": "Ship constructed",
+        "money": 1234500.0,
+        "text": ("ARG Behemoth Vanguard (ABC-123) finished construction at "
+                 "station: My Wharf (XYZ-999). They have paid 12,345 Cr."),
+    }])
+    out = logparse.parse_ship_services(
+        df, "Ship constructed", " finished construction at station: ",
+        "Ship construction")
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["seller.name"] == "My Wharf"
+    assert row["seller.code"] == "XYZ-999"
+    assert row["buyer.faction"] == "ARG"
+    assert row["buyer.name"] == "Behemoth Vanguard"
+    assert row["buyer.code"] == "ABC-123"
+    assert row["money"] == 12345
+    assert row["commodity"] == "Ship construction"
+
+
+def test_destroyed():
+    df = log_df([{
+        "time": 50.0, "category": "upkeep",
+        "title": ("Your ship TM-01-Boa in sector Grand Exchange IV was "
+                  "destroyed by XEN K."),
+    }])
+    out = logparse.parse_destroyed(df)
+    assert len(out) == 1
+    assert out.iloc[0]["object"] == "Your ship TM-01-Boa"
+    assert out.iloc[0]["location"] == "Grand Exchange IV"
+    assert out.iloc[0]["killer"] == "XEN K"
+
+
+def test_empty_log_gives_empty_frames():
+    df = log_df([{"time": 1.0, "category": "", "title": "Nothing"}])
+    assert logparse.parse_destroyed(df).empty
+    assert logparse.parse_pirates(df, SECTORS).empty
+    assert logparse.parse_police(df, SECTORS, {}).empty
+    assert logparse.parse_ship_services(
+        df, "Ship constructed", " finished construction at station: ",
+        "Ship construction").empty

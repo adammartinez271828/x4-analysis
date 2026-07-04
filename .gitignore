@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Analyzer output and caches
+output/
+data/cache_*.csv
+data/cache_*.csv.gz
