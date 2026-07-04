@@ -156,6 +156,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     build = frames.build_demand
     build = build[build["kind"] == "insufficient"] if not build.empty \
         else build
+    # stations report the same missing amount at station level AND per build
+    # processor: max per (host, ware) instead of sum avoids double counting
+    if not build.empty:
+        build = (build.groupby(["id", "ware"], as_index=False)["amount"].max())
     build_by_ware = build.groupby("ware")["amount"].sum() if not build.empty \
         else pd.Series(dtype=float)
 

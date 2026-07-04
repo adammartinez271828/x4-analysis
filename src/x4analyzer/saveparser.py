@@ -85,6 +85,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     # nearest open station/ship component id, for posts/workforce/modules
     object_stack: list[str] = []
     npc_stack: list[list] = []       # open npc records awaiting <skills>
+    build_type_stack: list[str] = []  # type attr of open <build> elements
     sector_macro_stack: list[str] = []
     in_faction_player = 0
     n_elems = 0
@@ -109,6 +110,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                             cid, elem.get("name", ""), elem.get("code", ""),
                             elem.get("owner", ""), {},
                         ])
+                elif tag == "build":
+                    build_type_stack.append(elem.get("type", ""))
                 elif tag == "faction" and elem.get("id") == "player":
                     in_faction_player += 1
                 continue
@@ -215,14 +218,22 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         ))
                 elif parent in ("insufficient", "shortage") \
                         and gparent == "resources":
-                    # host = nearest component: the station for expansions,
-                    # the free-floating build storage for new constructions
-                    d.build_resources.append((
-                        comp_stack[-1][1] if comp_stack else "",
-                        elem.get("ware", ""),
-                        float(elem.get("amount", 0) or 0),
-                        parent,
-                    ))
+                    # station/module construction only. buildship entries are
+                    # queued wharf ship orders whose "insufficient" amounts
+                    # are a wharf-wide aggregate repeated per order/ware —
+                    # meaningless to sum (their demand = their buy offers)
+                    btype = build_type_stack[-1] if build_type_stack else ""
+                    if btype in ("", "build"):
+                        d.build_resources.append((
+                            comp_stack[-1][1] if comp_stack else "",
+                            elem.get("ware", ""),
+                            float(elem.get("amount", 0) or 0),
+                            parent,
+                        ))
+
+            elif tag == "build":
+                if build_type_stack:
+                    build_type_stack.pop()
 
             elif tag == "trade":
                 if elem.get("ware") and elem.get("buyer") \
