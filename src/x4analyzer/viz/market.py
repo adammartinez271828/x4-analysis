@@ -410,6 +410,16 @@ label{{color:{DARK_MUTED};margin-right:6px;}}
 select{{background:#2a2a2a;color:{DARK_FG};border:1px solid #555;
         padding:4px 8px;font-size:14px;}}
 .note{{color:{DARK_MUTED};font-size:12px;}}
+details.note{{margin:6px 0 10px 0;}}
+details.note summary{{cursor:pointer;color:{DARK_MUTED};font-size:13px;
+  user-select:none;}}
+details.note summary:hover{{color:{DARK_FG};}}
+.notebody{{background:#252525;border:1px solid #3a3a3a;border-radius:6px;
+  padding:10px 16px;margin-top:6px;max-width:1000px;line-height:1.5;}}
+.notebody ul{{margin:4px 0 10px 0;padding-left:20px;}}
+.notebody li{{margin-bottom:4px;}}
+.notebody b{{color:{DARK_FG};}}
+.notehead{{color:{DARK_FG};font-weight:bold;margin:8px 0 2px 0;}}
 .pos{{color:#4ecf71;}} .neg{{color:#ff6b6b;}} .warn{{color:#e8b84e;}}
 table.dataTable, table.dataTable th, table.dataTable td{{color:{DARK_FG};}}
 table.dataTable.display tbody tr{{background:{DARK_BG};}}
@@ -426,35 +436,50 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
   background:#2a2a2a;color:{DARK_FG};border:1px solid #555;}}
 </style></head><body>
 <h3 style='margin:4px 0'>Global ware production, consumption &amp; stock</h3>
-<p class='note'>Xenon stations and construction sites are excluded — they
-consume and hoard heavily (silicon, ore) but never trade with anyone.
-Consumption includes station modules and population needs
-(workforce &times; per-race upkeep recipes); workforce production bonuses are
-not modelled. Stock sums station cargo plus free-floating ware objects
-(scrap cubes, dropped cargo). Cover = stock / consumption.
-Buy demand = open buy offers (units stations still want); Buyers = stations
-with an open buy offer plus constructions missing the ware. Understocked =
-buyers holding less than
-{UNDERSTOCK_PCT:.0%} of their target level (stock + open buy amount) — works
-for end-tier and raw wares without module consumers, and many understocked
-buyers despite high global cover indicates a logistics (distribution)
-problem. Build demand = materials still missing for station constructions
-(shipyard ship-order backlogs are excluded; their near-term needs show up
-as buy offers). Traded volume is estimated from station stock
-increases between logged trade events (deliveries; includes some production
-accumulation). Cr/h values that volume at the ware's average game price.
-For minable wares (~ in Prod/h) production is estimated from actual
-deliveries into stations — mined supply that reached the economy; slight
-overcount when loads hop through trade stations, and player-internal mining
-may not be logged. Best sell = highest open buy-offer price (premium vs
-average game price); Demand (Cr) = credits stations offer right now.
-Fill % = buyer-side satisfaction: buyers' stock vs their target level
-(stock + still-wanted; producer hoards don't count) — low = open market gap.
-Satisfy (h) = hours until all open buy+build demand could be filled from the
-production surplus; "&ge;" = no surplus, floor estimated from deliveries;
-"never" = no surplus and no deliveries. Both are optimistic floors — good
-for ranking gaps, not scheduling.
-Click a row for detail: best places to sell/buy and demand by sector.</p>
+<details class='note'>
+<summary>How these numbers are computed &amp; caveats</summary>
+<div class='notebody'>
+<p class='notehead'>Column definitions</p>
+<ul>
+<li><b>Prod/h, Cons/h</b> — capacity of every station's production modules
+&times; game recipes, plus population upkeep (workforce &times; per-race
+recipes). Workforce production bonuses are not modelled.
+A <span class='warn'>~</span> marks minable wares, whose production is
+estimated from actual deliveries into stations.</li>
+<li><b>Stock</b> — all station cargo plus free-floating collectables
+(scrap cubes, dropped cargo). <b>Cover</b> = stock / consumption.</li>
+<li><b>Buy demand</b> — units stations currently offer to buy;
+<b>Demand (Cr)</b> — those offers valued at their offered prices.</li>
+<li><b>Build demand</b> — materials still missing for station
+constructions. Shipyard ship-order backlogs are excluded (their near-term
+needs already appear as buy offers).</li>
+<li><b>Buyers / Understocked</b> — stations with an open buy offer plus
+constructions missing the ware; understocked = holding less than
+{UNDERSTOCK_PCT:.0%} of their target level (stock + still wanted). Many
+understocked buyers despite high global cover = a distribution problem,
+not a supply problem.</li>
+<li><b>Fill %</b> — buyer-side satisfaction: buyers' stock vs their target
+level. Producer hoards don't count. Low = open market gap.</li>
+<li><b>Satisfy (h)</b> — hours until all open buy+build demand could be
+filled from the production surplus; <b>&ge;</b> = no surplus, floor
+estimated from deliveries; <b>never</b> = no surplus and no deliveries.
+Optimistic floors — good for ranking gaps, not scheduling.</li>
+<li><b>Traded/h, Cr/h</b> — deliveries estimated from station stock
+increases between logged trade events, valued at average game price.</li>
+<li><b>Best sell</b> — highest open buy-offer price, with premium vs the
+ware's average game price.</li>
+</ul>
+<p class='notehead'>Scope &amp; caveats</p>
+<ul>
+<li>Xenon stations and construction sites are excluded everywhere — they
+consume and hoard heavily but never trade with anyone.</li>
+<li>Delivery estimates slightly overcount when loads hop through trade
+stations, and player-internal transfers may not be logged.</li>
+</ul>
+<p>Click a table row for ware detail: best places to sell and buy, unmet
+demand by sector, and the delivery trend vs consumption capacity.</p>
+</div>
+</details>
 <p><label><input type='checkbox' id='buildonly'>
 show ship/station build wares only</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
