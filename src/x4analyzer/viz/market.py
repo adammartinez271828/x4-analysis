@@ -46,10 +46,16 @@ def _recipe_table(ref: RefData) -> pd.DataFrame:
     return rec[rec["time"] > 0]
 
 
+# factions outside the tradeable economy: their stations consume and hoard
+# large amounts (esp. silicon/ore) but the player can never trade with them
+EXCLUDED_OWNERS = {"xenon"}
+
+
 def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
     """Per (station id, faction, ware): prod/h and cons/h capacity."""
     uni = frames.universe.set_index("id")
-    stations = set(uni.index[uni["class"] == "station"])
+    stations = set(uni.index[(uni["class"] == "station")
+                             & ~uni["owner"].isin(EXCLUDED_OWNERS)])
     rec = _recipe_table(ref)
     methods = set(zip(rec["ware"], rec["method"]))
     rows: list[dict] = []
@@ -136,7 +142,9 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     log("-> Market overview")
     time_now = frames.time_now
     uni = frames.universe.set_index("id")
-    stations = set(uni.index[uni["class"] == "station"])
+    stations = set(uni.index[(uni["class"] == "station")
+                             & ~uni["owner"].isin(EXCLUDED_OWNERS)])
+    excluded_hosts = set(uni.index[uni["owner"].isin(EXCLUDED_OWNERS)])
 
     # global stock: station cargo plus free-floating ware objects (raw scrap
     # exists almost entirely as scrap cubes drifting near processors, not as
@@ -156,6 +164,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     build = frames.build_demand
     build = build[build["kind"] == "insufficient"] if not build.empty \
         else build
+    # drop excluded factions' construction sites (buildstorage owners are in
+    # the universe frame; unknown hosts are kept)
+    if not build.empty:
+        build = build[~build["id"].isin(excluded_hosts)]
     # stations report the same missing amount at station level AND per build
     # processor: max per (host, ware) instead of sum avoids double counting
     if not build.empty:
@@ -195,6 +207,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         else pd.Series(dtype=float)
 
     total = rates.groupby("ware")[["prod", "cons"]].sum()
+    gt = gt[gt["faction"] != "XEN"] if not gt.empty else gt
     traded = gt.groupby("ware")["dv"].agg(["sum", "count"]) if not gt.empty \
         else pd.DataFrame(columns=["sum", "count"])
     span_h = max((time_now - gt["time"].min()) / 3600.0, 1.0) if not gt.empty \
@@ -306,7 +319,9 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
   background:#2a2a2a;color:{DARK_FG};border:1px solid #555;}}
 </style></head><body>
 <h3 style='margin:4px 0'>Global ware production, consumption &amp; stock</h3>
-<p class='note'>Consumption includes station modules and population needs
+<p class='note'>Xenon stations and construction sites are excluded — they
+consume and hoard heavily (silicon, ore) but never trade with anyone.
+Consumption includes station modules and population needs
 (workforce &times; per-race upkeep recipes); workforce production bonuses are
 not modelled. Stock sums station cargo plus free-floating ware objects
 (scrap cubes, dropped cargo). Cover = stock / consumption.

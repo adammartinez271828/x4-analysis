@@ -106,7 +106,8 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     log("Preparing player owned objects -> playerowned")
     playerowned = universe[
         (universe["owner"] == "player")
-        & ~universe["class"].isin(["sector", "cluster"])
+        & ((universe["class"] == "station")
+           | universe["class"].str.startswith("ship_"))
     ].copy()
 
     # ---- fleet hierarchy (R 422-436) --------------------------------------

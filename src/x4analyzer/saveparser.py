@@ -18,8 +18,9 @@ from typing import IO
 
 from lxml import etree
 
-# component classes that become df_universe rows
-_UNIVERSE_CLASSES = ("cluster", "sector", "station")
+# component classes that become df_universe rows (buildstorage: needed to
+# attribute free-floating construction sites to an owner)
+_UNIVERSE_CLASSES = ("cluster", "sector", "station", "buildstorage")
 _SHIP_RE = re.compile(r"^ship_")
 
 # ware name embedded in a v9 resource-area yieldid, e.g.
