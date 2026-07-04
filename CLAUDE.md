@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Savegame analysis and visualization for X4: Foundations. The active implementation is a **Python package** (`src/x4analyzer/`, uv-managed) that parses an X4 savegame XML and produces a static HTML dashboard (interactive plotly sector map, trade/sales time-series, sunbursts, sortable tables). It targets game **v9.0** and was ported from the original R script.
 
-`X4SaveGameAnalysis/X4SaveGameAnalysis.R` (~1650 lines) is the original R implementation for game v5.10, kept **untouched as the reference spec** — the Python code cites its line numbers in comments. `X4SaveGameAnalysisRelease.zip` is the old R release bundle. Don't modify either.
+The original R implementation (`X4SaveGameAnalysis/X4SaveGameAnalysis.R`, for game v5.10) was removed from the working tree but lives in git history (deleted in the commit "Remove the original R implementation…"); the Python code still cites its line numbers in comments as the porting reference — `git show da10a2f^:X4SaveGameAnalysis/X4SaveGameAnalysis.R` retrieves it.
 
 ## Commands
 
