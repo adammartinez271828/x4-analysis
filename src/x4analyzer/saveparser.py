@@ -60,6 +60,8 @@ class SaveData:
     build_resources: list = field(default_factory=list)  # (object_id, ware, amount)
     # open buy offers: how much a station still wants of a ware
     buy_offers: list = field(default_factory=list)     # (object_id, ware, amount)
+    # free-floating ware objects in space (scrap cubes, dropped cargo)
+    floating_wares: list = field(default_factory=list)  # (sector_macro, ware, amount)
     log_entries: list = field(default_factory=list)    # dict per <entry>
     trades: list = field(default_factory=list)         # dict per economylog <log>
     removed_objects: list = field(default_factory=list)  # dict per <object>
@@ -197,6 +199,18 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         object_stack[-1], elem.get("ware", ""),
                         float(elem.get("amount", 0) or 0),
                     ))
+                elif parent == "wares":
+                    # only genuinely collectable objects count as floating
+                    # stock: scrap cubes (class recyclable) and dropped cargo.
+                    # <supplies><wares> blocks are ships' ammo/drone reserves.
+                    if comp_stack and comp_stack[-1][0] in (
+                            "recyclable", "collectablewares", "lockbox"):
+                        d.floating_wares.append((
+                            sector_macro_stack[-1] if sector_macro_stack
+                            else "",
+                            elem.get("ware", ""),
+                            float(elem.get("amount", 0) or 0),
+                        ))
                 elif parent in ("insufficient", "shortage") \
                         and gparent == "resources":
                     # host = nearest component: the station for expansions,

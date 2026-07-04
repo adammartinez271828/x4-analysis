@@ -25,6 +25,10 @@ FIXTURE = """<?xml version="1.0"?>
         <connections><connection connection="cluster">
         <component class="sector" macro="cluster_01_sector001_macro" id="[0x11]"
                    owner="argon" knownto="player" contested="1" connection="cluster">
+          <component class="collectablewares" macro="sm_gen_scrap_cube_macro"
+                     connection="sector" id="[0x60]">
+            <wares><ware ware="rawscrap" amount="1000"/></wares>
+          </component>
           <resourceareas>
             <area yieldid="sphere_large_ore_high_slow" yield="1000" starttime="0"/>
             <area yieldid="sphere_medium_silicon_low" yield="200" starttime="0"/>
@@ -141,6 +145,8 @@ def test_fixture_parse(save_file: Path) -> None:
 
     assert ("[0x20]", "energycells", 500.0) in d.buy_offers
     assert ("[0x20]", "claytronics", 1000.0) in d.build_resources
+    assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \
+        in d.floating_wares
 
     assert len(d.trades) == 2  # frames layer filters the owner-only entry
     assert d.trades[0]["ware"] == "energycells"

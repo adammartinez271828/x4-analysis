@@ -138,11 +138,17 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     uni = frames.universe.set_index("id")
     stations = set(uni.index[uni["class"] == "station"])
 
-    # global stock: station cargo only (ships in transit excluded)
+    # global stock: station cargo plus free-floating ware objects (raw scrap
+    # exists almost entirely as scrap cubes drifting near processors, not as
+    # station cargo); ships in transit excluded
     cargo = frames.station_cargo
     cargo = cargo[cargo["id"].isin(stations)] if not cargo.empty else cargo
     stock = cargo.groupby("ware")["amount"].sum() if not cargo.empty \
         else pd.Series(dtype=float)
+    floating = frames.floating_wares
+    if floating is not None and not floating.empty:
+        stock = stock.add(floating.groupby("ware")["amount"].sum(),
+                          fill_value=0.0)
 
     # outstanding construction resources
     build = frames.build_demand
@@ -275,7 +281,8 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
 <h3 style='margin:4px 0'>Global ware production, consumption &amp; stock</h3>
 <p class='note'>Consumption includes station modules and population needs
 (workforce &times; per-race upkeep recipes); workforce production bonuses are
-not modelled. Stock sums all station cargo. Cover = stock / consumption.
+not modelled. Stock sums station cargo plus free-floating ware objects
+(scrap cubes, dropped cargo). Cover = stock / consumption.
 Buy demand = open buy offers (units stations still want); Buyers = stations
 with an open buy offer plus constructions missing the ware. Understocked =
 buyers holding less than
