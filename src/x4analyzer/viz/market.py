@@ -183,6 +183,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     if not off.empty:
         name = off["id"].map(uni["name"]).replace("", pd.NA)
         fac = off["id"].map(uni["owner"]).map(ref.faction_short).fillna("OTH")
+        off["faction"] = fac
         off["label"] = (name.fillna(fac + " Station")
                         + " (" + off["id"].map(uni["code"]).fillna("?") + ") — "
                         + off["id"].map(uni["sector.macro"]).map(sec_name)
@@ -373,6 +374,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
                    ["amount"].sum().sort_values(ascending=False).head(12))
             d["sec_l"] = list(sec.index)
             d["sec_v"] = [float(v) for v in sec.values]
+            bf = (grp.groupby("faction")["amount"].sum()
+                  .sort_values(ascending=False))
+            d["bf_l"] = list(bf.index)
+            d["bf_v"] = [float(v) for v in bf.values]
     if not sells.empty:
         for w, grp in sells.groupby("ware"):
             d = detail.setdefault(w, {})
@@ -508,7 +513,10 @@ show ship/station build wares only</label></p>
   <div id='byfaction' style='height:360px;width:50%'></div>
   <div id='bystation' style='height:360px;width:50%'></div>
 </div>
-<div id='bysector' style='height:320px'></div>
+<div style='display:flex'>
+  <div id='bysector' style='height:320px;width:50%'></div>
+  <div id='byfacdemand' style='height:320px;width:50%'></div>
+</div>
 <script>
 const ROWS = {table_rows};
 const DETAIL = {json.dumps(detail, separators=(",", ":"))};
@@ -517,6 +525,7 @@ const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
 const OLABELS = {json.dumps(olabels, separators=(",", ":"))};
 const TRANSPORT = {json.dumps({r['ware']: transport.get(r['ware'], '') for r in summary}, separators=(',', ':'))};
 const WVOL = {json.dumps({r['ware']: r['vol'] for r in summary}, separators=(',', ':'))};
+const FCOLOURS = {json.dumps({s_: ref.colour_of_short(s_) for s_ in sorted(ref.faction_short.values())}, separators=(',', ':'))};
 const LAYOUT = () => ({{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
   font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
@@ -683,6 +692,15 @@ function render() {{
   ], Object.assign({{}}, LAYOUT(), {{
     title:{{text:'Unmet buy demand by sector (units)', font:{{size:15}}}},
     margin:{{t:40,l:60,r:20,b:90}},
+  }}), CFG);
+
+  Plotly.react('byfacdemand', [
+    {{type:'bar', x:d.bf_l || [], y:d.bf_v || [],
+      marker:{{color:(d.bf_l || []).map(f => FCOLOURS[f] || '#808080')}},
+      name:'Unmet buy demand'}},
+  ], Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Unmet buy demand by faction (units)', font:{{size:15}}}},
+    margin:{{t:40,l:60,r:20,b:60}},
   }}), CFG);
 }}
 sel.addEventListener('change', render);
