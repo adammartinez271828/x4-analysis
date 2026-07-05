@@ -17,13 +17,13 @@ Requires [uv](https://docs.astral.sh/uv/) (one-command install, brings its
 own Python). Then, without cloning anything:
 
 ```bash
-uvx --from git+https://github.com/<your-account>/x4-analyzer x4-analyzer
+uvx --from git+https://github.com/adammartinez271828/x4-analysis x4-analyzer
 ```
 
 Or from a clone (for development):
 
 ```bash
-git clone <this repo> && cd x4-analyzer
+git clone https://github.com/adammartinez271828/x4-analysis && cd x4-analysis
 uv sync
 uv run x4-analyzer
 ```
