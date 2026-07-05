@@ -358,10 +358,11 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     # to faction and sector via the universe frame (build hosts include
     # free-floating build storages)
     dem = pd.concat([
-        buys[["id", "ware", "amount"]] if not buys.empty
-        else pd.DataFrame(columns=["id", "ware", "amount"]),
-        build[["id", "ware", "amount"]] if not build.empty
-        else pd.DataFrame(columns=["id", "ware", "amount"]),
+        (buys[["id", "ware", "amount"]].assign(kind="buy") if not buys.empty
+         else pd.DataFrame(columns=["id", "ware", "amount", "kind"])),
+        (build[["id", "ware", "amount"]].assign(kind="build")
+         if not build.empty
+         else pd.DataFrame(columns=["id", "ware", "amount", "kind"])),
     ], ignore_index=True)
     dem = dem[dem["id"] != ""]
     if not dem.empty:
@@ -405,15 +406,29 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     if not dem.empty:
         for w, grp in dem.groupby("ware"):
             d = detail.setdefault(w, {})
-            sec = (grp.groupby("sector")["amount"].sum()
-                   .sort_values(ascending=False).head(12))
+
+            def _split(by: str, limit: int | None):
+                piv = grp.pivot_table(index=by, columns="kind",
+                                      values="amount", aggfunc="sum",
+                                      fill_value=0.0)
+                for k in ("buy", "build"):
+                    if k not in piv:
+                        piv[k] = 0.0
+                piv = piv.loc[(piv["buy"] + piv["build"])
+                              .sort_values(ascending=False).index]
+                if limit:
+                    piv = piv.head(limit)
+                return piv
+
+            sec = _split("sector", 12)
             d["sec_l"] = list(sec.index)
-            d["sec_v"] = [float(v) for v in sec.values]
+            d["sec_buy"] = [float(v) for v in sec["buy"]]
+            d["sec_build"] = [float(v) for v in sec["build"]]
             d["sec_f"] = [sector_fac.get(n, "OTH") for n in sec.index]
-            bf = (grp.groupby("faction")["amount"].sum()
-                  .sort_values(ascending=False))
+            bf = _split("faction", None)
             d["bf_l"] = list(bf.index)
-            d["bf_v"] = [float(v) for v in bf.values]
+            d["bf_buy"] = [float(v) for v in bf["buy"]]
+            d["bf_build"] = [float(v) for v in bf["build"]]
 
     # wares used to build ships, equipment or station modules (for the
     # "build wares only" filter) — derived from the build recipes of ship/
@@ -563,6 +578,11 @@ const LAYOUT = () => ({{
 }});
 const CFG = {{displaylogo:false}};
 function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
+function faded(hex) {{
+  hex = (hex || '#808080').replace('#', '');
+  return 'rgba(' + parseInt(hex.slice(0,2),16) + ',' +
+    parseInt(hex.slice(2,4),16) + ',' + parseInt(hex.slice(4,6),16) + ',0.45)';
+}}
 
 const sel = document.getElementById('ware');
 ROWS.forEach(r => {{
@@ -720,21 +740,27 @@ function render() {{
   offerChart('topsellers', d.so, '#c9a44e',
     'Buy here — cheapest open sell offers ≥ ' + fmt(minv) + ' units');
 
+  const secCols = (d.sec_f || []).map(f => FCOLOURS[f] || '#b06ad1');
   Plotly.react('bysector', [
-    {{type:'bar', x:d.sec_l || [], y:d.sec_v || [],
-      marker:{{color:(d.sec_f || []).map(f => FCOLOURS[f] || '#b06ad1')}},
-      name:'Unmet demand'}},
+    {{type:'bar', name:'Buy offers', x:d.sec_l || [], y:d.sec_buy || [],
+      marker:{{color:secCols}}}},
+    {{type:'bar', name:'Construction', x:d.sec_l || [], y:d.sec_build || [],
+      marker:{{color:secCols.map(faded)}}}},
   ], Object.assign({{}}, LAYOUT(), {{
     title:{{text:'Unmet demand by sector (buy + build, units)', font:{{size:15}}}},
+    barmode:'stack', legend:{{orientation:'h', y:1.18}},
     margin:{{t:40,l:60,r:20,b:90}},
   }}), CFG);
 
+  const facCols = (d.bf_l || []).map(f => FCOLOURS[f] || '#808080');
   Plotly.react('byfacdemand', [
-    {{type:'bar', x:d.bf_l || [], y:d.bf_v || [],
-      marker:{{color:(d.bf_l || []).map(f => FCOLOURS[f] || '#808080')}},
-      name:'Unmet buy demand'}},
+    {{type:'bar', name:'Buy offers', x:d.bf_l || [], y:d.bf_buy || [],
+      marker:{{color:facCols}}}},
+    {{type:'bar', name:'Construction', x:d.bf_l || [], y:d.bf_build || [],
+      marker:{{color:facCols.map(faded)}}}},
   ], Object.assign({{}}, LAYOUT(), {{
     title:{{text:'Unmet demand by faction (buy + build, units)', font:{{size:15}}}},
+    barmode:'stack', legend:{{orientation:'h', y:1.18}},
     margin:{{t:40,l:60,r:20,b:60}},
   }}), CFG);
 }}
