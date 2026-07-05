@@ -73,13 +73,15 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         "id", "class", "macro", "name", "code", "owner", "knownto",
         "contested", "connection", "spawntime",
         "cluster.id", "cluster.macro", "sector.id", "sector.macro",
+        "basename",
     ])
     universe["macro"] = universe["macro"].str.lower()
     universe = universe[universe["connection"] != ""].reset_index(drop=True)
-    needs_resolve = universe["name"].str.contains("{", regex=False, na=False)
-    universe.loc[needs_resolve, "name"] = universe.loc[needs_resolve, "name"].map(
-        ref.resolve_name
-    )
+    for col in ("name", "basename"):
+        needs_resolve = universe[col].str.contains("{", regex=False, na=False)
+        universe.loc[needs_resolve, col] = universe.loc[needs_resolve, col].map(
+            ref.resolve_name
+        )
 
     # ---- sectors + resources (R 371-415, adapted to the v9 save format) ---
     log("Preparing sector info -> sectors")
@@ -147,6 +149,31 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     module_list = pd.DataFrame(save.modules, columns=["id", "index", "macro"])
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
+
+    # display type for unnamed NPC stations: basename attr when present,
+    # else synthesized like the game does — build modules make it a
+    # Shipyard/Wharf/Equipment Dock, otherwise the dominant production
+    # module's product ("Energy Cell Factory")
+    def _yard_type(macros: pd.Series) -> str:
+        ships = macros[macros.str.contains("_ships_", na=False)]
+        if not ships.empty:
+            return "Shipyard" if ships.str.contains("_l_|_xl_", na=False).any() \
+                else "Wharf"
+        return "Equipment Dock"
+
+    bm = module_list[module_list["macro"].str.contains("buildmodule",
+                                                       na=False)]
+    yard = bm.groupby("id")["macro"].agg(_yard_type)
+    prod = module_list.merge(
+        ref.modules[ref.modules["ware"] != ""][["macro", "ware"]]
+        .drop_duplicates("macro"), on="macro")
+    main_ware = prod.groupby("id")["ware"].agg(
+        lambda x: x.value_counts().idxmax())
+    factory = (main_ware.map(ref.ware_name).fillna(main_ware) + " Factory")
+    universe["stype"] = (universe["basename"].replace("", pd.NA)
+                         .fillna(universe["id"].map(yard))
+                         .fillna(universe["id"].map(factory))
+                         .fillna("Station"))
 
     # station mass estimates onto the whole universe (R 520-524)
     universe = universe.merge(modules, on="id", how="left")
@@ -315,9 +342,13 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         gt["station"] = gt["owner"].map(uni_idx["name"])
         gt["station.code"] = gt["owner"].map(uni_idx["code"])
         gt["sector.macro"] = gt["owner"].map(uni_idx["sector.macro"])
-        # most NPC stations are unnamed: "<FAC> Station (CODE)" fallback
+        # most NPC stations are unnamed: "<FAC> <type> (CODE)" fallback,
+        # using the station's basename text ref ("Solar Power Plant" etc.)
+        base = (gt["owner"].map(uni_idx["stype"]).replace("", pd.NA)
+                .fillna("Station"))
         unnamed = gt["station"].replace("", pd.NA).isna()
-        gt.loc[unnamed, "station"] = gt.loc[unnamed, "faction"] + " Station"
+        gt.loc[unnamed, "station"] = (gt.loc[unnamed, "faction"] + " "
+                                      + base[unnamed])
         gt["label"] = (gt["station"]
                        + " (" + gt["station.code"].fillna("?") + ")")
     else:
@@ -372,6 +403,7 @@ def _build_tradelog(save: SaveData, ref: RefData, universe: pd.DataFrame,
     removed_by_id = removed.set_index("id") if "id" in removed else removed
     model_map = dict(zip(ref.ships["macro"], ref.ships["model"]))
     macro_by_id = universe.set_index("id")["macro"]
+    basename_by_id = universe.set_index("id")["stype"].replace("", pd.NA)
 
     def resolve_party(ids: pd.Series):
         """R 565-590: removed objects -> proxy redirect -> playerowned ->
@@ -404,12 +436,14 @@ def _build_tradelog(save: SaveData, ref: RefData, universe: pd.DataFrame,
         out.loc[m, "owner"] = out.loc[m, "owner"].fillna(
             out.loc[m, "id"].map(uni_by_id["owner"]))
 
-        # nameless NPC objects: "<FAC> <ship model>" or "<FAC> Station"
+        # nameless NPC objects: "<FAC> <ship model>" or the station's
+        # basename type ("<FAC> Solar Power Plant")
         out["faction"] = out["owner"].map(ref.faction_short).fillna(OTHER_FACTION)
         m = out["name"].replace("", pd.NA).isna()
-        fallback_model = (out.loc[m, "id"].map(macro_by_id).map(model_map)
-                          .fillna("Station"))
-        out.loc[m, "name"] = out.loc[m, "faction"] + " " + fallback_model
+        fallback = (out.loc[m, "id"].map(macro_by_id).map(model_map)
+                    .fillna(out.loc[m, "id"].map(basename_by_id))
+                    .fillna("Station"))
+        out.loc[m, "name"] = out.loc[m, "faction"] + " " + fallback
 
         # proxy name/code
         out["proxy.name"] = out["proxy.id"].map(owned_by_id["name"])

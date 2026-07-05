@@ -183,8 +183,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     if not off.empty:
         name = off["id"].map(uni["name"]).replace("", pd.NA)
         fac = off["id"].map(uni["owner"]).map(ref.faction_short).fillna("OTH")
+        base = (off["id"].map(uni["stype"]).replace("", pd.NA)
+                .fillna("Station"))
         off["faction"] = fac
-        off["label"] = (name.fillna(fac + " Station")
+        off["label"] = (name.fillna(fac + " " + base)
                         + " (" + off["id"].map(uni["code"]).fillna("?") + ") — "
                         + off["id"].map(uni["sector.macro"]).map(sec_name)
                         .fillna("?"))
@@ -330,11 +332,13 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             hourly = grp.groupby("hour")["dv"].sum()
             top = (grp.groupby("label")["dv"].sum()
                    .sort_values(ascending=False).head(12))
+            lab_fac = grp.groupby("label")["faction"].first()
             d = detail.setdefault(w, {})
             d["hours"] = [int(h) for h in hourly.index]
             d["volume"] = [float(v) for v in hourly.values]
             d["stations"] = [str(s) for s in top.index]
             d["svolume"] = [float(v) for v in top.values]
+            d["st_f"] = [str(lab_fac.get(s, "OTH")) for s in top.index]
             if w in minable:
                 # deliveries by receiving faction = who gets the mined supply
                 by_fac = (grp.groupby("faction")["dv"].sum() / span_h) \
@@ -350,9 +354,25 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         d["ccons"] = [float(v) for v in fp["cons"]]
         d["cons"] = float(fp["cons"].sum())  # capacity line in volume chart
 
+    # unmet demand = open buy offers + construction shortfalls, attributed
+    # to faction and sector via the universe frame (build hosts include
+    # free-floating build storages)
+    dem = pd.concat([
+        buys[["id", "ware", "amount"]] if not buys.empty
+        else pd.DataFrame(columns=["id", "ware", "amount"]),
+        build[["id", "ware", "amount"]] if not build.empty
+        else pd.DataFrame(columns=["id", "ware", "amount"]),
+    ], ignore_index=True)
+    dem = dem[dem["id"] != ""]
+    if not dem.empty:
+        dem["faction"] = (dem["id"].map(uni["owner"])
+                          .map(ref.faction_short).fillna("OTH"))
+        dem["sector"] = (dem["id"].map(uni["sector.macro"])
+                         .map(sec_name).fillna("?"))
+
     # full offer books per ware (compact [label_idx, price, amount] triples
     # with a shared label table) so the min-volume slider can re-rank
-    # client-side; plus unmet demand by sector
+    # client-side
     olabels: list[str] = []
     oindex: dict[str, int] = {}
 
@@ -368,22 +388,32 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         for w, grp in buys.groupby("ware"):
             d = detail.setdefault(w, {})
             g = grp.sort_values("price", ascending=False)
-            d["bo"] = [[_li(l), float(p), float(a)] for l, p, a in
-                       zip(g["label"], g["price"], g["amount"])]
-            sec = (grp.groupby(grp["label"].str.split(" — ").str[-1])
-                   ["amount"].sum().sort_values(ascending=False).head(12))
-            d["sec_l"] = list(sec.index)
-            d["sec_v"] = [float(v) for v in sec.values]
-            bf = (grp.groupby("faction")["amount"].sum()
-                  .sort_values(ascending=False))
-            d["bf_l"] = list(bf.index)
-            d["bf_v"] = [float(v) for v in bf.values]
+            d["bo"] = [[_li(l), float(p), float(a), f] for l, p, a, f in
+                       zip(g["label"], g["price"], g["amount"],
+                           g["faction"])]
+
     if not sells.empty:
         for w, grp in sells.groupby("ware"):
             d = detail.setdefault(w, {})
             g = grp.sort_values("price")
-            d["so"] = [[_li(l), float(p), float(a)] for l, p, a in
-                       zip(g["label"], g["price"], g["amount"])]
+            d["so"] = [[_li(l), float(p), float(a), f] for l, p, a, f in
+                       zip(g["label"], g["price"], g["amount"],
+                           g["faction"])]
+    sector_fac = dict(zip(
+        frames.sectors["name"],
+        frames.sectors["owner"].map(ref.faction_short).fillna("OTH")))
+    if not dem.empty:
+        for w, grp in dem.groupby("ware"):
+            d = detail.setdefault(w, {})
+            sec = (grp.groupby("sector")["amount"].sum()
+                   .sort_values(ascending=False).head(12))
+            d["sec_l"] = list(sec.index)
+            d["sec_v"] = [float(v) for v in sec.values]
+            d["sec_f"] = [sector_fac.get(n, "OTH") for n in sec.index]
+            bf = (grp.groupby("faction")["amount"].sum()
+                  .sort_values(ascending=False))
+            d["bf_l"] = list(bf.index)
+            d["bf_v"] = [float(v) for v in bf.values]
 
     # wares used to build ships, equipment or station modules (for the
     # "build wares only" filter) — derived from the build recipes of ship/
@@ -653,7 +683,9 @@ function render() {{
   Plotly.react('bystation', [
     {{type:'bar', orientation:'h', y:st,
       x:(d.svolume || []).slice().reverse(),
-      marker:{{color:'#c9a44e'}}, name:'Traded volume'}},
+      marker:{{color:(d.st_f || []).map(f => FCOLOURS[f] || '#c9a44e')
+        .slice().reverse()}},
+      name:'Traded volume'}},
   ], Object.assign({{}}, LAYOUT(), {{
     title:{{text:'Top trading stations (units)', font:{{size:15}}}},
     margin:{{t:40,l:260,r:20,b:40}},
@@ -674,7 +706,9 @@ function render() {{
         x:top.map(o => o[1] * o[2]).reverse(),
         text:top.map(o => fmt(o[1]) + ' Cr × ' + fmt(o[2]) + ' = '
           + fmt(o[2] * (WVOL[w] || 0)) + ' m³').reverse(),
-        textposition:'auto', marker:{{color:colour}}, name:'Open offers'}},
+        textposition:'auto',
+        marker:{{color:top.map(o => FCOLOURS[o[3]] || colour).reverse()}},
+        name:'Open offers'}},
     ], Object.assign({{}}, LAYOUT(), {{
       title:{{text:title, font:{{size:15}}}},
       margin:{{t:40,l:340,r:20,b:40}},
@@ -688,9 +722,10 @@ function render() {{
 
   Plotly.react('bysector', [
     {{type:'bar', x:d.sec_l || [], y:d.sec_v || [],
-      marker:{{color:'#b06ad1'}}, name:'Unmet buy demand'}},
+      marker:{{color:(d.sec_f || []).map(f => FCOLOURS[f] || '#b06ad1')}},
+      name:'Unmet demand'}},
   ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Unmet buy demand by sector (units)', font:{{size:15}}}},
+    title:{{text:'Unmet demand by sector (buy + build, units)', font:{{size:15}}}},
     margin:{{t:40,l:60,r:20,b:90}},
   }}), CFG);
 
@@ -699,7 +734,7 @@ function render() {{
       marker:{{color:(d.bf_l || []).map(f => FCOLOURS[f] || '#808080')}},
       name:'Unmet buy demand'}},
   ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Unmet buy demand by faction (units)', font:{{size:15}}}},
+    title:{{text:'Unmet demand by faction (buy + build, units)', font:{{size:15}}}},
     margin:{{t:40,l:60,r:20,b:60}},
   }}), CFG);
 }}

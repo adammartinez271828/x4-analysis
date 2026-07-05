@@ -152,6 +152,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("knownto", ""), elem.get("contested", ""),
                         elem.get("connection", ""), elem.get("spawntime", ""),
                         cluster_id, cluster_macro, sector_id, sector_macro,
+                        elem.get("basename", ""),
                     ))
 
             elif tag == "connected":
@@ -226,8 +227,19 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     # meaningless to sum (their demand = their buy offers)
                     btype = build_type_stack[-1] if build_type_stack else ""
                     if btype in ("", "build"):
+                        # host = nearest trackable ancestor (station, free
+                        # build storage, or ship) — insufficient blocks often
+                        # sit under buildprocessor components, which aren't
+                        # universe objects and would break faction/sector
+                        # attribution
+                        host = ""
+                        for pcls, pid, _pm in reversed(comp_stack):
+                            if pcls in ("station", "buildstorage") \
+                                    or _SHIP_RE.match(pcls):
+                                host = pid
+                                break
                         d.build_resources.append((
-                            comp_stack[-1][1] if comp_stack else "",
+                            host,
                             elem.get("ware", ""),
                             float(elem.get("amount", 0) or 0),
                             parent,
