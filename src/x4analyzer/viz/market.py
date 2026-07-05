@@ -647,8 +647,8 @@ function render() {{
   document.getElementById('wareinfo').textContent =
     (WVOL[w] || '?') + ' m\u00b3/unit \u00b7 ' + (TRANSPORT[w] || '?');
   const vol_traces = [
-    {{type:'bar', x:d.hours || [], y:d.volume || [],
-      marker:{{color:'#4e9fd1'}}, name:'Deliveries'}},
+    {{type:'scatter', mode:'lines', x:d.hours || [], y:d.volume || [],
+      line:{{color:'#4e9fd1', width:2}}, name:'Deliveries'}},
   ];
   if (d.cons > 0 && (d.hours || []).length) {{
     vol_traces.push({{type:'scatter', mode:'lines',
