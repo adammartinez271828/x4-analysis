@@ -1,0 +1,83 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-22.04: older glibc so the binary runs on most distros
+          - os: ubuntu-22.04
+            suffix: linux
+          - os: windows-latest
+            suffix: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Install package and PyInstaller
+        run: |
+          uv venv
+          uv pip install . pyinstaller
+      - name: Run tests
+        run: |
+          uv pip install pytest
+          uv run pytest -q
+      - name: Build one-file executable
+        run: >
+          uv run pyinstaller --onefile --name x4-analyzer
+          --collect-data x4analyzer --collect-data plotly
+          packaging/entry.py
+      - name: Rename with platform suffix
+        shell: bash
+        run: |
+          cd dist
+          if [ -f x4-analyzer.exe ]; then
+            mv x4-analyzer.exe x4-analyzer-${{ matrix.suffix }}.exe
+          else
+            mv x4-analyzer x4-analyzer-${{ matrix.suffix }}
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x4-analyzer-${{ matrix.suffix }}
+          path: dist/x4-analyzer-*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body: |
+            Standalone builds — no Python required. Download, run, and the
+            dashboard opens in your browser.
+
+            **Windows:** download `x4-analyzer-windows.exe` and double-click
+            (a console window shows progress). SmartScreen may warn because
+            the binary is unsigned — choose "More info" → "Run anyway".
+
+            **Linux:** `chmod +x x4-analyzer-linux && ./x4-analyzer-linux`
+
+            Your newest savegame is found automatically
+            (`Documents\Egosoft\X4` on Windows, `~/.config/EgoSoft/X4` on
+            Linux); use `--save <file>` or `--x4-user-dir <dir>` otherwise.
+            The dashboard is written to `output/` in the current directory.
+
+            Prefer running from source? `uvx --from
+            git+https://github.com/adammartinez271828/x4-analysis x4-analyzer`

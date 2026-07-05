@@ -13,8 +13,13 @@ streaming pass — seconds, a few hundred MB.
 
 ## Quick start
 
-Requires [uv](https://docs.astral.sh/uv/) (one-command install, brings its
-own Python). Then, without cloning anything:
+**No-install option:** grab the standalone build for Windows or Linux from
+the [Releases page](https://github.com/adammartinez271828/x4-analysis/releases)
+and just run it — no Python needed. (Windows SmartScreen may warn since the
+binary is unsigned: "More info" → "Run anyway".)
+
+**With [uv](https://docs.astral.sh/uv/)** (one-command install, brings its
+own Python), without cloning anything:
 
 ```bash
 uvx --from git+https://github.com/adammartinez271828/x4-analysis x4-analyzer
