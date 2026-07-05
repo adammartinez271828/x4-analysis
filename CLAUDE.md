@@ -14,7 +14,7 @@ The original R implementation (`X4SaveGameAnalysis/X4SaveGameAnalysis.R`, for ga
 uv sync                                  # create .venv and install deps
 uv run x4-analyzer                       # analyze newest save -> output/dashboard_<guid>.html
 uv run x4-analyzer --save <file> --no-browser --spoilers-hide
-uv run x4-analyzer extract-gamedata      # regenerate data/*.csv from the installed game
+uv run x4-analyzer extract-gamedata      # regenerate game data (user dir; add --data-dir src/x4analyzer/data to update the committed copies)
 uv run pytest -q                         # run tests
 uv run pytest tests/test_caches.py -q    # run one test file
 ```
@@ -23,9 +23,9 @@ Dependencies are deliberately slim: lxml, pandas, plotly (+pytest dev). Do not a
 
 ## Machine-specific paths (defaults in `config.py`)
 
-- Savegames: `/home/adam/.config/EgoSoft/X4/12073019/save/` (note capital-S `EgoSoft`)
-- Game install: `/games/SteamLibrary/steamapps/common/X4 Foundations` (only needed for `extract-gamedata`; official DLCs installed, plus ~60 mods — saves are `modified="1"`)
-- `data/` holds the extracted reference CSVs (committed) and per-game `cache_*` files (gitignored)
+- Savegames: `/home/adam/.config/EgoSoft/X4/12073019/save/` (found by the platform-aware search in `config.x4_user_dir_candidates()`)
+- Game install: `/games/SteamLibrary/steamapps/common/X4 Foundations` (auto-detected from Steam `libraryfolders.vdf`; only needed for `extract-gamedata`; official DLCs installed, plus ~60 mods — saves are `modified="1"`)
+- Reference CSVs live IN the package (`src/x4analyzer/data/`, committed) so wheels/uvx work; the per-user data dir (`~/.local/share/x4analyzer`, `platform-dependent via config.user_data_dir()`) holds caches and extract-gamedata output, which override packaged files. To refresh the COMMITTED data, run `uv run x4-analyzer extract-gamedata --data-dir src/x4analyzer/data`
 
 ## Architecture
 
@@ -33,10 +33,10 @@ Pipeline (`analyze.py`): savegame → `saveparser.py` → `frames.py` → `viz/*
 
 - **`saveparser.py`** — ONE streaming `lxml.iterparse` pass over the (gzipped) save collects every record type (~18 s / 270 MB peak for a 73 MB .gz save; the R version needed ~16 GB). Component ancestry (cluster/sector/parent object) is tracked via explicit stacks. If you need new data from the save, add a handler here, not a second pass.
 - **`frames.py`** — builds pandas dataframes mirroring the R `df.*` objects (same dotted column names, e.g. `seller.proxy.id`). Faithful port; R line refs in comments. All joins against reference data are defensive (unknown macro/faction → fallback, never crash) because saves are modded.
-- **`caches.py`** — the game's log/economylog are rolling windows; caches (tab-separated `.csv.gz` keyed by game GUID in `data/`) preserve history across runs. Merge semantics ported from R: log = per-category min-time replacement; tradelog = min-time cutoff. Must stay idempotent (re-running on the same save adds nothing).
+- **`caches.py`** — the game's log/economylog are rolling windows; caches (tab-separated `.csv.gz` keyed by game GUID in the user data dir) preserve history across runs. Merge semantics ported from R: log = per-category min-time replacement; tradelog = min-time cutoff. Must stay idempotent (re-running on the same save adds nothing).
 - **`logparse.py`** — regexes over English log text (`[\012]` = literal newline marker). Localization/version sensitive; every parser returns an empty frame when nothing matches and downstream skips.
-- **`gamedata.py` + `catalog.py` + `textdb.py`** — `extract-gamedata` reads the game's `.cat/.dat` archives (base + `ego_dlc_*` in load order, later wins; loose files override) and regenerates `data/*.csv` including a full localization dump (`textdb.csv.gz`) used to resolve `{page,id}` refs in save names. Committed so analysis runs don't need the game install.
-- **`viz/`** — each widget is written as its own HTML file under `output/files/` sharing one `lib/plotly.min.js`, embedded in the dashboard via iframes. The dashboard is **tabbed** (Map / Trade / Trade Breakdown / Trade History / Market / Universe / Fleet / Tables; vanilla JS, iframes lazy-load on first tab open) and **dark-themed** — theme constants live in `viz/common.py` and `save_widget()` applies them to every figure; keep new widgets dark (user preference). Tables use DataTables from CDN. Chart legends/stacks are ordered by volume, largest first.
+- **`gamedata.py` + `catalog.py` + `textdb.py`** — `extract-gamedata` reads the game's `.cat/.dat` archives (base + `ego_dlc_*` in load order, later wins; loose files override) and regenerates the reference CSVs including a full localization dump (`textdb.csv.gz`) used to resolve `{page,id}` refs in save names. The v9.0+DLC copies are committed inside the package so analysis runs don't need the game install.
+- **`viz/`** — each widget is written as its own HTML file under `output/files/` sharing `lib/` assets (plotly + vendored jQuery/DataTables from `src/x4analyzer/vendor/` — dashboards are fully offline), embedded in the dashboard via iframes. The dashboard is **tabbed** (Map / Trade / Trade Breakdown / Trade History / Market / Universe / Fleet / Tables; vanilla JS, iframes lazy-load on first tab open) and **dark-themed** — theme constants live in `viz/common.py` and `save_widget()` applies them to every figure; keep new widgets dark (user preference). Tables use vendored DataTables. Chart legends/stacks are ordered by volume, largest first.
 - **`viz/history.py` / `viz/market.py`** — self-contained interactive pages: trade data embedded as JSON, rendered client-side with a selector (per-object trade history; global per-ware market stats).
 - **`viz/map.py`** — map x/y = galaxy x/z. Multi-sector clusters use slot patterns (`_SLOTS`) derived from real in-cluster offsets instead of R's hardcoded per-name adjustment lists, so DLC sectors place automatically. Axis ranges are R's fixed 5.10 ranges auto-widened when DLC content falls outside.
 

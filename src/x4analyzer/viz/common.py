@@ -25,14 +25,20 @@ DARK_MUTED = "#9a9a9a"   # secondary text
 
 
 def ensure_lib(files_dir: Path) -> None:
+    """Copy plotly + vendored jQuery/DataTables into output/files/lib/ so
+    dashboards work fully offline."""
     lib = files_dir / "lib"
     lib.mkdir(parents=True, exist_ok=True)
     import plotly.offline as po
 
-    src = Path(po.__file__).parent.parent / "package_data" / "plotly.min.js"
-    dst = lib / "plotly.min.js"
-    if not dst.exists() or dst.stat().st_size != src.stat().st_size:
-        shutil.copy(src, dst)
+    sources = [Path(po.__file__).parent.parent / "package_data"
+               / "plotly.min.js"]
+    vendor = Path(__file__).resolve().parents[1] / "vendor"
+    sources += sorted(vendor.glob("*"))
+    for src in sources:
+        dst = lib / src.name
+        if not dst.exists() or dst.stat().st_size != src.stat().st_size:
+            shutil.copy(src, dst)
 
 
 def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str) -> str:

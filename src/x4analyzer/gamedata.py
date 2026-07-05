@@ -345,9 +345,10 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
 
 
 def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
+    game_dir = cfg.resolve_game_dir()
     extensions = None
     if include_mods:
-        ext_root = cfg.game_dir / "extensions"
+        ext_root = game_dir / "extensions"
         official = sorted(
             d.name for d in ext_root.iterdir()
             if d.is_dir() and d.name.startswith("ego_dlc_")
@@ -358,8 +359,8 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         )
         extensions = official + mods
 
-    log("Indexing game catalogs:", cfg.game_dir)
-    gf = GameFiles(cfg.game_dir, extensions)
+    log("Indexing game catalogs:", game_dir)
+    gf = GameFiles(game_dir, extensions)
     log(f"  {len(gf._index)} files, extensions: {', '.join(gf.extensions)}")
 
     log("Loading localization (t-files)")

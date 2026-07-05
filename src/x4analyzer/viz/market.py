@@ -30,9 +30,9 @@ from ..frames import Frames
 from ..refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED, DARK_PLOT
 
-_DT_CSS = "https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
-_DT_JS = "https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
-_JQ_JS = "https://code.jquery.com/jquery-3.7.1.min.js"
+_DT_CSS = "lib/datatables.min.css"
+_DT_JS = "lib/datatables.min.js"
+_JQ_JS = "lib/jquery.min.js"
 
 COVER_LOW_H = 3.0     # global cover below this many hours is flagged red
 UNDERSTOCK_PCT = 0.25  # station stock below this share of its target level

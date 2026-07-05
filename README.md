@@ -13,7 +13,14 @@ streaming pass — seconds, a few hundred MB.
 
 ## Quick start
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+.
+Requires [uv](https://docs.astral.sh/uv/) (one-command install, brings its
+own Python). Then, without cloning anything:
+
+```bash
+uvx --from git+https://github.com/<your-account>/x4-analyzer x4-analyzer
+```
+
+Or from a clone (for development):
 
 ```bash
 git clone <this repo> && cd x4-analyzer
@@ -21,8 +28,10 @@ uv sync
 uv run x4-analyzer
 ```
 
-That finds your most recent savegame, analyzes it, writes
-`output/dashboard_<guid>.html` and opens it in your browser. Useful flags:
+Either way it finds your most recent savegame (Linux and Windows save
+locations are auto-detected), analyzes it, writes
+`output/dashboard_<guid>.html` in the current directory and opens it in
+your browser. Dashboards are fully offline — no CDN dependencies. Useful flags:
 
 ```bash
 uv run x4-analyzer --save ~/.config/EgoSoft/X4/<id>/save/quicksave.xml.gz
@@ -49,21 +58,25 @@ Save locations: `~/.config/EgoSoft/X4/<player-id>/save/` on Linux,
 
 Numbers are reverse-engineered from the savegame; each analytical tab includes
 a "how these numbers are computed & caveats" panel. Trade history accumulates
-across runs in cache files (`data/cache_*.csv.gz`), preserving log data the
-game itself discards — run the analyzer regularly to build long histories.
+across runs in per-user cache files, preserving log data the game itself
+discards — run the analyzer regularly to build long histories.
 
-## Game data (`data/`)
+## Game data
 
 The analysis needs reference data extracted from the game files (ships,
-sectors, wares, recipes, localization). This repo ships with data extracted
-from **v9.0 + all official DLC**, so you don't need anything besides your
+sectors, wares, recipes, localization). Data for **v9.0 + all official
+DLC** ships inside the package, so you don't need anything besides your
 savegame. After a game update, or to pick up mod-added ships, regenerate it
-from your own installation:
+— the X4 installation is auto-detected via your Steam library:
 
 ```bash
-uv run x4-analyzer extract-gamedata --game-dir "/path/to/X4 Foundations"
-uv run x4-analyzer extract-gamedata --include-mods   # also scan mod extensions
+x4-analyzer extract-gamedata                  # writes to your user data dir
+x4-analyzer extract-gamedata --include-mods   # also scan mod extensions
 ```
+
+Regenerated files (and the trade-history caches) live in a per-user data
+directory (`~/.local/share/x4analyzer` on Linux, `%LOCALAPPDATA%\x4analyzer`
+on Windows) and override the packaged copies.
 
 ## Notes
 

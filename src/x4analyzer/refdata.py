@@ -76,15 +76,24 @@ class RefData:
 
 
 def load_refdata(data_dir: Path) -> RefData:
-    factions = pd.read_csv(data_dir / "factions.csv", dtype=str).fillna("")
-    wares = pd.read_csv(data_dir / "wares.csv", dtype=str).fillna("")
-    clusters = pd.read_csv(data_dir / "clusters.csv")
-    sectors = pd.read_csv(data_dir / "sectors.csv")
-    ships = pd.read_csv(data_dir / "ships.csv")
-    textdb = TextDB.from_csv(data_dir / "textdb.csv.gz")
+    """Load reference CSVs. Files in `data_dir` (the writable user data dir,
+    populated by extract-gamedata) override the copies shipped inside the
+    package, so uvx/wheel installs work out of the box."""
+    from .config import PACKAGE_DATA
+
+    def _path(name: str) -> Path:
+        user = data_dir / name
+        return user if user.exists() else PACKAGE_DATA / name
+
+    factions = pd.read_csv(_path("factions.csv"), dtype=str).fillna("")
+    wares = pd.read_csv(_path("wares.csv"), dtype=str).fillna("")
+    clusters = pd.read_csv(_path("clusters.csv"))
+    sectors = pd.read_csv(_path("sectors.csv"))
+    ships = pd.read_csv(_path("ships.csv"))
+    textdb = TextDB.from_csv(_path("textdb.csv.gz"))
 
     def _optional(name: str, cols: list[str]) -> pd.DataFrame:
-        path = data_dir / name
+        path = _path(name)
         if path.exists():
             return pd.read_csv(path)
         return pd.DataFrame(columns=cols)
