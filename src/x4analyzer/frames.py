@@ -358,6 +358,12 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
             gt.loc[miss, "station.code"] = gt.loc[miss, "owner"].map(
                 rem["code"])
             gt.loc[miss, "destroyed"] = True
+        # anything still unresolved (gone from the universe AND the removed
+        # catalog) keeps its object id as the code so distinct unknown
+        # objects can never merge into one aggregate bar
+        unknown = ~gt["owner"].isin(uni_idx.index) & gt["station"].isna()
+        gt.loc[unknown, "station.code"] = gt.loc[unknown, "owner"]
+        gt.loc[unknown, "destroyed"] = True
         # most NPC stations are unnamed: "<FAC> <type> (CODE)" fallback,
         # using the station's basename text ref ("Solar Power Plant" etc.)
         base = (gt["owner"].map(uni_idx["stype"]).replace("", pd.NA)
