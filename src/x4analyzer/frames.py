@@ -342,6 +342,22 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         gt["station"] = gt["owner"].map(uni_idx["name"])
         gt["station.code"] = gt["owner"].map(uni_idx["code"])
         gt["sector.macro"] = gt["owner"].map(uni_idx["sector.macro"])
+        # stations destroyed since the trades happened are gone from the
+        # universe tree, but the economylog <removed> catalog keeps their
+        # identity — resolve them and mark with a dagger
+        rem = pd.DataFrame(save.removed_objects)
+        gt["destroyed"] = False
+        if not rem.empty and "id" in rem.columns:
+            rem = rem.drop_duplicates("id").set_index("id")
+            miss = ~gt["owner"].isin(uni_idx.index) \
+                & gt["owner"].isin(rem.index)
+            gt.loc[miss, "faction"] = (gt.loc[miss, "owner"].map(rem["owner"])
+                                       .map(ref.faction_short)
+                                       .fillna(OTHER_FACTION))
+            gt.loc[miss, "station"] = gt.loc[miss, "owner"].map(rem["name"])
+            gt.loc[miss, "station.code"] = gt.loc[miss, "owner"].map(
+                rem["code"])
+            gt.loc[miss, "destroyed"] = True
         # most NPC stations are unnamed: "<FAC> <type> (CODE)" fallback,
         # using the station's basename text ref ("Solar Power Plant" etc.)
         base = (gt["owner"].map(uni_idx["stype"]).replace("", pd.NA)
@@ -351,6 +367,7 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
                                       + base[unnamed])
         gt["label"] = (gt["station"]
                        + " (" + gt["station.code"].fillna("?") + ")")
+        gt.loc[gt["destroyed"], "label"] += " †"
     else:
         gt = pd.DataFrame(columns=["time", "owner", "ware", "v", "dv",
                                    "faction", "station", "station.code",
