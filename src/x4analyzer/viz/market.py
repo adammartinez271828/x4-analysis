@@ -504,8 +504,8 @@ estimated from actual deliveries into stations.</li>
 <li><b>Build demand</b> — materials still missing for station
 constructions. Shipyard ship-order backlogs are excluded (their near-term
 needs already appear as buy offers).</li>
-<li><b>Buyers / Understocked</b> — stations with an open buy offer plus
-constructions missing the ware; understocked = holding less than
+<li><b>Understocked (N / M)</b> — M = stations with an open buy offer plus
+constructions missing the ware; N = those holding less than
 {UNDERSTOCK_PCT:.0%} of their target level (stock + still wanted). Many
 understocked buyers despite high global cover = a distribution problem,
 not a supply problem.</li>
@@ -596,7 +596,7 @@ const table = $('#market').DataTable({{
   data: ROWS,
   order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [2, 4, 6, 7, 8, 10, 11, 13], render: numCol}},
+    {{targets: [2, 4, 6, 7, 10, 11, 13], render: numCol}},
     {{targets: 1, render: (d, t, row) => t === 'display'
       ? (row[18] ? "<span class=warn title='estimated from deliveries'>~"
                    + fmt(d) + "</span>" : fmt(d))
@@ -647,7 +647,7 @@ const table = $('#market').DataTable({{
       if (flag === 'never') return 1e12;
       return d;
     }}}},
-    {{targets: [16, 17, 18, 19], visible: false}},
+    {{targets: [8, 16, 17, 18, 19], visible: false}},
   ],
 }});
 $('#market tbody').on('click', 'tr', function() {{
