@@ -134,32 +134,50 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     saturated = pd.DataFrame(rows)
 
     # ---- 4. constructions waiting for materials ------------------------------
-    build = frames.build_demand
+    # construction demand = the plot's build storage buy offers: the game's
+    # own per-ware "still needed beyond deliveries under way" numbers
     rows = []
-    if not build.empty:
-        uni = frames.universe.set_index("id")
+    uni = frames.universe.set_index("id")
+    bs_mine = set(uni.index[(uni["class"] == "buildstorage")
+                            & (uni["owner"] == "player")])
+    offers_all = frames.trade_offers
+    site_offers = (offers_all[(offers_all["side"] == "buy")
+                              & offers_all["id"].isin(bs_mine)]
+                   if not offers_all.empty else offers_all)
+    if not site_offers.empty:
         smacro_name = dict(zip(frames.sectors["macro"],
                                frames.sectors["name"]))
-        # a build storage is the materials depot of a station plot; name it
-        # by its sector and the player station there (if any), since the
-        # game never shows the storage's own code
         own_station_in = {}
         for _, st in stations.iterrows():
             own_station_in.setdefault(st["sector.id"], st_name[st["id"]])
-        mine = build[(build["kind"] == "insufficient")
-                     & build["id"].map(uni["owner"]).eq("player")]
-        mine = mine.groupby(["id", "ware"], as_index=False)["amount"].max()
-        for r in mine.itertuples(index=False):
-            label = st_name.get(r.id)
-            if not label:
-                sector = smacro_name.get(uni["sector.macro"].get(r.id), "?")
-                hint = own_station_in.get(uni["sector.id"].get(r.id))
-                label = (f"Build plot in {sector} ({uni['code'].get(r.id, '?')})"
-                         + (f" — likely {hint}" if hint else ""))
-            rows.append({"Site": label, "Missing": wname(r.ware),
-                         "Amount": round(r.amount)})
-    waiting = (pd.DataFrame(rows).sort_values("Amount", ascending=False)
-               if rows else pd.DataFrame())
+
+        def _site_label(sid):
+            sector = smacro_name.get(uni["sector.macro"].get(sid), "?")
+            hint = own_station_in.get(uni["sector.id"].get(sid))
+            return (f"Build plot in {sector} ({uni['code'].get(sid, '?')})"
+                    + (f" — likely {hint}" if hint else ""))
+
+        for sid, grp in site_offers.groupby("id"):
+            active = grp[grp["amount"] > 0]
+            if not active.empty:
+                for r in active.itertuples(index=False):
+                    rows.append({"Site": _site_label(sid),
+                                 "Missing": wname(r.ware),
+                                 "Still needed": round(r.amount)})
+            else:
+                # offers exist but all at 0 units: the plot is not buying —
+                # unfunded, or "buy from others" disabled. Nothing will ever
+                # arrive until that changes.
+                wares = ", ".join(sorted(wname(w) for w in grp["ware"]))
+                rows.append({
+                    "Site": _site_label(sid),
+                    "Missing": wares,
+                    "Still needed":
+                        "<span class='neg'>site inactive — no funded "
+                        "material orders (fund the plot / enable buying)"
+                        "</span>",
+                })
+    waiting = pd.DataFrame(rows)
 
     # ---- 5. idle ships --------------------------------------------------------
     orders = frames.orders
@@ -253,7 +271,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          f"storage classes above {STORAGE_FULL_PCT:g}% of module capacity",
          saturated, "t3"),
         ("Constructions waiting for materials",
-         "your build sites' missing wares (deliver or assign builders)",
+         "your build sites' open material orders — still needed beyond deliveries already under way",
          waiting, "t4"),
         ("Idle ships",
          "no orders, or only a default Wait/Dock order; fleet subordinates "

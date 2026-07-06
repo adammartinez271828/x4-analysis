@@ -144,13 +144,15 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     uni = frames.universe.set_index("id")
     stations = set(uni.index[(uni["class"] == "station")
                              & ~uni["owner"].isin(EXCLUDED_OWNERS)])
-    excluded_hosts = set(uni.index[uni["owner"].isin(EXCLUDED_OWNERS)])
+    bs_ids = set(uni.index[(uni["class"] == "buildstorage")
+                           & ~uni["owner"].isin(EXCLUDED_OWNERS)])
 
     # global stock: station cargo plus free-floating ware objects (raw scrap
     # exists almost entirely as scrap cubes drifting near processors, not as
     # station cargo); ships in transit excluded
     cargo = frames.station_cargo
-    cargo = cargo[cargo["id"].isin(stations)] if not cargo.empty else cargo
+    cargo = cargo[cargo["id"].isin(stations | bs_ids)] \
+        if not cargo.empty else cargo
     stock = cargo.groupby("ware")["amount"].sum() if not cargo.empty \
         else pd.Series(dtype=float)
     floating = frames.floating_wares
@@ -158,27 +160,11 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         stock = stock.add(floating.groupby("ware")["amount"].sum(),
                           fill_value=0.0)
 
-    # outstanding STATION-construction resources ("insufficient"). Shipyard
-    # <shortage> blocks are the backlog of endlessly queued NPC ship orders
-    # — not near-term demand (their actionable needs appear as buy offers)
-    build = frames.build_demand
-    build = build[build["kind"] == "insufficient"] if not build.empty \
-        else build
-    # drop excluded factions' construction sites (buildstorage owners are in
-    # the universe frame; unknown hosts are kept)
-    if not build.empty:
-        build = build[~build["id"].isin(excluded_hosts)]
-    # stations report the same missing amount at station level AND per build
-    # processor: max per (host, ware) instead of sum avoids double counting
-    if not build.empty:
-        build = (build.groupby(["id", "ware"], as_index=False)["amount"].max())
-    build_by_ware = build.groupby("ware")["amount"].sum() if not build.empty \
-        else pd.Series(dtype=float)
 
     # open trade offers with prices, enriched with station label + sector
     sec_name = dict(zip(frames.sectors["macro"], frames.sectors["name"]))
     off = frames.trade_offers
-    off = off[off["id"].isin(stations) & (off["amount"] > 0)
+    off = off[off["id"].isin(stations | bs_ids) & (off["amount"] > 0)
               & (off["price"] > 0)].copy() if not off.empty else off
     if not off.empty:
         name = off["id"].map(uni["name"]).replace("", pd.NA)
@@ -192,19 +178,20 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
                         .fillna("?"))
     buys = off[off["side"] == "buy"] if not off.empty else off
     sells = off[off["side"] == "sell"] if not off.empty else off
+    # operational demand (stations) vs construction demand (build storages'
+    # buy offers — the game's own per-ware "still needed" numbers; the
+    # <insufficient> amounts in the save are NOT per-ware quantities)
+    op_buys = buys[buys["id"].isin(stations)] if not buys.empty else buys
+    con_buys = buys[buys["id"].isin(bs_ids)] if not buys.empty else buys
+    build_by_ware = (con_buys.groupby("ware")["amount"].sum()
+                     if not con_buys.empty else pd.Series(dtype=float))
 
-    # buyers = stations with open buy offers PLUS constructions missing
-    # materials; a buyer holding less than UNDERSTOCK_PCT of its target level
-    # (stock + still-wanted amount) is understocked. Covers module consumers,
-    # shipyards stocking end-tier parts, raw material buyers and builds alike.
-    build_hosts = build[(build["id"] != "") & (build["amount"] > 0)] \
-        if not build.empty else build
-
+    # buyers = stations with open buy offers PLUS construction sites; a buyer
+    # holding less than UNDERSTOCK_PCT of its target level (stock +
+    # still-wanted amount) is understocked.
     wanted = pd.concat([
         buys.groupby(["id", "ware"])["amount"].sum()
         if not buys.empty else pd.Series(dtype=float),
-        build_hosts.groupby(["id", "ware"])["amount"].sum()
-        if not build_hosts.empty else pd.Series(dtype=float),
     ])
     if not wanted.empty:
         wanted = wanted.groupby(level=[0, 1]).sum()
@@ -224,8 +211,8 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         n_buyers = pd.Series(dtype=int)
         fill_held = pd.Series(dtype=float)
         fill_target = pd.Series(dtype=float)
-    buy_demand = buys.groupby("ware")["amount"].sum() if not buys.empty \
-        else pd.Series(dtype=float)
+    buy_demand = op_buys.groupby("ware")["amount"].sum() \
+        if not op_buys.empty else pd.Series(dtype=float)
     # money on the table: what stations offer to pay right now, and the best
     # open price you could sell each ware for
     demand_cr = (buys.assign(v=buys["amount"] * buys["price"])
@@ -358,10 +345,11 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     # to faction and sector via the universe frame (build hosts include
     # free-floating build storages)
     dem = pd.concat([
-        (buys[["id", "ware", "amount"]].assign(kind="buy") if not buys.empty
+        (op_buys[["id", "ware", "amount"]].assign(kind="buy")
+         if not op_buys.empty
          else pd.DataFrame(columns=["id", "ware", "amount", "kind"])),
-        (build[["id", "ware", "amount"]].assign(kind="build")
-         if not build.empty
+        (con_buys[["id", "ware", "amount"]].assign(kind="build")
+         if not con_buys.empty
          else pd.DataFrame(columns=["id", "ware", "amount", "kind"])),
     ], ignore_index=True)
     dem = dem[dem["id"] != ""]
@@ -501,9 +489,9 @@ estimated from actual deliveries into stations.</li>
 (scrap cubes, dropped cargo). <b>Cover</b> = stock / consumption.</li>
 <li><b>Buy demand</b> — units stations currently offer to buy;
 <b>Demand (Cr)</b> — those offers valued at their offered prices.</li>
-<li><b>Build demand</b> — materials still missing for station
-constructions. Shipyard ship-order backlogs are excluded (their near-term
-needs already appear as buy offers).</li>
+<li><b>Build demand</b> — construction sites' open buy offers (the game's
+own per-ware "still needed" amounts, net of deliveries already under way).
+Buy demand counts operating stations only, so the two never overlap.</li>
 <li><b>Understocked (N / M)</b> — M = stations with an open buy offer plus
 constructions missing the ware; N = those holding less than
 {UNDERSTOCK_PCT:.0%} of their target level (stock + still wanted). Many

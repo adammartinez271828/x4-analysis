@@ -175,6 +175,7 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
                          .fillna(universe["id"].map(yard))
                          .fillna(universe["id"].map(factory))
                          .fillna("Station"))
+    universe.loc[universe["class"] == "buildstorage", "stype"] = "Build plot"
 
     # station mass estimates onto the whole universe (R 520-524)
     universe = universe.merge(modules, on="id", how="left")

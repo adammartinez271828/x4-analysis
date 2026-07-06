@@ -79,6 +79,16 @@ def _open_save(path: Path) -> IO[bytes]:
     return open(path, "rb")
 
 
+def _nearest_host(comp_stack: list) -> str:
+    """Nearest trackable ancestor: station, build storage, or ship. Offers
+    and cargo of a station plot's build storage attribute to the storage,
+    cleanly separating construction demand from station operations."""
+    for pcls, pid, _pm in reversed(comp_stack):
+        if pcls in ("station", "buildstorage") or _SHIP_RE.match(pcls):
+            return pid
+    return ""
+
+
 def parse_savegame(path: Path, progress=None) -> SaveData:
     data = SaveData()
     d = data  # short alias
@@ -204,11 +214,13 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag == "ware":
                 parent = tag_stack[-1] if tag_stack else ""
                 gparent = tag_stack[-2] if len(tag_stack) >= 2 else ""
-                if object_stack and parent == "cargo":
-                    d.cargo.append((
-                        object_stack[-1], elem.get("ware", ""),
-                        float(elem.get("amount", 0) or 0),
-                    ))
+                if parent == "cargo":
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        d.cargo.append((
+                            host, elem.get("ware", ""),
+                            float(elem.get("amount", 0) or 0),
+                        ))
                 elif parent == "wares":
                     # only genuinely collectable objects count as floating
                     # stock: scrap cubes (class recyclable) and dropped cargo.
@@ -234,12 +246,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         # sit under buildprocessor components, which aren't
                         # universe objects and would break faction/sector
                         # attribution
-                        host = ""
-                        for pcls, pid, _pm in reversed(comp_stack):
-                            if pcls in ("station", "buildstorage") \
-                                    or _SHIP_RE.match(pcls):
-                                host = pid
-                                break
+                        host = _nearest_host(comp_stack)
                         d.build_resources.append((
                             host,
                             elem.get("ware", ""),
@@ -263,7 +270,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 if elem.get("ware") and "offers" in tag_stack \
                         and (elem.get("buyer") or elem.get("seller")):
                     d.trade_offers.append((
-                        object_stack[-1] if object_stack else "",
+                        _nearest_host(comp_stack),
                         "buy" if elem.get("buyer") else "sell",
                         elem.get("ware", ""),
                         float(elem.get("amount", 0) or 0),
