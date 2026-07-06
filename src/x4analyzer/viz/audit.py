@@ -400,10 +400,11 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         tables_js += f"""
 $('#t7').DataTable({{order: [], pageLength: 10,
   columnDefs: [{{targets: {flag_idx}, visible: false, searchable: false}}]}});
-$.fn.dataTable.ext.search.push(function(settings, data) {{
+$.fn.dataTable.ext.search.push(function(settings, data, idx, rowData) {{
   if (settings.nTable.id !== 't7') return true;
   if (!document.getElementById('hideS').checked) return true;
-  return data[{flag_idx}] !== '1';
+  // searchable:false columns are blank in `data`; use the raw row data
+  return String(rowData[{flag_idx}]).trim() !== '1';
 }});
 $('#hideS').on('change', function() {{ $('#t7').DataTable().draw(); }});"""
 
