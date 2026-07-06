@@ -57,6 +57,9 @@ FIXTURE = """<?xml version="1.0"?>
               <component class="ship_s" macro="ship_test_macro" id="[0x30]"
                          owner="player" code="SHP-001" connection="dock">
                 <control><post id="aipilot" component="[0x99]"/></control>
+                <orders>
+                  <order id="[0xA1]" default="1" order="Wait" state="started"/>
+                </orders>
                 <connections>
                   <connection connection="commander" id="[0xC9]">
                     <connected connection="[0xC1]"/>
@@ -144,6 +147,7 @@ def test_fixture_parse(save_file: Path) -> None:
     ]
 
     assert ("[0x20]", "buy", "energycells", 500.0, 1.0) in d.trade_offers
+    assert ("[0x30]", "Wait", True, "started") in d.orders
     assert ("[0x20]", "claytronics", 1000.0, "insufficient") \
         in d.build_resources
     assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \

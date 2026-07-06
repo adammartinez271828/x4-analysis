@@ -115,6 +115,7 @@ def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
         if not wid or w.getparent() is None:
             continue
         price = w.find("price")
+        comp = w.find("component")
         rows[wid] = [
             wid,
             tdb.resolve(w.get("name", "")),
@@ -123,6 +124,7 @@ def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
             w.get("volume", ""),
             w.get("tags", ""),
             price.get("average", "") if price is not None else "",
+            (comp.get("ref", "") if comp is not None else "").lower(),
             source,
         ]
     return list(rows.values())
@@ -306,6 +308,35 @@ def extract_recipes(gf: GameFiles) -> list[list]:
     return [list(r) for r in dict.fromkeys(rows)]
 
 
+def extract_modcaps(gf: GameFiles) -> list[list]:
+    """Station module capacities: housing/needed workforce and storage."""
+    rows = {}
+    paths = gf.glob(
+        r"(extensions/[^/]+/)?assets/structures/.*/macros/.*\.xml$"
+    )
+    for path in paths:
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for m in root.iter("macro"):
+            macro = (m.get("name") or "").lower()
+            if not macro:
+                continue
+            wf = m.find("properties/workforce")
+            cargo = m.find("properties/cargo")
+            if wf is None and cargo is None:
+                continue
+            rows[macro] = [
+                macro,
+                m.get("class", ""),
+                wf.get("capacity", "") if wf is not None else "",  # housing
+                wf.get("max", "") if wf is not None else "",       # workers used
+                cargo.get("max", "") if cargo is not None else "",
+                cargo.get("tags", "") if cargo is not None else "",
+            ]
+    return list(rows.values())
+
+
 def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[list]:
     rows = {}
     paths = gf.glob(
@@ -379,7 +410,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     ware_rows = extract_wares(gf, tdb)
     _write_csv(
         cfg.data_dir / "wares.csv",
-        ["id", "name", "group", "transport", "volume", "tags", "price_avg", "source"],
+        ["id", "name", "group", "transport", "volume", "tags", "price_avg", "component", "source"],
         ware_rows,
     )
 
@@ -408,6 +439,13 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         cfg.data_dir / "recipes.csv",
         ["ware", "method", "time", "amount", "input_ware", "input_amount"],
         extract_recipes(gf),
+    )
+
+    log("Extracting module capacities")
+    _write_csv(
+        cfg.data_dir / "modcaps.csv",
+        ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags"],
+        extract_modcaps(gf),
     )
 
     log("Extracting ship models")

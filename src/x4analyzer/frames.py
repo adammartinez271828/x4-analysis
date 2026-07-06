@@ -46,6 +46,7 @@ class Frames:
     workforce_all: pd.DataFrame = None       # id, race, amount
     build_demand: pd.DataFrame = None        # id, ware, amount, kind (missing)
     trade_offers: pd.DataFrame = None        # id, side, ware, amount, price
+    orders: pd.DataFrame = None              # id, order, default, state
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
 
     resource_cols: list = field(default_factory=list)
@@ -394,6 +395,8 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         trade_offers=pd.DataFrame(
             save.trade_offers,
             columns=["id", "side", "ware", "amount", "price"]),
+        orders=pd.DataFrame(save.orders,
+                            columns=["id", "order", "default", "state"]),
         floating_wares=pd.DataFrame(save.floating_wares,
                                     columns=["sector.macro", "ware", "amount"]),
         resource_cols=resource_cols, faction_levels=faction_levels,

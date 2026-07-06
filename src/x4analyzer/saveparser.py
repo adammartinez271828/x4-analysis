@@ -66,6 +66,8 @@ class SaveData:
     trade_offers: list = field(default_factory=list)
     # free-floating ware objects in space (scrap cubes, dropped cargo)
     floating_wares: list = field(default_factory=list)  # (sector_macro, ware, amount)
+    # order queues of stations/ships: (object_id, order, is_default, state)
+    orders: list = field(default_factory=list)
     log_entries: list = field(default_factory=list)    # dict per <entry>
     trades: list = field(default_factory=list)         # dict per economylog <log>
     removed_objects: list = field(default_factory=list)  # dict per <object>
@@ -248,6 +250,14 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag == "build":
                 if build_type_stack:
                     build_type_stack.pop()
+
+            elif tag == "order":
+                if object_stack and elem.get("order"):
+                    d.orders.append((
+                        object_stack[-1], elem.get("order", ""),
+                        elem.get("default", "") == "1",
+                        elem.get("state", ""),
+                    ))
 
             elif tag == "trade":
                 if elem.get("ware") and "offers" in tag_stack \

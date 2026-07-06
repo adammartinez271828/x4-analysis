@@ -77,7 +77,7 @@ purpose="mine" per sector).
 
 ## B. Own-empire operations
 
-### 5. Empire bottleneck audit — feasibility: HIGH ⭐ highest value/effort
+### 5. Empire bottleneck audit — feasibility: HIGH ⭐ **IMPLEMENTED** (Audit tab)
 
 One page listing everything wrong with YOUR assets:
 
@@ -91,7 +91,7 @@ One page listing everything wrong with YOUR assets:
 - ships without engineers, low-skill pilots on high-value ships (already
   parsed for df.ships).
 
-### 6. Station P&L statements — feasibility: HIGH
+### 6. Station P&L statements — feasibility: HIGH — **IMPLEMENTED** (Station P&L tab)
 
 Per-station: revenue, input costs, net profit/h, trend; ROI ranking across
 the empire. Extends the existing Trade History data (per-station trades are

@@ -43,6 +43,7 @@ class RefData:
     ships: pd.DataFrame
     modules: pd.DataFrame    # production modules: macro, ware, method, ...
     recipes: pd.DataFrame    # ware production recipes (long: one row/input)
+    modcaps: pd.DataFrame    # module housing/workers/cargo capacities
     textdb: TextDB
 
     # owner id -> short code / display name / colour
@@ -104,6 +105,9 @@ def load_refdata(data_dir: Path) -> RefData:
     recipes = _optional("recipes.csv",
                         ["ware", "method", "time", "amount", "input_ware",
                          "input_amount"])
+    modcaps = _optional("modcaps.csv",
+                        ["macro", "class", "housing", "workers", "cargo_max",
+                         "cargo_tags"])
 
     faction_short: dict[str, str] = {}
     faction_name: dict[str, str] = {}
@@ -128,7 +132,8 @@ def load_refdata(data_dir: Path) -> RefData:
 
     return RefData(
         factions=factions, wares=wares, clusters=clusters, sectors=sectors,
-        ships=ships, modules=modules, recipes=recipes, textdb=textdb,
+        ships=ships, modules=modules, recipes=recipes,
+        modcaps=modcaps, textdb=textdb,
         faction_short=faction_short, faction_name=faction_name,
         faction_colour=faction_colour, ware_name=ware_name,
         economy_wares=economy_wares,
