@@ -206,6 +206,71 @@ def construction_rates(frames: Frames, ref: RefData
     return per_ware, yard_st, window_h
 
 
+def actual_flows(frames: Frames, ref: RefData) -> tuple[dict, dict]:
+    """Estimated ACTUAL flows per ware (units/h) from the stock-delta
+    stream, as opposed to the theoretical module capacities:
+
+    - production ≈ positive stock deltas at the ware's built producers
+      (their stock rises are completed production batches; purchases of
+      their own product are rare);
+    - consumption ≈ negative deltas at its built consumers (stations
+      whose module recipes input the ware, plus populated stations for
+      workforce foods). Yards are excluded for build materials — their
+      draw belongs to construction_rates' estimate, which is shown
+      separately and included in balance either way.
+
+    Both are estimates: the log only records stock on trade events, and
+    a station acting as both producer and reseller blurs the split.
+    """
+    gt = frames.global_trades
+    if gt.empty or "dv_neg" not in gt.columns:
+        return {}, {}
+    uni = frames.universe.set_index("id")
+    gt = gt[~gt["owner"].map(uni["owner"]).isin(EXCLUDED_OWNERS)]
+    if gt.empty:
+        return {}, {}
+    window_h = max((gt["time"].max() - gt["time"].min()) / 3600.0, 1.0)
+
+    bm = frames.built_modules
+    mrf = ref.modules[ref.modules["ware"] != ""][
+        ["macro", "ware", "method"]].drop_duplicates()
+    inst = bm.drop(columns=["method"]).merge(mrf, on="macro")
+    producers = inst.groupby("ware")["id"].agg(set).to_dict()
+
+    rec = _recipe_table(ref)
+    rin = rec[rec["input_ware"].astype(str) != ""]
+    in_map = rin.groupby(["ware", "method"])["input_ware"].agg(set).to_dict()
+    consumers: dict[str, set] = {}
+    for r in inst.itertuples(index=False):
+        inputs = in_map.get((r.ware, r.method)) \
+            or in_map.get((r.ware, "default")) or ()
+        for iw in inputs:
+            consumers.setdefault(iw, set()).add(r.id)
+    food = set(rin[rin["ware"].str.startswith("workunit")]["input_ware"])
+    if not frames.workforce_all.empty:
+        staffed = set(frames.workforce_all[
+            frames.workforce_all["amount"] > 0]["id"])
+        for fw in food:
+            consumers.setdefault(fw, set()).update(staffed)
+
+    yards = set(bm[bm["macro"].str.contains("buildmodule", na=False)]["id"])
+    econ = set(ref.wares[ref.wares["tags"].str.contains("economy",
+                                                        na=False)]["id"])
+    workunit = rin["ware"].str.startswith("workunit")
+    build_mat = set(rin[~rin["ware"].isin(econ) & ~workunit]["input_ware"])
+
+    prod_act: dict[str, float] = {}
+    cons_act: dict[str, float] = {}
+    for (w, oid), v in gt.groupby(["ware", "owner"])["dv"].sum().items():
+        if oid in producers.get(w, ()):
+            prod_act[w] = prod_act.get(w, 0.0) + v / window_h
+    for (w, oid), v in gt.groupby(["ware", "owner"])["dv_neg"].sum().items():
+        if oid in consumers.get(w, ()) \
+                and not (w in build_mat and oid in yards):
+            cons_act[w] = cons_act.get(w, 0.0) + v / window_h
+    return prod_act, cons_act
+
+
 def build_market(frames: Frames, ref: RefData, files_dir: Path,
                  guid: str) -> str | None:
     rates = _station_rates(frames, ref)
@@ -322,6 +387,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
                if "minable" in t}
 
     constr_rates, _yard_st, constr_window = construction_rates(frames, ref)
+    prod_act, cons_act = actual_flows(frames, ref)
 
     wares = sorted(set(total.index) | set(traded.index) | set(stock.index))
     summary = []
@@ -342,6 +408,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         est = w in minable
         if est:
             prod = traded_h
+        # estimated actual flows (stock-delta stream); minables' actual
+        # production is what miners deliver, same as the capacity fallback
+        p_act = traded_h if est else float(prod_act.get(w, 0.0))
+        c_act = float(cons_act.get(w, 0.0))
         avg = float(price_avg.get(w, 0))
         bp = float(best_price.get(w, 0))
         premium = (bp / avg - 1.0) * 100.0 if avg > 0 and bp > 0 else None
@@ -390,6 +460,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             else None,
             "satisfy_flag": satisfy_flag,
             "vol": int(vol_map.get(w, 0) or 0),
+            "prod_act": round(p_act), "cons_act": round(c_act),
         })
     summary.sort(key=lambda r: r["cr_h"], reverse=True)
 
@@ -520,7 +591,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         r["buyers"], r["under"],
         r["traded_h"], r["cr_h"], r["premium"], r["demand_cr"],
         r["fill"], r["satisfy_h"], r["satisfy_flag"], r["ware"], r["est"],
-        r["best_price"],
+        r["best_price"], r["prod_act"], r["cons_act"],
     ] for r in summary], separators=(",", ":"))
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
@@ -569,6 +640,15 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
 recipes). Workforce production bonuses are not modelled.
 A <span class='warn'>~</span> marks minable wares, whose production is
 estimated from actual deliveries into stations.</li>
+<li><b>Estimated actual flows (checkbox)</b> — swaps prod/cons/balance/
+cover for ESTIMATES of what really happened over the log window, from
+the stock-delta stream: production &asymp; stock increases at a ware's
+producers, consumption &asymp; stock decreases at its consumers (module
+recipes + workforce foods; yards excluded for build materials since
+Constr/h covers them). Real utilization runs well below capacity —
+starved factories neither produce nor consume — so expect these to be
+a fraction of the theoretical numbers. Log granularity: stock is only
+recorded on trade events.</li>
 <li><b>Stock</b> — all station cargo plus free-floating collectables
 (scrap cubes, dropped cargo). <b>Cover</b> = stock / (consumption +
 estimated construction). <b>Balance/h</b> = production &minus;
@@ -618,7 +698,10 @@ demand by sector, and the delivery trend vs consumption capacity.</p>
 </div>
 </details>
 <p><label><input type='checkbox' id='buildonly'>
-show ship/station build wares only</label></p>
+show ship/station build wares only</label>
+&nbsp;&nbsp;<label><input type='checkbox' id='actual'>
+estimated <b>actual</b> flows instead of theoretical capacity
+(prod/cons/balance/cover)</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>Prod/h</th><th>Cons/h</th>
 <th>Constr/h (est.)</th><th>Balance/h</th>
@@ -669,6 +752,8 @@ function faded(hex) {{
     parseInt(hex.slice(2,4),16) + ',' + parseInt(hex.slice(4,6),16) + ',0.45)';
 }}
 
+let ACT = false;   // false = theoretical capacity, true = estimated actual
+
 const sel = document.getElementById('ware');
 ROWS.forEach(r => {{
   const o = document.createElement('option');
@@ -681,21 +766,39 @@ const table = $('#market').DataTable({{
   data: ROWS,
   order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [2, 5, 7, 8, 12, 13, 15], render: numCol}},
-    {{targets: 1, render: (d, t, row) => t === 'display'
-      ? (row[20] ? "<span class=warn title='estimated from deliveries'>~"
-                   + fmt(d) + "</span>" : fmt(d))
-      : d}},
-    {{targets: 4, render: (d, t, row) => t === 'display'
-      ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d) + "</span>"
-        + (row[3] > 0 ? " <span class=warn title='includes estimated "
-           + "construction consumption'>~</span>" : "")
-      : d}},
-    {{targets: 6, render: (d, t) => {{
-      if (t === 'display') return d === null ? '&mdash;'
-        : (d < {COVER_LOW_H:g} ? "<span class=neg>" + d + "</span>"
-           : (d < 10 ? "<span class=warn>" + d + "</span>" : d));
-      return d === null ? 1e12 : d;   // no consumption sorts last
+    {{targets: [5, 7, 8, 12, 13, 15], render: numCol}},
+    {{targets: 1, render: (d, t, row) => {{
+      const v = ACT ? row[22] : d;
+      if (t !== 'display') return v;
+      if (ACT) return "<span class=warn title='estimated actual output "
+        + "(stock-flow deltas at producers)'>~" + fmt(v) + "</span>";
+      return row[20] ? "<span class=warn title='estimated from "
+        + "deliveries'>~" + fmt(v) + "</span>" : fmt(v);
+    }}}},
+    {{targets: 2, render: (d, t, row) => {{
+      const v = ACT ? row[23] : d;
+      if (t !== 'display') return v;
+      return ACT ? "<span class=warn title='estimated actual consumption "
+        + "(stock-flow deltas at consumers)'>~" + fmt(v) + "</span>"
+        : fmt(v);
+    }}}},
+    {{targets: 4, render: (d, t, row) => {{
+      const v = ACT ? row[22] - row[23] - (row[3] || 0) : d;
+      if (t !== 'display') return v;
+      return (v >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(v)
+        + "</span>" + ((ACT || row[3] > 0)
+          ? " <span class=warn title='estimated'>~</span>" : "");
+    }}}},
+    {{targets: 6, render: (d, t, row) => {{
+      let v = d;
+      if (ACT) {{
+        const c = row[23] + (row[3] || 0);
+        v = c > 0 ? Math.round(10 * row[5] / c) / 10 : null;
+      }}
+      if (t === 'display') return v === null ? '&mdash;'
+        : (v < {COVER_LOW_H:g} ? "<span class=neg>" + v + "</span>"
+           : (v < 10 ? "<span class=warn>" + v + "</span>" : v));
+      return v === null ? 1e12 : v;   // no consumption sorts last
     }}}},
     {{targets: 3, render: (d, t, row) => {{
       if (t === 'display') return d === null ? '&mdash;'
@@ -759,6 +862,15 @@ $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
 }});
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
+document.getElementById('actual').addEventListener('change', e => {{
+  ACT = e.target.checked;
+  const th = $('#market thead th');
+  th.eq(1).text(ACT ? '~Prod/h (act)' : 'Prod/h');
+  th.eq(2).text(ACT ? '~Cons/h (act)' : 'Cons/h');
+  th.eq(4).text(ACT ? '~Balance/h (act)' : 'Balance/h');
+  th.eq(6).text(ACT ? '~Cover (h, act)' : 'Cover (h)');
+  table.rows().invalidate('data').draw(false);
+}});
 
 function render() {{
   const w = sel.value, d = DETAIL[w] || {{}}, name = WNAMES[w] || w;
