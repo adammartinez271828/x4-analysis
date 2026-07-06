@@ -158,7 +158,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     caps = ref.modcaps.copy()
     caps["cargo_max"] = pd.to_numeric(caps["cargo_max"], errors="coerce")
     storage = caps[caps["cargo_max"] > 0][["macro", "cargo_max", "cargo_tags"]]
-    mods = frames.station_modules
+    mods = frames.built_modules   # unbuilt storage modules hold nothing
     ware_vol = dict(zip(ref.wares["id"],
                         pd.to_numeric(ref.wares["volume"], errors="coerce")
                         .fillna(1)))

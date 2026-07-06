@@ -67,7 +67,7 @@ def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
     # (e.g. Scrap Recycler: claytronics OR hullparts) can only run one at a
     # time; assume an even split across its queues. Processing modules run
     # the ware's "processing" recipe scaled by their batch size.
-    mods = frames.station_modules
+    mods = frames.built_modules   # planned expansion entries don't produce
     if not mods.empty and not ref.modules.empty:
         mref = ref.modules[["macro", "ware", "method", "scale"]].copy()
         mref["scale"] = pd.to_numeric(mref["scale"], errors="coerce").fillna(1)
@@ -166,7 +166,7 @@ def construction_rates(frames: Frames, ref: RefData
         return empty
     window_h = max((gt["time"].max() - gt["time"].min()) / 3600.0, 1.0)
 
-    mods = frames.station_modules
+    mods = frames.built_modules   # planned modules neither build nor produce
     yards = set(mods[mods["macro"].str.contains("buildmodule", na=False)]
                 ["id"])
     pmap = mods.merge(

@@ -38,6 +38,9 @@ class Frames:
     police: pd.DataFrame
 
     # all stations' construction entries: id, index, macro (market analysis)
+    # NOTE: includes planned-but-unbuilt entries (station sequences list the
+    # whole plan; build storages carry expansion plans) — use built_modules
+    # for anything measuring existing capacity/value
     station_modules: pd.DataFrame = None
     # universe-wide economylog events (owner/ware/volume, all factions)
     global_trades: pd.DataFrame = None
@@ -49,6 +52,14 @@ class Frames:
     orders: pd.DataFrame = None              # id, order, default, state
     built_refs: set = None                   # constructed sequence-entry ids
     module_upgrades: pd.DataFrame = None     # entry, macro (planned loadouts)
+
+    @property
+    def built_modules(self) -> pd.DataFrame:
+        """station_modules restricted to entries whose module actually
+        exists (a component references the entry and is out of
+        construction); entries without ids are kept defensively."""
+        m = self.station_modules
+        return m[m["entry"].isin(self.built_refs) | (m["entry"] == "")]
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
 
     resource_cols: list = field(default_factory=list)

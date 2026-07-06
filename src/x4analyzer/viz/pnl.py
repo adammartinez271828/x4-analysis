@@ -36,7 +36,7 @@ def _station_value(frames: Frames, ref: RefData) -> pd.Series:
         mod_wares["component"].astype(str).str.lower(),
         pd.to_numeric(mod_wares["price_avg"], errors="coerce").fillna(0),
     ))
-    mods = frames.station_modules
+    mods = frames.built_modules   # value what exists, not what's planned
     if mods.empty:
         return pd.Series(dtype=float)
     vals = mods.assign(v=mods["macro"].map(price_by_macro).fillna(0))
