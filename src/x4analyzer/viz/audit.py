@@ -138,13 +138,24 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     rows = []
     if not build.empty:
         uni = frames.universe.set_index("id")
+        smacro_name = dict(zip(frames.sectors["macro"],
+                               frames.sectors["name"]))
+        # a build storage is the materials depot of a station plot; name it
+        # by its sector and the player station there (if any), since the
+        # game never shows the storage's own code
+        own_station_in = {}
+        for _, st in stations.iterrows():
+            own_station_in.setdefault(st["sector.id"], st_name[st["id"]])
         mine = build[(build["kind"] == "insufficient")
                      & build["id"].map(uni["owner"]).eq("player")]
         mine = mine.groupby(["id", "ware"], as_index=False)["amount"].max()
         for r in mine.itertuples(index=False):
-            label = st_name.get(r.id) or (
-                str(uni["name"].get(r.id) or "Construction site")
-                + f" ({uni['code'].get(r.id, '?')})")
+            label = st_name.get(r.id)
+            if not label:
+                sector = smacro_name.get(uni["sector.macro"].get(r.id), "?")
+                hint = own_station_in.get(uni["sector.id"].get(r.id))
+                label = (f"Build plot in {sector} ({uni['code'].get(r.id, '?')})"
+                         + (f" — likely {hint}" if hint else ""))
             rows.append({"Site": label, "Missing": wname(r.ware),
                          "Amount": round(r.amount)})
     waiting = (pd.DataFrame(rows).sort_values("Amount", ascending=False)
