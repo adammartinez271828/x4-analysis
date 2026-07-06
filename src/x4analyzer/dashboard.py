@@ -15,6 +15,7 @@ from .config import Config
 from .frames import Frames
 from .refdata import RefData
 from .saveparser import SaveData
+from .viz.advisor import build_advisor
 from .viz.charts import build_charts
 from .viz.common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
 from .viz.audit import build_audit
@@ -102,7 +103,7 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
                                 "width:1536px;height:864px;", lazy=False)
                 + "</p>"],
         "Trade": [], "Trade Breakdown": [], "Trade History": [],
-        "Station P&L": [], "Market": [], "Audit": [],
+        "Station P&L": [], "Market": [], "Audit": [], "Build Advisor": [],
         "Universe": [], "Fleet": [], "Tables": [],
     }
 
@@ -129,6 +130,13 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     if audit:
         tabs["Audit"].append(
             "<p>" + _iframe(audit, "width:100%;height:1600px;", lazy=True)
+            + "</p>")
+
+    log("Generating build advisor")
+    advisor = build_advisor(frames, ref, cfg, files_dir, guid)
+    if advisor:
+        tabs["Build Advisor"].append(
+            "<p>" + _iframe(advisor, "width:100%;height:1600px;", lazy=True)
             + "</p>")
 
     log("Generating market overview")

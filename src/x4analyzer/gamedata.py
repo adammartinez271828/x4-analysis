@@ -13,6 +13,7 @@ Outputs into the data directory:
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 
 from lxml import etree
@@ -196,6 +197,40 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 sectors[smacro] = [cluster_macro, smacro, x, y, z, name, source]
 
     return list(clusters.values()), list(sectors.values())
+
+
+_SECTOR_IN_PATH = re.compile(r"/([A-Za-z0-9_]*_Sector\d+)_connection/",
+                             re.IGNORECASE)
+
+
+def extract_gates(gf: GameFiles) -> list[list]:
+    """Sector pairs joined by a jump gate or accelerator. galaxy.xml's
+    ref="destination" connections carry both endpoints' zone paths, which
+    embed the sector connection names (Cluster_01_Sector001_connection ->
+    cluster_01_sector001_macro)."""
+
+    def sector_of(path: str) -> str:
+        m = _SECTOR_IN_PATH.search(path or "")
+        return f"{m.group(1).lower()}_macro" if m else ""
+
+    pairs: dict[tuple[str, str], list] = {}
+    for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        source = gf.source_of(path)
+        for conn in root.iter("connection"):
+            if conn.get("ref") != "destination":
+                continue
+            macro_el = conn.find("macro")
+            if macro_el is None:
+                continue
+            a = sector_of(conn.get("path"))
+            b = sector_of(macro_el.get("path"))
+            if a and b and a != b:
+                key = tuple(sorted((a, b)))
+                pairs.setdefault(key, [key[0], key[1], source])
+    return list(pairs.values())
 
 
 _SIZE_BY_CLASS = {
@@ -425,6 +460,13 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         cfg.data_dir / "sectors.csv",
         ["cluster", "macro", "x", "y", "z", "name", "source"],
         sector_rows,
+    )
+
+    log("Extracting gate connections")
+    _write_csv(
+        cfg.data_dir / "gates.csv",
+        ["sector_a", "sector_b", "source"],
+        extract_gates(gf),
     )
 
     log("Extracting production modules")

@@ -36,7 +36,7 @@ at station B for P₂ → profit/trip, profit/hour, profit/m³."
 - **Risks:** none structural; needs the player-view caveat (omniscient
   offers) eventually.
 
-### 2. Station build advisor — feasibility: MEDIUM-HIGH ⭐ the killer feature
+### 2. Station build advisor — feasibility: MEDIUM-HIGH ⭐ **IMPLEMENTED** (Build Advisor tab)
 
 Score "build a W factory in sector S": market gap (Market tab metrics) ×
 input availability nearby (sell offers + mining yields within R gates) ×
@@ -162,7 +162,7 @@ layout readability, not data.
 ## Suggested build order
 
 1. **Sector graph** (shared infrastructure: gates → distances) — enables
-   #1, #2, #4, #8.
+   #1, #2, #4, #8. **DONE** (`sectorgraph.py` + `gates.csv` from galaxy.xml).
 2. **#1 Trade route finder** — highest immediate decision value, proves the
    graph.
 3. **#5 Bottleneck audit** — best value/effort, no new infrastructure.
