@@ -127,6 +127,10 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
     rows: list[dict] = []
     ware_meta: list[dict] = []
     for wid in ware_ids:
+        try:
+            pavg = float(w.loc[wid, "price_avg"])
+        except (ValueError, TypeError):
+            pavg = 0.0
         r0 = def_rec[def_rec["ware"] == wid]
         time, amount = float(r0.iloc[0]["time"]), float(r0.iloc[0]["amount"])
         out_h = amount / time * 3600.0
@@ -222,6 +226,7 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
                 continue  # nobody within reach wants this ware
             rows.append({
                 "ware": wname.get(wid, wid),
+                "price": round(pavg, 1),
                 "sector": c["sector"], "owner": c["owner"],
                 "demand_h": round(c["demand_h"]),
                 "backlog": round(c["backlog"]),
@@ -285,7 +290,8 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
 <p class='note'>Where to build what: every producible ware scored per known
 sector. Demand, competition and input supply are capacity within
 {RADIUS} gates, discounted by distance (÷(1+hops)); open buy orders count
-as backlog. Factors are normalized per ware — scores compare sectors for
+as backlog. Untapped Cr/h values the shortfall at average game price.
+Factors are normalized per ware — scores compare sectors for
 the same ware, and the weights below are yours to tune. Click a row's
 &#9432; for the reasoning.</p>
 <div class='controls'>
@@ -304,7 +310,8 @@ the same ware, and the weights below are yours to tune. Click a row's
 <table id='adv' class='display nowrap' style='width:100%'>
 <thead><tr><th></th><th>Score</th><th>Ware</th><th>Sector</th><th>Owner</th>
 <th>Demand/h</th><th>Competition/h</th><th>Shortfall/h</th>
-<th>Backlog</th><th>Hostile (hops)</th></tr></thead></table>
+<th>Untapped Cr/h</th><th>Backlog</th><th>Hostile (hops)</th></tr></thead>
+</table>
 <h3 style='margin-top:24px'>Global ware balance</h3>
 <p class='note'>Universe-wide capacity per ware (non-Xenon): production vs
 consumption plus the open buy backlog — the market gap that makes a ware
@@ -356,6 +363,10 @@ const table = $('#adv').DataTable({{
     {{data: r => r.demand_h - r.comp_h, render: (d, t) => t === 'display'
         ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
           + '</span>' : d}},
+    {{data: r => (r.demand_h - r.comp_h) * r.price,
+      render: (d, t) => t === 'display'
+        ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
+          + '</span>' : d}},
     {{data: 'backlog', render: numCol}},
     {{data: 'hostile_d', render: (d, t) => t === 'display'
         ? (d >= {HOSTILE_SCAN} ? '{HOSTILE_SCAN}+'
@@ -370,7 +381,7 @@ $('#adv tbody').on('click', 'td.det', function() {{
   const row = table.row(tr);
   if (row.child.isShown()) {{ row.child.hide(); }}
   else {{ row.child($('<tr class="childrow">').html(
-      '<td></td><td colspan="9">' + row.data().det + '</td>')).show(); }}
+      '<td></td><td colspan="10">' + row.data().det + '</td>')).show(); }}
 }});
 
 $('#wsel').on('change', function() {{
