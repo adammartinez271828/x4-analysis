@@ -221,14 +221,19 @@ def actual_flows(frames: Frames, ref: RefData) -> tuple[dict, dict]:
 
     Both are estimates: the log only records stock on trade events, and
     a station acting as both producer and reseller blurs the split.
+
+    Returns (production, consumption) DataFrames [id, ware, rate] so
+    callers can aggregate globally (market) or by sector (advisor).
     """
     gt = frames.global_trades
+    empty = (pd.DataFrame(columns=["id", "ware", "rate"]),
+             pd.DataFrame(columns=["id", "ware", "rate"]))
     if gt.empty or "dv_neg" not in gt.columns:
-        return {}, {}
+        return empty
     uni = frames.universe.set_index("id")
     gt = gt[~gt["owner"].map(uni["owner"]).isin(EXCLUDED_OWNERS)]
     if gt.empty:
-        return {}, {}
+        return empty
     window_h = max((gt["time"].max() - gt["time"].min()) / 3600.0, 1.0)
 
     bm = frames.built_modules
@@ -259,16 +264,16 @@ def actual_flows(frames: Frames, ref: RefData) -> tuple[dict, dict]:
     workunit = rin["ware"].str.startswith("workunit")
     build_mat = set(rin[~rin["ware"].isin(econ) & ~workunit]["input_ware"])
 
-    prod_act: dict[str, float] = {}
-    cons_act: dict[str, float] = {}
-    for (w, oid), v in gt.groupby(["ware", "owner"])["dv"].sum().items():
-        if oid in producers.get(w, ()):
-            prod_act[w] = prod_act.get(w, 0.0) + v / window_h
-    for (w, oid), v in gt.groupby(["ware", "owner"])["dv_neg"].sum().items():
-        if oid in consumers.get(w, ()) \
-                and not (w in build_mat and oid in yards):
-            cons_act[w] = cons_act.get(w, 0.0) + v / window_h
-    return prod_act, cons_act
+    prows = [(oid, w, v / window_h)
+             for (w, oid), v in gt.groupby(["ware", "owner"])["dv"]
+             .sum().items() if oid in producers.get(w, ())]
+    crows = [(oid, w, v / window_h)
+             for (w, oid), v in gt.groupby(["ware", "owner"])["dv_neg"]
+             .sum().items()
+             if oid in consumers.get(w, set())
+             and not (w in build_mat and oid in yards)]
+    return (pd.DataFrame(prows, columns=["id", "ware", "rate"]),
+            pd.DataFrame(crows, columns=["id", "ware", "rate"]))
 
 
 def build_market(frames: Frames, ref: RefData, files_dir: Path,
@@ -387,7 +392,9 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
                if "minable" in t}
 
     constr_rates, _yard_st, constr_window = construction_rates(frames, ref)
-    prod_act, cons_act = actual_flows(frames, ref)
+    pa_df, ca_df = actual_flows(frames, ref)
+    prod_act = pa_df.groupby("ware")["rate"].sum().to_dict()
+    cons_act = ca_df.groupby("ware")["rate"].sum().to_dict()
 
     wares = sorted(set(total.index) | set(traded.index) | set(stock.index))
     summary = []

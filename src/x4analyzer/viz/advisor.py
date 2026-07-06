@@ -26,7 +26,7 @@ from ..refdata import RefData
 from ..sectorgraph import build_adjacency, bfs_distances
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import (EXCLUDED_OWNERS, _recipe_table, _station_rates,
-                     construction_rates)
+                     actual_flows, construction_rates)
 
 _DT_CSS = "lib/datatables.min.css"
 _DT_JS = "lib/datatables.min.js"
@@ -69,15 +69,40 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
     rates = rates[rates["sector"].notna()]
     prod_ws = rates.groupby(["ware", "sector"])["prod"].sum().to_dict()
     cons_ws = rates.groupby(["ware", "sector"])["cons"].sum().to_dict()
+    # estimated ACTUAL flows (stock-delta stream) per (ware, sector) —
+    # the second basis for demand/competition, and the only basis for
+    # input availability (capacity-based input ratios mislead: starved
+    # producers' capacity cannot be bought)
+    pa_df, ca_df = actual_flows(frames, ref)
+
+    def _ws(df) -> dict:
+        if df.empty:
+            return {}
+        d = df.assign(sector=df["id"].map(uni["sector.macro"]))
+        d = d.dropna(subset=["sector"])
+        return d.groupby(["ware", "sector"])["rate"].sum().to_dict()
+
+    prod_act_ws, cons_act_ws = _ws(pa_df), _ws(ca_df)
+    gprod_act = (pa_df.groupby("ware")["rate"].sum().to_dict()
+                 if not pa_df.empty else {})
+    gcons_act = (ca_df.groupby("ware")["rate"].sum().to_dict()
+                 if not ca_df.empty else {})
+
     # estimated construction intake at shipyards/wharves/docks counts as
-    # local demand (stock-flow estimate; station builds show up as backlog)
-    _c, yard_st, _w = construction_rates(frames, ref)
+    # local demand in BOTH bases — but only for build materials: those
+    # are what actual_flows excludes at yards, so intake complements
+    # rather than double-counts (yard habitats' food etc. is already in
+    # the consumer-side flows)
+    constr_ware, yard_st, _w = construction_rates(frames, ref)
     if not yard_st.empty:
         yard_st = yard_st.assign(
             sector=yard_st["id"].map(uni["sector.macro"]))
         for r in yard_st.dropna(subset=["sector"]).itertuples(index=False):
+            if r.ware not in constr_ware:
+                continue
             key = (r.ware, r.sector)
             cons_ws[key] = cons_ws.get(key, 0.0) + float(r.rate)
+            cons_act_ws[key] = cons_act_ws.get(key, 0.0) + float(r.rate)
 
     off = frames.trade_offers.copy()
     off["sector"] = off["id"].map(uni["sector.macro"])
@@ -157,27 +182,39 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
             "ware": wname.get(wid, wid), "prod_h": round(gprod),
             "cons_h": round(gcons), "backlog": round(gbuy),
             "out_h": round(out_h),
+            "prod_act": round(gprod_act.get(wid, 0.0)),
+            "cons_act": round(gcons_act.get(wid, 0.0)),
         })
 
         cand_rows = []
         for s in cands:
             dd = dist[s]
-            demand_h = comp_h = backlog = 0.0
+            demand_h = comp_h = backlog = demand_act = comp_act = 0.0
             for s2, d in dd.items():
                 k = _disc(d)
                 demand_h += cons_ws.get((wid, s2), 0.0) * k
                 comp_h += prod_ws.get((wid, s2), 0.0) * k
                 backlog += buy_ws.get((wid, s2), 0.0) * k
+                demand_act += cons_act_ws.get((wid, s2), 0.0) * k
+                comp_act += prod_act_ws.get((wid, s2), 0.0) * k
             food_h = food_sec[s]
 
-            # input availability: bottleneck ratio over recipe inputs
+            # input availability: bottleneck ratio over recipe inputs.
+            # Basis: estimated ACTUAL net flow (production minus existing
+            # consumption nearby) — capacity would count starved
+            # producers' output that cannot actually be bought
             in_detail = []
             ratio_min, bottleneck = INPUT_CAP, ""
             for iw, need_h in inputs:
-                avail = sum(prod_ws.get((iw, s2), 0.0) * _disc(d)
-                            for s2, d in dd.items())
+                pa = ca = 0.0
+                for s2, d in dd.items():
+                    k = _disc(d)
+                    pa += prod_act_ws.get((iw, s2), 0.0) * k
+                    ca += cons_act_ws.get((iw, s2), 0.0) * k
+                avail = max(pa - ca, 0.0)
                 ratio = avail / need_h if need_h > 0 else INPUT_CAP
-                note = f"{avail:,.0f}/h nearby vs {need_h:,.0f}/h needed"
+                note = (f"~{pa:,.0f}/h actually produced − ~{ca:,.0f}/h "
+                        f"already consumed nearby vs {need_h:,.0f}/h needed")
                 if iw in yields:
                     ydisc = sum(yields[iw].get(s2, 0.0) * _disc(d)
                                 for s2, d in dd.items())
@@ -211,28 +248,38 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
             cand_rows.append({
                 "sector": sname.get(s, s), "owner": sowner.get(s, ""),
                 "demand_h": demand_h, "backlog": backlog, "comp_h": comp_h,
+                "demand_act": demand_act, "comp_act": comp_act,
                 "input_ratio": ratio_min, "bottleneck": bottleneck,
                 "hostile_d": hd, "food_h": food_h,
                 "detail": {"inputs": in_detail, "buyers": lines},
             })
 
-        # normalize per ware and keep the most promising sectors
+        # normalize per ware (per basis) and keep the most promising sectors
         dmax = max((c["demand_h"] + c["backlog"] / BACKLOG_H
                     for c in cand_rows), default=0) or 1.0
         cmax = max((c["comp_h"] for c in cand_rows), default=0) or 1.0
+        damax = max((c["demand_act"] + c["backlog"] / BACKLOG_H
+                     for c in cand_rows), default=0) or 1.0
+        camax = max((c["comp_act"] for c in cand_rows), default=0) or 1.0
         fmax = max((c["food_h"] for c in cand_rows), default=0) or 1.0
         for c in cand_rows:
             c["nd"] = (c["demand_h"] + c["backlog"] / BACKLOG_H) / dmax
             c["nc"] = c["comp_h"] / cmax
+            c["nda"] = (c["demand_act"] + c["backlog"] / BACKLOG_H) / damax
+            c["nca"] = c["comp_act"] / camax
             c["ni"] = c["input_ratio"] / INPUT_CAP
             c["ns"] = c["hostile_d"] / HOSTILE_SCAN
             c["nw"] = c["food_h"] / fmax
-        # default-weight preview score just for the server-side cut
-        cand_rows.sort(key=lambda c: (0.35 * c["nd"] + 0.25 * c["ni"]
-                                      + 0.15 * c["ns"] + 0.10 * c["nw"]
-                                      - 0.15 * c["nc"]), reverse=True)
+        # default-weight preview score just for the server-side cut —
+        # a sector must rank on either basis to survive
+        def _preview(c, dk, ck):
+            return (0.35 * c[dk] + 0.25 * c["ni"] + 0.15 * c["ns"]
+                    + 0.10 * c["nw"] - 0.15 * c[ck])
+        cand_rows.sort(key=lambda c: max(_preview(c, "nd", "nc"),
+                                         _preview(c, "nda", "nca")),
+                       reverse=True)
         for c in cand_rows[:TOP_SECTORS]:
-            if c["nd"] <= 0 and c["backlog"] <= 0:
+            if c["nd"] <= 0 and c["nda"] <= 0 and c["backlog"] <= 0:
                 continue  # nobody within reach wants this ware
             rows.append({
                 "ware": wname.get(wid, wid),
@@ -241,6 +288,8 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
                 "demand_h": round(c["demand_h"]),
                 "backlog": round(c["backlog"]),
                 "comp_h": round(c["comp_h"]),
+                "demand_act": round(c["demand_act"]),
+                "comp_act": round(c["comp_act"]),
                 "input_ratio": round(c["input_ratio"], 2),
                 "bottleneck": c["bottleneck"],
                 "hostile_d": c["hostile_d"],
@@ -248,6 +297,7 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
                 "nd": round(c["nd"], 4), "ni": round(c["ni"], 4),
                 "nc": round(c["nc"], 4), "ns": round(c["ns"], 4),
                 "nw": round(c["nw"], 4),
+                "nda": round(c["nda"], 4), "nca": round(c["nca"], 4),
                 "detail": c["detail"],
             })
 
@@ -300,14 +350,20 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
 <p class='note'>Where to build what: every producible ware scored per known
 sector. Demand, competition and input supply are capacity within
 {RADIUS} gates, discounted by distance (÷(1+hops)); open buy orders count
-as backlog. Demand includes ESTIMATED construction intake at
-shipyards/wharves (from trade-log stock flows), so build-material demand
-is approximate. Untapped Cr/h values the shortfall at average game price.
-Factors are normalized per ware — scores compare sectors for
-the same ware, and the weights below are yours to tune. Click a row's
-&#9432; for the reasoning.</p>
+as backlog. The <b>estimated actual flows</b> checkbox swaps
+demand/competition/shortfall/untapped (and the balance table) between
+theoretical capacity and stock-flow ESTIMATES of what really happens —
+starved factories run far below capacity. Input ratios always use actual
+net flow (production minus existing consumption nearby): starved
+producers' capacity cannot be bought. Demand includes estimated
+construction intake at shipyards/wharves in both modes. Untapped Cr/h
+values the shortfall at average game price. Factors are normalized per
+ware — scores compare sectors for the same ware, and the weights below
+are yours to tune. Click a row's &#9432; for the reasoning.</p>
 <div class='controls'>
   <label>Ware <select id='wsel'><option value=''>All wares</option></select></label>
+  <label><input type='checkbox' id='actual'> estimated <b>actual</b>
+    flows</label>
   <label>Demand <input type='range' id='w_d' min='0' max='100' value='35'>
     <span class='wv' id='v_d'>35</span></label>
   <label>Inputs <input type='range' id='w_i' min='0' max='100' value='25'>
@@ -334,8 +390,13 @@ worth building at all. Output/h is one production module's yield.</p>
 </table>
 <script>
 const DATA = {payload};
+let ACT = false;   // false = theoretical capacity, true = estimated actual
 function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 const numCol = (d, t) => t === 'display' ? fmt(d) : d;
+const est = (v) => "<span class=warn title='estimated actual flows "
+  + "(stock-flow deltas)'>~" + fmt(v) + "</span>";
+const dOf = r => ACT ? r.demand_act : r.demand_h;
+const cOf = r => ACT ? r.comp_act : r.comp_h;
 
 function weights() {{
   return {{d: +$('#w_d').val(), i: +$('#w_i').val(), c: +$('#w_c').val(),
@@ -343,8 +404,9 @@ function weights() {{
 }}
 function score(r, W) {{
   const total = W.d + W.i + W.c + W.s + W.w || 1;
-  return 100 * (W.d * r.nd + W.i * r.ni + W.s * r.ns + W.w * r.nw
-                - W.c * r.nc) / total;
+  const nd = ACT ? r.nda : r.nd, nc = ACT ? r.nca : r.nc;
+  return 100 * (W.d * nd + W.i * r.ni + W.s * r.ns + W.w * r.nw
+                - W.c * nc) / total;
 }}
 
 const rows = DATA.rows.map(r => {{
@@ -370,15 +432,17 @@ const table = $('#adv').DataTable({{
     {{data: 'ware'}},
     {{data: 'sector'}},
     {{data: 'owner'}},
-    {{data: 'demand_h', render: numCol}},
-    {{data: 'comp_h', render: numCol}},
-    {{data: r => r.demand_h - r.comp_h, render: (d, t) => t === 'display'
+    {{data: r => dOf(r), render: (d, t) => t === 'display'
+        ? (ACT ? est(d) : fmt(d)) : d}},
+    {{data: r => cOf(r), render: (d, t) => t === 'display'
+        ? (ACT ? est(d) : fmt(d)) : d}},
+    {{data: r => dOf(r) - cOf(r), render: (d, t) => t === 'display'
         ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
-          + '</span>' : d}},
-    {{data: r => (r.demand_h - r.comp_h) * r.price,
+          + '</span>' + (ACT ? " <span class=warn>~</span>" : "") : d}},
+    {{data: r => (dOf(r) - cOf(r)) * r.price,
       render: (d, t) => t === 'display'
         ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
-          + '</span>' : d}},
+          + '</span>' + (ACT ? " <span class=warn>~</span>" : "") : d}},
     {{data: 'backlog', render: numCol}},
     {{data: 'hostile_d', render: (d, t) => t === 'display'
         ? (d >= {HOSTILE_SCAN} ? '{HOSTILE_SCAN}+'
@@ -406,16 +470,39 @@ $('.controls input[type=range]').on('input', function() {{
   table.rows().invalidate('data').draw(false);
 }});
 
-$('#bal').DataTable({{
-  data: DATA.wares.map(w => [w.ware, w.prod_h, w.cons_h, w.backlog,
-                             w.prod_h - w.cons_h, w.out_h]),
+function balRows() {{
+  return DATA.wares.map(w => {{
+    const p = ACT ? w.prod_act : w.prod_h;
+    const c = ACT ? w.cons_act : w.cons_h;
+    return [w.ware, p, c, w.backlog, p - c, w.out_h];
+  }});
+}}
+const bal = $('#bal').DataTable({{
+  data: balRows(),
   pageLength: 15, order: [[4, 'asc']],
   columnDefs: [
-    {{targets: [1, 2, 3, 5], render: numCol}},
+    {{targets: [3, 5], render: numCol}},
+    {{targets: [1, 2], render: (d, t) => t === 'display'
+      ? (ACT ? '~' : '') + fmt(d) : d}},
     {{targets: 4, render: (d, t) => t === 'display'
       ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
-        + '</span>' : d}},
+        + '</span>' + (ACT ? " <span class=warn>~</span>" : "") : d}},
   ],
+}});
+
+$('#actual').on('change', function() {{
+  ACT = this.checked;
+  const th = $('#adv thead th');
+  th.eq(5).text(ACT ? '~Demand/h (act)' : 'Demand/h');
+  th.eq(6).text(ACT ? '~Competition/h (act)' : 'Competition/h');
+  th.eq(7).text(ACT ? '~Shortfall/h (act)' : 'Shortfall/h');
+  th.eq(8).text(ACT ? '~Untapped Cr/h (act)' : 'Untapped Cr/h');
+  const bh = $('#bal thead th');
+  bh.eq(1).text(ACT ? '~Production/h (act)' : 'Production/h');
+  bh.eq(2).text(ACT ? '~Consumption/h (act)' : 'Consumption/h');
+  bh.eq(4).text(ACT ? '~Balance/h (act)' : 'Balance/h');
+  table.rows().invalidate('data').draw(false);
+  bal.clear().rows.add(balRows()).draw(false);
 }});
 
 (function() {{
