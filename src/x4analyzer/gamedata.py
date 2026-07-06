@@ -13,6 +13,7 @@ Outputs into the data directory:
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 
 from lxml import etree
@@ -115,6 +116,7 @@ def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
         if not wid or w.getparent() is None:
             continue
         price = w.find("price")
+        comp = w.find("component")
         rows[wid] = [
             wid,
             tdb.resolve(w.get("name", "")),
@@ -123,6 +125,7 @@ def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
             w.get("volume", ""),
             w.get("tags", ""),
             price.get("average", "") if price is not None else "",
+            (comp.get("ref", "") if comp is not None else "").lower(),
             source,
         ]
     return list(rows.values())
@@ -194,6 +197,40 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 sectors[smacro] = [cluster_macro, smacro, x, y, z, name, source]
 
     return list(clusters.values()), list(sectors.values())
+
+
+_SECTOR_IN_PATH = re.compile(r"/([A-Za-z0-9_]*_Sector\d+)_connection/",
+                             re.IGNORECASE)
+
+
+def extract_gates(gf: GameFiles) -> list[list]:
+    """Sector pairs joined by a jump gate or accelerator. galaxy.xml's
+    ref="destination" connections carry both endpoints' zone paths, which
+    embed the sector connection names (Cluster_01_Sector001_connection ->
+    cluster_01_sector001_macro)."""
+
+    def sector_of(path: str) -> str:
+        m = _SECTOR_IN_PATH.search(path or "")
+        return f"{m.group(1).lower()}_macro" if m else ""
+
+    pairs: dict[tuple[str, str], list] = {}
+    for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        source = gf.source_of(path)
+        for conn in root.iter("connection"):
+            if conn.get("ref") != "destination":
+                continue
+            macro_el = conn.find("macro")
+            if macro_el is None:
+                continue
+            a = sector_of(conn.get("path"))
+            b = sector_of(macro_el.get("path"))
+            if a and b and a != b:
+                key = tuple(sorted((a, b)))
+                pairs.setdefault(key, [key[0], key[1], source])
+    return list(pairs.values())
 
 
 _SIZE_BY_CLASS = {
@@ -306,6 +343,35 @@ def extract_recipes(gf: GameFiles) -> list[list]:
     return [list(r) for r in dict.fromkeys(rows)]
 
 
+def extract_modcaps(gf: GameFiles) -> list[list]:
+    """Station module capacities: housing/needed workforce and storage."""
+    rows = {}
+    paths = gf.glob(
+        r"(extensions/[^/]+/)?assets/structures/.*/macros/.*\.xml$"
+    )
+    for path in paths:
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for m in root.iter("macro"):
+            macro = (m.get("name") or "").lower()
+            if not macro:
+                continue
+            wf = m.find("properties/workforce")
+            cargo = m.find("properties/cargo")
+            if wf is None and cargo is None:
+                continue
+            rows[macro] = [
+                macro,
+                m.get("class", ""),
+                wf.get("capacity", "") if wf is not None else "",  # housing
+                wf.get("max", "") if wf is not None else "",       # workers used
+                cargo.get("max", "") if cargo is not None else "",
+                cargo.get("tags", "") if cargo is not None else "",
+            ]
+    return list(rows.values())
+
+
 def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[list]:
     rows = {}
     paths = gf.glob(
@@ -379,7 +445,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     ware_rows = extract_wares(gf, tdb)
     _write_csv(
         cfg.data_dir / "wares.csv",
-        ["id", "name", "group", "transport", "volume", "tags", "price_avg", "source"],
+        ["id", "name", "group", "transport", "volume", "tags", "price_avg", "component", "source"],
         ware_rows,
     )
 
@@ -396,6 +462,13 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         sector_rows,
     )
 
+    log("Extracting gate connections")
+    _write_csv(
+        cfg.data_dir / "gates.csv",
+        ["sector_a", "sector_b", "source"],
+        extract_gates(gf),
+    )
+
     log("Extracting production modules")
     _write_csv(
         cfg.data_dir / "modules.csv",
@@ -408,6 +481,13 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         cfg.data_dir / "recipes.csv",
         ["ware", "method", "time", "amount", "input_ware", "input_amount"],
         extract_recipes(gf),
+    )
+
+    log("Extracting module capacities")
+    _write_csv(
+        cfg.data_dir / "modcaps.csv",
+        ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags"],
+        extract_modcaps(gf),
     )
 
     log("Extracting ship models")

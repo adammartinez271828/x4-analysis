@@ -57,6 +57,14 @@ FIXTURE = """<?xml version="1.0"?>
               <component class="ship_s" macro="ship_test_macro" id="[0x30]"
                          owner="player" code="SHP-001" connection="dock">
                 <control><post id="aipilot" component="[0x99]"/></control>
+                <people>
+                  <person macro="char_svc_macro" role="service"/>
+                  <person macro="char_svc_macro" role="service"/>
+                  <person macro="char_pax_macro" role="passenger"/>
+                </people>
+                <orders>
+                  <order id="[0xA1]" default="1" order="Wait" state="started"/>
+                </orders>
                 <connections>
                   <connection connection="commander" id="[0xC9]">
                     <connected connection="[0xC1]"/>
@@ -128,8 +136,8 @@ def test_fixture_parse(save_file: Path) -> None:
     assert ("[0x30]", "aipilot", "[0x99]") in d.posts
     assert ("[0x20]", "argon", 50.0) in d.workforce
     # module count keeps max construction index; macro kept for market stats
-    assert max(i for sid, i, _m in d.modules if sid == "[0x20]") == 3
-    assert ("[0x20]", 1, "mod_a_macro") in d.modules
+    assert max(m[1] for m in d.modules if m[0] == "[0x20]") == 3
+    assert ("[0x20]", 1, "mod_a_macro", "[0x50]", "") in d.modules
 
     assert len(d.npcs) == 1
     npc = d.npcs[0]
@@ -143,7 +151,10 @@ def test_fixture_parse(save_file: Path) -> None:
         ("cluster_01_sector001_macro", "silicon", 200.0),
     ]
 
+    assert d.people == {("[0x30]", "service"): 2, ("[0x30]", "passenger"): 1}
+
     assert ("[0x20]", "buy", "energycells", 500.0, 1.0) in d.trade_offers
+    assert ("[0x30]", "Wait", True, "started") in d.orders
     assert ("[0x20]", "claytronics", 1000.0, "insufficient") \
         in d.build_resources
     assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \

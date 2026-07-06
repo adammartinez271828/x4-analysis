@@ -15,11 +15,14 @@ from .config import Config
 from .frames import Frames
 from .refdata import RefData
 from .saveparser import SaveData
+from .viz.advisor import build_advisor
 from .viz.charts import build_charts
 from .viz.common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
+from .viz.audit import build_audit
 from .viz.history import build_trade_history
 from .viz.map import build_map
 from .viz.market import build_market
+from .viz.pnl import build_pnl
 from .viz.sunbursts import build_sunbursts
 from .viz.tables import build_tables
 
@@ -100,7 +103,8 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
                                 "width:1536px;height:864px;", lazy=False)
                 + "</p>"],
         "Trade": [], "Trade Breakdown": [], "Trade History": [],
-        "Market": [], "Universe": [], "Fleet": [], "Tables": [],
+        "Station P&L": [], "Market": [], "Audit": [], "Build Advisor": [],
+        "Universe": [], "Fleet": [], "Tables": [],
     }
 
     log("Generating time-series charts")
@@ -112,6 +116,27 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     if history:
         tabs["Trade History"].append(
             "<p>" + _iframe(history, "width:100%;height:1400px;", lazy=True)
+            + "</p>")
+
+    log("Generating station P&L")
+    pnl = build_pnl(frames, ref, cfg, files_dir, guid)
+    if pnl:
+        tabs["Station P&L"].append(
+            "<p>" + _iframe(pnl, "width:100%;height:1300px;", lazy=True)
+            + "</p>")
+
+    log("Generating empire audit")
+    audit = build_audit(frames, ref, cfg, files_dir, guid)
+    if audit:
+        tabs["Audit"].append(
+            "<p>" + _iframe(audit, "width:100%;height:1600px;", lazy=True)
+            + "</p>")
+
+    log("Generating build advisor")
+    advisor = build_advisor(frames, ref, cfg, files_dir, guid)
+    if advisor:
+        tabs["Build Advisor"].append(
+            "<p>" + _iframe(advisor, "width:100%;height:1600px;", lazy=True)
             + "</p>")
 
     log("Generating market overview")

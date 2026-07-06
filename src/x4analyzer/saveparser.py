@@ -52,7 +52,12 @@ class SaveData:
     subordinate_conns: list = field(default_factory=list)  # (leader_id, conn_id)
     posts: list = field(default_factory=list)          # (object_id, post, npc_ref)
     workforce: list = field(default_factory=list)      # (station_id, race, amount)
-    modules: list = field(default_factory=list)        # (station_id, index, macro)
+    modules: list = field(default_factory=list)
+    # (host_id, index, macro, entry_id, build_method)
+    # sequence-entry ids that have a constructed component (module built)
+    built_refs: list = field(default_factory=list)
+    # equipment in planned module loadouts: (entry_id, equipment_macro)
+    module_upgrades: list = field(default_factory=list)
     npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
     resources: list = field(default_factory=list)      # (sector_macro, ware, yield)
     cargo: list = field(default_factory=list)          # (object_id, ware, amount)
@@ -66,15 +71,31 @@ class SaveData:
     trade_offers: list = field(default_factory=list)
     # free-floating ware objects in space (scrap cubes, dropped cargo)
     floating_wares: list = field(default_factory=list)  # (sector_macro, ware, amount)
+    # order queues of stations/ships: (object_id, order, is_default, state)
+    orders: list = field(default_factory=list)
     log_entries: list = field(default_factory=list)    # dict per <entry>
     trades: list = field(default_factory=list)         # dict per economylog <log>
     removed_objects: list = field(default_factory=list)  # dict per <object>
+    # aggregate crew aboard: (object_id, role) -> count of <person> elements
+    # (roles: service, marine, passenger, prisoner; captain/engineer are
+    # separate npc components tracked via posts)
+    people: dict = field(default_factory=dict)
 
 
 def _open_save(path: Path) -> IO[bytes]:
     if path.suffix == ".gz":
         return gzip.open(path, "rb")
     return open(path, "rb")
+
+
+def _nearest_host(comp_stack: list) -> str:
+    """Nearest trackable ancestor: station, build storage, or ship. Offers
+    and cargo of a station plot's build storage attribute to the storage,
+    cleanly separating construction demand from station operations."""
+    for pcls, pid, _pm in reversed(comp_stack):
+        if pcls in ("station", "buildstorage") or _SHIP_RE.match(pcls):
+            return pid
+    return ""
 
 
 def parse_savegame(path: Path, progress=None) -> SaveData:
@@ -87,7 +108,9 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     # nearest open station/ship component id, for posts/workforce/modules
     object_stack: list[str] = []
     npc_stack: list[list] = []       # open npc records awaiting <skills>
+    entry_stack: list[str] = []      # open construction sequence entries
     build_type_stack: list[str] = []  # type attr of open <build> elements
+    build_method_stack: list[str] = []  # method attr of open <build> elements
     sector_macro_stack: list[str] = []
     in_faction_player = 0
     n_elems = 0
@@ -114,6 +137,14 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         ])
                 elif tag == "build":
                     build_type_stack.append(elem.get("type", ""))
+                    build_method_stack.append(elem.get("method", ""))
+                elif tag == "entry" and elem.get("index") \
+                        and elem.get("macro"):
+                    entry_stack.append(elem.get("id", ""))
+                elif tag == "person":
+                    if object_stack:
+                        key = (object_stack[-1], elem.get("role", ""))
+                        d.people[key] = d.people.get(key, 0) + 1
                 elif tag == "faction" and elem.get("id") == "player":
                     in_faction_player += 1
                 continue
@@ -126,6 +157,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
 
             if tag == "component":
                 clazz, cid, macro = comp_stack.pop()
+                if elem.get("construction") \
+                        and elem.get("state") != "construction":
+                    # in-progress modules carry state="construction"; their
+                    # plan entry still needs materials, so only finished
+                    # components mark an entry as built
+                    d.built_refs.append(elem.get("construction"))
                 if clazz == "station" or _SHIP_RE.match(clazz):
                     if object_stack and object_stack[-1] == cid:
                         object_stack.pop()
@@ -186,14 +223,23 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag == "entry":
                 if "log" in tag_stack:
                     d.log_entries.append(dict(elem.attrib))
-                elif object_stack and elem.get("index") and elem.get("macro"):
-                    try:
-                        d.modules.append((
-                            object_stack[-1], int(elem.get("index")),
-                            elem.get("macro", "").lower(),
-                        ))
-                    except ValueError:
-                        pass
+                elif elem.get("index") and elem.get("macro"):
+                    # sequence entries live on stations (built + queued) and
+                    # on build storages (expansion plans, type="expand")
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        try:
+                            d.modules.append((
+                                host, int(elem.get("index")),
+                                elem.get("macro", "").lower(),
+                                elem.get("id", ""),
+                                build_method_stack[-1]
+                                if build_method_stack else "",
+                            ))
+                        except ValueError:
+                            pass
+                    if entry_stack:
+                        entry_stack.pop()
 
             elif tag == "skills":
                 if npc_stack:
@@ -202,11 +248,13 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag == "ware":
                 parent = tag_stack[-1] if tag_stack else ""
                 gparent = tag_stack[-2] if len(tag_stack) >= 2 else ""
-                if object_stack and parent == "cargo":
-                    d.cargo.append((
-                        object_stack[-1], elem.get("ware", ""),
-                        float(elem.get("amount", 0) or 0),
-                    ))
+                if parent == "cargo":
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        d.cargo.append((
+                            host, elem.get("ware", ""),
+                            float(elem.get("amount", 0) or 0),
+                        ))
                 elif parent == "wares":
                     # only genuinely collectable objects count as floating
                     # stock: scrap cubes (class recyclable) and dropped cargo.
@@ -232,12 +280,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         # sit under buildprocessor components, which aren't
                         # universe objects and would break faction/sector
                         # attribution
-                        host = ""
-                        for pcls, pid, _pm in reversed(comp_stack):
-                            if pcls in ("station", "buildstorage") \
-                                    or _SHIP_RE.match(pcls):
-                                host = pid
-                                break
+                        host = _nearest_host(comp_stack)
                         d.build_resources.append((
                             host,
                             elem.get("ware", ""),
@@ -248,12 +291,28 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag == "build":
                 if build_type_stack:
                     build_type_stack.pop()
+                if build_method_stack:
+                    build_method_stack.pop()
+
+            elif tag == "order":
+                if object_stack and elem.get("order"):
+                    d.orders.append((
+                        object_stack[-1], elem.get("order", ""),
+                        elem.get("default", "") == "1",
+                        elem.get("state", ""),
+                    ))
+
+            elif tag in ("shields", "turrets", "engines"):
+                if entry_stack and elem.get("macro") \
+                        and tag_stack and tag_stack[-1] == "groups":
+                    d.module_upgrades.append(
+                        (entry_stack[-1], elem.get("macro", "").lower()))
 
             elif tag == "trade":
                 if elem.get("ware") and "offers" in tag_stack \
                         and (elem.get("buyer") or elem.get("seller")):
                     d.trade_offers.append((
-                        object_stack[-1] if object_stack else "",
+                        _nearest_host(comp_stack),
                         "buy" if elem.get("buyer") else "sell",
                         elem.get("ware", ""),
                         float(elem.get("amount", 0) or 0),

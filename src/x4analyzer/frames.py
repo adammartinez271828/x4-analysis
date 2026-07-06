@@ -38,6 +38,9 @@ class Frames:
     police: pd.DataFrame
 
     # all stations' construction entries: id, index, macro (market analysis)
+    # NOTE: includes planned-but-unbuilt entries (station sequences list the
+    # whole plan; build storages carry expansion plans) — use built_modules
+    # for anything measuring existing capacity/value
     station_modules: pd.DataFrame = None
     # universe-wide economylog events (owner/ware/volume, all factions)
     global_trades: pd.DataFrame = None
@@ -46,6 +49,17 @@ class Frames:
     workforce_all: pd.DataFrame = None       # id, race, amount
     build_demand: pd.DataFrame = None        # id, ware, amount, kind (missing)
     trade_offers: pd.DataFrame = None        # id, side, ware, amount, price
+    orders: pd.DataFrame = None              # id, order, default, state
+    built_refs: set = None                   # constructed sequence-entry ids
+    module_upgrades: pd.DataFrame = None     # entry, macro (planned loadouts)
+
+    @property
+    def built_modules(self) -> pd.DataFrame:
+        """station_modules restricted to entries whose module actually
+        exists (a component references the entry and is out of
+        construction); entries without ids are kept defensively."""
+        m = self.station_modules
+        return m[m["entry"].isin(self.built_refs) | (m["entry"] == "")]
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
 
     resource_cols: list = field(default_factory=list)
@@ -146,7 +160,17 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     posts = posts.drop_duplicates(["object.id", "post"])
     post_pivot = posts.pivot(index="object.id", columns="post", values="npc.id")
 
-    module_list = pd.DataFrame(save.modules, columns=["id", "index", "macro"])
+    module_list = pd.DataFrame(
+        save.modules,
+        columns=["id", "index", "macro", "entry", "method"])
+    # stations carry their build plan twice (construction sequence + the
+    # expand queue repeats the same entry ids) — count each entry once
+    # per host or every module-derived number doubles
+    has_entry = module_list["entry"].ne("")
+    module_list = pd.concat([
+        module_list[has_entry].drop_duplicates(subset=["id", "entry"]),
+        module_list[~has_entry],
+    ], ignore_index=True)
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
 
@@ -174,6 +198,7 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
                          .fillna(universe["id"].map(yard))
                          .fillna(universe["id"].map(factory))
                          .fillna("Station"))
+    universe.loc[universe["class"] == "buildstorage", "stype"] = "Build plot"
 
     # station mass estimates onto the whole universe (R 520-524)
     universe = universe.merge(modules, on="id", how="left")
@@ -221,6 +246,16 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     ships["model"] = ships["macro"].map(model_map)
     ships["name"] = (ships["name"].replace("", pd.NA)
                      .fillna(ships["model"]).fillna(ships["macro"]))
+    # crew complement: service crew + marines aboard vs the model's capacity
+    crew_counts: dict[str, int] = {}
+    for (oid, role), n in save.people.items():
+        if role in ("service", "marine"):
+            crew_counts[oid] = crew_counts.get(oid, 0) + n
+    ships["crew.have"] = (ships["id"].map(crew_counts)
+                          .fillna(0).astype(int))
+    crew_map = dict(zip(ref.ships["macro"],
+                        pd.to_numeric(ref.ships["crew"], errors="coerce")))
+    ships["crew.max"] = ships["macro"].map(crew_map)
     for post in ("aipilot", "engineer"):
         if post in post_pivot.columns:
             ships = ships.merge(
@@ -334,8 +369,10 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         # consecutive snapshots (includes some production accumulation, so
         # it's an upper-ish estimate of traded volume)
         gt = gt.sort_values("time", kind="stable")
-        gt["dv"] = (gt.groupby(["owner", "ware"])["v"].diff()
-                    .clip(lower=0).fillna(0.0))
+        diff = gt.groupby(["owner", "ware"])["v"].diff()
+        gt["dv"] = diff.clip(lower=0).fillna(0.0)
+        # stock leaving the station (consumption, construction draw, sales)
+        gt["dv_neg"] = (-diff.clip(upper=0)).fillna(0.0)
         uni_idx = universe.set_index("id")
         gt["faction"] = (gt["owner"].map(uni_idx["owner"])
                          .map(ref.faction_short).fillna(OTHER_FACTION))
@@ -376,8 +413,8 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         gt.loc[gt["destroyed"], "label"] += " †"
     else:
         gt = pd.DataFrame(columns=["time", "owner", "ware", "v", "dv",
-                                   "faction", "station", "station.code",
-                                   "sector.macro", "label"])
+                                   "dv_neg", "faction", "station",
+                                   "station.code", "sector.macro", "label"])
 
     return Frames(
         universe=universe, sectors=sectors, playerowned=playerowned,
@@ -394,6 +431,11 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         trade_offers=pd.DataFrame(
             save.trade_offers,
             columns=["id", "side", "ware", "amount", "price"]),
+        orders=pd.DataFrame(save.orders,
+                            columns=["id", "order", "default", "state"]),
+        built_refs=set(save.built_refs),
+        module_upgrades=pd.DataFrame(save.module_upgrades,
+                                     columns=["entry", "macro"]),
         floating_wares=pd.DataFrame(save.floating_wares,
                                     columns=["sector.macro", "ware", "amount"]),
         resource_cols=resource_cols, faction_levels=faction_levels,
