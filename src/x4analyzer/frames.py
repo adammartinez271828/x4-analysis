@@ -163,6 +163,14 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     module_list = pd.DataFrame(
         save.modules,
         columns=["id", "index", "macro", "entry", "method"])
+    # stations carry their build plan twice (construction sequence + the
+    # expand queue repeats the same entry ids) — count each entry once
+    # per host or every module-derived number doubles
+    has_entry = module_list["entry"].ne("")
+    module_list = pd.concat([
+        module_list[has_entry].drop_duplicates(subset=["id", "entry"]),
+        module_list[~has_entry],
+    ], ignore_index=True)
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
 
