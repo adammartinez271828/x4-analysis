@@ -47,6 +47,8 @@ class Frames:
     build_demand: pd.DataFrame = None        # id, ware, amount, kind (missing)
     trade_offers: pd.DataFrame = None        # id, side, ware, amount, price
     orders: pd.DataFrame = None              # id, order, default, state
+    built_refs: set = None                   # constructed sequence-entry ids
+    module_upgrades: pd.DataFrame = None     # entry, macro (planned loadouts)
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
 
     resource_cols: list = field(default_factory=list)
@@ -147,7 +149,9 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     posts = posts.drop_duplicates(["object.id", "post"])
     post_pivot = posts.pivot(index="object.id", columns="post", values="npc.id")
 
-    module_list = pd.DataFrame(save.modules, columns=["id", "index", "macro"])
+    module_list = pd.DataFrame(
+        save.modules,
+        columns=["id", "index", "macro", "entry", "method"])
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
 
@@ -398,6 +402,9 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
             columns=["id", "side", "ware", "amount", "price"]),
         orders=pd.DataFrame(save.orders,
                             columns=["id", "order", "default", "state"]),
+        built_refs=set(save.built_refs),
+        module_upgrades=pd.DataFrame(save.module_upgrades,
+                                     columns=["entry", "macro"]),
         floating_wares=pd.DataFrame(save.floating_wares,
                                     columns=["sector.macro", "ware", "amount"]),
         resource_cols=resource_cols, faction_levels=faction_levels,

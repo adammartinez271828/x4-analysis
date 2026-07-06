@@ -131,8 +131,8 @@ def test_fixture_parse(save_file: Path) -> None:
     assert ("[0x30]", "aipilot", "[0x99]") in d.posts
     assert ("[0x20]", "argon", 50.0) in d.workforce
     # module count keeps max construction index; macro kept for market stats
-    assert max(i for sid, i, _m in d.modules if sid == "[0x20]") == 3
-    assert ("[0x20]", 1, "mod_a_macro") in d.modules
+    assert max(m[1] for m in d.modules if m[0] == "[0x20]") == 3
+    assert ("[0x20]", 1, "mod_a_macro", "[0x50]", "") in d.modules
 
     assert len(d.npcs) == 1
     npc = d.npcs[0]

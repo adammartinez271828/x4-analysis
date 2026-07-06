@@ -45,6 +45,56 @@ def _table(df: pd.DataFrame, tid: str) -> str:
                       float_format=lambda v: f"{v:,.1f}")
 
 
+def _remaining_construction(frames: Frames, ref: RefData,
+                            host_ids: set) -> pd.DataFrame:
+    """Estimated materials to finish each station's queued modules:
+    unbuilt sequence entries (no constructed component references them)
+    costed by module + loadout equipment build recipes. Whatever wares the
+    recipes list count as build materials — no filtering."""
+    mods = frames.station_modules
+    if mods.empty:
+        return pd.DataFrame(columns=["id", "ware", "amount"])
+    mods = mods[mods["id"].isin(host_ids)]
+    # a build-storage expansion plan repeats the already-planned entries
+    # (same entry ids as the station sequence) — count each entry once
+    mods = pd.concat([
+        mods[mods["entry"].ne("")].drop_duplicates(subset=["entry"]),
+        mods[mods["entry"].eq("")],
+    ])
+    unbuilt = mods[~mods["entry"].isin(frames.built_refs)]
+    if unbuilt.empty:
+        return pd.DataFrame(columns=["id", "ware", "amount"])
+
+    w = ref.wares
+    macro2ware = dict(zip(w["component"].astype(str).str.lower(), w["id"]))
+    rec = ref.recipes
+    rec = rec[rec["input_ware"].astype(str).ne("")]
+    inputs: dict = {}
+    for r in rec.itertuples(index=False):
+        inputs.setdefault((r.ware, r.method), []).append(
+            (r.input_ware, float(r.input_amount)))
+
+    rows: list[dict] = []
+
+    def cost(sid: str, macro: str, method: str) -> None:
+        ware = macro2ware.get(macro)
+        recipe = inputs.get((ware, method)) or inputs.get((ware, "default"))
+        for inp, amt in recipe or []:
+            rows.append({"id": sid, "ware": inp, "amount": amt})
+
+    ups = frames.module_upgrades
+    ups_by_entry = ups.groupby("entry")["macro"].apply(list).to_dict() \
+        if not ups.empty else {}
+    for r in unbuilt.itertuples(index=False):
+        cost(r.id, r.macro, r.method)
+        for equip in ups_by_entry.get(r.entry, []):
+            cost(r.id, equip, r.method)
+    if not rows:
+        return pd.DataFrame(columns=["id", "ware", "amount"])
+    return (pd.DataFrame(rows)
+            .groupby(["id", "ware"], as_index=False)["amount"].sum())
+
+
 def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                 guid: str) -> str | None:
     stations = frames.stations
@@ -157,7 +207,13 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             return (f"Build plot in {sector} ({uni['code'].get(sid, '?')})"
                     + (f" — likely {hint}" if hint else ""))
 
-        for sid, grp in site_offers.groupby("id"):
+        offered_sites = set(site_offers["id"])
+        silent_sites = [sid for sid in bs_mine - offered_sites
+                        if not _remaining_construction(
+                            frames, ref, {sid}).empty]
+        groups = list(site_offers.groupby("id")) \
+            + [(sid, site_offers.iloc[0:0]) for sid in silent_sites]
+        for sid, grp in groups:
             active = grp[grp["amount"] > 0]
             if not active.empty:
                 for r in active.itertuples(index=False):
@@ -166,17 +222,34 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                                  "Still needed": round(r.amount)})
             else:
                 # offers exist but all at 0 units: the plot is not buying —
-                # unfunded, or "buy from others" disabled. Nothing will ever
-                # arrive until that changes.
-                wares = ", ".join(sorted(wname(w) for w in grp["ware"]))
+                # unfunded, or "buy from others" disabled. Estimate what
+                # completion takes from the queued modules' build recipes,
+                # minus materials already delivered to the site.
                 rows.append({
                     "Site": _site_label(sid),
-                    "Missing": wares,
+                    "Missing": "—",
                     "Still needed":
                         "<span class='neg'>site inactive — no funded "
                         "material orders (fund the plot / enable buying)"
                         "</span>",
                 })
+                est = _remaining_construction(frames, ref, {sid})
+                delivered = (frames.station_cargo[
+                    frames.station_cargo["id"] == sid]
+                    .set_index("ware")["amount"]
+                    if not frames.station_cargo.empty
+                    else pd.Series(dtype=float))
+                for r in est.groupby("ware")["amount"].sum().items():
+                    ware_id, amt = r
+                    left = amt - float(delivered.get(ware_id, 0.0))
+                    if left > 0.5:
+                        rows.append({
+                            "Site": _site_label(sid),
+                            "Missing": wname(ware_id),
+                            "Still needed":
+                                f"≈ {left:,.0f} <span class='note'>"
+                                "(estimated from build plan)</span>",
+                        })
     waiting = pd.DataFrame(rows)
 
     # ---- 5. idle ships --------------------------------------------------------

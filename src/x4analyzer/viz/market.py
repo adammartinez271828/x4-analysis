@@ -72,7 +72,9 @@ def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
         mref = ref.modules[["macro", "ware", "method", "scale"]].copy()
         mref["scale"] = pd.to_numeric(mref["scale"], errors="coerce").fillna(1)
         mref["weight"] = 1.0 / mref.groupby("macro")["macro"].transform("count")
-        inst = mods.merge(mref, on="macro")
+        # station_modules' own "method" (build method) would collide with
+        # the recipe method from ref.modules
+        inst = mods.drop(columns=["method"]).merge(mref, on="macro")
         inst = inst[inst["ware"] != ""]
         for (sid, ware, method), grp in inst.groupby(["id", "ware", "method"]):
             if sid not in stations:
