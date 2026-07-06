@@ -333,7 +333,11 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         prod = float(total["prod"].get(w, 0))
         cons = float(total["cons"].get(w, 0))
         st = float(stock.get(w, 0))
-        cover_h = st / cons if cons > 0 else None
+        # estimated construction consumption joins module/population
+        # consumption in balance and cover
+        constr_h = float(constr_rates[w][0]) if w in constr_rates else 0.0
+        cons_all = cons + constr_h
+        cover_h = st / cons_all if cons_all > 0 else None
         traded_h = float(traded["sum"].get(w, 0)) / span_h
         est = w in minable
         if est:
@@ -362,7 +366,7 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         summary.append({
             "ware": w, "name": ref.ware_name.get(w, w),
             "prod": round(prod), "cons": round(cons),
-            "balance": round(prod - cons),
+            "balance": round(prod - cons_all),
             "stock": round(st),
             "cover": round(cover_h, 1) if cover_h is not None else None,
             "buy": round(float(buy_demand.get(w, 0))),
@@ -511,8 +515,8 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
 
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
     table_rows = json.dumps([[
-        r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
-        r["cover"], r["buy"], r["build"], r["constr_h"], r["constr_flag"],
+        r["name"], r["prod"], r["cons"], r["constr_h"], r["balance"],
+        r["stock"], r["cover"], r["buy"], r["build"], r["constr_flag"],
         r["buyers"], r["under"],
         r["traded_h"], r["cr_h"], r["premium"], r["demand_cr"],
         r["fill"], r["satisfy_h"], r["satisfy_flag"], r["ware"], r["est"],
@@ -566,7 +570,10 @@ recipes). Workforce production bonuses are not modelled.
 A <span class='warn'>~</span> marks minable wares, whose production is
 estimated from actual deliveries into stations.</li>
 <li><b>Stock</b> — all station cargo plus free-floating collectables
-(scrap cubes, dropped cargo). <b>Cover</b> = stock / consumption.</li>
+(scrap cubes, dropped cargo). <b>Cover</b> = stock / (consumption +
+estimated construction). <b>Balance/h</b> = production &minus;
+consumption &minus; estimated construction (a <span class='warn'>~</span>
+marks wares where the construction estimate is included).</li>
 <li><b>Buy demand</b> — units stations currently offer to buy;
 <b>Demand (Cr)</b> — those offers valued at their offered prices.</li>
 <li><b>Build demand</b> — construction sites' open buy offers (the game's
@@ -613,9 +620,10 @@ demand by sector, and the delivery trend vs consumption capacity.</p>
 <p><label><input type='checkbox' id='buildonly'>
 show ship/station build wares only</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
-<thead><tr><th>Ware</th><th>Prod/h</th><th>Cons/h</th><th>Balance/h</th>
+<thead><tr><th>Ware</th><th>Prod/h</th><th>Cons/h</th>
+<th>Constr/h (est.)</th><th>Balance/h</th>
 <th>Stock</th><th>Cover (h)</th><th>Buy demand</th><th>Build demand</th>
-<th>Constr/h (est.)</th><th>flag</th>
+<th>flag</th>
 <th>Buyers</th><th>Understocked</th><th>Traded/h</th>
 <th>Cr/h (est.)</th><th>Best sell</th><th>Demand (Cr)</th>
 <th>Fill %</th><th>Satisfy (h)</th></tr></thead>
@@ -673,21 +681,23 @@ const table = $('#market').DataTable({{
   data: ROWS,
   order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [2, 4, 6, 7, 12, 13, 15], render: numCol}},
+    {{targets: [2, 5, 7, 8, 12, 13, 15], render: numCol}},
     {{targets: 1, render: (d, t, row) => t === 'display'
       ? (row[20] ? "<span class=warn title='estimated from deliveries'>~"
                    + fmt(d) + "</span>" : fmt(d))
       : d}},
-    {{targets: 3, render: (d, t) => t === 'display'
+    {{targets: 4, render: (d, t, row) => t === 'display'
       ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d) + "</span>"
+        + (row[3] > 0 ? " <span class=warn title='includes estimated "
+           + "construction consumption'>~</span>" : "")
       : d}},
-    {{targets: 5, render: (d, t) => {{
+    {{targets: 6, render: (d, t) => {{
       if (t === 'display') return d === null ? '&mdash;'
         : (d < {COVER_LOW_H:g} ? "<span class=neg>" + d + "</span>"
            : (d < 10 ? "<span class=warn>" + d + "</span>" : d));
       return d === null ? 1e12 : d;   // no consumption sorts last
     }}}},
-    {{targets: 8, render: (d, t, row) => {{
+    {{targets: 3, render: (d, t, row) => {{
       if (t === 'display') return d === null ? '&mdash;'
         : "<span class=warn title='ESTIMATE from stock-flow deltas: "
           + (row[9] === 'flow'
