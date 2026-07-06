@@ -227,6 +227,16 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     ships["model"] = ships["macro"].map(model_map)
     ships["name"] = (ships["name"].replace("", pd.NA)
                      .fillna(ships["model"]).fillna(ships["macro"]))
+    # crew complement: service crew + marines aboard vs the model's capacity
+    crew_counts: dict[str, int] = {}
+    for (oid, role), n in save.people.items():
+        if role in ("service", "marine"):
+            crew_counts[oid] = crew_counts.get(oid, 0) + n
+    ships["crew.have"] = (ships["id"].map(crew_counts)
+                          .fillna(0).astype(int))
+    crew_map = dict(zip(ref.ships["macro"],
+                        pd.to_numeric(ref.ships["crew"], errors="coerce")))
+    ships["crew.max"] = ships["macro"].map(crew_map)
     for post in ("aipilot", "engineer"):
         if post in post_pivot.columns:
             ships = ships.merge(

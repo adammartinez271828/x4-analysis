@@ -76,6 +76,10 @@ class SaveData:
     log_entries: list = field(default_factory=list)    # dict per <entry>
     trades: list = field(default_factory=list)         # dict per economylog <log>
     removed_objects: list = field(default_factory=list)  # dict per <object>
+    # aggregate crew aboard: (object_id, role) -> count of <person> elements
+    # (roles: service, marine, passenger, prisoner; captain/engineer are
+    # separate npc components tracked via posts)
+    people: dict = field(default_factory=dict)
 
 
 def _open_save(path: Path) -> IO[bytes]:
@@ -137,6 +141,10 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 elif tag == "entry" and elem.get("index") \
                         and elem.get("macro"):
                     entry_stack.append(elem.get("id", ""))
+                elif tag == "person":
+                    if object_stack:
+                        key = (object_stack[-1], elem.get("role", ""))
+                        d.people[key] = d.people.get(key, 0) + 1
                 elif tag == "faction" and elem.get("id") == "player":
                     in_faction_player += 1
                 continue

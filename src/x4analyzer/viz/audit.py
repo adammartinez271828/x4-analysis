@@ -309,28 +309,50 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     staffing = pd.DataFrame(rows)
 
     # ---- 7. crew gaps ------------------------------------------------------------
+    # every ship missing a captain or below full crew complement; the last
+    # (hidden) column flags S ships whose only problem is crew, so the
+    # checkbox can drop them while missing captains stay visible
     rows = []
     if not ships.empty:
-        big = ships[ships["size"].isin(["M", "L", "XL"])]
-        for _, d in big.iterrows():
+        for _, d in ships.iterrows():
+            size = str(d["size"])
+            if size == "XS":
+                continue
             problems = []
-            if pd.isna(d["engineer"]):
+            no_pilot = pd.isna(d["aipilot"])
+            if no_pilot:
+                problems.append("<span class='neg'>no captain</span>")
+            if size in ("M", "L", "XL") and pd.isna(d["engineer"]):
                 problems.append("no engineer")
             skill = d["pilot.skill"]
-            if pd.isna(d["aipilot"]):
-                problems.append("no pilot")
-            elif pd.notna(skill) and skill < PILOT_SKILL_LOW \
-                    and str(d["size"]) in ("L", "XL"):
+            if not no_pilot and pd.notna(skill) \
+                    and skill < PILOT_SKILL_LOW and size in ("L", "XL"):
                 problems.append(f"pilot skill {skill:.0f}")
-            if problems:
-                rows.append({"Ship": f"{d['name']} ({d['code']})",
-                             "Size": str(d["size"]),
-                             "Issue": ", ".join(problems)})
+            cmax = d.get("crew.max")
+            have = int(d.get("crew.have") or 0)
+            missing = (int(cmax - have)
+                       if pd.notna(cmax) and cmax > have else 0)
+            if not problems and missing == 0:
+                continue
+            rows.append({
+                "Ship": f"{d['name']} ({d['code']})",
+                "Size": size,
+                "Crew": (f"{have}/{cmax:.0f}" if pd.notna(cmax)
+                         else str(have)),
+                "Missing crew": missing,
+                "Issues": ", ".join(problems),
+                "_f": 1 if size == "S" and not problems else 0,
+            })
+    rows.sort(key=lambda r: ("no captain" not in r["Issues"],
+                             -r["Missing crew"]))
     if not stations.empty:
         for _, d in stations.iterrows():
             if pd.isna(d.get("manager.id")):
                 rows.append({"Ship": f"{d['name']} ({d['code']})",
-                             "Size": "Station", "Issue": "no manager"})
+                             "Size": "Station", "Crew": "",
+                             "Missing crew": 0,
+                             "Issues": "<span class='neg'>no manager</span>",
+                             "_f": 0})
     crew = pd.DataFrame(rows)
 
     sections = [
@@ -353,8 +375,10 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "workforce below 90% of what production modules want", staffing,
          "t6"),
         ("Crew gaps",
-         f"M/L/XL ships without engineer/pilot, L/XL pilots below skill "
-         f"{PILOT_SKILL_LOW}, stations without manager", crew, "t7"),
+         f"ships without a captain or below full crew, M/L/XL without "
+         f"engineer, L/XL pilots below skill {PILOT_SKILL_LOW}, stations "
+         "without manager &nbsp; <label><input type='checkbox' id='hideS'> "
+         "hide S ships that are only missing crew</label>", crew, "t7"),
     ]
 
     chips = " ".join(
@@ -370,7 +394,18 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     tables_js = "\n".join(
         f"$('#{tid}').DataTable({{order: [], pageLength: 10}});"
-        for _t, _d, df, tid in sections if not df.empty)
+        for _t, _d, df, tid in sections if not df.empty and tid != "t7")
+    if not crew.empty:
+        flag_idx = len(crew.columns) - 1
+        tables_js += f"""
+$('#t7').DataTable({{order: [], pageLength: 10,
+  columnDefs: [{{targets: {flag_idx}, visible: false, searchable: false}}]}});
+$.fn.dataTable.ext.search.push(function(settings, data) {{
+  if (settings.nTable.id !== 't7') return true;
+  if (!document.getElementById('hideS').checked) return true;
+  return data[{flag_idx}] !== '1';
+}});
+$('#hideS').on('change', function() {{ $('#t7').DataTable().draw(); }});"""
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
 <link rel='stylesheet' href='{_DT_CSS}'>
