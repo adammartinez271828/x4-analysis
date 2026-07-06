@@ -1,6 +1,23 @@
 # Feasibility study: continuous ship & station construction demand
 
-Status: **feasibility study with empirical validation, nothing implemented.**
+Status: **partially implemented** — the Market tab's "Constr/h (est.)"
+column and the Build Advisor's demand factor use estimators A and D
+(`market.construction_rates`): construction-only wares get producer
+outflow (≈), dual-use wares get yard intake as a lower bound (≥).
+Estimator B' (draw minus module consumption) and the C spawn analysis /
+construction tab remain unimplemented.
+
+Corrections since first written (see CLAUDE.md "Market tab data
+semantics" for the authoritative versions):
+
+- The "Build demand = materials missing right now" premise referenced
+  below was **wrong** — the save's `<insufficient>` amounts are not
+  per-ware quantities. Build demand is now the build storages' open buy
+  offers, and the "30.0M-unit claytronics backlog" figure below came
+  from the disproven data; the flow-based rates were re-validated
+  against offer-based demand and stand.
+- Satisfy (h) already handles the no-surplus case with a
+  backlog-in-hours fallback, which supersedes the "374 h" criticism.
 Question: can we estimate construction demand as a *rate* (units/hour,
 ongoing) instead of the current snapshot metrics (Build demand = materials
 missing right now; shipyard order backlogs excluded as unmeasurable)?

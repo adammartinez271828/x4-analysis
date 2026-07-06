@@ -135,6 +135,77 @@ def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
             [["prod", "cons"]].sum())
 
 
+def construction_rates(frames: Frames, ref: RefData
+                       ) -> tuple[dict, pd.DataFrame, float]:
+    """ESTIMATED construction consumption of build materials (units/h),
+    from the economylog stock-delta stream
+    (docs/continuous-construction-demand.md; the doc's snapshot "Build
+    demand" premise was later replaced by build-storage buy offers, but
+    its flow estimators survive):
+
+    - yard intake (A): positive stock deltas at stations with build
+      modules — the sustained rate ship/equipment construction buys
+      materials off the market.
+    - producer outflow (D): negative deltas at stations producing the
+      ware. For wares nothing else consumes (no economy/workforce recipe
+      input — claytronics, hull parts, ...), outflow IS total
+      construction absorption (yards + station builds).
+
+    Returns (per_ware, yard_by_station, window_h). per_ware maps
+    ware -> (rate, flag): flag "flow" = producer outflow (≈ estimate),
+    "floor" = yard intake only (≥ lower bound: dual-use wares whose
+    producer outflow is contaminated by ordinary module consumption).
+    """
+    gt = frames.global_trades
+    empty = ({}, pd.DataFrame(columns=["id", "ware", "rate"]), 0.0)
+    if gt.empty or "dv_neg" not in gt.columns:
+        return empty
+    uni = frames.universe.set_index("id")
+    gt = gt[~gt["owner"].map(uni["owner"]).isin(EXCLUDED_OWNERS)]
+    if gt.empty:
+        return empty
+    window_h = max((gt["time"].max() - gt["time"].min()) / 3600.0, 1.0)
+
+    mods = frames.station_modules
+    yards = set(mods[mods["macro"].str.contains("buildmodule", na=False)]
+                ["id"])
+    pmap = mods.merge(
+        ref.modules[ref.modules["ware"] != ""][["macro", "ware"]]
+        .drop_duplicates(), on="macro")
+    producers = pmap.groupby("ware")["id"].agg(set).to_dict()
+
+    rec = _recipe_table(ref)
+    econ = set(ref.wares[ref.wares["tags"].str.contains("economy",
+                                                        na=False)]["id"])
+    inputs = rec[rec["input_ware"].astype(str) != ""]
+    # workunit_* recipes are population upkeep, not construction
+    workunit = inputs["ware"].str.startswith("workunit")
+    build_mat = set(inputs[~inputs["ware"].isin(econ)
+                           & ~workunit]["input_ware"])
+    module_cons = set(inputs[inputs["ware"].isin(econ)
+                             | workunit]["input_ware"])
+
+    ygt = gt[gt["owner"].isin(yards)]
+    yard_in = (ygt.groupby("ware")["dv"].sum() / window_h
+               if not ygt.empty else pd.Series(dtype=float))
+    yard_st = (ygt.groupby(["owner", "ware"])["dv"].sum() / window_h) \
+        .rename("rate").reset_index().rename(columns={"owner": "id"}) \
+        if not ygt.empty else empty[1]
+
+    per_ware: dict[str, tuple[float, str]] = {}
+    for wid in build_mat:
+        a = float(yard_in.get(wid, 0.0))
+        if wid not in module_cons:
+            pids = producers.get(wid, set())
+            out = float(gt[(gt["ware"] == wid)
+                           & gt["owner"].isin(pids)]["dv_neg"].sum()
+                        ) / window_h
+            per_ware[wid] = (max(out, a), "flow")
+        else:
+            per_ware[wid] = (a, "floor")
+    return per_ware, yard_st, window_h
+
+
 def build_market(frames: Frames, ref: RefData, files_dir: Path,
                  guid: str) -> str | None:
     rates = _station_rates(frames, ref)
@@ -250,6 +321,8 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     minable = {i for i, t in zip(ref.wares["id"], ref.wares["tags"].fillna(""))
                if "minable" in t}
 
+    constr_rates, _yard_st, constr_window = construction_rates(frames, ref)
+
     wares = sorted(set(total.index) | set(traded.index) | set(stock.index))
     summary = []
     for w in wares:
@@ -293,6 +366,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             "stock": round(st),
             "cover": round(cover_h, 1) if cover_h is not None else None,
             "buy": round(float(buy_demand.get(w, 0))),
+            "constr_h": (round(constr_rates[w][0])
+                         if w in constr_rates else None),
+            "constr_flag": (constr_rates[w][1]
+                            if w in constr_rates else ""),
             "buyers": int(n_buyers.get(w, 0)),
             "under": int(under.get(w, 0)),
             "build": round(float(build_by_ware.get(w, 0))),
@@ -435,7 +512,8 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["balance"], r["stock"],
-        r["cover"], r["buy"], r["build"], r["buyers"], r["under"],
+        r["cover"], r["buy"], r["build"], r["constr_h"], r["constr_flag"],
+        r["buyers"], r["under"],
         r["traded_h"], r["cr_h"], r["premium"], r["demand_cr"],
         r["fill"], r["satisfy_h"], r["satisfy_flag"], r["ware"], r["est"],
         r["best_price"],
@@ -494,6 +572,14 @@ estimated from actual deliveries into stations.</li>
 <li><b>Build demand</b> — construction sites' open buy offers (the game's
 own per-ware "still needed" amounts, net of deliveries already under way).
 Buy demand counts operating stations only, so the two never overlap.</li>
+<li><b>Constr/h — an ESTIMATE</b> of ongoing construction consumption from
+the stock-flow deltas of the trade log. <span class='warn'>&asymp;</span>
+= producer outflow of a ware nothing but construction consumes (clean);
+<span class='warn'>&ge;</span> = intake at shipyard/wharf/dock stations
+only — a lower bound for dual-use wares, whose station-side construction
+draw can't be separated from ordinary module consumption. Unlike the
+capacity columns this reflects what construction actually absorbed over
+the log window.</li>
 <li><b>Understocked (N / M)</b> — M = stations with an open buy offer plus
 constructions missing the ware; N = those holding less than
 {UNDERSTOCK_PCT:.0%} of their target level (stock + still wanted). Many
@@ -529,6 +615,7 @@ show ship/station build wares only</label></p>
 <table id='market' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>Prod/h</th><th>Cons/h</th><th>Balance/h</th>
 <th>Stock</th><th>Cover (h)</th><th>Buy demand</th><th>Build demand</th>
+<th>Constr/h (est.)</th><th>flag</th>
 <th>Buyers</th><th>Understocked</th><th>Traded/h</th>
 <th>Cr/h (est.)</th><th>Best sell</th><th>Demand (Cr)</th>
 <th>Fill %</th><th>Satisfy (h)</th></tr></thead>
@@ -577,7 +664,7 @@ function faded(hex) {{
 const sel = document.getElementById('ware');
 ROWS.forEach(r => {{
   const o = document.createElement('option');
-  o.value = r[17]; o.textContent = r[0]; sel.appendChild(o);
+  o.value = r[19]; o.textContent = r[0]; sel.appendChild(o);
 }});
 
 // numeric data with display-only rendering so every column sorts numerically
@@ -586,9 +673,9 @@ const table = $('#market').DataTable({{
   data: ROWS,
   order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [2, 4, 6, 7, 10, 11, 13], render: numCol}},
+    {{targets: [2, 4, 6, 7, 12, 13, 15], render: numCol}},
     {{targets: 1, render: (d, t, row) => t === 'display'
-      ? (row[18] ? "<span class=warn title='estimated from deliveries'>~"
+      ? (row[20] ? "<span class=warn title='estimated from deliveries'>~"
                    + fmt(d) + "</span>" : fmt(d))
       : d}},
     {{targets: 3, render: (d, t) => t === 'display'
@@ -600,28 +687,39 @@ const table = $('#market').DataTable({{
            : (d < 10 ? "<span class=warn>" + d + "</span>" : d));
       return d === null ? 1e12 : d;   // no consumption sorts last
     }}}},
-    {{targets: 9, render: (d, t, row) => {{
-      const ratio = row[8] > 0 ? d / row[8] : 0;
-      if (t === 'display') return row[8] === 0 ? '&mdash;'
+    {{targets: 8, render: (d, t, row) => {{
+      if (t === 'display') return d === null ? '&mdash;'
+        : "<span class=warn title='ESTIMATE from stock-flow deltas: "
+          + (row[9] === 'flow'
+             ? 'producer outflow of a construction-only ware'
+             : 'yard intake only (lower bound; station-side '
+               + 'construction of this dual-use ware is not separable)')
+          + "'>" + (row[9] === 'flow' ? '&asymp; ' : '&ge; ') + fmt(d)
+          + "</span>";
+      return d === null ? -1 : d;      // non-build wares sort last
+    }}}},
+    {{targets: 11, render: (d, t, row) => {{
+      const ratio = row[10] > 0 ? d / row[10] : 0;
+      if (t === 'display') return row[10] === 0 ? '&mdash;'
         : ((ratio > 0.4 ? "<span class=neg>" : (ratio > 0.15
-            ? "<span class=warn>" : "<span>")) + d + " / " + row[8]
+            ? "<span class=warn>" : "<span>")) + d + " / " + row[10]
            + "</span>");
       return ratio;                    // sort by understocked share
     }}}},
-    {{targets: 12, render: (d, t, row) => {{
+    {{targets: 14, render: (d, t, row) => {{
       if (t === 'display') return d === null ? '&mdash;'
-        : fmt(row[19]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
+        : fmt(row[21]) + " Cr <span class='" + (d >= 25 ? "pos" : (d >= 0
             ? "warn" : "neg")) + "'>(" + (d >= 0 ? "+" : "") + d + "%)</span>";
       return d === null ? -1e12 : d;   // sort by premium over average price
     }}}},
-    {{targets: 14, render: (d, t) => {{
+    {{targets: 16, render: (d, t) => {{
       if (t === 'display') return d === null ? '&mdash;'
         : "<span class='" + (d < 30 ? "pos" : (d < 70 ? "warn" : ""))
           + "'>" + d + "%</span>";     // low fill = open market gap
       return d === null ? 1e12 : d;
     }}}},
-    {{targets: 15, render: (d, t, row) => {{
-      const flag = row[16];
+    {{targets: 17, render: (d, t, row) => {{
+      const flag = row[18];
       if (t === 'display') {{
         if (flag === 'sat') return '&mdash;';
         if (flag === 'never') return "<span class=warn>never</span>";
@@ -637,17 +735,17 @@ const table = $('#market').DataTable({{
       if (flag === 'never') return 1e12;
       return d;
     }}}},
-    {{targets: [8, 16, 17, 18, 19], visible: false}},
+    {{targets: [9, 10, 18, 19, 20, 21], visible: false}},
   ],
 }});
 $('#market tbody').on('click', 'tr', function() {{
-  sel.value = ROWS[table.row(this).index()][17];
+  sel.value = ROWS[table.row(this).index()][19];
   render();
 }});
 
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (!document.getElementById('buildonly').checked) return true;
-  return BUILD_WARES.has(rowData[17]);
+  return BUILD_WARES.has(rowData[19]);
 }});
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
@@ -756,7 +854,7 @@ function render() {{
 }}
 sel.addEventListener('change', render);
 document.getElementById('minvol').addEventListener('input', render);
-if (ROWS.length) {{ sel.value = ROWS[0][17]; render(); }}
+if (ROWS.length) {{ sel.value = ROWS[0][19]; render(); }}
 </script>
 <script>
 (function() {{

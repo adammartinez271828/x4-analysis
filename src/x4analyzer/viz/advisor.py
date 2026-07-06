@@ -25,7 +25,8 @@ from ..frames import Frames
 from ..refdata import RefData
 from ..sectorgraph import build_adjacency, bfs_distances
 from .common import DARK_BG, DARK_FG, DARK_MUTED
-from .market import EXCLUDED_OWNERS, _recipe_table, _station_rates
+from .market import (EXCLUDED_OWNERS, _recipe_table, _station_rates,
+                     construction_rates)
 
 _DT_CSS = "lib/datatables.min.css"
 _DT_JS = "lib/datatables.min.js"
@@ -68,6 +69,15 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
     rates = rates[rates["sector"].notna()]
     prod_ws = rates.groupby(["ware", "sector"])["prod"].sum().to_dict()
     cons_ws = rates.groupby(["ware", "sector"])["cons"].sum().to_dict()
+    # estimated construction intake at shipyards/wharves/docks counts as
+    # local demand (stock-flow estimate; station builds show up as backlog)
+    _c, yard_st, _w = construction_rates(frames, ref)
+    if not yard_st.empty:
+        yard_st = yard_st.assign(
+            sector=yard_st["id"].map(uni["sector.macro"]))
+        for r in yard_st.dropna(subset=["sector"]).itertuples(index=False):
+            key = (r.ware, r.sector)
+            cons_ws[key] = cons_ws.get(key, 0.0) + float(r.rate)
 
     off = frames.trade_offers.copy()
     off["sector"] = off["id"].map(uni["sector.macro"])
@@ -290,7 +300,9 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
 <p class='note'>Where to build what: every producible ware scored per known
 sector. Demand, competition and input supply are capacity within
 {RADIUS} gates, discounted by distance (÷(1+hops)); open buy orders count
-as backlog. Untapped Cr/h values the shortfall at average game price.
+as backlog. Demand includes ESTIMATED construction intake at
+shipyards/wharves (from trade-log stock flows), so build-material demand
+is approximate. Untapped Cr/h values the shortfall at average game price.
 Factors are normalized per ware — scores compare sectors for
 the same ware, and the weights below are yours to tune. Click a row's
 &#9432; for the reasoning.</p>

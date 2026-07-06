@@ -350,8 +350,10 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         # consecutive snapshots (includes some production accumulation, so
         # it's an upper-ish estimate of traded volume)
         gt = gt.sort_values("time", kind="stable")
-        gt["dv"] = (gt.groupby(["owner", "ware"])["v"].diff()
-                    .clip(lower=0).fillna(0.0))
+        diff = gt.groupby(["owner", "ware"])["v"].diff()
+        gt["dv"] = diff.clip(lower=0).fillna(0.0)
+        # stock leaving the station (consumption, construction draw, sales)
+        gt["dv_neg"] = (-diff.clip(upper=0)).fillna(0.0)
         uni_idx = universe.set_index("id")
         gt["faction"] = (gt["owner"].map(uni_idx["owner"])
                          .map(ref.faction_short).fillna(OTHER_FACTION))
@@ -392,8 +394,8 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         gt.loc[gt["destroyed"], "label"] += " †"
     else:
         gt = pd.DataFrame(columns=["time", "owner", "ware", "v", "dv",
-                                   "faction", "station", "station.code",
-                                   "sector.macro", "label"])
+                                   "dv_neg", "faction", "station",
+                                   "station.code", "sector.macro", "label"])
 
     return Frames(
         universe=universe, sectors=sectors, playerowned=playerowned,
