@@ -303,8 +303,9 @@ the same ware, and the weights below are yours to tune. Click a row's
 </div>
 <table id='adv' class='display nowrap' style='width:100%'>
 <thead><tr><th></th><th>Score</th><th>Ware</th><th>Sector</th><th>Owner</th>
-<th>Demand/h</th><th>Backlog</th><th>Competition/h</th><th>Inputs</th>
-<th>Hostile (hops)</th><th>Food/h</th></tr></thead></table>
+<th>Demand/h</th><th>Backlog</th><th>Competition/h</th>
+<th>Shortfall/h</th><th>Inputs</th>
+<th>Hostile (hops)</th></tr></thead></table>
 <h3 style='margin-top:24px'>Global ware balance</h3>
 <p class='note'>Universe-wide capacity per ware (non-Xenon): production vs
 consumption plus the open buy backlog — the market gap that makes a ware
@@ -354,6 +355,9 @@ const table = $('#adv').DataTable({{
     {{data: 'demand_h', render: numCol}},
     {{data: 'backlog', render: numCol}},
     {{data: 'comp_h', render: numCol}},
+    {{data: r => r.demand_h - r.comp_h, render: (d, t) => t === 'display'
+        ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
+          + '</span>' : d}},
     {{data: 'input_ratio', render: (d, t, r) => t === 'display'
         ? d.toFixed(2) + (r.bottleneck ? ' (' + r.bottleneck + ')' : '')
         : d}},
@@ -362,7 +366,6 @@ const table = $('#adv').DataTable({{
            : "<span class='" + (d <= 1 ? 'neg' : d <= 2 ? 'warn' : '')
              + "'>" + d + '</span>')
         : d}},
-    {{data: 'food_h', render: numCol}},
   ],
 }});
 
