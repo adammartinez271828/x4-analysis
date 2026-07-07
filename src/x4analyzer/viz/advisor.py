@@ -362,7 +362,9 @@ ware — scores compare sectors for the same ware, and the weights below
 are yours to tune. Click a row's &#9432; for the reasoning.</p>
 <div class='controls'>
   <label>Ware <select id='wsel'><option value=''>All wares</option></select></label>
-  <label><input type='checkbox' id='actual'> estimated <b>actual</b>
+  <label style='color:{DARK_FG};font-size:13px;border:1px solid #e8b84e;
+    border-radius:6px;padding:4px 8px'>
+    <input type='checkbox' id='actual'> estimated <b>actual</b>
     flows</label>
   <label>Demand <input type='range' id='w_d' min='0' max='100' value='35'>
     <span class='wv' id='v_d'>35</span></label>
