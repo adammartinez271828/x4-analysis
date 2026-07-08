@@ -90,6 +90,64 @@ def test_destroyed():
     assert out.iloc[0]["killer"] == "XEN K"
 
 
+def test_ship_services_unmatched_wording_skips_and_dumps(capsys):
+    # title matches but the text wording differs (v9 drift seen in the
+    # wild): the split phrase is absent from every row
+    df = log_df([{
+        "time": 100.0, "category": "upkeep", "title": "Ship constructed",
+        "money": 1234500.0,
+        "text": "Some different v9 wording without the split phrase.",
+    }])
+    out = logparse.parse_ship_services(
+        df, "Ship constructed", " finished construction at station: ",
+        "Ship construction")
+    assert out.empty
+    err = capsys.readouterr().err
+    assert "did not match the expected wording" in err
+    assert "different v9 wording" in err  # the raw string is dumped
+
+
+def test_destroyed_unmatched_wording_skips_and_dumps(capsys):
+    df = log_df([{
+        "time": 50.0, "category": "upkeep",
+        "title": "Your ship was destroyed by something unspeakable",
+    }])
+    out = logparse.parse_destroyed(df)
+    assert out.empty
+    assert "unspeakable" in capsys.readouterr().err
+
+
+def test_pirates_police_unmatched_wording_skips_and_dumps(capsys):
+    df = log_df([
+        {"time": 1.0, "category": "", "title": "Pirate Harassment",
+         "text": "reworded pirate text"},
+        {"time": 2.0, "category": "", "title": "Police Interdiction",
+         "text": "reworded police text"},
+    ])
+    assert logparse.parse_pirates(df, SECTORS).empty
+    assert logparse.parse_police(df, SECTORS, {}).empty
+    err = capsys.readouterr().err
+    assert "reworded pirate text" in err
+    assert "reworded police text" in err
+
+
+def test_transfers_unmatched_wording_skips_and_dumps(capsys):
+    df = log_df([
+        {"time": 1.0, "category": "upkeep",
+         "title": "Received surplus of gratitude"},
+        {"time": 2.0, "category": "upkeep",
+         "title": "Received surplus from beyond"},
+    ])
+    npcs = pd.DataFrame(columns=["name", "id", "role"])
+    stations = pd.DataFrame(
+        columns=["id", "manager.id", "code", "name"])
+    out = logparse.parse_transfers(df, npcs, stations)
+    assert out.empty
+    err = capsys.readouterr().err
+    assert "surplus of gratitude" in err
+    assert "surplus from beyond" in err
+
+
 def test_empty_log_gives_empty_frames():
     df = log_df([{"time": 1.0, "category": "", "title": "Nothing"}])
     assert logparse.parse_destroyed(df).empty

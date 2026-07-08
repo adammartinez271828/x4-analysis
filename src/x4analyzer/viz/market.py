@@ -487,6 +487,21 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
             d["stations"] = [str(s) for s in top.index]
             d["svolume"] = [float(v) for v in top.values]
             d["st_f"] = [str(lab_fac.get(s, "OTH")) for s in top.index]
+            # galaxy stock trend: v snapshots are per-station stock levels
+            # after each trade — forward-fill each station's latest level
+            # over an hourly grid and sum. Destroyed stations stop counting
+            # after their last snapshot; stations that never traded in the
+            # window are invisible, so this is a floor, not the full stock.
+            piv = (grp.groupby(["owner", "hour"])["v"].last()
+                   .unstack("hour")
+                   .reindex(columns=range(int(grp["hour"].min()), 1)))
+            for o in grp.loc[grp["destroyed"], "owner"].unique():
+                last = int(grp.loc[grp["owner"] == o, "hour"].max())
+                if last < 0:
+                    piv.loc[o, last + 1] = 0.0
+            tot = piv.ffill(axis=1).bfill(axis=1).sum(axis=0)
+            d["sk_h"] = [int(h) for h in tot.index]
+            d["sk_v"] = [float(v) for v in tot.values]
             if w in minable:
                 # deliveries by receiving faction = who gets the mined supply
                 by_fac = (grp.groupby("faction")["dv"].sum() / span_h) \
@@ -699,9 +714,14 @@ ware's average game price.</li>
 consume and hoard heavily but never trade with anyone.</li>
 <li>Delivery estimates slightly overcount when loads hop through trade
 stations, and player-internal transfers may not be logged.</li>
+<li>The stock trend sums each station's last known post-trade stock level
+— stations that never traded in the window (and build storages) are
+invisible, so it is a floor on true galaxy stock; the trend direction is
+what matters.</li>
 </ul>
 <p>Click a table row for ware detail: best places to sell and buy, unmet
-demand by sector, and the delivery trend vs consumption capacity.</p>
+demand by sector, and the delivery trend vs consumption capacity with the
+galaxy stock trend.</p>
 </div>
 </details>
 <p><label><input type='checkbox' id='buildonly'>
@@ -893,10 +913,18 @@ function render() {{
       name:'Consumption capacity/h',
       line:{{color:'#ff6b6b', dash:'dash'}}}});
   }}
+  if ((d.sk_h || []).length > 1) {{
+    vol_traces.push({{type:'scatter', mode:'lines', x:d.sk_h, y:d.sk_v,
+      name:'~Galaxy stock (right axis)', yaxis:'y2',
+      line:{{color:'#c9a44e', width:2}}}});
+  }}
   Plotly.react('volume', vol_traces, Object.assign({{}}, LAYOUT(), {{
-    title:{{text:name + ' — traded volume per hour', font:{{size:15}}}},
+    title:{{text:name + ' — traded volume per hour, stock trend', font:{{size:15}}}},
     xaxis:{{title:'Hours until Now', gridcolor:'#3a3a3a'}},
     yaxis:{{title:'Units', gridcolor:'#3a3a3a'}},
+    yaxis2:{{title:'Stock (units)', overlaying:'y', side:'right',
+      showgrid:false, rangemode:'tozero'}},
+    legend:{{orientation:'h', y:1.12}},
   }}), CFG);
 
   const cf = d.cfactions || [], traces = [];

@@ -2,6 +2,9 @@
 
 These depend on game localization and log wording; each returns an empty
 DataFrame when nothing matches so downstream stages can skip gracefully.
+Rows whose title matches a parser but whose text does not fit the expected
+wording (version/localization drift) are skipped with a warning that dumps
+sample strings — report those so the parser can be fixed.
 The save text encodes newlines as the literal sequence `[\\012]`.
 """
 
@@ -11,6 +14,8 @@ import re
 
 import pandas as pd
 
+from .cli import log
+
 CODE_RE = r"[A-Z]{3}-[0-9]{3}"
 # splits "...[\012]..." (with optional sentence-ending dot) like the R pattern
 _NEWLINE_SPLIT = r"[.]?.\\012."
@@ -18,6 +23,17 @@ _NEWLINE_SPLIT = r"[.]?.\\012."
 
 def _empty(cols: list[str]) -> pd.DataFrame:
     return pd.DataFrame(columns=cols)
+
+
+def _dump_unparsed(kind: str, bad: pd.Series) -> None:
+    """Warn about strings that matched a parser's entry filter but not its
+    expected wording, and show samples so they can be reported upstream."""
+    if bad.empty:
+        return
+    log(f"WARNING: {len(bad)} {kind} did not match the expected wording "
+        "and were skipped; sample:")
+    for s in bad.astype(str).drop_duplicates().head(3):
+        log("  " + repr(s[:220]))
 
 
 SALE_COLS = ["time", "money", "seller.name", "seller.code", "amount",
@@ -40,8 +56,14 @@ def parse_ship_services(df_log: pd.DataFrame, title: str, split_text: str,
     source = df["title"] if commodity == "Ship resupply" else df["text"]
     source = source.fillna("")
 
+    ok = source.str.contains(split_text, regex=False)
+    _dump_unparsed(f"'{title}' log entries", source[~ok])
+    df, source = df[ok], source[ok]
+    if df.empty:
+        return _empty(SALE_COLS)
+
     parts = source.str.split(re.escape(split_text), n=1, expand=True, regex=True)
-    wares, parse2 = parts[0], parts[1] if 1 in parts else ""
+    wares, parse2 = parts[0], parts[1]
     seller = parse2.str.split(r"\. They have paid", n=1, expand=True, regex=True)[0]
 
     out = pd.DataFrame({
@@ -71,6 +93,11 @@ def parse_destroyed(df_log: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return _empty(cols)
     df = df.copy()
+    ok = df["title"].str.contains(" in sector ", regex=False)
+    _dump_unparsed("destroyed-object log entries", df.loc[~ok, "title"])
+    df = df[ok]
+    if df.empty:
+        return _empty(cols)
     p1 = df["title"].str.split(" in sector ", n=1, expand=True)
     p2 = p1[1].str.split(" was destroyed by ", n=1, expand=True)
     p3 = p2[1].str.split(".", n=1, expand=True)
@@ -90,6 +117,11 @@ def parse_transfers(df_log: pd.DataFrame, df_npcs: pd.DataFrame | None,
         (df_log["category"] == "upkeep")
         & df_log["title"].str.contains("Received surplus of", na=False)
     ]
+    if not df.empty and df_npcs is not None and df_stations is not None:
+        ok = df["title"].str.contains(r"Received surplus of .+ Credits from .+",
+                                      regex=True)
+        _dump_unparsed("surplus-transfer log entries", df.loc[~ok, "title"])
+        df = df[ok]
     if not df.empty and df_npcs is not None and df_stations is not None:
         parts = df["title"].str.split("( of )|( Credits from )", n=2, regex=True,
                                       expand=True)
@@ -116,6 +148,11 @@ def parse_transfers(df_log: pd.DataFrame, df_npcs: pd.DataFrame | None,
         (df_log["category"] == "upkeep")
         & df_log["title"].str.contains("Received surplus from", na=False)
     ]
+    if not df.empty and df_stations is not None:
+        ok = df["title"].str.contains(r"Received surplus from .+ in .+",
+                                      regex=True)
+        _dump_unparsed("surplus-transfer log entries", df.loc[~ok, "title"])
+        df = df[ok]
     if not df.empty and df_stations is not None:
         station = df["title"].str.split("( surplus from )|( in )", n=2, regex=True,
                                         expand=True)
@@ -149,6 +186,11 @@ def parse_pirates(df_log: pd.DataFrame, df_sectors: pd.DataFrame) -> pd.DataFram
     parts = df["text"].fillna("").str.split(
         rf" in |{_NEWLINE_SPLIT}", regex=True, expand=True
     ).reindex(columns=range(6))
+    ok = parts[[1, 3, 4]].notna().all(axis=1)
+    _dump_unparsed("pirate-harassment log entries", df.loc[~ok, "text"])
+    df, parts = df[ok], parts[ok]
+    if df.empty:
+        return _empty(cols)
     out = pd.DataFrame({
         "time": df["time"].values,
         "ship": parts[0].values, "sector.name": parts[1].values,
@@ -181,6 +223,11 @@ def parse_police(df_log: pd.DataFrame, df_sectors: pd.DataFrame,
     parts = df["text"].fillna("").str.split(
         rf" in | by | police to stop |{_NEWLINE_SPLIT}", regex=True, expand=True
     ).reindex(columns=range(7))
+    ok = parts[[1, 3, 5]].notna().all(axis=1)
+    _dump_unparsed("police-interdiction log entries", df.loc[~ok, "text"])
+    df, parts = df[ok], parts[ok]
+    if df.empty:
+        return _empty(cols)
     out = pd.DataFrame({
         "time": df["time"].values,
         "ship": parts[0].values, "sector.name": parts[1].values,
