@@ -260,6 +260,8 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         per_ship = orders.groupby("id") if not orders.empty else None
         for _, d in ships.iterrows():
             sid = d["id"]
+            if str(d["size"]) == "XS":
+                continue  # escape pods etc. — not orderable
             if sid in followers:
                 continue  # subordinates work for their commander
             olist = (per_ship.get_group(sid)
