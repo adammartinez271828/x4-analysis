@@ -481,6 +481,10 @@ def _build_tradelog(save: SaveData, ref: RefData, universe: pd.DataFrame,
             else pd.NA
         out["owner"] = ids.map(removed_by_id["owner"]) if "owner" in removed_by_id \
             else pd.NA
+        # when no id matches, map() yields all-NaN float64 columns and
+        # pandas then refuses to assign strings into them — pin to object
+        for c in ("name", "code", "owner"):
+            out[c] = out[c].astype("object")
 
         # subordinate traders act for their commander
         is_proxy = out["id"].isin(follower_to_leader)
