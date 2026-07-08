@@ -6,8 +6,8 @@ Sections (see docs/analytics-ideas.md #5):
 - output pile-up: product stock measured in hours of production;
 - storage saturation: per transport class, stock volume vs module capacity;
 - constructions waiting for materials (insufficient blocks on own sites);
-- idle ships: empty order queue, or only a default Wait/DockAndWait-style
-  order, excluding fleet subordinates;
+- idle ships: empty order queue, a Wait/DockAndWait-style standing order,
+  or a standing order that is not running; excludes fleet subordinates;
 - staffing: workforce vs what production modules want vs housing;
 - crew gaps: M/L/XL ships without engineers, low-skill pilots on big ships,
   stations without managers.
@@ -271,17 +271,21 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             if not nondefault.empty:
                 continue
             default = olist[olist["default"]]
-            current = (str(default.iloc[0]["order"]) if not default.empty
-                       else "none")
-            if default.empty or current in IDLE_DEFAULTS:
-                rows.append({
-                    "Ship": f"{d['name']} ({d['code']})",
-                    "Size": str(d["size"]),
-                    "Sector": sec_name.get(d["sector.id"], "?"),
-                    "Order": current,
-                    "Pilot": str(d["pilot.name"]) if pd.notna(d["pilot.name"])
-                    else "—",
-                })
+            if default.empty:
+                standing = "none"
+            else:
+                standing = str(default.iloc[0]["order"])
+                running = str(default.iloc[0]["state"]) == "started"
+                if standing not in IDLE_DEFAULTS and running:
+                    continue  # standing order is doing its job
+                if standing not in IDLE_DEFAULTS:
+                    standing += " (not running)"
+            rows.append({
+                "Ship": f"{d['name']} ({d['code']})",
+                "Size": str(d["size"]),
+                "Sector": sec_name.get(d["sector.id"], "?"),
+                "Standing order": standing,
+            })
     idle = pd.DataFrame(rows)
 
     # ---- 6. staffing -----------------------------------------------------------
@@ -371,8 +375,8 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "your build sites' open material orders — still needed beyond deliveries already under way",
          waiting, "t4"),
         ("Idle ships",
-         "no orders, or only a default Wait/Dock order; fleet subordinates "
-         "excluded", idle, "t5"),
+         "no orders, only a Wait/Dock standing order, or a standing order "
+         "that is not running; fleet subordinates excluded", idle, "t5"),
         ("Understaffed stations",
          "workforce below 90% of what production modules want", staffing,
          "t6"),
