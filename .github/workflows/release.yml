@@ -1,8 +1,13 @@
 name: release
 
+# Flow: draft a release in the GitHub UI (create the v* tag there, write
+# real patch notes) and publish it. Publishing triggers this workflow,
+# which builds the binaries and attaches them to YOUR release — the notes
+# are preserved; only the standard download/run instructions are appended.
+# workflow_dispatch builds artifacts without touching any release.
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -52,9 +57,9 @@ jobs:
           name: x4-analyzer-${{ matrix.suffix }}
           path: dist/x4-analyzer-*
 
-  release:
+  attach:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -64,7 +69,9 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
+          append_body: true
           body: |
+            ---
             Standalone builds — no Python required. Download, run, and the
             dashboard opens in your browser.
 
