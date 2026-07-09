@@ -81,3 +81,18 @@ def test_tradelog_cache_idempotent(cfg):
     merge_tradelog_cache(cfg, GUID, df)
     merged = merge_tradelog_cache(cfg, GUID, df.copy())
     assert len(merged) == 2
+
+
+def test_tradelog_cache_dedupes_across_saves_with_drifted_ids(cfg):
+    # component ids are runtime ids: the same trade parsed from a later
+    # save of the same playthrough carries different [0x..] ids. It must
+    # not accrete as a duplicate (seen in the wild: the boundary trade
+    # gained one copy per analyzed save).
+    merge_tradelog_cache(cfg, GUID, trade_frame([100.0, 200.0]))
+    run2 = trade_frame([100.0, 200.0, 300.0])
+    run2["seller.id"] = "[0x999]"
+    run2["buyer.id"] = "[0x888]"
+    merged = merge_tradelog_cache(cfg, GUID, run2)
+    assert sorted(merged["time"]) == [100.0, 200.0, 300.0]
+    # and the surviving copies are the fresh ones (current save's ids)
+    assert set(merged["seller.id"]) == {"[0x999]"}

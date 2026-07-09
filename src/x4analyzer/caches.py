@@ -81,9 +81,16 @@ def merge_tradelog_cache(cfg: Config, guid: str, df_trade: pd.DataFrame) -> pd.D
             cached[col] = pd.to_numeric(cached[col], errors="coerce").astype("Int64")
         mintime = df_trade["time"].min()
         cached = cached[cached["time"] <= mintime]
+        # dedupe on save-stable identity only: component ids ([0x..]) are
+        # runtime ids reassigned between saves, so the same trade parsed
+        # from two saves differs in *.id — full-row dedup would keep both
+        # (seen in the wild as repeated transactions in Trade History)
+        stable = ["time", "commodity", "price", "amount", "money",
+                  "seller.faction", "seller.name", "seller.code",
+                  "buyer.faction", "buyer.name", "buyer.code"]
         df_trade = (
             pd.concat([cached, df_trade], ignore_index=True)
-            .drop_duplicates()
+            .drop_duplicates(subset=stable, keep="last")
             .sort_values("time", kind="stable", ignore_index=True)
         )
     _write(df_trade, path)
