@@ -135,6 +135,20 @@ def _station_rates(frames: Frames, ref: RefData) -> pd.DataFrame:
             [["prod", "cons"]].sum())
 
 
+def _build_materials(inputs: pd.DataFrame, econ: set,
+                     workunit: pd.Series) -> set:
+    """Wares consumed by construction that the TRACKED economy performs.
+    Xenon-only recipes (their ships/equipment/modules, and the 'xenon'
+    build method of generic gear) are excluded: Xenon stations are dropped
+    from the stock-delta stream (they harvest, not trade), so counting
+    their materials — ore/silicon — as build wares only lets unrelated
+    stations masquerade as construction consumers."""
+    xen = ((inputs["method"] == "xenon")
+           | inputs["ware"].str.contains("_xen_", na=False))
+    return set(inputs[~inputs["ware"].isin(econ)
+                      & ~workunit & ~xen]["input_ware"])
+
+
 def construction_rates(frames: Frames, ref: RefData
                        ) -> tuple[dict, pd.DataFrame, float]:
     """ESTIMATED construction consumption of build materials (units/h),
@@ -180,8 +194,7 @@ def construction_rates(frames: Frames, ref: RefData
     inputs = rec[rec["input_ware"].astype(str) != ""]
     # workunit_* recipes are population upkeep, not construction
     workunit = inputs["ware"].str.startswith("workunit")
-    build_mat = set(inputs[~inputs["ware"].isin(econ)
-                           & ~workunit]["input_ware"])
+    build_mat = _build_materials(inputs, econ, workunit)
     module_cons = set(inputs[inputs["ware"].isin(econ)
                              | workunit]["input_ware"])
 
@@ -262,16 +275,28 @@ def actual_flows(frames: Frames, ref: RefData) -> tuple[dict, dict]:
     econ = set(ref.wares[ref.wares["tags"].str.contains("economy",
                                                         na=False)]["id"])
     workunit = rin["ware"].str.startswith("workunit")
-    build_mat = set(rin[~rin["ware"].isin(econ) & ~workunit]["input_ware"])
+    build_mat = _build_materials(rin, econ, workunit)
+    minable = {i for i, t in zip(ref.wares["id"], ref.wares["tags"].fillna(""))
+               if "minable" in t}
 
-    prows = [(oid, w, v / window_h)
-             for (w, oid), v in gt.groupby(["ware", "owner"])["dv"]
-             .sum().items() if oid in producers.get(w, ())]
-    crows = [(oid, w, v / window_h)
-             for (w, oid), v in gt.groupby(["ware", "owner"])["dv_neg"]
-             .sum().items()
-             if oid in consumers.get(w, set())
-             and not (w in build_mat and oid in yards)]
+    flows = gt.groupby(["ware", "owner"])[["dv", "dv_neg"]].sum()
+    prows, crows = [], []
+    for (w, oid), r in flows.iterrows():
+        if w in minable:
+            # nothing manufactures minables: production = NET deliveries.
+            # Purchases into consumers count in full; at intermediaries
+            # only accumulation counts (inflow − outflow), so a load
+            # hopping miner → trade station → refinery isn't counted
+            # twice. Guarantees Σprod − Σcons == the stock-trend slope.
+            if oid in consumers.get(w, set()):
+                prows.append((oid, w, r["dv"] / window_h))
+            else:
+                prows.append((oid, w, (r["dv"] - r["dv_neg"]) / window_h))
+        elif oid in producers.get(w, ()):
+            prows.append((oid, w, r["dv"] / window_h))
+        if (oid in consumers.get(w, set())
+                and not (w in build_mat and oid in yards)):
+            crows.append((oid, w, r["dv_neg"] / window_h))
     return (pd.DataFrame(prows, columns=["id", "ware", "rate"]),
             pd.DataFrame(crows, columns=["id", "ware", "rate"]))
 
@@ -285,6 +310,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
     log("-> Market overview")
     time_now = frames.time_now
     uni = frames.universe.set_index("id")
+    # keep the whole tab consistent with actual_flows/construction_rates:
+    # Xenon stock movements are internal harvesting, not market activity
+    if not gt.empty:
+        gt = gt[~gt["owner"].map(uni["owner"]).isin(EXCLUDED_OWNERS)]
     stations = set(uni.index[(uni["class"] == "station")
                              & ~uni["owner"].isin(EXCLUDED_OWNERS)])
     bs_ids = set(uni.index[(uni["class"] == "buildstorage")
@@ -413,11 +442,12 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         cover_h = st / cons_all if cons_all > 0 else None
         traded_h = float(traded["sum"].get(w, 0)) / span_h
         est = w in minable
+        # estimated actual flows (stock-delta stream); minables have no
+        # production capacity, so both modes show NET deliveries (gross
+        # traded volume would double-count loads hopping via trade hubs)
+        p_act = float(prod_act.get(w, 0.0))
         if est:
-            prod = traded_h
-        # estimated actual flows (stock-delta stream); minables' actual
-        # production is what miners deliver, same as the capacity fallback
-        p_act = traded_h if est else float(prod_act.get(w, 0.0))
+            prod = p_act
         c_act = float(cons_act.get(w, 0.0))
         avg = float(price_avg.get(w, 0))
         bp = float(best_price.get(w, 0))
@@ -661,7 +691,11 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
 &times; game recipes, plus population upkeep (workforce &times; per-race
 recipes). Workforce production bonuses are not modelled.
 A <span class='warn'>~</span> marks minable wares, whose production is
-estimated from actual deliveries into stations.</li>
+estimated from NET deliveries: purchases into consuming stations plus
+net accumulation at trade hubs, so a load hopping miner &rarr; trade
+station &rarr; refinery counts once. Construction use of ore/silicon is
+Xenon-only; Xenon harvest instead of trading, so it neither appears in
+Constr/h nor competes for market supply.</li>
 <li><b>Estimated actual flows (checkbox)</b> — swaps prod/cons/balance/
 cover for ESTIMATES of what really happened over the log window, from
 the stock-delta stream: production &asymp; stock increases at a ware's
