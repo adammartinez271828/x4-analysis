@@ -73,14 +73,9 @@ def build_trade_history(frames: Frames, files_dir: Path, guid: str) -> str | Non
         return None
     log("-> Trade History browser")
 
-    # dropdown ordered by traded volume, biggest first
-    totals: dict[str, float] = {}
-    for r in recs:
-        totals[r["o"]] = totals.get(r["o"], 0) + abs(r["m"])
-    objects = sorted(totals, key=totals.get, reverse=True)
+    objects = sorted({r["o"] for r in recs}, key=str.casefold)
 
     data_json = json.dumps(recs, separators=(",", ":"))
-    objects_json = json.dumps(objects)
     options = "\n".join(f"<option>{o}</option>" for o in objects)
 
     html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
@@ -129,7 +124,6 @@ box to attribute every trade to the ship that executed it.</p>
 <tbody></tbody></table>
 <script>
 const DATA = {data_json};
-const OBJECTS = {objects_json};
 const TIME_NOW = {frames.time_now};
 const LAYOUT = () => ({{
   paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
