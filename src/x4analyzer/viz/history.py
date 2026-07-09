@@ -31,9 +31,25 @@ def _label(name, code) -> str | None:
     return f"{name} ({code})"
 
 
+def _commander_prefix(frames: Frames) -> dict[str, str]:
+    """Follower code -> commander label ('Osaka (BBB-222)'), from the
+    save-time fleet hierarchy (ship AND station commanders)."""
+    po = frames.playerowned.set_index("id")
+    pre: dict[str, str] = {}
+    for _, w in frames.wings.iterrows():
+        f, l = w["follower"], w["leader"]
+        if f in po.index and l in po.index:
+            leader = _label(po.at[l, "name"], po.at[l, "code"])
+            code = str(po.at[f, "code"])
+            if leader and code:
+                pre[code] = leader
+    return pre
+
+
 def _records(frames: Frames) -> list[dict]:
     """One record per (trade, attributed object)."""
     tl = frames.tradelog
+    prefix = _commander_prefix(frames)
     recs: list[dict] = []
 
     def add(df, own_side: str, sign: int) -> None:
@@ -42,6 +58,14 @@ def _records(frames: Frames) -> list[dict]:
             own = _label(r[f"{own_side}.name"], r[f"{own_side}.code"])
             proxy = _label(r[f"{own_side}.proxy.name"],
                            r[f"{own_side}.proxy.code"])
+            # subordinates are listed under "Commander - Ship" so fleet
+            # members group together in the (sorted) dropdown
+            oc = prefix.get(str(r[f"{own_side}.code"]))
+            if own and oc:
+                own = f"{oc} - {own}"
+            pc = prefix.get(str(r[f"{own_side}.proxy.code"]))
+            if proxy and pc:
+                proxy = f"{pc} - {proxy}"
             counter = _label(r[f"{other}.name"], r[f"{other}.code"]) or "?"
             base = {
                 "t": round(float(r["time"]), 1),
