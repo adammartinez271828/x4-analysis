@@ -55,11 +55,33 @@ def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str) -> str:
 
     body = fig.to_html(full_html=False, include_plotlyjs=False,
                        div_id=None, config={"displaylogo": False})
+    # fullscreen zoom: figures are responsive, so fullscreening the widget
+    # page redraws the chart at screen size (small sunburst slices become
+    # readable). Needs allowfullscreen on the dashboard iframes.
+    fs_btn = (
+        "<div id='x4fs' title='Fullscreen (Esc to leave)' "
+        "style='position:fixed;bottom:6px;right:10px;z-index:20;"
+        "cursor:pointer;font-size:22px;line-height:1;color:#b0b0b0;"
+        "opacity:0.45;user-select:none'>&#x26F6;</div>"
+        "<script>(function(){"
+        "var b=document.getElementById('x4fs');"
+        "b.onmouseenter=function(){b.style.opacity=1;};"
+        "b.onmouseleave=function(){b.style.opacity=0.45;};"
+        "b.onclick=function(){"
+        "if(document.fullscreenElement){document.exitFullscreen();}"
+        "else{document.documentElement.requestFullscreen()"
+        ".catch(function(){});}};"
+        "document.addEventListener('fullscreenchange',function(){"
+        "var g=document.querySelector('.plotly-graph-div');"
+        "if(g&&window.Plotly){Plotly.Plots.resize(g);}});"
+        "})();</script>"
+    )
     html = (
         "<!DOCTYPE html><html><head><meta charset='utf-8'>"
         f"<script src='{_PLOTLY_JS}'></script>"
-        f"<style>body{{margin:0;background:{DARK_BG};}}</style></head>"
-        f"<body>{body}</body></html>"
+        f"<style>html,body{{height:100%;}}"
+        f"body{{margin:0;background:{DARK_BG};}}</style></head>"
+        f"<body>{body}{fs_btn}</body></html>"
     )
     name = f"{title}_{guid}.html"
     (files_dir / name).write_text(html, encoding="utf-8")
@@ -145,6 +167,22 @@ class Sunburst:
                 pct = 100.0 * money / total if total else 0.0
                 self.labels[i] = (f"{self.labels[i]}<br>{fmt_big(money)} Cr.<br>"
                                   f"{pct:.1f}%")
+
+    def annotate_amounts(self, unit: str = "") -> None:
+        """Append '<value> <unit> · <pct>%' to every non-root label (pct of
+        the grand total) and the total to the root label."""
+        if not self.values:
+            return
+        tot = self.values[0]
+        u = f" {unit}" if unit else ""
+        for i in range(len(self.labels)):
+            v = self.values[i]
+            if self.parents[i] == "":
+                self.labels[i] += f"<br>{fmt_big(v)}{u}"
+            else:
+                pct = 100.0 * v / tot if tot else 0.0
+                pct_s = f"{pct:.1f}" if pct >= 0.1 else "<0.1"
+                self.labels[i] += f"<br>{fmt_big(v)}{u} · {pct_s}%"
 
     def figure(self, title: str, maxdepth: int | None = None,
                values: bool = True) -> go.Figure:

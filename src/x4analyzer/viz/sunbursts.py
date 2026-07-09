@@ -11,7 +11,7 @@ from ..config import Config
 from ..frames import Frames
 from ..refdata import RefData
 from .charts import SHIP_SERVICES
-from .common import Sunburst, save_widget, with_alpha
+from .common import Sunburst, fmt_big, save_widget, with_alpha
 
 
 def _faction_colour(ref: RefData, short: str, level: int) -> str:
@@ -162,32 +162,42 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
         res_tot = melted.groupby("resource")["percentage"].sum()
         sb.add_root("Mining<br>Resources", float(res_tot.sum()), id_="root")
         for resource, val in res_tot.items():
-            sb.add(str(resource), ref.ware_name.get(str(resource), str(resource)),
+            sb.add(str(resource),
+                   f"{ref.ware_name.get(str(resource), str(resource))}<br>"
+                   f"{fmt_big(totals[resource])} total yield",
                    "root", float(val))
         for row in melted.itertuples(index=False):
             sb.add(f"{row.resource}>>{row.id}",
-                   f"{row.name}<br>{0.01 * row.percentage:g} %",
+                   f"{row.name}<br>{fmt_big(row.value)} · "
+                   f"{0.01 * row.percentage:g} %",
                    str(row.resource), float(row.percentage))
         emit(sb.figure(title), title)
 
         title = "Resource availability per Sector"
         log("->", title)
         sb = Sunburst()
+        idx_tot = float(melted["percentage"].sum())
         sb.add_root("Resource availability<br>by Sector owner",
-                    float(melted["percentage"].sum()), id_="root")
+                    idx_tot, id_="root")
         by_owner = melted.groupby("owner")["percentage"].sum()
         for owner, val in by_owner.items():
-            sb.add(str(owner), ref.faction_short.get(str(owner), "OTH"),
+            sb.add(str(owner),
+                   f"{ref.faction_short.get(str(owner), 'OTH')}<br>"
+                   f"{100.0 * val / idx_tot:.1f} % of all resources",
                    "root", float(val), _owner_colour(ref, owner, 1))
         by_sector = melted.groupby(["owner", "id", "name"]
                                    )["percentage"].sum().reset_index()
         for row in by_sector.itertuples(index=False):
-            sb.add(str(row.id), str(row.name), str(row.owner),
+            sb.add(str(row.id),
+                   f"{row.name}<br>"
+                   f"{100.0 * row.percentage / idx_tot:.1f} % of all resources",
+                   str(row.owner),
                    float(row.percentage), _owner_colour(ref, row.owner, 2))
         for row in melted.itertuples(index=False):
             sb.add(f"{row.id}>>{row.resource}",
                    f"{ref.ware_name.get(str(row.resource), row.resource)}"
-                   f"<br>{0.01 * row.percentage:g} %",
+                   f"<br>{fmt_big(row.value)} · {0.01 * row.percentage:g} % "
+                   "of galaxy total",
                    str(row.id), float(row.percentage),
                    _owner_colour(ref, row.owner, 3))
         emit(sb.figure(title), title)
@@ -208,8 +218,9 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
                               .map(ref.faction_short).fillna("OTH"))
         return df.dropna(subset=["sector.name"])
 
-    def composition_sunburst(df, value_col, title, root_label,
-                             by_faction_first=False, with_size=False):
+    def composition_sunburst(df, value_col, title, root_label, unit,
+                             by_faction_first=False, with_size=False,
+                             three_levels=True):
         sb = Sunburst()
         sb.add_root(root_label, float(df[value_col].sum()), id_="root")
         first = "faction" if by_faction_first else "sector.owner"
@@ -224,20 +235,25 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
         for row in lvl2.itertuples(index=False):
             sb.add(f"{row[0]} {row[1]}", str(row[1]), str(row[0]),
                    float(row.value), _faction_colour(ref, row.colour_key, 1))
-        group3 = group2 + (["faction"] if not by_faction_first else ["size"])
-        lvl3 = df.groupby(group3, observed=True)[value_col].sum().reset_index()
-        for row in lvl3.itertuples(index=False):
-            sb.add(f"{row[2]} {row[0]} {row[1]}", str(row[2]),
-                   f"{row[0]} {row[1]}", float(row[3]),
-                   _faction_colour(ref, row[2] if not by_faction_first
-                                   else row[0], 1))
-        if with_size and not by_faction_first:
-            group4 = group3 + ["size"]
-            lvl4 = df.groupby(group4, observed=True)[value_col].sum().reset_index()
-            for row in lvl4.itertuples(index=False):
-                sb.add(f"{row[3]} {row[2]} {row[0]} {row[1]}", str(row[3]),
-                       f"{row[2]} {row[0]} {row[1]}", float(row[4]),
-                       _faction_colour(ref, row[2], 1))
+        if three_levels:
+            group3 = group2 + (["faction"] if not by_faction_first
+                               else ["size"])
+            lvl3 = df.groupby(group3, observed=True)[value_col].sum() \
+                .reset_index()
+            for row in lvl3.itertuples(index=False):
+                sb.add(f"{row[2]} {row[0]} {row[1]}", str(row[2]),
+                       f"{row[0]} {row[1]}", float(row[3]),
+                       _faction_colour(ref, row[2] if not by_faction_first
+                                       else row[0], 1))
+            if with_size and not by_faction_first:
+                group4 = group3 + ["size"]
+                lvl4 = df.groupby(group4, observed=True)[value_col].sum() \
+                    .reset_index()
+                for row in lvl4.itertuples(index=False):
+                    sb.add(f"{row[3]} {row[2]} {row[0]} {row[1]}",
+                           str(row[3]), f"{row[2]} {row[0]} {row[1]}",
+                           float(row[4]), _faction_colour(ref, row[2], 1))
+        sb.annotate_amounts(unit)
         return sb.figure(title)
 
     title = "Station modules per sector"
@@ -245,7 +261,8 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
     st = universe_subset(frames.universe["class"] == "station")
     st["modules"] = pd.to_numeric(st["modules"], errors="coerce").fillna(1)
     emit(composition_sunburst(st, "modules", title,
-                              "Station modules<br>per sector"), title)
+                              "Station modules<br>per sector", "modules"),
+         title)
 
     title = "Ship hull mass per sector"
     log("->", title)
@@ -256,22 +273,26 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
     sh["value"] = pd.to_numeric(sh["macro"].map(mass_map),
                                 errors="coerce").fillna(1.0)
     emit(composition_sunburst(sh, "value", title,
-                              "Ship hull mass<br>per sector", with_size=True),
+                              "Ship hull mass<br>per sector", "t",
+                              with_size=True),
          title)
 
-    title = "Activity per faction"
+    # the old "Activity per faction" chart blended ship hull mass with
+    # station mass ÷ 10 — stations dominated and the unit meant nothing;
+    # split into two concretely-countable faction-first charts instead
+    title = "Station modules per faction per sector"
     log("->", title)
-    act = universe_subset(
-        (frames.universe["class"] == "station")
-        | frames.universe["class"].str.contains("ship"))
-    act["size"] = (act["class"].str.replace("ship_", "").str.upper()
-                   .where(act["class"] != "station", "STATION"))
-    act = act[act["size"] != "XS"]
-    act["value"] = pd.to_numeric(act["macro"].map(mass_map), errors="coerce")
-    station_mass = pd.to_numeric(act["mass"], errors="coerce") / 10.0
-    act.loc[act["size"] == "STATION", "value"] = station_mass
-    act["value"] = act["value"].fillna(1.0)
-    emit(composition_sunburst(act, "value", title, "Activity<br>per faction",
+    emit(composition_sunburst(st, "modules", title,
+                              "Station modules<br>per faction", "modules",
+                              by_faction_first=True, three_levels=False),
+         title)
+
+    title = "Ships per faction per sector"
+    log("->", title)
+    shc = sh.copy()
+    shc["count"] = 1.0
+    emit(composition_sunburst(shc, "count", title,
+                              "Ships<br>per faction", "ships",
                               by_faction_first=True), title)
 
     # -- fleet composition (R 1462-1497) --------------------------------------
@@ -284,14 +305,17 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
 
 def _fleet_sunburst(frames: Frames, ref: RefData, title: str):
     sectors = frames.sectors.set_index("id")
-    wings, ships, stations = frames.wings, frames.ships, frames.stations
+    wings, stations = frames.wings, frames.stations
+    # escape pods (XS) are not orderable and just clutter the sectors
+    ships = frames.ships[frames.ships["size"].astype(str) != "XS"]
     sb = Sunburst()
 
     def sector_colour(sector_id, level):
         owner = sectors["owner"].get(sector_id, "")
         return _owner_colour(ref, owner, level)
 
-    used_sectors = frames.playerowned["sector.id"].unique()
+    used_sectors = pd.unique(pd.concat(
+        [ships["sector.id"], stations["sector.id"]], ignore_index=True))
     for sid in used_sectors:
         name = sectors["name"].get(sid)
         owner = sectors["owner"].get(sid, "")

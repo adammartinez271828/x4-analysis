@@ -73,7 +73,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 def _iframe(src: str, style: str, lazy: bool) -> str:
     attr = f'data-src="{src}"' if lazy else f'src="{src}"'
-    return f'<iframe {attr} style="{style}" scrolling="no"></iframe>'
+    return (f'<iframe {attr} style="{style}" scrolling="no" '
+            'allowfullscreen allow="fullscreen"></iframe>')
 
 
 def _categorize_sunburst(src: str) -> str:
@@ -81,7 +82,7 @@ def _categorize_sunburst(src: str) -> str:
     if "fleet composition" in name:
         return "Fleet"
     if ("resource" in name or "station modules" in name
-            or "hull mass" in name or "activity" in name):
+            or "hull mass" in name or "ships per faction" in name):
         return "Universe"
     return "Trade Breakdown"
 
