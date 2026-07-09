@@ -90,6 +90,43 @@ def test_destroyed():
     assert out.iloc[0]["killer"] == "XEN K"
 
 
+def test_ship_resupply_v9_details_in_text():
+    # real v9 entry (user save): title is bare, details live in the text,
+    # and the payment line says "paid the station"
+    df = log_df([{
+        "time": 1826462.355, "category": "upkeep",
+        "title": "Ship resupplied", "money": 42297500.0,
+        "text": ("ZYA Representative Envoy (XMI-099) finished resupplying "
+                 "at station: ARC Areus Equipment Dock I (OBD-539). They "
+                 "have paid the station 422,975 Cr."),
+    }])
+    out = logparse.parse_ship_services(
+        df, "Ship resupplied", " finished resupplying at station: ",
+        "Ship resupply")
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["seller.name"] == "ARC Areus Equipment Dock I"
+    assert row["seller.code"] == "OBD-539"
+    assert row["buyer.faction"] == "ZYA"
+    assert row["buyer.code"] == "XMI-099"
+    assert row["money"] == 422975
+
+
+def test_ship_resupply_old_details_in_title():
+    # pre-v9 style: the details WERE the title
+    df = log_df([{
+        "time": 100.0, "category": "upkeep", "money": 100000.0,
+        "title": ("ARG Ship (AAA-111) finished resupplying at station: "
+                  "Depot (BBB-222). They have paid 1,000 Cr."),
+    }])
+    out = logparse.parse_ship_services(
+        df, ("ARG Ship (AAA-111) finished resupplying at station: "
+             "Depot (BBB-222). They have paid 1,000 Cr."),
+        " finished resupplying at station: ", "Ship resupply")
+    assert len(out) == 1
+    assert out.iloc[0]["seller.code"] == "BBB-222"
+
+
 def test_ship_services_unmatched_wording_skips_and_dumps(capsys):
     # title matches but the text wording differs (v9 drift seen in the
     # wild): the split phrase is absent from every row

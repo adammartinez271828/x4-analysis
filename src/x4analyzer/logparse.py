@@ -51,13 +51,17 @@ def parse_ship_services(df_log: pd.DataFrame, title: str, split_text: str,
     if df.empty:
         return _empty(SALE_COLS)
     df = df.copy()
-    # resupply entries carry the details in the title in some versions; the
-    # R script parsed title for resupply and text otherwise
-    source = df["title"] if commodity == "Ship resupply" else df["text"]
-    source = source.fillna("")
+    # resupply entries carried the details in the title in older game
+    # versions but in the text in v9 — use whichever matches per row
+    title_src = df["title"].fillna("")
+    text_src = (df["text"] if "text" in df
+                else pd.Series("", index=df.index)).fillna("")
+    source = text_src.where(
+        text_src.str.contains(split_text, regex=False), title_src)
 
     ok = source.str.contains(split_text, regex=False)
-    _dump_unparsed(f"'{title}' log entries", source[~ok])
+    _dump_unparsed(f"'{title}' log entries",
+                   (title_src + " :: " + text_src)[~ok])
     df, source = df[ok], source[ok]
     if df.empty:
         return _empty(SALE_COLS)
