@@ -275,12 +275,17 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
               for n in labels["altname"]],
         textfont={"size": 8, "color": "rgba(240,240,96,0.63)"})
 
+    # the legend lives in a dedicated right-hand strip (outside the plot
+    # area) so it never overlaps sectors; the plot area stays the exact
+    # 1536x864 the marker px sizes are tuned for
+    legend_w = 220
     fig.update_layout(
-        width=1536, height=864, autosize=False,
+        width=1536 + legend_w, height=864, autosize=False,
         paper_bgcolor=DARK_BG, plot_bgcolor=DARK_BG,
-        margin={"b": 0, "l": 0, "r": 0, "t": 0},
-        legend={"x": 0.0, "y": 1.0, "itemsizing": "constant",
-                "groupclick": "toggleitem", "orientation": "h",
+        margin={"b": 0, "l": 0, "r": legend_w, "t": 0},
+        legend={"x": 1.0, "y": 0.96, "xanchor": "left", "yanchor": "top",
+                "itemsizing": "constant",
+                "groupclick": "toggleitem",
                 "traceorder": "grouped",
                 "font": {"size": 13, "color": "#b0b0b0"},
                 "bgcolor": "rgba(30,30,30,0)"},
