@@ -197,14 +197,15 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              if connection])  # no @connection = not in the universe tree
 
         # fleet hierarchy, resolved once: follower's <connected> conn ref
-        # matched to the commander's "subordinates" connection id
-        leader_by_conn = {conn_id: leader
-                          for leader, conn_id in save.subordinate_conns}
-        edges: dict[str, str] = {}
+        # matched to the commander's "subordinates" connection id (rows in
+        # commander order, like the frames.wings merge always produced)
+        followers_by_conn: dict[str, list] = {}
         for follower, conn_ref in save.commander_links:
-            leader = leader_by_conn.get(conn_ref)
-            if leader and follower not in edges:
-                edges[follower] = leader
+            followers_by_conn.setdefault(conn_ref, []).append(follower)
+        edges: dict[str, str] = {}
+        for leader, conn_id in save.subordinate_conns:
+            for follower in followers_by_conn.get(conn_id, ()):
+                edges.setdefault(follower, leader)
         conn.executemany(
             "INSERT INTO fleet_edge VALUES (?,?,?)",
             [(save_id, follower, leader)
@@ -274,7 +275,9 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
 
         conn.executemany(
             "INSERT INTO trade_offer VALUES (?,?,?,?,?,?)",
-            [(save_id, _s(oid), side, ware, amount, price_cr)
+            # object_id is NOT NULL per the schema doc: hostless offers
+            # keep the parser's "" so modded saves load, never fail
+            [(save_id, oid or "", side, ware, amount, price_cr)
              for oid, side, ware, amount, price_cr in save.trade_offers])
 
         conn.executemany(
@@ -356,8 +359,10 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict]) -> None:
                        _s(t.get("seller")), _f(t.get("price")) / 100.0,
                        _f(t.get("v")), raw))
         elif t.get("owner") and not t.get("buyer"):
+            # absent v means an empty stock, not unknown (the game omits
+            # default attrs); NULL would punch holes into the LAG deltas
             stock.append((time, t["owner"], t.get("ware") or "",
-                          _f(t.get("v")), raw))
+                          _f(t.get("v")) or 0.0, raw))
 
     _merge_window(conn, "trade_tx", tx)
     _merge_window(conn, "stock_event", stock)

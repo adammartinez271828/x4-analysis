@@ -3,10 +3,17 @@
 Faithful port of the df.* logic in X4SaveGameAnalysis.R (line references in
 comments). Column names keep the R script's dotted style so anyone familiar
 with the original finds their way around.
+
+World-state and stock-delta frames read from the analysis database
+(store.py writes it before this runs); SQL NULLs are normalized back to the
+frames' historic empty-string convention so downstream code is unchanged.
+The log/tradelog frames still come from the csv.gz caches while those are
+dual-written (see caches.py).
 """
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -57,9 +64,10 @@ class Frames:
     def built_modules(self) -> pd.DataFrame:
         """station_modules restricted to entries whose module actually
         exists (a component references the entry and is out of
-        construction); entries without ids are kept defensively."""
+        construction); entries without ids are kept defensively. The flag
+        is resolved at database load time (v_built_module semantics)."""
         m = self.station_modules
-        return m[m["entry"].isin(self.built_refs) | (m["entry"] == "")]
+        return m[m["built"] == 1]
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
 
     resource_cols: list = field(default_factory=list)
@@ -78,24 +86,37 @@ def _faction_levels(ref: RefData) -> list[str]:
     return levels
 
 
-def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
+_CUR = "(SELECT MAX(save_id) FROM save)"
+
+
+def _read(conn: sqlite3.Connection, sql: str,
+          fill: list[str] = ()) -> pd.DataFrame:
+    """read_sql with SQL NULLs in `fill` columns normalized back to the
+    frames' historic empty-string convention."""
+    df = pd.read_sql(sql, conn)
+    for col in fill:
+        df[col] = df[col].fillna("")
+    return df
+
+
+def build_frames(save: SaveData, ref: RefData, cfg: Config,
+                 conn: sqlite3.Connection) -> Frames:
     faction_levels = _faction_levels(ref)
 
     # ---- universe (R 353-369) ---------------------------------------------
     log("Preparing universe components -> universe")
-    universe = pd.DataFrame(save.components, columns=[
-        "id", "class", "macro", "name", "code", "owner", "knownto",
-        "contested", "connection", "spawntime",
-        "cluster.id", "cluster.macro", "sector.id", "sector.macro",
-        "basename", "parent.id",
-    ])
-    universe["macro"] = universe["macro"].str.lower()
-    universe = universe[universe["connection"] != ""].reset_index(drop=True)
-    for col in ("name", "basename"):
-        needs_resolve = universe[col].str.contains("{", regex=False, na=False)
-        universe.loc[needs_resolve, col] = universe.loc[needs_resolve, col].map(
-            ref.resolve_name
-        )
+    # macros lowercased, {page,id} name refs resolved, and non-universe
+    # components (no @connection) filtered at database load time
+    universe = _read(conn, f"""
+        SELECT id, class, macro, name, code, owner, knownto, contested,
+               spawntime, cluster_id AS "cluster.id",
+               cluster_macro AS "cluster.macro", sector_id AS "sector.id",
+               sector_macro AS "sector.macro", basename,
+               parent_id AS "parent.id"
+        FROM component WHERE save_id = {_CUR} ORDER BY rowid""",
+        fill=["macro", "name", "code", "owner", "knownto", "cluster.id",
+              "cluster.macro", "sector.id", "sector.macro", "basename",
+              "parent.id"])
 
     # ---- sectors + resources (R 371-415, adapted to the v9 save format) ---
     log("Preparing sector info -> sectors")
@@ -110,8 +131,10 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
                                          ).fillna(0).astype(int)
 
     resource_cols: list[str] = []
-    if save.resources:
-        res = pd.DataFrame(save.resources, columns=["macro", "ware", "yield"])
+    res = _read(conn, f"""
+        SELECT sector_macro AS macro, ware, yield FROM resource
+        WHERE save_id = {_CUR} ORDER BY rowid""")
+    if not res.empty:
         pivot = res.pivot_table(index="macro", columns="ware", values="yield",
                                 aggfunc="sum", fill_value=0.0).reset_index()
         resource_cols = [c for c in pivot.columns if c != "macro"]
@@ -128,49 +151,35 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
 
     # ---- fleet hierarchy (R 422-436) --------------------------------------
     log("Preparing fleet hierarchies -> wings")
-    followers = pd.DataFrame(save.commander_links,
-                             columns=["follower", "conn.id"])
-    leaders = pd.DataFrame(save.subordinate_conns,
-                           columns=["leader", "conn.id"])
-    wings = leaders.merge(followers, on="conn.id")[["leader", "follower"]]
+    wings = _read(conn, f"""
+        SELECT commander_id AS leader, follower_id AS follower
+        FROM fleet_edge WHERE save_id = {_CUR} ORDER BY rowid""")
     owned = set(playerowned["id"])
     wings = wings[wings["follower"].isin(owned) & wings["leader"].isin(owned)]
-    wings = wings.drop_duplicates(["follower", "leader"]).reset_index(drop=True)
+    wings = wings[["leader", "follower"]].reset_index(drop=True)
 
     # ---- NPCs (R 438-454) --------------------------------------------------
     log("Preparing player employed NPCs -> npcs")
-    npc_rows = []
-    for nid, name, code, _owner, skills in save.npcs:
-        npc_rows.append({
-            "id": nid, "name": name, "code": code,
-            "piloting": skills.get("piloting"),
-            "engineering": skills.get("engineering"),
-            "boarding": skills.get("boarding"),
-            "management": skills.get("management"),
-            "morale": skills.get("morale"),
-        })
-    npcs = pd.DataFrame(npc_rows, columns=[
-        "id", "name", "code", "piloting", "engineering", "boarding",
-        "management", "morale",
-    ])
+    npcs = _read(conn, """
+        SELECT id, name, code, piloting, engineering, boarding, management,
+               morale
+        FROM v_npc""", fill=["name", "code"])
     npcs["role"] = pd.NA
 
     # ---- posts / workforce / modules lookups ------------------------------
-    posts = pd.DataFrame(save.posts, columns=["object.id", "post", "npc.id"])
+    posts = _read(conn, f"""
+        SELECT object_id AS "object.id", post, npc_id AS "npc.id"
+        FROM post WHERE save_id = {_CUR} ORDER BY rowid""")
     posts = posts.drop_duplicates(["object.id", "post"])
     post_pivot = posts.pivot(index="object.id", columns="post", values="npc.id")
 
-    module_list = pd.DataFrame(
-        save.modules,
-        columns=["id", "index", "macro", "entry", "method"])
-    # stations carry their build plan twice (construction sequence + the
-    # expand queue repeats the same entry ids) — count each entry once
-    # per host or every module-derived number doubles
-    has_entry = module_list["entry"].ne("")
-    module_list = pd.concat([
-        module_list[has_entry].drop_duplicates(subset=["id", "entry"]),
-        module_list[~has_entry],
-    ], ignore_index=True)
+    # build-plan entries were deduped per (host, entry) at database load
+    # (stations list their plan twice: construction sequence + expand queue)
+    module_list = _read(conn, f"""
+        SELECT host_id AS id, idx AS "index", macro, entry_id AS entry,
+               build_method AS method, built
+        FROM module WHERE save_id = {_CUR} ORDER BY rowid""",
+        fill=["macro", "entry", "method"])
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
 
@@ -209,7 +218,10 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     # ---- stations (R 483-527) ----------------------------------------------
     log("Preparing player owned stations -> stations")
     stations = playerowned[playerowned["class"] == "station"].copy()
-    stations = stations.drop(columns=["connection", "spawntime"])
+    stations = stations.drop(columns=["spawntime"])
+    workforce_all = _read(conn, f"""
+        SELECT station_id AS id, race, amount FROM workforce
+        WHERE save_id = {_CUR} ORDER BY rowid""")
     if not stations.empty:
         for post in ("manager", "engineer", "shiptrader"):
             if post in post_pivot.columns:
@@ -219,10 +231,10 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
                 )
             else:
                 stations[f"{post}.id"] = pd.NA
-        wf = pd.DataFrame(save.workforce, columns=["id", "race", "amount"])
-        if not wf.empty:
-            wf = wf.pivot_table(index="id", columns="race", values="amount",
-                                aggfunc="sum", fill_value=0)
+        if not workforce_all.empty:
+            wf = workforce_all.pivot_table(index="id", columns="race",
+                                           values="amount", aggfunc="sum",
+                                           fill_value=0)
             wf.columns = [f"workforce.{race}" for race in wf.columns]
             stations = stations.merge(wf, left_on="id", right_index=True,
                                       how="left")
@@ -247,10 +259,10 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
     ships["name"] = (ships["name"].replace("", pd.NA)
                      .fillna(ships["model"]).fillna(ships["macro"]))
     # crew complement: service crew + marines aboard vs the model's capacity
-    crew_counts: dict[str, int] = {}
-    for (oid, role), n in save.people.items():
-        if role in ("service", "marine"):
-            crew_counts[oid] = crew_counts.get(oid, 0) + n
+    people = _read(conn, f"""
+        SELECT object_id, role, count FROM people WHERE save_id = {_CUR} ORDER BY rowid""")
+    crew_counts = (people[people["role"].isin(("service", "marine"))]
+                   .groupby("object_id")["count"].sum())
     ships["crew.have"] = (ships["id"].map(crew_counts)
                           .fillna(0).astype(int))
     crew_map = dict(zip(ref.ships["macro"],
@@ -356,23 +368,18 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
 
     player_faction_name = ref.resolve_name(save.player_faction_name) or "Player"
 
-    # universe-wide trade events: economylog entries with owner but no
-    # buyer/seller pair (volume only; every faction, whole campaign)
-    gt = pd.DataFrame([t for t in save.trades
-                       if t.get("owner") and not t.get("buyer")])
+    # universe-wide trade events: owner-only economylog entries (volume
+    # only; every faction; the merged stock_event history, so the window
+    # grows beyond the save's own once older runs contributed). v is the
+    # station's stock level logged after each trade, NOT a trade amount;
+    # delivered volume = positive stock increases between consecutive
+    # snapshots (v_stock_delta), an upper-ish estimate of traded volume.
+    # dv_neg = stock leaving the station (consumption, construction, sales).
+    gt = _read(conn, """
+        SELECT owner_id AS owner, ware, time, level AS v, dv, dv_neg
+        FROM v_stock_delta ORDER BY time""")
     if not gt.empty:
-        gt = gt[["time", "owner", "ware", "v"]].copy()
-        gt["time"] = pd.to_numeric(gt["time"], errors="coerce")
-        gt["v"] = pd.to_numeric(gt["v"], errors="coerce").fillna(0)
-        # v is the station's stock level logged after each trade, NOT a trade
-        # amount; delivered volume = positive stock increases between
-        # consecutive snapshots (includes some production accumulation, so
-        # it's an upper-ish estimate of traded volume)
-        gt = gt.sort_values("time", kind="stable")
-        diff = gt.groupby(["owner", "ware"])["v"].diff()
-        gt["dv"] = diff.clip(lower=0).fillna(0.0)
-        # stock leaving the station (consumption, construction draw, sales)
-        gt["dv_neg"] = (-diff.clip(upper=0)).fillna(0.0)
+        gt[["dv", "dv_neg"]] = gt[["dv", "dv_neg"]].fillna(0.0)
         uni_idx = universe.set_index("id")
         gt["faction"] = (gt["owner"].map(uni_idx["owner"])
                          .map(ref.faction_short).fillna(OTHER_FACTION))
@@ -381,8 +388,9 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         gt["sector.macro"] = gt["owner"].map(uni_idx["sector.macro"])
         # stations destroyed since the trades happened are gone from the
         # universe tree, but the economylog <removed> catalog keeps their
-        # identity — resolve them and mark with a dagger
-        rem = pd.DataFrame(save.removed_objects)
+        # identity — resolve them and mark with a dagger (the merged table
+        # covers owners the current save's window no longer mentions)
+        rem = _read(conn, "SELECT id, name, code, owner FROM removed_object")
         gt["destroyed"] = False
         if not rem.empty and "id" in rem.columns:
             rem = rem.drop_duplicates("id").set_index("id")
@@ -416,28 +424,37 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
                                    "dv_neg", "faction", "station",
                                    "station.code", "sector.macro", "label"])
 
+    orders = _read(conn, f"""
+        SELECT object_id AS id, order_name AS "order",
+               is_default AS "default", state
+        FROM ship_order WHERE save_id = {_CUR} ORDER BY rowid""", fill=["state"])
+    orders["default"] = orders["default"].astype(bool)
+
     return Frames(
         universe=universe, sectors=sectors, playerowned=playerowned,
         wings=wings, npcs=npcs, stations=stations, ships=ships, log=df_log,
         tradelog=tradelog, sales=sales, buys=buys, destroyed=destroyed,
         transfers=transfers, pirates=pirates, police=police,
         station_modules=module_list, global_trades=gt,
-        station_cargo=pd.DataFrame(save.cargo,
-                                   columns=["id", "ware", "amount"]),
-        workforce_all=pd.DataFrame(save.workforce,
-                                   columns=["id", "race", "amount"]),
-        build_demand=pd.DataFrame(save.build_resources,
-                                  columns=["id", "ware", "amount", "kind"]),
-        trade_offers=pd.DataFrame(
-            save.trade_offers,
-            columns=["id", "side", "ware", "amount", "price"]),
-        orders=pd.DataFrame(save.orders,
-                            columns=["id", "order", "default", "state"]),
+        station_cargo=_read(conn, f"""
+            SELECT object_id AS id, ware, amount FROM cargo
+            WHERE save_id = {_CUR} ORDER BY rowid"""),
+        workforce_all=workforce_all,
+        build_demand=_read(conn, f"""
+            SELECT host_id AS id, ware, amount, kind FROM build_resource
+            WHERE save_id = {_CUR} ORDER BY rowid""", fill=["id"]),
+        trade_offers=_read(conn, f"""
+            SELECT object_id AS id, side, ware, amount, price_cr AS price
+            FROM trade_offer WHERE save_id = {_CUR} ORDER BY rowid"""),
+        orders=orders,
         built_refs=set(save.built_refs),
-        module_upgrades=pd.DataFrame(save.module_upgrades,
-                                     columns=["entry", "macro"]),
-        floating_wares=pd.DataFrame(save.floating_wares,
-                                    columns=["sector.macro", "ware", "amount"]),
+        module_upgrades=_read(conn, f"""
+            SELECT entry_id AS entry, equipment_macro AS macro
+            FROM module_upgrade WHERE save_id = {_CUR} ORDER BY rowid"""),
+        floating_wares=_read(conn, f"""
+            SELECT sector_macro AS "sector.macro", ware, amount
+            FROM floating_ware WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["sector.macro"]),
         resource_cols=resource_cols, faction_levels=faction_levels,
         time_now=time_now, logged_hours=logged_hours,
         player_faction_name=player_faction_name,

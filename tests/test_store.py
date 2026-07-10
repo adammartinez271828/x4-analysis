@@ -271,6 +271,16 @@ def test_stock_merge_window_cutoff(conn):
         == [(100.0, 10.0), (200.0, 35.0), (300.0, 60.0)]
 
 
+def test_stock_missing_level_is_zero(conn):
+    # the game omits default attrs: no v = empty stock, not unknown
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[{"time": "10.0", "ware": "ice", "owner": "[0x9]"}]))
+    assert conn.execute("SELECT level FROM stock_event").fetchall() \
+        == [(0.0,)]
+
+
 def test_removed_merge_appends_unseen(conn):
     store.merge_events(conn, events_save(removed=[
         {"id": "115", "owner": "teladi", "name": "TEL Trader",
@@ -352,6 +362,76 @@ def test_dual_write_tradelog_equivalence(cfg, conn):
     assert {r[0] for r in conn.execute("SELECT ware FROM trade_tx")} \
         == {"energycells"}
     assert set(csv_merged["commodity"]) == {"Energy Cells"}
+
+
+# ---- views + the frames.py port (phase 3) -----------------------------------
+
+def test_v_fleet(conn):
+    assert conn.execute("SELECT ship, cmdr, depth, is_root_edge FROM v_fleet"
+                        ).fetchall() == [("[0x30]", "[0x20]", 1, 1)]
+
+
+def test_v_npc(conn):
+    assert conn.execute(
+        "SELECT name, piloting, engineering, morale, boarding FROM v_npc"
+        ).fetchall() == [("Jane Doe", 9.0, 3.0, 7.0, None)]
+
+
+def test_v_built_module(conn):
+    # both fixture entries are planned, not built
+    assert count(conn, "v_built_module") == 0
+
+
+def test_v_universe(conn):
+    assert count(conn, "v_universe") == 4
+    assert conn.execute(
+        "SELECT sector_name FROM v_universe WHERE class = 'station'"
+        ).fetchone() == ("Grand Exchange I",)  # sector_ref resolved the macro
+
+
+def test_v_stock_delta(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    store.merge_events(conn, events_save(trades=[
+        stock_attrs("10.0", "100"), stock_attrs("20.0", "150"),
+        stock_attrs("30.0", "120"), stock_attrs("40.0", "200"),
+    ]))
+    rows = conn.execute("SELECT time, level, dv, dv_neg FROM v_stock_delta"
+                        " ORDER BY time").fetchall()
+    assert rows == [
+        (10.0, 100.0, None, None),   # no predecessor: no delta
+        (20.0, 150.0, 50.0, 0.0),
+        (30.0, 120.0, 0.0, 30.0),
+        (40.0, 200.0, 80.0, 0.0),
+    ]
+
+
+def test_build_frames_from_db(cfg, save_data, ref, conn):
+    from x4analyzer.frames import build_frames
+
+    frames = build_frames(save_data, ref, cfg, conn)
+
+    assert set(frames.universe["class"]) == {"cluster", "sector", "station",
+                                             "ship_s"}
+    ship = frames.universe[frames.universe["class"] == "ship_s"].iloc[0]
+    assert ship["parent.id"] == "[0x20]"
+    assert ship["cluster.id"] == "[0x10]" and ship["name"] == ""
+
+    assert frames.wings[["leader", "follower"]].values.tolist() \
+        == [["[0x20]", "[0x30]"]]
+    assert list(frames.npcs["name"]) == ["Jane Doe"]
+    assert frames.npcs.iloc[0]["piloting"] == 9.0
+
+    assert len(frames.station_modules) == 2
+    assert frames.built_modules.empty
+    assert list(frames.ships["crew.have"]) == [2]
+    assert list(frames.orders["default"]) == [True]
+    assert list(frames.trade_offers["price"]) == [1.0]
+    assert list(frames.sectors["ore"]) == [1000.0]
+
+    gt = frames.global_trades
+    assert list(gt["ware"]) == ["ice"] and "dv_neg" in gt.columns
+    assert list(frames.tradelog["commodity"]) == ["Energy Cells"]
 
 
 def test_bulk_insert_speed(cfg, save_data, ref):

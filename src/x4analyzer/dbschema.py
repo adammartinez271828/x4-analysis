@@ -281,6 +281,61 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_recipe ON recipe(ware, method)",
 )
 
-# (Re)created at every connect so definition updates propagate. Filled in
-# migration phase 3 (views for frames.py).
-VIEWS: dict[str, str] = {}
+# The frames.py replacement layer. (Re)created at every connect so
+# definition updates propagate; all filter to the current snapshot via
+# MAX(save_id). Joins are LEFT JOINs — dangling references are normal
+# (event history outlives objects; modded content references unknown ids).
+VIEWS: dict[str, str] = {
+    # resolved universe: names were resolved at load; adds sector display
+    # name and faction shortname
+    "v_universe": """CREATE VIEW v_universe AS
+SELECT c.*, s.name AS sector_name, f.shortname AS owner_code
+FROM component c
+LEFT JOIN sector_ref s ON s.macro = c.sector_macro
+LEFT JOIN faction f    ON f.id = c.owner
+WHERE c.save_id = (SELECT MAX(save_id) FROM save)""",
+    # transitive fleet membership
+    "v_fleet": """CREATE VIEW v_fleet AS
+WITH RECURSIVE chain(ship, cmdr, depth) AS (
+  SELECT follower_id, commander_id, 1 FROM fleet_edge
+   WHERE save_id = (SELECT MAX(save_id) FROM save)
+  UNION ALL
+  SELECT chain.ship, fe.commander_id, chain.depth + 1
+  FROM chain JOIN fleet_edge fe ON fe.follower_id = chain.cmdr
+   AND fe.save_id = (SELECT MAX(save_id) FROM save)
+)
+SELECT ship, cmdr, depth,
+       depth = (SELECT MAX(depth) FROM chain c2 WHERE c2.ship = chain.ship)
+         AS is_root_edge
+FROM chain""",
+    # market traded volume: positive stock deltas between consecutive
+    # owner-only snapshots (level/dv_neg beyond the schema doc: frames'
+    # Market actual-flows mode needs stock leaving the station too).
+    # Rows without a ware carry no delta information.
+    "v_stock_delta": """CREATE VIEW v_stock_delta AS
+SELECT owner_id, ware, time, level,
+       MAX(level - LAG(level) OVER w, 0) AS dv,
+       MAX(LAG(level) OVER w - level, 0) AS dv_neg
+FROM stock_event
+WHERE ware != ''
+WINDOW w AS (PARTITION BY owner_id, ware ORDER BY time, rowid)""",
+    # rowid breaks time ties in save order: stations log several stock
+    # levels within the same second, and an arbitrary tie order would
+    # reshuffle which deltas count as positive
+    # built modules only (measure reality, not plans — CLAUDE.md gotcha)
+    "v_built_module": """CREATE VIEW v_built_module AS
+SELECT * FROM module
+WHERE built = 1 AND save_id = (SELECT MAX(save_id) FROM save)""",
+    # wide NPC skills for the crew tables
+    "v_npc": """CREATE VIEW v_npc AS
+SELECT n.*,
+  MAX(CASE WHEN s.skill='piloting'    THEN s.value END) AS piloting,
+  MAX(CASE WHEN s.skill='engineering' THEN s.value END) AS engineering,
+  MAX(CASE WHEN s.skill='boarding'    THEN s.value END) AS boarding,
+  MAX(CASE WHEN s.skill='management'  THEN s.value END) AS management,
+  MAX(CASE WHEN s.skill='morale'      THEN s.value END) AS morale
+FROM npc n LEFT JOIN npc_skill s
+  ON s.save_id = n.save_id AND s.npc_id = n.id
+WHERE n.save_id = (SELECT MAX(save_id) FROM save)
+GROUP BY n.save_id, n.id""",
+}

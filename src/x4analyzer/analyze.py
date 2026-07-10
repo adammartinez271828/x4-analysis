@@ -28,7 +28,7 @@ def run_analysis(cfg: Config) -> int:
     store.write_snapshot(conn, save, ref, save_file)
     store.merge_events(conn, save)
 
-    frames = build_frames(save, ref, cfg)
+    frames = build_frames(save, ref, cfg, conn)
     store.write_derived(conn, frames)
     conn.close()
 
