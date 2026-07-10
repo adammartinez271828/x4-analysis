@@ -17,6 +17,7 @@ Load rules worth calling out:
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from datetime import datetime, timezone
@@ -297,6 +298,99 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for sector, ware, amount in save.floating_wares])
 
     return save_id
+
+
+# ---- event history (E: merged across runs, replaces the csv.gz caches) -----
+
+def merge_events(conn: sqlite3.Connection, save: SaveData) -> None:
+    """Merge the save's rolling log/economylog windows into the event
+    tables. Semantics ported from caches.py (one transaction per table, so
+    a crash never half-merges; running twice on the same save is a no-op):
+
+    - log_entry: per category, cached entries at or after that category's
+      oldest new timestamp are replaced by the new window.
+    - trade_tx/stock_event: cached entries newer than the oldest new
+      timestamp are replaced (the new window is authoritative from there).
+    - removed_object: cumulative catalog, append unseen objects.
+    """
+    _merge_log(conn, save.log_entries)
+    _merge_trades(conn, save.trades)
+    _merge_removed(conn, save.removed_objects)
+
+
+def _merge_log(conn: sqlite3.Connection, entries: list[dict]) -> None:
+    rows = list(dict.fromkeys(  # dedupe on the full natural row
+        (_f(e.get("time")) or 0.0, _s(e.get("category")), _s(e.get("title")),
+         _s(e.get("text")), _s(e.get("faction")),
+         _f(e.get("money")) / 100.0 if _f(e.get("money")) is not None
+         else None,
+         _s(e.get("interaction")), _s(e.get("component")),
+         _s(e.get("highlighted")), json.dumps(e, sort_keys=True))
+        for e in entries))
+    if not rows:
+        return
+    mintime: dict = {}
+    for r in rows:
+        t, cat = r[0], r[1]
+        if cat not in mintime or t < mintime[cat]:
+            mintime[cat] = t
+    with conn:
+        for cat, mt in mintime.items():
+            conn.execute(
+                "DELETE FROM log_entry WHERE category IS ? AND time >= ?",
+                (cat, mt))
+        conn.executemany(
+            "INSERT INTO log_entry VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+
+
+def _merge_trades(conn: sqlite3.Connection, trades: list[dict]) -> None:
+    # the economylog's type="trade" entries are two different record types:
+    # real transactions (buyer AND seller AND price; v is a traded amount)
+    # vs owner-only stock snapshots (v is the level AFTER a trade)
+    tx, stock = [], []
+    for t in trades:
+        raw = json.dumps(t, sort_keys=True)
+        time = _f(t.get("time")) or 0.0
+        if t.get("buyer") and t.get("seller") and t.get("price"):
+            tx.append((time, t.get("ware") or "", _s(t.get("buyer")),
+                       _s(t.get("seller")), _f(t.get("price")) / 100.0,
+                       _f(t.get("v")), raw))
+        elif t.get("owner") and not t.get("buyer"):
+            stock.append((time, t["owner"], t.get("ware") or "",
+                          _f(t.get("v")), raw))
+
+    _merge_window(conn, "trade_tx", tx)
+    _merge_window(conn, "stock_event", stock)
+
+
+def _merge_window(conn: sqlite3.Connection, table: str,
+                  rows: list[tuple]) -> None:
+    # Replacing at >= mintime (not >) reproduces the csv cache's observable
+    # results without its name-based dedupe key, which the raw tables can't
+    # express (component ids drift between saves, so the boundary row would
+    # otherwise duplicate on every run). The one divergence: a cached entry
+    # at exactly mintime that the game itself dropped is lost here, where
+    # the csv kept it.
+    if not rows:
+        return
+    mintime = min(r[0] for r in rows)
+    ph = ",".join("?" * len(rows[0]))
+    with conn:
+        conn.execute(f"DELETE FROM {table} WHERE time >= ?", (mintime,))
+        conn.executemany(f"INSERT INTO {table} VALUES ({ph})", rows)
+
+
+def _merge_removed(conn: sqlite3.Connection, objects: list[dict]) -> None:
+    rows = [(_f(o.get("time")), _s(o.get("id")), _s(o.get("name")),
+             _s(o.get("code")), _s(o.get("owner")),
+             json.dumps(o, sort_keys=True))
+            for o in objects]
+    with conn:
+        conn.executemany(
+            "INSERT INTO removed_object SELECT ?,?,?,?,?,? WHERE NOT EXISTS"
+            " (SELECT 1 FROM removed_object"
+            "  WHERE id IS ? AND name IS ? AND code IS ? AND owner IS ?)",
+            [r + (r[1], r[2], r[3], r[4]) for r in rows])
 
 
 # ---- derived tables (D: logparse output, rebuilt every run) -----------------

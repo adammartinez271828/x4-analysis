@@ -36,6 +36,7 @@ def conn(cfg, save_data, ref):
     conn = store.open_db(cfg, save_data.guid)
     store.write_reference(conn, ref)
     store.write_snapshot(conn, save_data, ref, "save.xml")
+    store.merge_events(conn, save_data)
     yield conn
     conn.close()
 
@@ -62,6 +63,11 @@ EXPECTED_COUNTS = {
     "ship_order": 1,
     "resource": 2,
     "floating_ware": 1,
+    # event history (merged, not rebuilt)
+    "trade_tx": 1,
+    "stock_event": 1,
+    "log_entry": 1,
+    "removed_object": 1,
 }
 
 
@@ -160,6 +166,192 @@ def test_schema_version_reset_keeps_event_tables(cfg, save_data, ref):
     assert conn.execute("SELECT value FROM meta WHERE key='schema_version'"
                         ).fetchone()[0] != "0"
     conn.close()
+
+
+# ---- event-history merges (phase 2) ----------------------------------------
+
+def events_save(log=(), trades=(), removed=()):
+    from x4analyzer.saveparser import SaveData
+    s = SaveData()
+    s.log_entries = list(log)
+    s.trades = list(trades)
+    s.removed_objects = list(removed)
+    return s
+
+
+def dump(conn, table):
+    return sorted(map(repr, conn.execute(f"SELECT * FROM {table}")))
+
+
+def test_event_values(conn):
+    assert conn.execute(
+        "SELECT time, ware, buyer_id, seller_id, price_cr, amount"
+        " FROM trade_tx").fetchall() == [
+        (10.5, "energycells", "[0x20]", "[0x77]", 16.0, 100.0)]
+    assert conn.execute(
+        "SELECT time, owner_id, ware, level FROM stock_event").fetchall() \
+        == [(11.0, "[0x20]", "ice", 50.0)]
+    assert conn.execute(
+        "SELECT time, category, title FROM log_entry").fetchall() == [
+        (100.0, "upkeep", "Test entry")]
+    assert conn.execute(
+        "SELECT id, name, owner FROM removed_object").fetchall() == [
+        ("115", "TEL Trader", "teladi")]
+
+
+def test_merge_idempotent(conn, save_data):
+    before = {t: dump(conn, t) for t in
+              ("trade_tx", "stock_event", "log_entry", "removed_object")}
+    store.merge_events(conn, save_data)
+    for table, rows in before.items():
+        assert dump(conn, table) == rows, table
+
+
+def test_log_merge_replaces_per_category_window(conn):
+    def entry(time, category, title):
+        e = {"time": time, "title": title, "text": "t"}
+        if category:
+            e["category"] = category
+        return e
+
+    store.merge_events(conn, events_save(log=[
+        entry("10.0", "", "old news"), entry("20.0", "upkeep", "old upkeep"),
+    ]))
+    # second run: the game dropped the old "" entry and has new ones;
+    # upkeep window now starts at 15 -> cached upkeep >= 15 is replaced
+    store.merge_events(conn, events_save(log=[
+        entry("30.0", "", "new news"),
+        entry("15.0", "upkeep", "reissued upkeep"),
+    ]))
+    titles = {r[0] for r in conn.execute(
+        "SELECT title FROM log_entry WHERE time < 100")}
+    assert titles == {"old news", "new news", "reissued upkeep"}
+
+
+def trade_attrs(time, buyer="[0x2]", seller="[0x1]"):
+    return {"time": time, "ware": "energycells", "buyer": buyer,
+            "seller": seller, "price": "1500", "v": "100"}
+
+
+def stock_attrs(time, level, owner="[0x9]"):
+    return {"time": time, "ware": "energycells", "owner": owner, "v": level}
+
+
+def test_trade_merge_keeps_history_and_dedupes_drifted_ids(conn):
+    conn.execute("DELETE FROM trade_tx")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[trade_attrs("100.0"), trade_attrs("200.0")]))
+    # next run, same playthrough: runtime component ids were reassigned,
+    # and the game dropped nothing yet — the t=100/200 trades recur with
+    # new ids and must not accrete as duplicates
+    store.merge_events(conn, events_save(trades=[
+        trade_attrs("100.0", "[0x888]", "[0x999]"),
+        trade_attrs("200.0", "[0x888]", "[0x999]"),
+        trade_attrs("300.0", "[0x888]", "[0x999]"),
+    ]))
+    assert [r[0] for r in conn.execute(
+        "SELECT time FROM trade_tx ORDER BY time")] == [100.0, 200.0, 300.0]
+    # and the surviving copies are the fresh ones (current save's ids)
+    assert {r[0] for r in conn.execute("SELECT buyer_id FROM trade_tx")} \
+        == {"[0x888]"}
+
+
+def test_stock_merge_window_cutoff(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+    # the fresh window is authoritative from its oldest entry on: the old
+    # t=200 level was superseded
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("200.0", "35"), stock_attrs("300.0", "60")]))
+    assert conn.execute(
+        "SELECT time, level FROM stock_event ORDER BY time").fetchall() \
+        == [(100.0, 10.0), (200.0, 35.0), (300.0, 60.0)]
+
+
+def test_removed_merge_appends_unseen(conn):
+    store.merge_events(conn, events_save(removed=[
+        {"id": "115", "owner": "teladi", "name": "TEL Trader",
+         "code": "TDR-001"},   # already present from the fixture merge
+        {"id": "116", "owner": "argon", "name": "ARG Miner",
+         "code": "MIN-002"},
+    ]))
+    assert count(conn, "removed_object") == 2
+
+
+# ---- dual-write equivalence: SQL merge == csv.gz merge (phase 2) ------------
+
+def test_dual_write_log_equivalence(cfg, conn):
+    from x4analyzer.caches import merge_log_cache
+    import pandas as pd
+
+    conn.execute("DELETE FROM log_entry")
+    conn.commit()
+    windows = [
+        [("10.0", "", "old news"), ("20.0", "upkeep", "old upkeep")],
+        [("30.0", "", "new news"), ("15.0", "upkeep", "reissued upkeep")],
+    ]
+    for w in windows:
+        df = pd.DataFrame(
+            [(float(t), c, title, "t", None, None) for t, c, title in w],
+            columns=["time", "category", "title", "text", "money",
+                     "component"])
+        csv_merged = merge_log_cache(cfg, "CSVEQ", df)
+        store.merge_events(conn, events_save(log=[
+            {"time": t, "category": c, "title": title, "text": "t"}
+            for t, c, title in w]))
+
+    sql_rows = sorted(
+        (t, c or "", title, text)
+        for t, c, title, text in conn.execute(
+            "SELECT time, category, title, text FROM log_entry"))
+    csv_rows = sorted(
+        (r["time"], r["category"], r["title"], r["text"])
+        for _, r in csv_merged.iterrows())
+    assert sql_rows == csv_rows
+
+
+def test_dual_write_tradelog_equivalence(cfg, conn):
+    from x4analyzer.caches import merge_tradelog_cache
+    import pandas as pd
+
+    conn.execute("DELETE FROM trade_tx")
+    conn.commit()
+
+    def csv_frame(times, sid, bid):
+        return pd.DataFrame([{
+            "time": t, "commodity": "Energy Cells", "price": 15.0,
+            "amount": 100, "money": 1500,
+            "seller.faction": "PLA", "seller.id": sid, "seller.name": "S",
+            "seller.code": "AAA-111", "seller.proxy.id": None,
+            "seller.proxy.name": None, "seller.proxy.code": None,
+            "buyer.faction": "ARG", "buyer.id": bid, "buyer.name": "B",
+            "buyer.code": "BBB-222", "buyer.proxy.id": None,
+            "buyer.proxy.name": None, "buyer.proxy.code": None,
+        } for t in times])
+
+    # same playthrough, drifted runtime ids in the second save
+    windows = [
+        ([100.0, 200.0], "[0x1]", "[0x2]"),
+        ([100.0, 200.0, 300.0], "[0x999]", "[0x888]"),
+    ]
+    for times, sid, bid in windows:
+        csv_merged = merge_tradelog_cache(cfg, "CSVEQ", csv_frame(times, sid, bid))
+        store.merge_events(conn, events_save(trades=[
+            trade_attrs(str(t), bid, sid) for t in times]))
+
+    sql_rows = sorted(conn.execute(
+        "SELECT time, price_cr, amount FROM trade_tx"))
+    csv_rows = sorted(
+        (r["time"], r["price"], float(r["amount"]))
+        for _, r in csv_merged.iterrows())
+    assert sql_rows == csv_rows
+    # commodity display name and raw ware id describe the same ware
+    assert {r[0] for r in conn.execute("SELECT ware FROM trade_tx")} \
+        == {"energycells"}
+    assert set(csv_merged["commodity"]) == {"Energy Cells"}
 
 
 def test_bulk_insert_speed(cfg, save_data, ref):

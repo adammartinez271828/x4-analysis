@@ -26,6 +26,7 @@ def run_analysis(cfg: Config) -> int:
     log("Database:", store.db_path(cfg, save.guid))
     store.write_reference(conn, ref)
     store.write_snapshot(conn, save, ref, save_file)
+    store.merge_events(conn, save)
 
     frames = build_frames(save, ref, cfg)
     store.write_derived(conn, frames)
