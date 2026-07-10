@@ -16,11 +16,35 @@ must load, never fail. FK comments are documentation only.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
 EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object")
+
+# Event-history migrations: old version -> targeted ALTERs bringing the E
+# tables to the next version (everything else is dropped and recreated).
+# v2 adds save-stable identity + coverage epochs to the economylog tables:
+# runtime component ids are remapped on every game load, so identity is
+# resolvable only at merge time, and LAG deltas must not span stretches
+# the game discarded between analyzed saves. New columns append at the
+# END of the fresh DDL below so ALTERed and fresh tables line up.
+EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
+    "1": (
+        "ALTER TABLE stock_event ADD COLUMN owner_faction TEXT",
+        "ALTER TABLE stock_event ADD COLUMN owner_code TEXT",
+        "ALTER TABLE stock_event ADD COLUMN owner_name TEXT",
+        "ALTER TABLE stock_event ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE trade_tx ADD COLUMN buyer_faction TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN buyer_code TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN buyer_name TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN seller_faction TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN seller_code TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN seller_name TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0",
+    ),
+}
+NEXT_VERSION = {"1": "2"}
 
 WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",
@@ -170,6 +194,11 @@ TABLES: dict[str, str] = {
   amount       REAL
 )""",
     # ---- event history (E) -------------------------------------------------
+    # identity columns are resolved at merge time — the only moment the
+    # window's runtime ids are unambiguous (the game remaps them on every
+    # load); faction is the raw owner id, NULL when unresolvable. epoch
+    # increments when a merged window does not overlap the stored history
+    # (the game discarded events in between).
     "trade_tx": """CREATE TABLE IF NOT EXISTS trade_tx (
   time      REAL NOT NULL,
   ware      TEXT NOT NULL,
@@ -177,14 +206,19 @@ TABLES: dict[str, str] = {
   seller_id TEXT,
   price_cr  REAL,
   amount    REAL,
-  raw_attrs TEXT
+  raw_attrs TEXT,
+  buyer_faction TEXT, buyer_code TEXT, buyer_name TEXT,
+  seller_faction TEXT, seller_code TEXT, seller_name TEXT,
+  epoch     INTEGER NOT NULL DEFAULT 0
 )""",
     "stock_event": """CREATE TABLE IF NOT EXISTS stock_event (
   time      REAL NOT NULL,
   owner_id  TEXT NOT NULL,
   ware      TEXT NOT NULL,
   level     REAL,
-  raw_attrs TEXT
+  raw_attrs TEXT,
+  owner_faction TEXT, owner_code TEXT, owner_name TEXT,
+  epoch     INTEGER NOT NULL DEFAULT 0
 )""",
     "log_entry": """CREATE TABLE IF NOT EXISTS log_entry (
   time        REAL NOT NULL,
@@ -313,15 +347,22 @@ FROM chain""",
     # Market actual-flows mode needs stock leaving the station too).
     # Rows without a ware carry no delta information.
     "v_stock_delta": """CREATE VIEW v_stock_delta AS
-SELECT owner_id, ware, time, level,
+SELECT owner_id, owner_faction, owner_code, owner_name, ware, time, level,
+       epoch,
        MAX(level - LAG(level) OVER w, 0) AS dv,
        MAX(LAG(level) OVER w - level, 0) AS dv_neg
 FROM stock_event
 WHERE ware != ''
-WINDOW w AS (PARTITION BY owner_id, ware ORDER BY time, rowid)""",
-    # rowid breaks time ties in save order: stations log several stock
-    # levels within the same second, and an arbitrary tie order would
-    # reshuffle which deltas count as positive
+WINDOW w AS (PARTITION BY COALESCE(owner_faction || '|' || owner_code,
+                                   owner_id),
+             ware, epoch ORDER BY time, rowid)""",
+    # Partitioning by the save-stable identity heals a station's series
+    # across game sessions (ids drift, faction|code doesn't; unresolvable
+    # rows degrade to per-id, today's behavior); the epoch term stops LAG
+    # from computing a delta across a coverage gap. rowid breaks time ties
+    # in save order: stations log several stock levels within the same
+    # second, and an arbitrary tie order would reshuffle which deltas
+    # count as positive.
     # built modules only (measure reality, not plans — CLAUDE.md gotcha)
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM module

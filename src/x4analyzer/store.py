@@ -60,8 +60,13 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         version = row[0] if row else None
     if version is not None and version != dbschema.SCHEMA_VERSION:
         # everything but event history is rebuilt from the save in seconds:
-        # migration = drop and recreate (event tables would need real care)
+        # migration = drop and recreate. Event tables carry irreplaceable
+        # history and get targeted ALTERs instead.
         with conn:
+            while version in dbschema.EVENT_MIGRATIONS:
+                for stmt in dbschema.EVENT_MIGRATIONS[version]:
+                    conn.execute(stmt)
+                version = dbschema.NEXT_VERSION[version]
             for name in dbschema.TABLES:
                 if name not in dbschema.EVENT_TABLES:
                     conn.execute(f"DROP TABLE IF EXISTS {name}")
@@ -315,7 +320,8 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
 
 # ---- event history (E: merged across runs, replaces the csv.gz caches) -----
 
-def merge_events(conn: sqlite3.Connection, save: SaveData) -> None:
+def merge_events(conn: sqlite3.Connection, save: SaveData,
+                 ref: RefData | None = None) -> None:
     """Merge the save's rolling log/economylog windows into the event
     tables. Semantics ported from caches.py (one transaction per table, so
     a crash never half-merges; running twice on the same save is a no-op):
@@ -325,10 +331,35 @@ def merge_events(conn: sqlite3.Connection, save: SaveData) -> None:
     - trade_tx/stock_event: cached entries newer than the oldest new
       timestamp are replaced (the new window is authoritative from there).
     - removed_object: cumulative catalog, append unseen objects.
+
+    Trade parties are resolved to their save-stable identity (faction,
+    code, name) here, at merge time — the game remaps every runtime id on
+    load, so a window's ids are unambiguous only against the save they
+    came from.
     """
     _merge_log(conn, save.log_entries)
-    _merge_trades(conn, save.trades)
+    _merge_trades(conn, save.trades, _identities(save, ref))
     _merge_removed(conn, save.removed_objects)
+
+
+def _identities(save: SaveData, ref: RefData | None) -> dict:
+    """Component id -> (faction, code, name) from this save's universe and
+    removed-objects catalog."""
+    def resolve(name):
+        if ref is not None and name and "{" in name:
+            return ref.resolve_name(name)
+        return _s(name)
+
+    ident: dict[str, tuple] = {}
+    for c in save.components:
+        # (id, class, macro, name, code, owner, ...)
+        ident[c[0]] = (_s(c[5]), _s(c[4]), resolve(c[3]))
+    for o in save.removed_objects:
+        oid = o.get("id")
+        if oid and oid not in ident:
+            ident[oid] = (_s(o.get("owner")), _s(o.get("code")),
+                          resolve(o.get("name")))
+    return ident
 
 
 def _cents(v) -> float | None:
@@ -366,10 +397,12 @@ def _merge_log(conn: sqlite3.Connection, entries: list[dict]) -> None:
             "INSERT INTO log_entry VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
 
 
-def _merge_trades(conn: sqlite3.Connection, trades: list[dict]) -> None:
+def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
+                  ident: dict) -> None:
     # the economylog's type="trade" entries are two different record types:
     # real transactions (buyer AND seller AND price; v is a traded amount)
     # vs owner-only stock snapshots (v is the level AFTER a trade)
+    nobody = (None, None, None)
     tx, stock = [], []
     for t in trades:
         time = _time_of(t)
@@ -379,12 +412,15 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict]) -> None:
         if t.get("buyer") and t.get("seller") and t.get("price"):
             tx.append((time, t.get("ware") or "", _s(t.get("buyer")),
                        _s(t.get("seller")), _cents(t.get("price")),
-                       _f(t.get("v")), raw))
+                       _f(t.get("v")), raw,
+                       *ident.get(t["buyer"], nobody),
+                       *ident.get(t["seller"], nobody)))
         elif t.get("owner") and not t.get("buyer"):
             # absent v means an empty stock, not unknown (the game omits
             # default attrs); NULL would punch holes into the LAG deltas
             stock.append((time, t["owner"], t.get("ware") or "",
-                          _f(t.get("v")) or 0.0, raw))
+                          _f(t.get("v")) or 0.0, raw,
+                          *ident.get(t["owner"], nobody)))
 
     _merge_window(conn, "trade_tx", tx)
     _merge_window(conn, "stock_event", stock)
@@ -405,8 +441,17 @@ def _merge_window(conn: sqlite3.Connection, table: str,
         return
     mintime = min(r[0] for r in rows)
     boundary = [r for r in rows if r[0] == mintime]
-    ph = ",".join("?" * len(rows[0]))
     with conn:
+        # coverage epoch: the rolling window is a global time suffix, so if
+        # the new window starts after everything stored, the game discarded
+        # events in between — v_stock_delta must not LAG across that gap
+        prev_max, prev_epoch = conn.execute(
+            f"SELECT MAX(time), MAX(epoch) FROM {table}").fetchone()
+        epoch = (prev_epoch or 0) + (
+            1 if prev_max is not None and mintime > prev_max else 0)
+        rows = [r + (epoch,) for r in rows]
+        ph = ",".join("?" * len(rows[0]))
+
         cached_at_boundary = conn.execute(
             f"SELECT COUNT(*) FROM {table} WHERE time = ?", (mintime,)
         ).fetchone()[0]
@@ -416,6 +461,10 @@ def _merge_window(conn: sqlite3.Connection, table: str,
             conn.execute(f"DELETE FROM {table} WHERE time > ?", (mintime,))
             rows = [r for r in rows if r[0] > mintime]
         conn.executemany(f"INSERT INTO {table} VALUES ({ph})", rows)
+        # the dashboards' rate math needs the current window's extent —
+        # merged history would otherwise dilute every Cr/h denominator
+        conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
+                     (f"{table}_window_start", str(mintime)))
 
 
 def _merge_removed(conn: sqlite3.Connection, objects: list[dict]) -> None:

@@ -90,10 +90,10 @@ _CUR = "(SELECT MAX(save_id) FROM save)"
 
 
 def _read(conn: sqlite3.Connection, sql: str,
-          fill: list[str] = ()) -> pd.DataFrame:
+          fill: list[str] = (), params=None) -> pd.DataFrame:
     """read_sql with SQL NULLs in `fill` columns normalized back to the
     frames' historic empty-string convention."""
-    df = pd.read_sql(sql, conn)
+    df = pd.read_sql(sql, conn, params=params)
     for col in fill:
         df[col] = df[col].fillna("")
     return df
@@ -369,15 +369,21 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config,
     player_faction_name = ref.resolve_name(save.player_faction_name) or "Player"
 
     # universe-wide trade events: owner-only economylog entries (volume
-    # only; every faction; the merged stock_event history, so the window
-    # grows beyond the save's own once older runs contributed). v is the
-    # station's stock level logged after each trade, NOT a trade amount;
-    # delivered volume = positive stock increases between consecutive
-    # snapshots (v_stock_delta), an upper-ish estimate of traded volume.
-    # dv_neg = stock leaving the station (consumption, construction, sales).
+    # only; every faction). v is the station's stock level logged after
+    # each trade, NOT a trade amount; delivered volume = positive stock
+    # increases between consecutive snapshots (v_stock_delta), an upper-ish
+    # estimate of traded volume. dv_neg = stock leaving the station
+    # (consumption, construction draw, sales). Only the CURRENT save's
+    # window feeds the dashboards — its ids resolve against this universe
+    # and the Market rate denominators keep their meaning; the merged
+    # multi-session history stays queryable in stock_event/v_stock_delta,
+    # keyed by the save-stable identity resolved at merge time.
+    row = conn.execute("SELECT value FROM meta"
+                       " WHERE key = 'stock_event_window_start'").fetchone()
     gt = _read(conn, """
         SELECT owner_id AS owner, ware, time, level AS v, dv, dv_neg
-        FROM v_stock_delta ORDER BY time""")
+        FROM v_stock_delta WHERE time >= ? ORDER BY time""",
+        params=(float(row[0]) if row else 0.0,))
     if not gt.empty:
         gt[["dv", "dv_neg"]] = gt[["dv", "dv_neg"]].fillna(0.0)
         uni_idx = universe.set_index("id")

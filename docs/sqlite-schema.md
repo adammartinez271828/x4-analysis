@@ -246,6 +246,14 @@ The economylog's `type="trade"` entries are **two different record types**
 and get two tables (fixing a modeling wart the current code handles with
 row filters):
 
+Both trade tables carry two things the raw window can't provide later:
+**save-stable identity** (runtime `[0x..]` ids are remapped on every game
+load, so each party is resolved to `(faction, code, name)` at merge time —
+the only moment its id is unambiguous; NULL when unresolvable) and a
+**coverage `epoch`** (incremented when a merged window does not overlap the
+stored history, i.e. the game discarded events in between — delta queries
+must not span that gap).
+
 ```sql
 CREATE TABLE trade_tx (          -- real transactions: buyer AND seller AND price
   time      REAL NOT NULL,       -- <log>@time
@@ -254,7 +262,10 @@ CREATE TABLE trade_tx (          -- real transactions: buyer AND seller AND pric
   seller_id TEXT,                -- @seller component id
   price_cr  REAL,                -- @price / 100
   amount    REAL,                -- @v — here v IS a traded amount
-  raw_attrs TEXT                 -- JSON
+  raw_attrs TEXT,                -- JSON
+  buyer_faction TEXT, buyer_code TEXT, buyer_name TEXT,    -- resolved at merge
+  seller_faction TEXT, seller_code TEXT, seller_name TEXT,
+  epoch     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_tx_time ON trade_tx(time);
 CREATE INDEX idx_tx_ware ON trade_tx(ware);
@@ -264,7 +275,9 @@ CREATE TABLE stock_event (       -- owner-only entries: stock level snapshots
   owner_id  TEXT NOT NULL,       -- @owner component id
   ware      TEXT NOT NULL,
   level     REAL,                -- @v — here v is the stock AFTER a trade,
-  raw_attrs TEXT                 -- NOT an amount (overcounts ~40x if summed)
+  raw_attrs TEXT,                -- NOT an amount (overcounts ~40x if summed)
+  owner_faction TEXT, owner_code TEXT, owner_name TEXT,    -- resolved at merge
+  epoch     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX idx_stock ON stock_event(owner_id, ware, time);
 
@@ -295,10 +308,18 @@ transaction per table so a crash never half-merges):
 - `log_entry`: for each category in the fresh window, `DELETE WHERE
   category = ? AND time >= <oldest new time for that category>`, then bulk
   INSERT the window; dedupe on the full natural row.
-- `trade_tx` / `stock_event`: `DELETE WHERE time > <oldest new time>`,
-  then bulk INSERT (the new window is authoritative from that point).
+- `trade_tx` / `stock_event`: the new window is authoritative from its
+  oldest timestamp on — `DELETE WHERE time >= <oldest new time>` then bulk
+  INSERT, except that cached rows at exactly that timestamp survive when
+  the new window is thinner there (the game dropped same-timestamp
+  siblings the cache still knows). Each merge records the window start in
+  `meta` (`<table>_window_start`) so dashboard rate math can scope to the
+  current window, and stamps rows with the coverage `epoch`.
 - Idempotence (run twice on the same save = no change) is the existing
   cache contract and becomes a direct SQL test.
+- E-table schema changes are additive `ALTER TABLE`s applied on version
+  bump (dbschema `EVENT_MIGRATIONS`); pre-migration rows keep NULL
+  identity and epoch 0, degrading to per-id behavior.
 
 ## Reference data (R — from extract-gamedata, replaced wholesale)
 
@@ -413,12 +434,22 @@ SELECT ship, cmdr, depth,
          AS is_root_edge                       -- cmdr is the fleet root here
 FROM chain;
 
--- market traded volume: positive stock deltas (validated: 100 ms)
+-- market traded volume: positive stock deltas (validated: 100 ms).
+-- Partitioned by the save-stable identity so a station's series heals
+-- across game sessions (ids drift, faction|code doesn't) and by epoch so
+-- deltas never span a coverage gap; rowid breaks time ties in save order.
+-- level/dv_neg columns beyond dv: the Market actual-flows mode needs
+-- stock leaving the station too.
 CREATE VIEW v_stock_delta AS
-SELECT owner_id, ware, time,
-       MAX(level - LAG(level) OVER (PARTITION BY owner_id, ware
-                                    ORDER BY time), 0) AS dv
-FROM stock_event;
+SELECT owner_id, owner_faction, owner_code, owner_name, ware, time, level,
+       epoch,
+       MAX(level - LAG(level) OVER w, 0) AS dv,
+       MAX(LAG(level) OVER w - level, 0) AS dv_neg
+FROM stock_event
+WHERE ware != ''
+WINDOW w AS (PARTITION BY COALESCE(owner_faction || '|' || owner_code,
+                                   owner_id),
+             ware, epoch ORDER BY time, rowid);
 
 -- built modules only (the "measure reality, not plans" gotcha)
 CREATE VIEW v_built_module AS

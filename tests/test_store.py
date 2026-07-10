@@ -170,13 +170,20 @@ def test_schema_version_reset_keeps_event_tables(cfg, save_data, ref):
 
 # ---- event-history merges (phase 2) ----------------------------------------
 
-def events_save(log=(), trades=(), removed=()):
+def events_save(log=(), trades=(), removed=(), components=()):
     from x4analyzer.saveparser import SaveData
     s = SaveData()
     s.log_entries = list(log)
     s.trades = list(trades)
     s.removed_objects = list(removed)
+    s.components = list(components)
     return s
+
+
+def comp(cid, code, owner, name=""):
+    """Minimal 16-field component tuple (id/name/code/owner populated)."""
+    return (cid, "station", "macro", name, code, owner,
+            "", "", "conn", "", "", "", "", "", "", "")
 
 
 def dump(conn, table):
@@ -191,6 +198,14 @@ def test_event_values(conn):
     assert conn.execute(
         "SELECT time, owner_id, ware, level FROM stock_event").fetchall() \
         == [(11.0, "[0x20]", "ice", 50.0)]
+    # save-stable identity, resolved at merge time against this save's
+    # universe; unknown parties ([0x77]) stay NULL
+    assert conn.execute(
+        "SELECT owner_faction, owner_code, epoch FROM stock_event"
+        ).fetchall() == [("player", "STA-001", 0)]
+    assert conn.execute(
+        "SELECT buyer_code, seller_faction, seller_code FROM trade_tx"
+        ).fetchall() == [("STA-001", None, None)]
     assert conn.execute(
         "SELECT time, category, title FROM log_entry").fetchall() == [
         (100.0, "upkeep", "Test entry")]
@@ -321,6 +336,87 @@ def test_window_boundary_keeps_dropped_siblings(conn):
     assert count(conn, "stock_event") == 3
     assert conn.execute("SELECT COUNT(*) FROM stock_event WHERE time = 100.0"
                         ).fetchone()[0] == 2
+
+
+def test_epoch_increments_on_coverage_gap(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+    # next analyzed save's window starts after everything stored: the game
+    # discarded the events in between, deltas must not span the gap
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("500.0", "90"), stock_attrs("600.0", "95")]))
+    assert conn.execute("SELECT time, epoch FROM stock_event ORDER BY time"
+                        ).fetchall() == [
+        (100.0, 0), (200.0, 0), (500.0, 1), (600.0, 1)]
+    assert conn.execute(
+        "SELECT dv FROM v_stock_delta WHERE time = 500.0").fetchall() \
+        == [(None,)]  # not 90 - 30: the gap is not a delivery
+
+
+def test_identity_heals_series_across_sessions(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    # session 1: the station is [0xA]
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("100.0", "10", "[0xA]"),
+                stock_attrs("120.0", "20", "[0xA]")],
+        components=[comp("[0xA]", "STA-001", "argon")]))
+    # session 2 (game reload): same station, remapped to [0xB]; the new
+    # window overlaps at t=120 so coverage is continuous
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("120.0", "20", "[0xB]"),
+                stock_attrs("150.0", "40", "[0xB]")],
+        components=[comp("[0xB]", "STA-001", "argon")]))
+    # the faction|code partition bridges the id change: the t=120 row's
+    # delta is computed against the [0xA] row at t=100
+    assert conn.execute(
+        "SELECT time, dv FROM v_stock_delta ORDER BY time").fetchall() \
+        == [(100.0, None), (120.0, 10.0), (150.0, 20.0)]
+
+
+def test_v1_database_migrates_keeping_history(cfg):
+    import sqlite3
+
+    conn = sqlite3.connect(store.db_path(cfg, "MIG"))
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '1')")
+    conn.execute("CREATE TABLE stock_event (time REAL NOT NULL,"
+                 " owner_id TEXT NOT NULL, ware TEXT NOT NULL, level REAL,"
+                 " raw_attrs TEXT)")
+    conn.execute("CREATE TABLE trade_tx (time REAL NOT NULL,"
+                 " ware TEXT NOT NULL, buyer_id TEXT, seller_id TEXT,"
+                 " price_cr REAL, amount REAL, raw_attrs TEXT)")
+    conn.execute("INSERT INTO stock_event VALUES (5.0, '[0x1]', 'ice',"
+                 " 10.0, '{}')")
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "MIG")
+    # event history survived with the new columns defaulted; version bumped
+    assert conn.execute("SELECT time, owner_id, owner_faction, epoch"
+                        " FROM stock_event").fetchall() \
+        == [(5.0, "[0x1]", None, 0)]
+    from x4analyzer.dbschema import SCHEMA_VERSION
+    assert conn.execute("SELECT value FROM meta WHERE key='schema_version'"
+                        ).fetchone() == (SCHEMA_VERSION,)
+    conn.close()
+
+
+def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
+    from x4analyzer.frames import build_frames
+
+    # a later save whose window no longer overlaps the fixture's history
+    store.merge_events(conn, events_save(trades=[
+        stock_attrs("5000.0", "10", "[0x20]"),
+        stock_attrs("5100.0", "60", "[0x20]"),
+    ]))
+    frames = build_frames(save_data, ref, cfg, conn)
+    # the table keeps all history; the dashboard frame sees only the
+    # current window, so the Market rate denominators keep their meaning
+    assert count(conn, "stock_event") == 3
+    assert sorted(frames.global_trades["time"]) == [5000.0, 5100.0]
 
 
 def test_stock_missing_level_is_zero(conn):
