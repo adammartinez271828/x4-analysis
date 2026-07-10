@@ -184,17 +184,24 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         cluster_id, cluster_macro = cid, macro
                     elif clazz == "sector":
                         sector_id, sector_macro = cid, macro
+                    # real containment (ship docked at station, station in
+                    # sector), which the flattened cluster/sector columns
+                    # can't express. Nearest COLLECTED ancestor, not the
+                    # immediate XML parent: saves interpose zone/dockingbay
+                    # components that never become rows, and a parent id
+                    # must resolve within the table
+                    parent_id = ""
+                    for pcls, pid, _pm in reversed(comp_stack):
+                        if pcls in _UNIVERSE_CLASSES or _SHIP_RE.match(pcls):
+                            parent_id = pid
+                            break
                     d.components.append((
                         cid, clazz, macro, elem.get("name", ""),
                         elem.get("code", ""), elem.get("owner", ""),
                         elem.get("knownto", ""), elem.get("contested", ""),
                         elem.get("connection", ""), elem.get("spawntime", ""),
                         cluster_id, cluster_macro, sector_id, sector_macro,
-                        elem.get("basename", ""),
-                        # real containment (ship docked at station, station
-                        # in sector), which the flattened cluster/sector
-                        # columns can't express
-                        comp_stack[-1][1] if comp_stack else "",
+                        elem.get("basename", ""), parent_id,
                     ))
 
             elif tag == "connected":

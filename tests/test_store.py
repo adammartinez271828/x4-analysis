@@ -271,6 +271,58 @@ def test_stock_merge_window_cutoff(conn):
         == [(100.0, 10.0), (200.0, 35.0), (300.0, 60.0)]
 
 
+def test_merge_skips_entries_without_time(conn):
+    # a missing/unparseable time must not collapse the window cutoff to 0
+    # and wipe the preserved history (the tables' whole reason to exist)
+    store.merge_events(conn, events_save(
+        log=[{"title": "no time", "text": "t"}],
+        trades=[{"ware": "ice", "owner": "[0x9]", "v": "5"},
+                {"ware": "ice", "owner": "[0x9]", "v": "5", "time": "bogus"}],
+    ))
+    # fixture history untouched, timeless entries not inserted
+    assert count(conn, "log_entry") == 1
+    assert count(conn, "stock_event") == 1
+
+
+def test_malformed_price_does_not_crash(conn):
+    store.merge_events(conn, events_save(trades=[
+        {"time": "12.0", "ware": "ice", "buyer": "[0x1]", "seller": "[0x2]",
+         "price": "not-a-number", "v": "10"}]))
+    assert conn.execute(
+        "SELECT price_cr FROM trade_tx WHERE time = 12.0").fetchall() \
+        == [(None,)]
+
+
+def test_duplicate_ids_never_fail(cfg, save_data, ref):
+    # modded saves repeat ids; the run must load, never crash on the PKs
+    save_data.components.append(save_data.components[-1])
+    save_data.npcs.append(save_data.npcs[0])
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_snapshot(conn, save_data, ref, "save.xml")
+    assert count(conn, "component") == 4
+    assert count(conn, "npc") == 1
+    conn.close()
+
+
+def test_window_boundary_keeps_dropped_siblings(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    store.merge_events(conn, events_save(trades=[
+        stock_attrs("100.0", "10", "[0xA]"),
+        stock_attrs("100.0", "20", "[0xB]"),
+        stock_attrs("200.0", "30", "[0xA]"),
+    ]))
+    # the game dropped [0xB]'s t=100 snapshot: the new window is thinner at
+    # the boundary, so the cached siblings there must survive the merge
+    store.merge_events(conn, events_save(trades=[
+        stock_attrs("100.0", "10", "[0xA]"),
+        stock_attrs("200.0", "30", "[0xA]"),
+    ]))
+    assert count(conn, "stock_event") == 3
+    assert conn.execute("SELECT COUNT(*) FROM stock_event WHERE time = 100.0"
+                        ).fetchone()[0] == 2
+
+
 def test_stock_missing_level_is_zero(conn):
     # the game omits default attrs: no v = empty stock, not unknown
     conn.execute("DELETE FROM stock_event")

@@ -26,6 +26,7 @@ from pathlib import Path
 import pandas as pd
 
 from . import dbschema
+from .cli import log
 from .config import Config
 from .refdata import RefData
 from .saveparser import SaveData
@@ -153,9 +154,9 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
             if rows:
                 ph = ",".join("?" * len(cols))
                 conn.executemany(
-                    f"INSERT INTO {table} VALUES ({ph})", rows)
+                    f"INSERT OR REPLACE INTO {table} VALUES ({ph})", rows)
         conn.execute("DELETE FROM text")
-        conn.executemany("INSERT INTO text VALUES (?,?,?)",
+        conn.executemany("INSERT OR REPLACE INTO text VALUES (?,?,?)",
                          ref.textdb.items())
 
 
@@ -185,7 +186,7 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             conn.execute(f"DELETE FROM {table}")
 
         conn.executemany(
-            "INSERT INTO component VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO component VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [(save_id, cid, clazz, _low(macro), resolve(name),
               resolve(basename), _s(code), _s(owner), _s(knownto),
               _i(contested), _f(spawntime),
@@ -203,11 +204,20 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
         for follower, conn_ref in save.commander_links:
             followers_by_conn.setdefault(conn_ref, []).append(follower)
         edges: dict[str, str] = {}
+        conflicts = 0
         for leader, conn_id in save.subordinate_conns:
             for follower in followers_by_conn.get(conn_id, ()):
-                edges.setdefault(follower, leader)
+                # the PK allows one commander per follower; a save that
+                # links a ship to two commanders is broken/modded data —
+                # keep the first edge, but say so instead of silently
+                # picking a fleet
+                if edges.setdefault(follower, leader) != leader:
+                    conflicts += 1
+        if conflicts:
+            log(f"WARNING: {conflicts} ships link to more than one "
+                "commander; kept the first edge each")
         conn.executemany(
-            "INSERT INTO fleet_edge VALUES (?,?,?)",
+            "INSERT OR REPLACE INTO fleet_edge VALUES (?,?,?)",
             [(save_id, follower, leader)
              for follower, leader in edges.items()])
 
@@ -239,16 +249,16 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             key = (station, race)
             wf[key] = wf.get(key, 0.0) + amount
         conn.executemany(
-            "INSERT INTO workforce VALUES (?,?,?,?)",
+            "INSERT OR REPLACE INTO workforce VALUES (?,?,?,?)",
             [(save_id, station, race, amount)
              for (station, race), amount in wf.items()])
 
         conn.executemany(
-            "INSERT INTO npc VALUES (?,?,?,?,?)",
+            "INSERT OR REPLACE INTO npc VALUES (?,?,?,?,?)",
             [(save_id, nid, _s(name), _s(code), _s(owner))
              for nid, name, code, owner, _skills in save.npcs])
         conn.executemany(
-            "INSERT INTO npc_skill VALUES (?,?,?,?)",
+            "INSERT OR REPLACE INTO npc_skill VALUES (?,?,?,?)",
             [(save_id, nid, skill, value)
              for nid, _n, _c, _o, skills in save.npcs
              for skill, value in skills.items()])
@@ -259,7 +269,7 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for oid, post, npc_id in save.posts])
 
         conn.executemany(
-            "INSERT INTO people VALUES (?,?,?,?)",
+            "INSERT OR REPLACE INTO people VALUES (?,?,?,?)",
             [(save_id, oid, role, count)
              for (oid, role), count in save.people.items()])
 
@@ -269,7 +279,7 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             key = (oid, ware)
             cg[key] = cg.get(key, 0.0) + amount
         conn.executemany(
-            "INSERT INTO cargo VALUES (?,?,?,?)",
+            "INSERT OR REPLACE INTO cargo VALUES (?,?,?,?)",
             [(save_id, oid, ware, amount)
              for (oid, ware), amount in cg.items()])
 
@@ -321,15 +331,25 @@ def merge_events(conn: sqlite3.Connection, save: SaveData) -> None:
     _merge_removed(conn, save.removed_objects)
 
 
+def _cents(v) -> float | None:
+    f = _f(v)
+    return f / 100.0 if f is not None else None
+
+
+def _time_of(e: dict) -> float | None:
+    """Merge windows are keyed on time: an entry without a parseable time
+    cannot participate (and coercing it to 0 would collapse the window's
+    cutoff to 0, wiping the entire preserved history). Skip it."""
+    return _f(e.get("time"))
+
+
 def _merge_log(conn: sqlite3.Connection, entries: list[dict]) -> None:
     rows = list(dict.fromkeys(  # dedupe on the full natural row
-        (_f(e.get("time")) or 0.0, _s(e.get("category")), _s(e.get("title")),
-         _s(e.get("text")), _s(e.get("faction")),
-         _f(e.get("money")) / 100.0 if _f(e.get("money")) is not None
-         else None,
+        (_time_of(e), _s(e.get("category")), _s(e.get("title")),
+         _s(e.get("text")), _s(e.get("faction")), _cents(e.get("money")),
          _s(e.get("interaction")), _s(e.get("component")),
          _s(e.get("highlighted")), json.dumps(e, sort_keys=True))
-        for e in entries))
+        for e in entries if _time_of(e) is not None))
     if not rows:
         return
     mintime: dict = {}
@@ -352,11 +372,13 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict]) -> None:
     # vs owner-only stock snapshots (v is the level AFTER a trade)
     tx, stock = [], []
     for t in trades:
+        time = _time_of(t)
+        if time is None:
+            continue
         raw = json.dumps(t, sort_keys=True)
-        time = _f(t.get("time")) or 0.0
         if t.get("buyer") and t.get("seller") and t.get("price"):
             tx.append((time, t.get("ware") or "", _s(t.get("buyer")),
-                       _s(t.get("seller")), _f(t.get("price")) / 100.0,
+                       _s(t.get("seller")), _cents(t.get("price")),
                        _f(t.get("v")), raw))
         elif t.get("owner") and not t.get("buyer"):
             # absent v means an empty stock, not unknown (the game omits
@@ -370,18 +392,29 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict]) -> None:
 
 def _merge_window(conn: sqlite3.Connection, table: str,
                   rows: list[tuple]) -> None:
-    # Replacing at >= mintime (not >) reproduces the csv cache's observable
-    # results without its name-based dedupe key, which the raw tables can't
-    # express (component ids drift between saves, so the boundary row would
-    # otherwise duplicate on every run). The one divergence: a cached entry
-    # at exactly mintime that the game itself dropped is lost here, where
-    # the csv kept it.
+    # Rows can't dedupe on their natural identity across runs (component ids
+    # drift between saves), so replace at the window boundary instead of
+    # matching rows: everything newer than mintime is authoritative from the
+    # new window. At exactly mintime, replace the cached rows only when the
+    # new window has at least as many (then it is a superset in content and
+    # carries the current save's ids, like the csv cache's keep-last dedupe);
+    # when it has fewer, the game dropped same-timestamp siblings the cache
+    # still knows — keep the cached rows, they are the history this table
+    # exists to preserve.
     if not rows:
         return
     mintime = min(r[0] for r in rows)
+    boundary = [r for r in rows if r[0] == mintime]
     ph = ",".join("?" * len(rows[0]))
     with conn:
-        conn.execute(f"DELETE FROM {table} WHERE time >= ?", (mintime,))
+        cached_at_boundary = conn.execute(
+            f"SELECT COUNT(*) FROM {table} WHERE time = ?", (mintime,)
+        ).fetchone()[0]
+        if len(boundary) >= cached_at_boundary:
+            conn.execute(f"DELETE FROM {table} WHERE time >= ?", (mintime,))
+        else:
+            conn.execute(f"DELETE FROM {table} WHERE time > ?", (mintime,))
+            rows = [r for r in rows if r[0] > mintime]
         conn.executemany(f"INSERT INTO {table} VALUES ({ph})", rows)
 
 

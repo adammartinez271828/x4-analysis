@@ -23,14 +23,16 @@ def run_analysis(cfg: Config) -> int:
         log("NOTE: savegame is flagged as modified (mods active)")
 
     conn = store.open_db(cfg, save.guid)
-    log("Database:", store.db_path(cfg, save.guid))
-    store.write_reference(conn, ref)
-    store.write_snapshot(conn, save, ref, save_file)
-    store.merge_events(conn, save)
+    try:
+        log("Database:", store.db_path(cfg, save.guid))
+        store.write_reference(conn, ref)
+        store.write_snapshot(conn, save, ref, save_file)
+        store.merge_events(conn, save)
 
-    frames = build_frames(save, ref, cfg, conn)
-    store.write_derived(conn, frames)
-    conn.close()
+        frames = build_frames(save, ref, cfg, conn)
+        store.write_derived(conn, frames)
+    finally:
+        conn.close()
 
     log(f"Log spans {frames.logged_hours:.1f} hours "
         f"({len(frames.log)} entries incl. cache)")
