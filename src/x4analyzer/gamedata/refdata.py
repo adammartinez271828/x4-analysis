@@ -81,7 +81,7 @@ def load_refdata(data_dir: Path) -> RefData:
     """Load reference CSVs. Files in `data_dir` (the writable user data dir,
     populated by extract-gamedata) override the copies shipped inside the
     package, so uvx/wheel installs work out of the box."""
-    from .config import PACKAGE_DATA
+    from ..config import PACKAGE_DATA
 
     def _path(name: str) -> Path:
         user = data_dir / name

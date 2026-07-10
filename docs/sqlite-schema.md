@@ -302,7 +302,7 @@ CREATE TABLE removed_object (    -- /savegame/economylog/removed/object
 );
 ```
 
-**Merge semantics** (ported verbatim from `caches.py`, executed as one
+**Merge semantics** (ported verbatim from `db/caches.py`, executed as one
 transaction per table so a crash never half-merges):
 
 - `log_entry`: for each category in the fresh window, `DELETE WHERE
@@ -318,7 +318,7 @@ transaction per table so a crash never half-merges):
 - Idempotence (run twice on the same save = no change) is the existing
   cache contract and becomes a direct SQL test.
 - E-table schema changes are additive `ALTER TABLE`s applied on version
-  bump (dbschema `EVENT_MIGRATIONS`); pre-migration rows keep NULL
+  bump (`db/schema.py` `EVENT_MIGRATIONS`); pre-migration rows keep NULL
   identity and epoch 0, degrading to per-id behavior.
 
 ## Reference data (R — from extract-gamedata, replaced wholesale)

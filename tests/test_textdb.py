@@ -1,4 +1,4 @@
-from x4analyzer.textdb import TextDB
+from x4analyzer.gamedata.textdb import TextDB
 
 
 def make_db() -> TextDB:

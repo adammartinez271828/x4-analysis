@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import Config
+from ..config import Config
 
 
 def _cache_path(cfg: Config, kind: str, guid: str) -> Path:

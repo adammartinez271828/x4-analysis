@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from x4analyzer.caches import merge_log_cache, merge_tradelog_cache
+from x4analyzer.db.caches import merge_log_cache, merge_tradelog_cache
 from x4analyzer.config import Config
 
 GUID = "TEST-GUID"

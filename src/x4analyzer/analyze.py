@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from . import store
+from .db import store
 from .cli import log
 from .config import Config
-from .frames import build_frames
-from .refdata import load_refdata
-from .saveparser import parse_savegame
+from .analysis.frames import build_frames
+from .gamedata.refdata import load_refdata
+from .save.parser import parse_savegame
 
 
 def run_analysis(cfg: Config) -> int:
@@ -41,7 +41,7 @@ def run_analysis(cfg: Config) -> int:
     log(f"Trades: {len(frames.tradelog)} (sales {len(frames.sales)}, "
         f"buys {len(frames.buys)})")
 
-    from .dashboard import build_dashboard
+    from .viz.dashboard import build_dashboard
 
     out = build_dashboard(cfg, save, ref, frames)
     log("Dashboard:", out)

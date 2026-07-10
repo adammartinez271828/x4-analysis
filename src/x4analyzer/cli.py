@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg.data_dir = args.data_dir
 
     if args.command == "extract-gamedata":
-        from .gamedata import extract_gamedata
+        from .gamedata.extract import extract_gamedata
 
         if args.game_dir:
             cfg.game_dir = args.game_dir

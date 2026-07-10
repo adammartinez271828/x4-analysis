@@ -8,8 +8,8 @@ import pandas as pd
 
 from ..cli import log
 from ..config import Config
-from ..frames import Frames
-from ..refdata import RefData
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
 from .charts import SHIP_SERVICES
 from .common import Sunburst, fmt_big, save_widget, with_alpha
 

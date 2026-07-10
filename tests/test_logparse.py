@@ -1,6 +1,6 @@
 import pandas as pd
 
-from x4analyzer import logparse
+from x4analyzer.save import logparse
 
 
 def log_df(rows):

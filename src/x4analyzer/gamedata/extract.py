@@ -19,8 +19,8 @@ from pathlib import Path
 from lxml import etree
 
 from .catalog import GameFiles
-from .cli import log
-from .config import Config
+from ..cli import log
+from ..config import Config
 from .textdb import TextDB
 
 _PARSER = etree.XMLParser(recover=True, huge_tree=True)

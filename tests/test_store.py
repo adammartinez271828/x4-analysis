@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from x4analyzer import store
+from x4analyzer.db import store
 from x4analyzer.config import Config
-from x4analyzer.refdata import load_refdata
-from x4analyzer.saveparser import parse_savegame
+from x4analyzer.gamedata.refdata import load_refdata
+from x4analyzer.save.parser import parse_savegame
 
 from test_saveparser import FIXTURE
 
@@ -171,7 +171,7 @@ def test_schema_version_reset_keeps_event_tables(cfg, save_data, ref):
 # ---- event-history merges (phase 2) ----------------------------------------
 
 def events_save(log=(), trades=(), removed=(), components=()):
-    from x4analyzer.saveparser import SaveData
+    from x4analyzer.save.parser import SaveData
     s = SaveData()
     s.log_entries = list(log)
     s.trades = list(trades)
@@ -398,14 +398,14 @@ def test_v1_database_migrates_keeping_history(cfg):
     assert conn.execute("SELECT time, owner_id, owner_faction, epoch"
                         " FROM stock_event").fetchall() \
         == [(5.0, "[0x1]", None, 0)]
-    from x4analyzer.dbschema import SCHEMA_VERSION
+    from x4analyzer.db.schema import SCHEMA_VERSION
     assert conn.execute("SELECT value FROM meta WHERE key='schema_version'"
                         ).fetchone() == (SCHEMA_VERSION,)
     conn.close()
 
 
 def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
-    from x4analyzer.frames import build_frames
+    from x4analyzer.analysis.frames import build_frames
 
     # a later save whose window no longer overlaps the fixture's history
     store.merge_events(conn, events_save(trades=[
@@ -442,7 +442,7 @@ def test_removed_merge_appends_unseen(conn):
 # ---- dual-write equivalence: SQL merge == csv.gz merge (phase 2) ------------
 
 def test_dual_write_log_equivalence(cfg, conn):
-    from x4analyzer.caches import merge_log_cache
+    from x4analyzer.db.caches import merge_log_cache
     import pandas as pd
 
     conn.execute("DELETE FROM log_entry")
@@ -472,7 +472,7 @@ def test_dual_write_log_equivalence(cfg, conn):
 
 
 def test_dual_write_tradelog_equivalence(cfg, conn):
-    from x4analyzer.caches import merge_tradelog_cache
+    from x4analyzer.db.caches import merge_tradelog_cache
     import pandas as pd
 
     conn.execute("DELETE FROM trade_tx")
@@ -555,7 +555,7 @@ def test_v_stock_delta(conn):
 
 
 def test_build_frames_from_db(cfg, save_data, ref, conn):
-    from x4analyzer.frames import build_frames
+    from x4analyzer.analysis.frames import build_frames
 
     frames = build_frames(save_data, ref, cfg, conn)
 

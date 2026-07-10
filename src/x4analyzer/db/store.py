@@ -2,7 +2,7 @@
 
 The database (one per game GUID, in the user data dir next to the csv.gz
 caches) is a rebuildable artifact derived from save + game files — EXCEPT
-the event-history tables (dbschema.EVENT_TABLES), which preserve the
+the event-history tables (schema.EVENT_TABLES), which preserve the
 rolling log/economylog windows the game has already discarded and are never
 dropped. Schema and conventions: docs/sqlite-schema.md.
 
@@ -25,11 +25,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import dbschema
-from .cli import log
-from .config import Config
-from .refdata import RefData
-from .saveparser import SaveData
+from . import schema
+from ..cli import log
+from ..config import Config
+from ..gamedata.refdata import RefData
+from ..save.parser import SaveData
 
 _CODE_RE = re.compile(r"[A-Z]{3}-[0-9]{3}")
 
@@ -58,29 +58,29 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         row = conn.execute(
             "SELECT value FROM meta WHERE key='schema_version'").fetchone()
         version = row[0] if row else None
-    if version is not None and version != dbschema.SCHEMA_VERSION:
+    if version is not None and version != schema.SCHEMA_VERSION:
         # everything but event history is rebuilt from the save in seconds:
         # migration = drop and recreate. Event tables carry irreplaceable
         # history and get targeted ALTERs instead.
         with conn:
-            while version in dbschema.EVENT_MIGRATIONS:
-                for stmt in dbschema.EVENT_MIGRATIONS[version]:
+            while version in schema.EVENT_MIGRATIONS:
+                for stmt in schema.EVENT_MIGRATIONS[version]:
                     conn.execute(stmt)
-                version = dbschema.NEXT_VERSION[version]
-            for name in dbschema.TABLES:
-                if name not in dbschema.EVENT_TABLES:
+                version = schema.NEXT_VERSION[version]
+            for name in schema.TABLES:
+                if name not in schema.EVENT_TABLES:
                     conn.execute(f"DROP TABLE IF EXISTS {name}")
-            for name in dbschema.VIEWS:
+            for name in schema.VIEWS:
                 conn.execute(f"DROP VIEW IF EXISTS {name}")
     with conn:
-        for ddl in dbschema.TABLES.values():
+        for ddl in schema.TABLES.values():
             conn.execute(ddl)
-        for ddl in dbschema.INDEXES:
+        for ddl in schema.INDEXES:
             conn.execute(ddl)
         conn.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)",
-                     (dbschema.SCHEMA_VERSION,))
+                     (schema.SCHEMA_VERSION,))
         # views are recreated every connect so definition updates propagate
-        for name, ddl in dbschema.VIEWS.items():
+        for name, ddl in schema.VIEWS.items():
             conn.execute(f"DROP VIEW IF EXISTS {name}")
             conn.execute(ddl)
 
@@ -187,7 +187,7 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
         save_id = cur.lastrowid
 
         # phases 1-3 keep only the latest snapshot; retention is phase 5
-        for table in dbschema.WORLD_TABLES:
+        for table in schema.WORLD_TABLES:
             conn.execute(f"DELETE FROM {table}")
 
         conn.executemany(
@@ -515,7 +515,7 @@ def write_derived(conn: sqlite3.Connection, frames) -> None:
               for _, r in frames.police.iterrows()]
 
     with conn:
-        for table in dbschema.DERIVED_TABLES:
+        for table in schema.DERIVED_TABLES:
             conn.execute(f"DELETE FROM {table}")
         conn.executemany(
             "INSERT INTO event_destroyed VALUES (?,?,?,?,?)", destroyed)

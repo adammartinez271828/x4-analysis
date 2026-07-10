@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from .refdata import RefData
+from ..gamedata.refdata import RefData
 
 
 def build_adjacency(ref: RefData) -> dict[str, set[str]]:

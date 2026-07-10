@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from x4analyzer.saveparser import parse_savegame
+from x4analyzer.save.parser import parse_savegame
 
 FIXTURE = """<?xml version="1.0"?>
 <savegame>
