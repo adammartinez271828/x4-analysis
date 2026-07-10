@@ -129,6 +129,10 @@ def test_fixture_parse(save_file: Path) -> None:
     ship = next(c for c in d.components if c[1] == "ship_s")
     # ancestry: cluster and sector ids/macros propagated
     assert ship[10] == "[0x10]" and ship[12] == "[0x11]"
+    # real containment: the ship is docked at the station
+    assert ship[15] == "[0x20]"
+    station = next(c for c in d.components if c[1] == "station")
+    assert station[15] == "[0x11]"
     sector = next(c for c in d.components if c[1] == "sector")
     assert sector[7] == "1"  # contested
 

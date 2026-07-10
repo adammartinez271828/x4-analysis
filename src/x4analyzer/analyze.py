@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from . import store
 from .cli import log
 from .config import Config
 from .frames import build_frames
@@ -21,7 +22,14 @@ def run_analysis(cfg: Config) -> int:
     if save.modified:
         log("NOTE: savegame is flagged as modified (mods active)")
 
+    conn = store.open_db(cfg, save.guid)
+    log("Database:", store.db_path(cfg, save.guid))
+    store.write_reference(conn, ref)
+    store.write_snapshot(conn, save, ref, save_file)
+
     frames = build_frames(save, ref, cfg)
+    store.write_derived(conn, frames)
+    conn.close()
 
     log(f"Log spans {frames.logged_hours:.1f} hours "
         f"({len(frames.log)} entries incl. cache)")

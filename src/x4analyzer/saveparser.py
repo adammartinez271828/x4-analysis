@@ -45,7 +45,8 @@ class SaveData:
     # record lists (tuples; column names live in frames.py)
     components: list = field(default_factory=list)
     # (id, clazz, macro, name, code, owner, knownto, contested, connection,
-    #  spawntime, cluster_id, cluster_macro, sector_id, sector_macro)
+    #  spawntime, cluster_id, cluster_macro, sector_id, sector_macro,
+    #  basename, parent_id)
     # fleet hierarchy: a follower's <connected connection="[X]"> points at the
     # commander's <connection connection="subordinates" id="[X]"> element
     commander_links: list = field(default_factory=list)   # (follower_id, conn_ref)
@@ -190,6 +191,10 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("connection", ""), elem.get("spawntime", ""),
                         cluster_id, cluster_macro, sector_id, sector_macro,
                         elem.get("basename", ""),
+                        # real containment (ship docked at station, station
+                        # in sector), which the flattened cluster/sector
+                        # columns can't express
+                        comp_stack[-1][1] if comp_stack else "",
                     ))
 
             elif tag == "connected":

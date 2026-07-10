@@ -87,7 +87,7 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config) -> Frames:
         "id", "class", "macro", "name", "code", "owner", "knownto",
         "contested", "connection", "spawntime",
         "cluster.id", "cluster.macro", "sector.id", "sector.macro",
-        "basename",
+        "basename", "parent.id",
     ])
     universe["macro"] = universe["macro"].str.lower()
     universe = universe[universe["connection"] != ""].reset_index(drop=True)
