@@ -4,11 +4,10 @@ Faithful port of the df.* logic in X4SaveGameAnalysis.R (line references in
 comments). Column names keep the R script's dotted style so anyone familiar
 with the original finds their way around.
 
-World-state and stock-delta frames read from the analysis database
-(store.py writes it before this runs); SQL NULLs are normalized back to the
+Everything reads from the analysis database (store.py writes and merges it
+before this runs) — world state from the current snapshot, log/trade
+history from the merged event tables; SQL NULLs are normalized back to the
 frames' historic empty-string convention so downstream code is unchanged.
-The log/tradelog frames still come from the csv.gz caches while those are
-dual-written (see caches.py).
 """
 
 from __future__ import annotations
@@ -19,9 +18,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from ..save import logparse
-from ..db.caches import merge_log_cache, merge_tradelog_cache
 from ..cli import log
-from ..config import Config
 from ..gamedata.refdata import OTHER_FACTION, RefData, SHIP_SIZES
 from ..save.parser import SaveData
 
@@ -99,7 +96,49 @@ def _read(conn: sqlite3.Connection, sql: str,
     return df
 
 
-def build_frames(save: SaveData, ref: RefData, cfg: Config,
+def station_types(universe: pd.DataFrame, module_list: pd.DataFrame,
+                  ref: RefData) -> pd.Series:
+    """Display type per object id for unnamed stations: basename attr when
+    present, else synthesized like the game does — build modules make it a
+    Shipyard/Wharf/Equipment Dock, otherwise the dominant production
+    module's product ("Energy Cell Factory"); build storages are plots.
+    `universe` needs id/class/basename, `module_list` id/macro."""
+    def _yard_type(macros: pd.Series) -> str:
+        ships = macros[macros.str.contains("_ships_", na=False)]
+        if not ships.empty:
+            return "Shipyard" if ships.str.contains("_l_|_xl_", na=False).any() \
+                else "Wharf"
+        return "Equipment Dock"
+
+    bm = module_list[module_list["macro"].str.contains("buildmodule",
+                                                       na=False)]
+    yard = bm.groupby("id")["macro"].agg(_yard_type)
+    prod = module_list.merge(
+        ref.modules[ref.modules["ware"] != ""][["macro", "ware"]]
+        .drop_duplicates("macro"), on="macro")
+    main_ware = prod.groupby("id")["ware"].agg(
+        lambda x: x.value_counts().idxmax())
+    factory = (main_ware.map(ref.ware_name).fillna(main_ware) + " Factory")
+    by_id = universe.set_index("id")
+    stype = (by_id["basename"].replace("", pd.NA)
+             .fillna(yard).fillna(factory).fillna("Station"))
+    stype[by_id["class"] == "buildstorage"] = "Build plot"
+    return stype
+
+
+def station_types_from_db(conn: sqlite3.Connection, ref: RefData) -> dict:
+    """station_types over the current snapshot, for callers that run before
+    build_frames (store.merge_events resolves trade-party display names)."""
+    universe = _read(conn, f"""
+        SELECT id, class, basename FROM component
+        WHERE save_id = {_CUR}""", fill=["basename"])
+    module_list = _read(conn, f"""
+        SELECT host_id AS id, macro FROM module
+        WHERE save_id = {_CUR}""", fill=["macro"])
+    return dict(station_types(universe, module_list, ref))
+
+
+def build_frames(save: SaveData, ref: RefData,
                  conn: sqlite3.Connection) -> Frames:
     faction_levels = _faction_levels(ref)
 
@@ -183,31 +222,8 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config,
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
 
-    # display type for unnamed NPC stations: basename attr when present,
-    # else synthesized like the game does — build modules make it a
-    # Shipyard/Wharf/Equipment Dock, otherwise the dominant production
-    # module's product ("Energy Cell Factory")
-    def _yard_type(macros: pd.Series) -> str:
-        ships = macros[macros.str.contains("_ships_", na=False)]
-        if not ships.empty:
-            return "Shipyard" if ships.str.contains("_l_|_xl_", na=False).any() \
-                else "Wharf"
-        return "Equipment Dock"
-
-    bm = module_list[module_list["macro"].str.contains("buildmodule",
-                                                       na=False)]
-    yard = bm.groupby("id")["macro"].agg(_yard_type)
-    prod = module_list.merge(
-        ref.modules[ref.modules["ware"] != ""][["macro", "ware"]]
-        .drop_duplicates("macro"), on="macro")
-    main_ware = prod.groupby("id")["ware"].agg(
-        lambda x: x.value_counts().idxmax())
-    factory = (main_ware.map(ref.ware_name).fillna(main_ware) + " Factory")
-    universe["stype"] = (universe["basename"].replace("", pd.NA)
-                         .fillna(universe["id"].map(yard))
-                         .fillna(universe["id"].map(factory))
-                         .fillna("Station"))
-    universe.loc[universe["class"] == "buildstorage", "stype"] = "Build plot"
+    universe["stype"] = universe["id"].map(
+        station_types(universe, module_list, ref)).values
 
     # station mass estimates onto the whole universe (R 520-524)
     universe = universe.merge(modules, on="id", how="left")
@@ -299,29 +315,56 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config,
         model_map).fillna(playerowned.loc[unnamed, "macro"])
 
     # ---- log (R 456-481) -----------------------------------------------------
+    # the merged event history (all runs); money back to the save's cents
+    # so the logparse consumers' /100 stays untouched
     log("Preparing log entries -> log")
-    df_log = pd.DataFrame(save.log_entries)
-    for col in ("time", "category", "title", "text", "money", "component"):
-        if col not in df_log.columns:
-            df_log[col] = pd.NA
-    df_log["category"] = df_log["category"].fillna("")
+    df_log = _read(conn, """
+        SELECT time, category, title, text, money_cr * 100.0 AS money,
+               component_id AS component
+        FROM log_entry ORDER BY time""", fill=["category"])
     df_log = df_log[
         (df_log["category"] == "")
         | ((df_log["category"] == "upkeep") & (df_log["title"] != "Trade Completed"))
     ]
-    df_log["time"] = pd.to_numeric(df_log["time"], errors="coerce")
-    df_log["money"] = pd.to_numeric(df_log["money"], errors="coerce")
-    df_log = (df_log[["time", "category", "title", "text", "money", "component"]]
-              .drop_duplicates().reset_index(drop=True))
-    log("Loading and merging log cache")
-    df_log = merge_log_cache(cfg, save.guid, df_log)
+    df_log = df_log.drop_duplicates().reset_index(drop=True)
 
     # ---- tradelog (R 559-647) -------------------------------------------------
+    # the merged trade_tx history; parties were resolved to display-ready
+    # identities at merge time (the only moment their runtime ids are
+    # unambiguous), commander attribution included — reassemble the R-era
+    # dotted columns: main = commander when a subordinate executed the
+    # trade, proxy.* = the executing ship ("Executed by" in Trade History)
     log("Preparing economylog -> tradelog")
-    tradelog = _build_tradelog(save, ref, universe, playerowned, wings,
-                               faction_levels)
-    log("Loading and merging tradelog cache")
-    tradelog = merge_tradelog_cache(cfg, save.guid, tradelog)
+    tl = _read(conn, """
+        SELECT time, ware, price_cr, amount,
+               buyer_id, buyer_faction, buyer_code, buyer_name,
+               buyer_cmdr_id, buyer_cmdr_name, buyer_cmdr_code,
+               seller_id, seller_faction, seller_code, seller_name,
+               seller_cmdr_id, seller_cmdr_name, seller_cmdr_code
+        FROM trade_tx ORDER BY time""")
+    tradelog = pd.DataFrame({
+        "time": tl["time"],
+        "commodity": tl["ware"].map(ref.ware_name).fillna(tl["ware"]),
+        "price": tl["price_cr"],
+        "amount": tl["amount"].astype("Int64"),
+    })
+    tradelog["money"] = (tradelog["price"] * tradelog["amount"]).astype("Int64")
+    for side in ("seller", "buyer"):
+        fac = (tl[f"{side}_faction"].map(ref.faction_short)
+               .fillna(OTHER_FACTION))
+        # safety net for rows merged before display names were stored
+        name = tl[f"{side}_name"].fillna(fac + " Station")
+        proxied = tl[f"{side}_cmdr_id"].notna()
+        tradelog[f"{side}.faction"] = fac
+        tradelog[f"{side}.id"] = tl[f"{side}_id"].where(
+            ~proxied, tl[f"{side}_cmdr_id"])
+        tradelog[f"{side}.name"] = name.where(
+            ~proxied, tl[f"{side}_cmdr_name"])
+        tradelog[f"{side}.code"] = tl[f"{side}_code"].where(
+            ~proxied, tl[f"{side}_cmdr_code"])
+        tradelog[f"{side}.proxy.id"] = tl[f"{side}_id"].where(proxied)
+        tradelog[f"{side}.proxy.name"] = tl[f"{side}_name"].where(proxied)
+        tradelog[f"{side}.proxy.code"] = tl[f"{side}_code"].where(proxied)
     tradelog["seller.faction"] = pd.Categorical(
         tradelog["seller.faction"], categories=faction_levels, ordered=True)
     tradelog["buyer.faction"] = pd.Categorical(
@@ -465,99 +508,3 @@ def build_frames(save: SaveData, ref: RefData, cfg: Config,
         time_now=time_now, logged_hours=logged_hours,
         player_faction_name=player_faction_name,
     )
-
-
-def _build_tradelog(save: SaveData, ref: RefData, universe: pd.DataFrame,
-                    playerowned: pd.DataFrame, wings: pd.DataFrame,
-                    faction_levels: list) -> pd.DataFrame:
-    cols = ["time", "commodity", "price", "amount", "money",
-            "seller.faction", "seller.id", "seller.name", "seller.code",
-            "seller.proxy.id", "seller.proxy.name", "seller.proxy.code",
-            "buyer.faction", "buyer.id", "buyer.name", "buyer.code",
-            "buyer.proxy.id", "buyer.proxy.name", "buyer.proxy.code"]
-    trades = [t for t in save.trades
-              if t.get("buyer") and t.get("seller") and t.get("price")]
-    if not trades:
-        return pd.DataFrame(columns=cols)
-
-    df = pd.DataFrame(trades)
-    removed = pd.DataFrame(save.removed_objects)
-    if removed.empty:
-        removed = pd.DataFrame(columns=["id", "name", "code", "owner"])
-
-    uni_by_id = universe.set_index("id")
-    owned_by_id = playerowned.set_index("id")
-    follower_to_leader = dict(zip(wings["follower"], wings["leader"]))
-    removed_by_id = removed.set_index("id") if "id" in removed else removed
-    model_map = dict(zip(ref.ships["macro"], ref.ships["model"]))
-    macro_by_id = universe.set_index("id")["macro"]
-    basename_by_id = universe.set_index("id")["stype"].replace("", pd.NA)
-
-    def resolve_party(ids: pd.Series):
-        """R 565-590: removed objects -> proxy redirect -> playerowned ->
-        universe -> '<FAC> <model|Station>' fallback."""
-        out = pd.DataFrame(index=ids.index)
-        out["id"] = ids
-        out["name"] = ids.map(removed_by_id["name"]) if "name" in removed_by_id \
-            else pd.NA
-        out["code"] = ids.map(removed_by_id["code"]) if "code" in removed_by_id \
-            else pd.NA
-        out["owner"] = ids.map(removed_by_id["owner"]) if "owner" in removed_by_id \
-            else pd.NA
-        # when no id matches, map() yields all-NaN float64 columns and
-        # pandas then refuses to assign strings into them — pin to object
-        for c in ("name", "code", "owner"):
-            out[c] = out[c].astype("object")
-
-        # subordinate traders act for their commander
-        is_proxy = out["id"].isin(follower_to_leader)
-        out["proxy.id"] = out["id"].where(is_proxy)
-        out.loc[is_proxy, "id"] = out.loc[is_proxy, "id"].map(follower_to_leader)
-
-        # player owned objects
-        m = out["name"].isna() & out["id"].isin(owned_by_id.index)
-        out.loc[m, "name"] = out.loc[m, "id"].map(owned_by_id["name"])
-        out.loc[m, "code"] = out.loc[m, "id"].map(owned_by_id["code"])
-        out.loc[m, "owner"] = "player"
-
-        # anything else in the universe
-        m = out["name"].replace("", pd.NA).isna()
-        out.loc[m, "name"] = out.loc[m, "id"].map(uni_by_id["name"])
-        out.loc[m, "code"] = out.loc[m, "code"].fillna(
-            out.loc[m, "id"].map(uni_by_id["code"]))
-        out.loc[m, "owner"] = out.loc[m, "owner"].fillna(
-            out.loc[m, "id"].map(uni_by_id["owner"]))
-
-        # nameless NPC objects: "<FAC> <ship model>" or the station's
-        # basename type ("<FAC> Solar Power Plant")
-        out["faction"] = out["owner"].map(ref.faction_short).fillna(OTHER_FACTION)
-        m = out["name"].replace("", pd.NA).isna()
-        fallback = (out.loc[m, "id"].map(macro_by_id).map(model_map)
-                    .fillna(out.loc[m, "id"].map(basename_by_id))
-                    .fillna("Station"))
-        out.loc[m, "name"] = out.loc[m, "faction"] + " " + fallback
-
-        # proxy name/code
-        out["proxy.name"] = out["proxy.id"].map(owned_by_id["name"])
-        out["proxy.code"] = out["proxy.id"].map(owned_by_id["code"])
-        return out
-
-    seller = resolve_party(df["seller"])
-    buyer = resolve_party(df["buyer"])
-
-    result = pd.DataFrame({
-        "time": pd.to_numeric(df["time"], errors="coerce"),
-        "commodity": df["ware"].map(ref.ware_name).fillna(df["ware"]),
-        "price": pd.to_numeric(df["price"], errors="coerce") / 100.0,
-        "amount": pd.to_numeric(df["v"], errors="coerce").astype("Int64"),
-    })
-    result["money"] = (result["price"] * result["amount"]).astype("Int64")
-    for side, party in (("seller", seller), ("buyer", buyer)):
-        result[f"{side}.faction"] = party["faction"]
-        result[f"{side}.id"] = party["id"]
-        result[f"{side}.name"] = party["name"]
-        result[f"{side}.code"] = party["code"]
-        result[f"{side}.proxy.id"] = party["proxy.id"]
-        result[f"{side}.proxy.name"] = party["proxy.name"]
-        result[f"{side}.proxy.code"] = party["proxy.code"]
-    return result[cols]

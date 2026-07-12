@@ -5,7 +5,7 @@ from __future__ import annotations
 from .db import store
 from .cli import log
 from .config import Config
-from .analysis.frames import build_frames
+from .analysis.frames import build_frames, station_types_from_db
 from .gamedata.refdata import load_refdata
 from .save.parser import parse_savegame
 
@@ -26,10 +26,12 @@ def run_analysis(cfg: Config) -> int:
     try:
         log("Database:", store.db_path(cfg, save.guid))
         store.write_reference(conn, ref)
+        store.import_legacy_caches(conn, cfg, save.guid, ref)
         store.write_snapshot(conn, save, ref, save_file)
-        store.merge_events(conn, save, ref)
+        store.merge_events(conn, save, ref,
+                           station_types_from_db(conn, ref))
 
-        frames = build_frames(save, ref, cfg, conn)
+        frames = build_frames(save, ref, conn)
         store.write_derived(conn, frames)
     finally:
         conn.close()

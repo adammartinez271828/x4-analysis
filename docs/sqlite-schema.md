@@ -302,7 +302,8 @@ CREATE TABLE removed_object (    -- /savegame/economylog/removed/object
 );
 ```
 
-**Merge semantics** (ported verbatim from `db/caches.py`, executed as one
+**Merge semantics** (originally ported from the retired csv cache layer,
+executed as one
 transaction per table so a crash never half-merges):
 
 - `log_entry`: for each category in the fresh window, `DELETE WHERE
@@ -319,7 +320,13 @@ transaction per table so a crash never half-merges):
   cache contract and becomes a direct SQL test.
 - E-table schema changes are additive `ALTER TABLE`s applied on version
   bump (`db/schema.py` `EVENT_MIGRATIONS`); pre-migration rows keep NULL
-  identity and epoch 0, degrading to per-id behavior.
+  identity and epoch 0, degrading to per-id behavior. v3 adds
+  `*_cmdr_id/name/code` to trade_tx: the commander a player subordinate
+  executed the trade for, resolved from the fleet hierarchy at merge time.
+- Pre-DB history from the retired csv.gz caches is imported once per
+  database (`store.import_legacy_caches`, meta flag `csv_caches_imported`):
+  only rows older than the tables' coverage, since the overlap was
+  dual-written. The csv files stay on disk untouched.
 
 ## Reference data (R — from extract-gamedata, replaced wholesale)
 

@@ -36,7 +36,7 @@ def conn(cfg, save_data, ref):
     conn = store.open_db(cfg, save_data.guid)
     store.write_reference(conn, ref)
     store.write_snapshot(conn, save_data, ref, "save.xml")
-    store.merge_events(conn, save_data)
+    store.merge_events(conn, save_data, ref)
     yield conn
     conn.close()
 
@@ -170,13 +170,16 @@ def test_schema_version_reset_keeps_event_tables(cfg, save_data, ref):
 
 # ---- event-history merges (phase 2) ----------------------------------------
 
-def events_save(log=(), trades=(), removed=(), components=()):
+def events_save(log=(), trades=(), removed=(), components=(),
+                links=(), conns=()):
     from x4analyzer.save.parser import SaveData
     s = SaveData()
     s.log_entries = list(log)
     s.trades = list(trades)
     s.removed_objects = list(removed)
     s.components = list(components)
+    s.commander_links = list(links)
+    s.subordinate_conns = list(conns)
     return s
 
 
@@ -214,10 +217,10 @@ def test_event_values(conn):
         ("115", "TEL Trader", "teladi")]
 
 
-def test_merge_idempotent(conn, save_data):
+def test_merge_idempotent(conn, save_data, ref):
     before = {t: dump(conn, t) for t in
               ("trade_tx", "stock_event", "log_entry", "removed_object")}
-    store.merge_events(conn, save_data)
+    store.merge_events(conn, save_data, ref)
     for table, rows in before.items():
         assert dump(conn, table) == rows, table
 
@@ -412,7 +415,7 @@ def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
         stock_attrs("5000.0", "10", "[0x20]"),
         stock_attrs("5100.0", "60", "[0x20]"),
     ]))
-    frames = build_frames(save_data, ref, cfg, conn)
+    frames = build_frames(save_data, ref, conn)
     # the table keeps all history; the dashboard frame sees only the
     # current window, so the Market rate denominators keep their meaning
     assert count(conn, "stock_event") == 3
@@ -437,79 +440,6 @@ def test_removed_merge_appends_unseen(conn):
          "code": "MIN-002"},
     ]))
     assert count(conn, "removed_object") == 2
-
-
-# ---- dual-write equivalence: SQL merge == csv.gz merge (phase 2) ------------
-
-def test_dual_write_log_equivalence(cfg, conn):
-    from x4analyzer.db.caches import merge_log_cache
-    import pandas as pd
-
-    conn.execute("DELETE FROM log_entry")
-    conn.commit()
-    windows = [
-        [("10.0", "", "old news"), ("20.0", "upkeep", "old upkeep")],
-        [("30.0", "", "new news"), ("15.0", "upkeep", "reissued upkeep")],
-    ]
-    for w in windows:
-        df = pd.DataFrame(
-            [(float(t), c, title, "t", None, None) for t, c, title in w],
-            columns=["time", "category", "title", "text", "money",
-                     "component"])
-        csv_merged = merge_log_cache(cfg, "CSVEQ", df)
-        store.merge_events(conn, events_save(log=[
-            {"time": t, "category": c, "title": title, "text": "t"}
-            for t, c, title in w]))
-
-    sql_rows = sorted(
-        (t, c or "", title, text)
-        for t, c, title, text in conn.execute(
-            "SELECT time, category, title, text FROM log_entry"))
-    csv_rows = sorted(
-        (r["time"], r["category"], r["title"], r["text"])
-        for _, r in csv_merged.iterrows())
-    assert sql_rows == csv_rows
-
-
-def test_dual_write_tradelog_equivalence(cfg, conn):
-    from x4analyzer.db.caches import merge_tradelog_cache
-    import pandas as pd
-
-    conn.execute("DELETE FROM trade_tx")
-    conn.commit()
-
-    def csv_frame(times, sid, bid):
-        return pd.DataFrame([{
-            "time": t, "commodity": "Energy Cells", "price": 15.0,
-            "amount": 100, "money": 1500,
-            "seller.faction": "PLA", "seller.id": sid, "seller.name": "S",
-            "seller.code": "AAA-111", "seller.proxy.id": None,
-            "seller.proxy.name": None, "seller.proxy.code": None,
-            "buyer.faction": "ARG", "buyer.id": bid, "buyer.name": "B",
-            "buyer.code": "BBB-222", "buyer.proxy.id": None,
-            "buyer.proxy.name": None, "buyer.proxy.code": None,
-        } for t in times])
-
-    # same playthrough, drifted runtime ids in the second save
-    windows = [
-        ([100.0, 200.0], "[0x1]", "[0x2]"),
-        ([100.0, 200.0, 300.0], "[0x999]", "[0x888]"),
-    ]
-    for times, sid, bid in windows:
-        csv_merged = merge_tradelog_cache(cfg, "CSVEQ", csv_frame(times, sid, bid))
-        store.merge_events(conn, events_save(trades=[
-            trade_attrs(str(t), bid, sid) for t in times]))
-
-    sql_rows = sorted(conn.execute(
-        "SELECT time, price_cr, amount FROM trade_tx"))
-    csv_rows = sorted(
-        (r["time"], r["price"], float(r["amount"]))
-        for _, r in csv_merged.iterrows())
-    assert sql_rows == csv_rows
-    # commodity display name and raw ware id describe the same ware
-    assert {r[0] for r in conn.execute("SELECT ware FROM trade_tx")} \
-        == {"energycells"}
-    assert set(csv_merged["commodity"]) == {"Energy Cells"}
 
 
 # ---- views + the frames.py port (phase 3) -----------------------------------
@@ -557,7 +487,7 @@ def test_v_stock_delta(conn):
 def test_build_frames_from_db(cfg, save_data, ref, conn):
     from x4analyzer.analysis.frames import build_frames
 
-    frames = build_frames(save_data, ref, cfg, conn)
+    frames = build_frames(save_data, ref, conn)
 
     assert set(frames.universe["class"]) == {"cluster", "sector", "station",
                                              "ship_s"}
@@ -589,3 +519,154 @@ def test_bulk_insert_speed(cfg, save_data, ref):
     store.write_snapshot(conn, save_data, ref, "save.xml")
     conn.close()
     assert time.perf_counter() - t0 < 2.0
+
+
+# ---- csv cache retirement: merge-time display identity + legacy import ------
+
+def test_commander_attribution_at_merge(conn, ref):
+    conn.execute("DELETE FROM trade_tx")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[{"time": "50.0", "ware": "energycells", "buyer": "[0xB]",
+                 "seller": "[0x30]", "price": "1000", "v": "10"}],
+        components=[comp("[0x20]", "STA-001", "player", "My Station"),
+                    comp("[0x30]", "SHP-001", "player", "My Trader"),
+                    comp("[0xB]", "NPC-001", "argon")],
+        links=[("[0x30]", "[0xC1]")], conns=[("[0x20]", "[0xC1]")],
+    ), ref)
+    assert conn.execute(
+        "SELECT seller_cmdr_id, seller_cmdr_name, seller_cmdr_code,"
+        " buyer_cmdr_id FROM trade_tx").fetchall() == [
+        ("[0x20]", "My Station", "STA-001", None)]
+
+
+def test_display_name_fallback_at_merge(conn, ref):
+    conn.execute("DELETE FROM stock_event")
+    conn.commit()
+    # unnamed NPC station -> "<SHORT> <stype>"; unnamed player ship -> model
+    unnamed_station = comp("[0xA]", "FAC-001", "argon")
+    ship = ("[0xS]", "ship_s", "ship_test_macro", "", "SHP-002", "player",
+            "", "", "conn", "", "", "", "", "", "", "")
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("10.0", "5", "[0xA]"),
+                stock_attrs("11.0", "5", "[0xS]")],
+        components=[unnamed_station, ship],
+    ), ref, stypes={"[0xA]": "Solar Power Plant"})
+    names = dict(conn.execute(
+        "SELECT owner_id, owner_name FROM stock_event"))
+    assert names["[0xA]"] == "ARG Solar Power Plant"
+    # fixture macro is unknown to ships.csv -> falls back to the macro
+    assert names["[0xS]"] == "ship_test_macro"
+
+
+def test_frames_log_and_tradelog_from_db(cfg, save_data, ref, conn):
+    from x4analyzer.analysis.frames import build_frames
+
+    store.merge_events(conn, events_save(log=[
+        {"time": "40.0", "category": "upkeep", "title": "paid",
+         "text": "t", "money": "123456"},
+    ]), ref)
+    frames = build_frames(save_data, ref, conn)
+    # money surfaces in cents, like the parser produced (logparse does /100)
+    paid = frames.log[frames.log["title"] == "paid"]
+    assert list(paid["money"]) == [123456.0]
+
+    tl = frames.tradelog
+    assert list(tl["commodity"]) == ["Energy Cells"]
+    assert list(tl["money"]) == [1600]
+    assert list(tl["buyer.faction"]) == ["PLA"]
+    assert list(tl["seller.faction"]) == ["OTH"]     # [0x77] never existed
+    assert list(tl["seller.name"]) == ["OTH Station"]
+    assert list(tl["buyer.name"]) == ["PLA Station"]  # unnamed player station
+    assert tl["seller.proxy.id"].isna().all()
+
+
+def test_tradelog_renders_commander_and_proxy(cfg, save_data, ref, conn):
+    from x4analyzer.analysis.frames import build_frames
+
+    conn.execute("DELETE FROM trade_tx")
+    conn.commit()
+    # the fixture's ship [0x30] is a subordinate of station [0x20]
+    store.merge_events(conn, events_save(
+        trades=[{"time": "50.0", "ware": "ice", "buyer": "[0x77]",
+                 "seller": "[0x30]", "price": "1000", "v": "10"}],
+        components=list(save_data.components),
+        links=list(save_data.commander_links),
+        conns=list(save_data.subordinate_conns),
+    ), ref)
+    tl = build_frames(save_data, ref, conn).tradelog
+    assert list(tl["seller.id"]) == ["[0x20]"]        # attributed to commander
+    assert list(tl["seller.code"]) == ["STA-001"]
+    assert list(tl["seller.proxy.id"]) == ["[0x30]"]  # executed by the ship
+    assert list(tl["seller.proxy.code"]) == ["SHP-001"]
+
+
+def test_legacy_csv_import(cfg, save_data, ref):
+    import gzip
+
+    log_csv = ("time\tcategory\ttitle\ttext\tmoney\tcomponent\n"
+               "5.0\t\told news\tt\t\t\n"
+               "6.0\tupkeep\told upkeep\tt\t2000\t\n")
+    trade_csv = (
+        "time\tcommodity\tprice\tamount\tmoney\t"
+        "seller.faction\tseller.id\tseller.name\tseller.code\t"
+        "seller.proxy.id\tseller.proxy.name\tseller.proxy.code\t"
+        "buyer.faction\tbuyer.id\tbuyer.name\tbuyer.code\t"
+        "buyer.proxy.id\tbuyer.proxy.name\tbuyer.proxy.code\n"
+        "3.0\tEnergy Cells\t15.0\t100\t1500\t"
+        "PLA\t[0xC]\tCommander\tCMD-001\t[0xE]\tExecutor\tEXE-001\t"
+        "ARG\t[0xB]\tB\tBBB-222\t\t\t\n")
+    guid = save_data.guid
+    with gzip.open(cfg.data_dir / f"cache_log_{guid}.csv.gz", "wt") as fh:
+        fh.write(log_csv)
+    with gzip.open(cfg.data_dir / f"cache_tradelog_{guid}.csv.gz", "wt") as fh:
+        fh.write(trade_csv)
+
+    conn = store.open_db(cfg, guid)
+    store.write_reference(conn, ref)
+    store.write_snapshot(conn, save_data, ref, "save.xml")
+    store.merge_events(conn, save_data, ref)   # window starts at t=10.5
+    store.import_legacy_caches(conn, cfg, guid, ref)
+
+    # pre-window csv history landed; the dual-written overlap did not dupe
+    assert count(conn, "log_entry") == 3
+    assert conn.execute("SELECT money_cr FROM log_entry"
+                        " WHERE title = 'old upkeep'").fetchall() == [(20.0,)]
+    assert conn.execute(
+        "SELECT ware, seller_id, seller_name, seller_code, seller_cmdr_id,"
+        " seller_cmdr_name, seller_cmdr_code, seller_faction, buyer_faction"
+        " FROM trade_tx WHERE time = 3.0").fetchall() == [
+        ("energycells", "[0xE]", "Executor", "EXE-001",
+         "[0xC]", "Commander", "CMD-001", "player", "argon")]
+    # the buyer had no proxy: empty csv cells must not read as truthy NaN
+    assert conn.execute("SELECT buyer_id, buyer_cmdr_id FROM trade_tx"
+                        " WHERE time = 3.0").fetchall() == [("[0xB]", None)]
+    # one-time: flag set, a second call is a no-op
+    store.import_legacy_caches(conn, cfg, guid, ref)
+    assert count(conn, "log_entry") == 3
+    assert count(conn, "trade_tx") == 2
+    conn.close()
+
+
+def test_v2_database_migrates_keeping_trades(cfg):
+    import sqlite3
+
+    conn = sqlite3.connect(store.db_path(cfg, "MIG2"))
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '2')")
+    conn.execute("CREATE TABLE trade_tx (time REAL NOT NULL,"
+                 " ware TEXT NOT NULL, buyer_id TEXT, seller_id TEXT,"
+                 " price_cr REAL, amount REAL, raw_attrs TEXT,"
+                 " buyer_faction TEXT, buyer_code TEXT, buyer_name TEXT,"
+                 " seller_faction TEXT, seller_code TEXT, seller_name TEXT,"
+                 " epoch INTEGER NOT NULL DEFAULT 0)")
+    conn.execute("INSERT INTO trade_tx VALUES (5.0, 'ice', '[0x1]', '[0x2]',"
+                 " 10.0, 3.0, NULL, 'argon', 'AAA-111', 'A',"
+                 " 'teladi', 'BBB-222', 'B', 0)")
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "MIG2")
+    assert conn.execute("SELECT time, buyer_name, buyer_cmdr_id FROM trade_tx"
+                        ).fetchall() == [(5.0, "A", None)]
+    conn.close()

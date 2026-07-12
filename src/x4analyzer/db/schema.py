@@ -16,7 +16,7 @@ must load, never fail. FK comments are documentation only.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -43,8 +43,20 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
         "ALTER TABLE trade_tx ADD COLUMN seller_name TEXT",
         "ALTER TABLE trade_tx ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0",
     ),
+    # v3 adds merge-time commander attribution: buyer/seller stay the
+    # actual executor, *_cmdr_* is the commander a player subordinate was
+    # trading for (NULL otherwise). The csv tradelog cache baked this in
+    # at parse time; storing it keeps the attribution across id drift.
+    "2": (
+        "ALTER TABLE trade_tx ADD COLUMN buyer_cmdr_id TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN buyer_cmdr_name TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN buyer_cmdr_code TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_id TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_name TEXT",
+        "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_code TEXT",
+    ),
 }
-NEXT_VERSION = {"1": "2"}
+NEXT_VERSION = {"1": "2", "2": "3"}
 
 WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",
@@ -209,7 +221,9 @@ TABLES: dict[str, str] = {
   raw_attrs TEXT,
   buyer_faction TEXT, buyer_code TEXT, buyer_name TEXT,
   seller_faction TEXT, seller_code TEXT, seller_name TEXT,
-  epoch     INTEGER NOT NULL DEFAULT 0
+  epoch     INTEGER NOT NULL DEFAULT 0,
+  buyer_cmdr_id TEXT, buyer_cmdr_name TEXT, buyer_cmdr_code TEXT,
+  seller_cmdr_id TEXT, seller_cmdr_name TEXT, seller_cmdr_code TEXT
 )""",
     "stock_event": """CREATE TABLE IF NOT EXISTS stock_event (
   time      REAL NOT NULL,

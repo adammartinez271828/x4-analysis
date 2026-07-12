@@ -28,7 +28,7 @@ import pandas as pd
 from . import schema
 from ..cli import log
 from ..config import Config
-from ..gamedata.refdata import RefData
+from ..gamedata.refdata import OTHER_FACTION, RefData
 from ..save.parser import SaveData
 
 _CODE_RE = re.compile(r"[A-Z]{3}-[0-9]{3}")
@@ -321,10 +321,11 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
 # ---- event history (E: merged across runs, replaces the csv.gz caches) -----
 
 def merge_events(conn: sqlite3.Connection, save: SaveData,
-                 ref: RefData | None = None) -> None:
+                 ref: RefData | None = None, stypes: dict | None = None) -> None:
     """Merge the save's rolling log/economylog windows into the event
-    tables. Semantics ported from caches.py (one transaction per table, so
-    a crash never half-merges; running twice on the same save is a no-op):
+    tables (semantics originally ported from the retired csv cache layer;
+    one transaction per table, so a crash never half-merges; running twice
+    on the same save is a no-op):
 
     - log_entry: per category, cached entries at or after that category's
       oldest new timestamp are replaced by the new window.
@@ -332,34 +333,75 @@ def merge_events(conn: sqlite3.Connection, save: SaveData,
       timestamp are replaced (the new window is authoritative from there).
     - removed_object: cumulative catalog, append unseen objects.
 
-    Trade parties are resolved to their save-stable identity (faction,
-    code, name) here, at merge time — the game remaps every runtime id on
-    load, so a window's ids are unambiguous only against the save they
-    came from.
+    Trade parties are resolved to their save-stable, display-ready
+    identity (faction, code, name) here, at merge time — the game remaps
+    every runtime id on load, so a window's ids are unambiguous only
+    against the save they came from. `stypes` (station id -> display type,
+    see frames.station_types) feeds the unnamed-station fallback. Player
+    subordinates additionally record the commander they traded for.
     """
+    ident = _identities(save, ref, stypes or {})
     _merge_log(conn, save.log_entries)
-    _merge_trades(conn, save.trades, _identities(save, ref))
+    _merge_trades(conn, save.trades, ident, _player_edges(save))
     _merge_removed(conn, save.removed_objects)
 
 
-def _identities(save: SaveData, ref: RefData | None) -> dict:
-    """Component id -> (faction, code, name) from this save's universe and
-    removed-objects catalog."""
+def _identities(save: SaveData, ref: RefData | None, stypes: dict) -> dict:
+    """Component id -> display-ready (faction, code, name) from this save's
+    universe and removed-objects catalog. Nameless objects get the same
+    fallback the R-era tradelog used: player ships their model, everything
+    else "<SHORT> <model|station type|Station>"."""
+    model_map = (dict(zip(ref.ships["macro"], ref.ships["model"]))
+                 if ref is not None else {})
+    faction_short = ref.faction_short if ref is not None else {}
+
     def resolve(name):
         if ref is not None and name and "{" in name:
             return ref.resolve_name(name)
         return _s(name)
 
+    def display(name, cid, clazz, macro, owner):
+        if name:
+            return name
+        model = model_map.get(macro) if clazz.startswith("ship_") else None
+        if owner == "player" and clazz.startswith("ship_"):
+            return model or macro or None
+        base = model or stypes.get(cid) or "Station"
+        short = faction_short.get(owner, OTHER_FACTION)
+        return f"{short} {base}"
+
     ident: dict[str, tuple] = {}
     for c in save.components:
         # (id, class, macro, name, code, owner, ...)
-        ident[c[0]] = (_s(c[5]), _s(c[4]), resolve(c[3]))
+        cid, clazz, macro = c[0], c[1], (c[2] or "").lower()
+        ident[cid] = (_s(c[5]), _s(c[4]),
+                      display(resolve(c[3]), cid, clazz, macro, c[5]))
     for o in save.removed_objects:
         oid = o.get("id")
         if oid and oid not in ident:
-            ident[oid] = (_s(o.get("owner")), _s(o.get("code")),
-                          resolve(o.get("name")))
+            owner = _s(o.get("owner"))
+            name = resolve(o.get("name"))
+            if not name:
+                name = f"{faction_short.get(owner, OTHER_FACTION)} Station"
+            ident[oid] = (owner, _s(o.get("code")), name)
     return ident
+
+
+def _player_edges(save: SaveData) -> dict:
+    """follower id -> commander id, player-owned on both sides (the same
+    resolution as fleet_edge, filtered like frames.wings)."""
+    owners = {c[0]: c[5] for c in save.components}
+    followers_by_conn: dict[str, list] = {}
+    for follower, conn_ref in save.commander_links:
+        followers_by_conn.setdefault(conn_ref, []).append(follower)
+    edges: dict[str, str] = {}
+    for leader, conn_id in save.subordinate_conns:
+        if owners.get(leader) != "player":
+            continue
+        for follower in followers_by_conn.get(conn_id, ()):
+            if owners.get(follower) == "player":
+                edges.setdefault(follower, leader)
+    return edges
 
 
 def _cents(v) -> float | None:
@@ -397,12 +439,31 @@ def _merge_log(conn: sqlite3.Connection, entries: list[dict]) -> None:
             "INSERT INTO log_entry VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
 
 
+_TX_COLS = ("time", "ware", "buyer_id", "seller_id", "price_cr", "amount",
+            "raw_attrs", "buyer_faction", "buyer_code", "buyer_name",
+            "seller_faction", "seller_code", "seller_name",
+            "buyer_cmdr_id", "buyer_cmdr_name", "buyer_cmdr_code",
+            "seller_cmdr_id", "seller_cmdr_name", "seller_cmdr_code")
+_STOCK_COLS = ("time", "owner_id", "ware", "level", "raw_attrs",
+               "owner_faction", "owner_code", "owner_name")
+
+
 def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
-                  ident: dict) -> None:
+                  ident: dict, edges: dict) -> None:
     # the economylog's type="trade" entries are two different record types:
     # real transactions (buyer AND seller AND price; v is a traded amount)
     # vs owner-only stock snapshots (v is the level AFTER a trade)
     nobody = (None, None, None)
+
+    def cmdr(party_id):
+        """(id, name, code) of the commander a player subordinate traded
+        for — the hierarchy at save time, like the retired csv baked in."""
+        leader = edges.get(party_id)
+        if leader is None:
+            return nobody
+        faction, code, name = ident.get(leader, nobody)
+        return (leader, name, code)
+
     tx, stock = [], []
     for t in trades:
         time = _time_of(t)
@@ -414,7 +475,8 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
                        _s(t.get("seller")), _cents(t.get("price")),
                        _f(t.get("v")), raw,
                        *ident.get(t["buyer"], nobody),
-                       *ident.get(t["seller"], nobody)))
+                       *ident.get(t["seller"], nobody),
+                       *cmdr(t["buyer"]), *cmdr(t["seller"])))
         elif t.get("owner") and not t.get("buyer"):
             # absent v means an empty stock, not unknown (the game omits
             # default attrs); NULL would punch holes into the LAG deltas
@@ -422,12 +484,12 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
                           _f(t.get("v")) or 0.0, raw,
                           *ident.get(t["owner"], nobody)))
 
-    _merge_window(conn, "trade_tx", tx)
-    _merge_window(conn, "stock_event", stock)
+    _merge_window(conn, "trade_tx", tx, _TX_COLS)
+    _merge_window(conn, "stock_event", stock, _STOCK_COLS)
 
 
 def _merge_window(conn: sqlite3.Connection, table: str,
-                  rows: list[tuple]) -> None:
+                  rows: list[tuple], cols: tuple[str, ...]) -> None:
     # Rows can't dedupe on their natural identity across runs (component ids
     # drift between saves), so replace at the window boundary instead of
     # matching rows: everything newer than mintime is authoritative from the
@@ -460,7 +522,11 @@ def _merge_window(conn: sqlite3.Connection, table: str,
         else:
             conn.execute(f"DELETE FROM {table} WHERE time > ?", (mintime,))
             rows = [r for r in rows if r[0] > mintime]
-        conn.executemany(f"INSERT INTO {table} VALUES ({ph})", rows)
+        # explicit column list: migrated tables carry ALTER-appended
+        # columns in a different physical order than a fresh CREATE
+        conn.executemany(
+            f"INSERT INTO {table} ({','.join(cols)}, epoch)"
+            f" VALUES ({ph})", rows)
         # the dashboards' rate math needs the current window's extent —
         # merged history would otherwise dilute every Cr/h denominator
         conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
@@ -478,6 +544,118 @@ def _merge_removed(conn: sqlite3.Connection, objects: list[dict]) -> None:
             " (SELECT 1 FROM removed_object"
             "  WHERE id IS ? AND name IS ? AND code IS ? AND owner IS ?)",
             [r + (r[1], r[2], r[3], r[4]) for r in rows])
+
+
+# ---- one-time import of the retired csv.gz caches ---------------------------
+
+def import_legacy_caches(conn: sqlite3.Connection, cfg: Config, guid: str,
+                         ref: RefData) -> None:
+    """Import the retired csv cache files' history: rows older than
+    anything the event tables cover (the overlap was dual-written while
+    both stores existed and is already present, in richer form). Runs once
+    per database (meta flag); the csv files themselves are left on disk
+    untouched — they are the only backup of this history.
+    """
+    if conn.execute("SELECT 1 FROM meta WHERE key = 'csv_caches_imported'"
+                    ).fetchone():
+        return
+    n_log = _import_log_cache(
+        conn, _read_legacy(cfg.data_dir / f"cache_log_{guid}.csv"))
+    n_tx = _import_tradelog_cache(
+        conn, _read_legacy(cfg.data_dir / f"cache_tradelog_{guid}.csv"), ref)
+    with conn:
+        conn.execute("INSERT OR REPLACE INTO meta VALUES"
+                     " ('csv_caches_imported', '1')")
+    if n_log or n_tx:
+        log(f"Imported legacy csv cache history: {n_log} log entries, "
+            f"{n_tx} trades")
+
+
+def _read_legacy(base: Path) -> list[dict] | None:
+    """Rows as plain dicts with None for empty cells — NaN would slip
+    through the ""/None guards in _s/_f and defeat the cutoff lookups."""
+    for p in (base.with_suffix(".csv.gz"), base):
+        if p.exists():
+            df = pd.read_csv(p, sep="\t", dtype=str)
+            return [{k: (None if pd.isna(v) else v) for k, v in row.items()}
+                    for row in df.to_dict("records")]
+    return None
+
+
+def _import_log_cache(conn: sqlite3.Connection,
+                      records: list[dict] | None) -> int:
+    if not records:
+        return 0
+    # only rows from before the event table's coverage; the csv kept a
+    # filtered subset, so within the overlap the table is authoritative
+    cutoffs = dict(conn.execute(
+        "SELECT category, MIN(time) FROM log_entry GROUP BY category"))
+    rows = []
+    for r in records:
+        t = _f(r.get("time"))
+        if t is None:
+            continue
+        cat = _s(r.get("category"))
+        cut = cutoffs.get(cat)
+        if cut is not None and t >= cut:
+            continue
+        rows.append((t, cat, _s(r.get("title")), _s(r.get("text")), None,
+                     _cents(r.get("money")), None, _s(r.get("component")),
+                     None, None))
+    with conn:
+        conn.executemany(
+            "INSERT INTO log_entry (time, category, title, text, faction,"
+            " money_cr, interaction, component_id, highlighted, raw_attrs)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+    return len(rows)
+
+
+def _import_tradelog_cache(conn: sqlite3.Connection,
+                           records: list[dict] | None, ref: RefData) -> int:
+    if not records:
+        return 0
+    cut = conn.execute("SELECT MIN(time) FROM trade_tx").fetchone()
+    cutoff = cut[0] if cut else None
+    ware_by_name = {v: k for k, v in ref.ware_name.items()}
+    faction_by_short = {v: k for k, v in ref.faction_short.items()}
+
+    rows = []
+    for r in records:
+        t = _f(r.get("time"))
+        if t is None or (cutoff is not None and t >= cutoff):
+            continue
+
+        def party(side):
+            """csv rows are post-redirect: main columns hold the commander
+            when a proxy executed the trade. -> (faction_id, executor(id,
+            name, code), commander(id, name, code))."""
+            faction = faction_by_short.get(_s(r.get(f"{side}.faction")))
+            main = (_s(r.get(f"{side}.id")), _s(r.get(f"{side}.name")),
+                    _s(r.get(f"{side}.code")))
+            proxy_id = _s(r.get(f"{side}.proxy.id"))
+            if proxy_id:
+                executor = (proxy_id, _s(r.get(f"{side}.proxy.name")),
+                            _s(r.get(f"{side}.proxy.code")))
+                return faction, executor, main
+            return faction, main, (None, None, None)
+
+        b_fac, b_exec, b_cmdr = party("buyer")
+        s_fac, s_exec, s_cmdr = party("seller")
+        commodity = _s(r.get("commodity"))
+        rows.append((
+            t, ware_by_name.get(commodity, commodity) or "",
+            b_exec[0], s_exec[0], _f(r.get("price")), _f(r.get("amount")),
+            None,
+            b_fac, b_exec[2], b_exec[1],
+            s_fac, s_exec[2], s_exec[1],
+            *b_cmdr, *s_cmdr,
+            0,  # epoch: pre-DB history, one continuous csv timeline
+        ))
+    with conn:
+        conn.executemany(
+            f"INSERT INTO trade_tx ({','.join(_TX_COLS)}, epoch)"
+            f" VALUES ({','.join('?' * (len(_TX_COLS) + 1))})", rows)
+    return len(rows)
 
 
 # ---- derived tables (D: logparse output, rebuilt every run) -----------------

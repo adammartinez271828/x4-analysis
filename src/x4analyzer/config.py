@@ -2,8 +2,9 @@
 
 Reference game data (ships/sectors/wares/...) ships inside the package;
 `extract-gamedata` writes regenerated copies into a per-user data directory
-which, when present, overrides the packaged files. Caches always live in the
-user data directory (the package may be installed read-only, e.g. via uvx).
+which, when present, overrides the packaged files. The analysis database always
+lives in the user data directory (the package may be installed read-only,
+e.g. via uvx).
 """
 
 from __future__ import annotations
@@ -106,13 +107,6 @@ class Config:
 
     # Hide undiscovered sectors/ships/stations and resource detail plots.
     spoilers_hide: bool = False
-
-    # Rebuild caches from scratch (kept for compatibility; resources are
-    # always recomputed).
-    cache_force_refresh: bool = False
-
-    # gzip the cache files.
-    cache_compress: bool = True
 
     # Hours of history for the sunbursts and earnings tables.
     history_hours: float = 3.0
