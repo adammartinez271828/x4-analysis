@@ -15,7 +15,6 @@ Sections (see docs/analytics-ideas.md #5):
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd
@@ -23,8 +22,7 @@ import pandas as pd
 from ..cli import log
 from ..config import Config
 from ..analysis.frames import Frames
-from ..analysis.mining import (MINER_TRIPS_PER_H, OBSERVED_WINDOW_H,
-                               raw_inflow)
+from ..analysis.mining import OBSERVED_WINDOW_H, raw_inflow
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import _station_rates
@@ -138,30 +136,45 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     # ---- 1b. raw resource inflow ---------------------------------------------
     # observed miner/market deliveries vs the assigned mining fleet's
-    # theoretical haul vs recipe consumption, per mineable ware. The table
-    # is rendered client-side: a slider sets the assumed full-loads/h per
-    # miner and Theoretical/h + "More miners" follow it live.
+    # theoretical haul at its MEASURED delivery rate vs recipe consumption,
+    # per mineable ware
     inflow = raw_inflow(frames, ref, rates)
-    n_under = int(((inflow["cons"] > 0)
-                   & (inflow["observed"] < inflow["cons"])).sum()) \
-        if not inflow.empty else 0
-    # preset the slider to the fleets' real measured rate where available
-    meas = inflow[inflow["measured"] > 0]["measured"] \
-        if not inflow.empty else pd.Series(dtype=float)
-    trips0 = round(float(meas.median()), 2) if not meas.empty \
-        else MINER_TRIPS_PER_H
-    rows8 = [[st_name.get(r["id"], r["id"]), wname(r["ware"]),
-              int(r["miners"]), round(float(r["observed"]), 1),
-              round(float(r["measured"]), 2),
-              round(float(r["per_trip"]), 2),
-              round(float(r["cons"]), 1), round(float(r["balance"]), 1),
-              0, 0,   # More miners / Status placeholders (computed in JS)
-              round(float(r["class_cons"]), 1),
-              round(float(r["class_cap"]), 1),
-              round(float(r["avg_cap"]), 1),
-              int(r["deliveries"]), round(float(r["window_h"]), 1)]
-             for _, r in inflow.iterrows()]
-    raw_supply = inflow   # sections/chips only need emptiness + row count
+    rows = []
+    n_under = 0
+    for _, r in inflow.iterrows():
+        short = r["cons"] > 0 and r["observed"] < r["cons"]
+        if short:
+            n_under += 1
+            gap = r["cons"] - r["observed"]
+            covered = r["class_cap"] * r["rate"] >= r["class_cons"]
+            status = (f"<span class='warn'>{gap:,.0f}/h short — fleet "
+                      "large enough at its measured rate</span>" if covered
+                      else f"<span class='neg'>{gap:,.0f}/h short — "
+                      "assign more miners</span>")
+        else:
+            status = "<span class='pos'>OK</span>"
+        if r["measured"] > 0:
+            rate = (f"<span title='{int(r['deliveries'])} own-miner "
+                    f"deliveries in the last {r['window_h']:.1f}h'>"
+                    f"{r['rate']:.2f}</span>")
+        else:
+            rate = f"~{r['rate']:.2f}"   # nothing measured: assumed
+        more = r["more_miners"]
+        rows.append({
+            "Station": st_name.get(r["id"], r["id"]),
+            "Ware": wname(r["ware"]),
+            "Miners": int(r["miners"]),
+            "Observed/h": round(r["observed"]),
+            "Loads/miner/h": rate,
+            "Theoretical/h": round(r["theoretical"]),
+            "Consumes/h": round(r["cons"]),
+            "Balance/h": round(r["balance"]),
+            "More miners": ("&mdash;" if more == 0 else "?"
+                            if pd.isna(more)
+                            else f"<span class='warn'>+{int(more)}</span>"),
+            "Status": status,
+        })
+    raw_supply = pd.DataFrame(rows)
 
     # ---- 2. output pile-up ---------------------------------------------------
     rows = []
@@ -397,14 +410,14 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "(STALLED = stock is empty)", starving, "t1"),
         ("Raw resource supply",
          "per mineable ware: observed inflow (own miners + purchases, "
-         f"rolling window up to {OBSERVED_WINDOW_H:g}h), the assigned "
-         "fleet's MEASURED full-load rate from its own delivery history, "
-         "and its theoretical haul at the slider's assumed rate vs recipe "
-         "consumption. Miners and measured rate are per hold class "
-         "(solid/liquid), shared across that class's wares; “More "
-         "miners” = additional miners of that class needed to cover "
-         "the class's raw consumption at the assumed rate", raw_supply,
-         "t8"),
+         f"rolling window up to {OBSERVED_WINDOW_H:g}h) vs recipe "
+         "consumption. Loads/miner/h is the assigned fleet's MEASURED "
+         "full-load rate from its own delivery history (~ = nothing "
+         "measured, borrowed from your other fleets); Theoretical/h and "
+         "“More miners” (additional miners of the hold class needed to "
+         "cover its raw consumption) both use that measured rate. Miners "
+         "and rate are per hold class (solid/liquid), shared across the "
+         "class's wares", raw_supply, "t8"),
         ("Output piling up",
          f"products holding more than {OUTPUT_PILE_H:g}h of production — "
          "sell it or production will choke", piling, "t2"),
@@ -441,78 +454,11 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         body.append(f"<h3>{title} <small>({flagged.get(tid, len(df))})"
                     "</small></h3>")
         body.append(f"<p class='note'>{desc}</p>")
-        if tid == "t8" and rows8:
-            body.append(f"""
-<p><label for='trips8'>Assumed full loads per miner per hour:
-<b id='trips8v'>{trips0:.2f}</b></label>
-<input type='range' id='trips8' min='0.25' max='5' step='0.05'
- value='{trips0:.2f}' style='width:280px;vertical-align:middle'>
-<span class='note'>preset to your fleets' measured median — drag to ask
-"what if my miners managed N loads/h"</span></p>
-<table id='t8' class='display nowrap' style='width:100%'>
-<thead><tr><th>Station</th><th>Ware</th><th>Miners</th><th>Observed/h</th>
-<th>Measured loads/miner/h</th><th>Theoretical/h</th><th>Consumes/h</th>
-<th>Balance/h</th><th>More miners</th><th>Status</th></tr></thead>
-</table>""")
-        else:
-            body.append(_table(df, tid))
+        body.append(_table(df, tid))
 
     tables_js = "\n".join(
         f"$('#{tid}').DataTable({{order: [], pageLength: 10}});"
-        for _t, _d, df, tid in sections
-        if not df.empty and tid not in ("t7", "t8"))
-    if rows8:
-        tables_js += f"""
-let TRIPS8 = {trips0:.2f};
-const ROWS8 = {json.dumps(rows8, separators=(",", ":"))};
-const fmt8 = n => Math.round(n).toLocaleString('en-US');
-// rows8: 0 station, 1 ware, 2 miners, 3 observed/h, 4 measured loads/h,
-// 5 units per fleet trip, 6 consumes/h, 7 balance/h, 8/9 placeholders,
-// 10 class demand m3/h, 11 class hold m3, 12 one-more-miner m3,
-// 13 own deliveries in window, 14 window h
-const need8 = r => {{
-  const gap = r[10] - r[11] * TRIPS8;      // m3/h the class pool is short
-  if (gap <= 0) return 0;
-  const per = r[12] * TRIPS8;              // m3/h one more miner would add
-  return per > 0 ? Math.ceil(gap / per) : null;
-}};
-$('#t8').DataTable({{data: ROWS8, order: [], pageLength: 10, columnDefs: [
-  {{targets: [3, 6], render: (d, t) => t === 'display' ? fmt8(d) : d}},
-  {{targets: 4, render: (d, t, row) => {{
-    if (t !== 'display') return d;
-    return d > 0 ? "<span title='" + row[13] + " own-miner deliveries in "
-      + "the last " + row[14] + "h'>" + d.toFixed(2) + "&times;</span>"
-      : '&mdash;';
-  }}}},
-  {{targets: 5, render: (d, t) => {{
-    const v = d * TRIPS8;
-    return t === 'display' ? fmt8(v) : v;
-  }}}},
-  {{targets: 7, render: (d, t) => t === 'display'
-    ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt8(d)
-      + "</span>" : d}},
-  {{targets: 8, render: (d, t, row) => {{
-    const n = need8(row);
-    if (t !== 'display') return n === null ? 1e12 : n;
-    if (n === 0) return '&mdash;';
-    return n === null ? '?' : "<span class=warn>+" + n + "</span>";
-  }}}},
-  {{targets: 9, render: (d, t, row) => {{
-    const short = row[6] > 0 && row[3] < row[6];
-    if (t !== 'display') return short ? row[6] - row[3] : 0;
-    if (!short) return "<span class=pos>OK</span>";
-    const cover = row[11] * TRIPS8 >= row[10];
-    return "<span class='" + (cover ? 'warn' : 'neg') + "'>"
-      + fmt8(row[6] - row[3]) + "/h short"
-      + (cover ? " — fleet large enough at this rate" : "") + "</span>";
-  }}}},
-  {{targets: [10, 11, 12, 13, 14], visible: false, searchable: false}},
-]}});
-$('#trips8').on('input', function() {{
-  TRIPS8 = +this.value;
-  document.getElementById('trips8v').textContent = TRIPS8.toFixed(2);
-  $('#t8').DataTable().rows().invalidate('data').draw(false);
-}});"""
+        for _t, _d, df, tid in sections if not df.empty and tid != "t7")
     if not crew.empty:
         flag_idx = len(crew.columns) - 1
         tables_js += f"""

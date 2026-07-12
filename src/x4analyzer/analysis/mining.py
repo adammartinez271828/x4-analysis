@@ -22,18 +22,22 @@ Units: ship holds are measured in m³, not units — an 8,800 m³ hold carries
 880 ore at 10 m³/unit — so every capacity-to-rate conversion goes through
 the ware's volume. "measured" is the fleet's real full-load rate: own
 deliveries in m³/h divided by the fleet's total hold m³ = full loads per
-miner per hour, the empirical counterpart of MINER_TRIPS_PER_H (the
-dashboard exposes the assumption as a slider preset to the measured rate).
+miner per hour. Theoretical inflow and "more miners" use that measured
+rate directly; fleets without delivery history borrow the empire-wide
+measured median, and only when nothing was measured anywhere does the
+MINER_TRIPS_PER_H assumption apply.
 """
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
-# Default assumed full-cargo deliveries per miner per hour for the
-# theoretical inflow when nothing was measured: fly to the field, mine a
-# full hold, return, dock. In-sector M miners over short hops in the
-# reference save sustained 3-4 loads/h; long hauls run well below 1.
+# Fallback full-cargo deliveries per miner per hour, used only when no
+# fleet has any measured delivery history: fly to the field, mine a full
+# hold, return, dock. In-sector M miners over short hops in the reference
+# save sustained 3-4 loads/h; long hauls run well below 1.
 MINER_TRIPS_PER_H = 2.0
 
 # Observed inflow is a rolling rate over this window, clamped down to the
@@ -43,17 +47,23 @@ OBSERVED_WINDOW_H = 6.0
 
 _COLS = ["id", "ware", "class", "observed", "own", "theoretical",
          "per_trip", "cons", "balance", "miners", "share", "class_cap",
-         "class_cons", "avg_cap", "measured", "deliveries", "window_h"]
+         "class_cons", "avg_cap", "measured", "rate", "more_miners",
+         "deliveries", "window_h"]
 # own        units/h delivered by the station's currently assigned miners
 # per_trip   units of this ware per fleet-wide trip cycle (every miner one
-#            full load, the class pool split by `share`) — theoretical at
-#            any assumed trips/h = per_trip x rate, no Python round trip
+#            full load, the class pool split by `share`)
 # share      the ware's slice of its class pool (volume-weighted Σ = 1)
 # class_cap  total hold volume (m³) of the station's miners of the class
 # class_cons Σ consumption of the class's wares at the station, in m³/h
 # avg_cap    hold volume of "one more miner": the class fleet's mean,
 #            falling back to typical_miner_capacity for stations with none
-# measured   the fleet's real full-load rate (own m³/h ÷ class_cap)
+# measured   the fleet's real full-load rate (own m³/h ÷ class_cap);
+#            0 when the fleet has no delivery history
+# rate       loads/miner/h actually used: measured, else the empire-wide
+#            measured median, else MINER_TRIPS_PER_H
+# theoretical per_trip x rate (units/h)
+# more_miners additional miners of the class needed so class_cap x rate
+#            covers class_cons; shared across the class's wares
 # deliveries own-fleet delivery count inside the window (per ware)
 # window_h   the rolling window actually used for this ware
 
@@ -234,7 +244,6 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
                 rows.append({
                     "id": sid, "ware": w, "class": cls,
                     "observed": obs, "own": own.get(w, 0.0),
-                    "theoretical": per_trip * MINER_TRIPS_PER_H,
                     "per_trip": per_trip,
                     "cons": need, "balance": obs - need,
                     "miners": n, "share": share,
@@ -246,5 +255,21 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
 
     if not rows:
         return empty
-    return pd.DataFrame(rows).sort_values(
-        ["balance", "id", "ware"], ignore_index=True)
+    df = pd.DataFrame(rows)
+    # fleets without delivery history borrow the empire-wide measured
+    # median; the hardcoded assumption is a last resort
+    med = df.loc[df["measured"] > 0, "measured"].median()
+    fallback = float(med) if pd.notna(med) else MINER_TRIPS_PER_H
+    df["rate"] = df["measured"].where(df["measured"] > 0, fallback)
+    df["theoretical"] = df["per_trip"] * df["rate"]
+
+    def _more(r) -> float:
+        gap = r["class_cons"] - r["class_cap"] * r["rate"]
+        if gap <= 0:
+            return 0
+        per = r["avg_cap"] * r["rate"]
+        return math.ceil(gap / per) if per > 0 else math.nan
+
+    df["more_miners"] = df.apply(_more, axis=1)
+    return df[_COLS].sort_values(["balance", "id", "ware"],
+                                 ignore_index=True)

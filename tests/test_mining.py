@@ -79,7 +79,6 @@ def test_observed_theoretical_and_split():
     # 6000:2000 m³/h; per fleet trip: 17600 x 0.75 / 10 = 1320 ore units
     assert df.at["ore", "share"] == 0.75
     assert df.at["ore", "per_trip"] == 1320.0
-    assert df.at["ore", "theoretical"] == 1320.0 * MINER_TRIPS_PER_H
     assert df.at["silicon", "per_trip"] == 440.0
     assert df.at["ore", "miners"] == 2
     assert df.at["ore", "class_cap"] == 17600.0
@@ -88,9 +87,20 @@ def test_observed_theoretical_and_split():
     # measured: 880 ore/h x 10 m³ = 8800 m³/h over a 17600 m³ pool = 0.5x
     assert df.at["ore", "measured"] == 0.5
     assert df.at["silicon", "measured"] == 0.5      # class-level value
-    # liquid pool: 10000 m³ / 6 m³ per methane
+    # theoretical runs at the fleet's MEASURED rate
+    assert df.at["ore", "rate"] == 0.5
+    assert df.at["ore", "theoretical"] == 1320.0 * 0.5
+    assert df.at["silicon", "theoretical"] == 440.0 * 0.5
+    # solid supply at measured rate: 17600 x 0.5 = 8800 m³/h covers the
+    # 8000 m³/h class demand -> no extra miners
+    assert df.at["ore", "more_miners"] == 0
+    # liquid pool: 10000 m³ / 6 m³ per methane; the gas fleet never
+    # delivered, so it borrows the measured median of the other fleets
     assert df.at["methane", "per_trip"] == 10000.0 / 6
     assert df.at["methane", "miners"] == 1
+    assert df.at["methane", "measured"] == 0.0
+    assert df.at["methane", "rate"] == 0.5
+    assert df.at["methane", "theoretical"] == 10000.0 / 6 * 0.5
     assert df.at["ore", "balance"] == 880.0 - 600.0
     assert df.at["silicon", "observed"] == 0.0
 
@@ -112,8 +122,12 @@ def test_rolling_window_excludes_old_deliveries():
     # the delivering ship is not assigned to the station -> not "own"
     assert df.at["ore", "own"] == 0.0
     assert df.at["ore", "measured"] == 0.0
-    # "one more miner" sized from game data although none are assigned
+    # nothing measured anywhere -> the hardcoded assumption steps in
+    assert df.at["ore", "rate"] == MINER_TRIPS_PER_H
+    # "one more miner" sized from game data although none are assigned:
+    # gap 6000 m³/h / (8800 m³ x rate) -> 1 miner
     assert df.at["ore", "avg_cap"] == 8800.0
+    assert df.at["ore", "more_miners"] == 1
 
 
 def test_modded_miner_capacity_fallbacks():
@@ -137,6 +151,10 @@ def test_modded_miner_capacity_fallbacks():
     assert df.at["ore", "class_cap"] == (700 + 500) * 10.0   # m³
     assert df.at["ore", "per_trip"] == 1200.0
     assert df.at["ore", "own"] == 700.0
+    # measured 7000 m³/h over the 12000 m³ pool; theoretical at that rate
+    # equals what the fleet actually delivered
+    assert round(df.at["ore", "rate"], 4) == round(7000 / 12000, 4)
+    assert round(df.at["ore", "theoretical"], 6) == 700.0
 
 
 def test_even_split_without_consumption():
@@ -154,8 +172,11 @@ def test_even_split_without_consumption():
     assert df.at["ore", "per_trip"] == 440.0
     assert df.at["silicon", "per_trip"] == 440.0
     assert df.at["ore", "cons"] == 0.0
-    # measured still works without consumption: 2000 m³/h over 8800 m³
+    # measured still works without consumption: 2000 m³/h over 8800 m³,
+    # and theoretical at that rate reproduces the actual deliveries
     assert round(df.at["ore", "measured"], 4) == round(2000 / 8800, 4)
+    assert round(df.at["ore", "theoretical"], 6) == 100.0
+    assert df.at["ore", "more_miners"] == 0    # nothing consumed
 
 
 def test_typical_miner_capacity_prefers_own_fleet():
@@ -179,4 +200,5 @@ def test_empty_inputs():
     assert list(df.columns) == [
         "id", "ware", "class", "observed", "own", "theoretical", "per_trip",
         "cons", "balance", "miners", "share", "class_cap", "class_cons",
-        "avg_cap", "measured", "deliveries", "window_h"]
+        "avg_cap", "measured", "rate", "more_miners", "deliveries",
+        "window_h"]
