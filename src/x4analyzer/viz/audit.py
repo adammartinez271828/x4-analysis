@@ -22,6 +22,8 @@ import pandas as pd
 from ..cli import log
 from ..config import Config
 from ..analysis.frames import Frames
+from ..analysis.mining import (MINER_TRIPS_PER_H, OBSERVED_WINDOW_H,
+                               raw_inflow)
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import _station_rates
@@ -132,6 +134,36 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                          "_sort": cover})
     starving = (pd.DataFrame(rows).sort_values("_sort").drop(columns="_sort")
                 if rows else pd.DataFrame())
+
+    # ---- 1b. raw resource inflow ---------------------------------------------
+    # observed miner/market deliveries vs the assigned mining fleet's
+    # theoretical haul vs recipe consumption, per mineable ware
+    inflow = raw_inflow(frames, ref, rates)
+    rows = []
+    n_under = 0
+    for _, r in inflow.iterrows():
+        short = r["cons"] > 0 and r["observed"] < r["cons"]
+        if short:
+            n_under += 1
+            gap = r["cons"] - r["observed"]
+            status = (f"<span class='neg'>{gap:,.0f}/h short — "
+                      + ("assign more miners</span>"
+                         if r["theoretical"] < r["cons"]
+                         else "fleet is large enough, check "
+                              "utilization</span>"))
+        else:
+            status = "<span class='pos'>OK</span>"
+        rows.append({
+            "Station": st_name.get(r["id"], r["id"]),
+            "Ware": wname(r["ware"]),
+            "Miners": int(r["miners"]),
+            "Observed/h": round(r["observed"]),
+            "Theoretical/h": round(r["theoretical"]),
+            "Consumes/h": round(r["cons"]),
+            "Balance/h": round(r["balance"]),
+            "Status": status,
+        })
+    raw_supply = pd.DataFrame(rows)
 
     # ---- 2. output pile-up ---------------------------------------------------
     rows = []
@@ -365,6 +397,13 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         ("Production starving for inputs",
          f"inputs below {INPUT_LOW_H:g}h of cover at your stations "
          "(STALLED = stock is empty)", starving, "t1"),
+        ("Raw resource supply",
+         "per mineable ware: observed deliveries (own miners + purchases, "
+         f"last {OBSERVED_WINDOW_H:g}h) vs the assigned mining fleet's "
+         f"theoretical haul ({MINER_TRIPS_PER_H:g} full load per miner and "
+         "hour assumed — an optimistic ceiling) vs recipe consumption. "
+         "Miner counts are the station's solid- or liquid-hold fleet, "
+         "shared across that class's wares", raw_supply, "t8"),
         ("Output piling up",
          f"products holding more than {OUTPUT_PILE_H:g}h of production — "
          "sell it or production will choke", piling, "t2"),
@@ -387,14 +426,19 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "hide S ships that are only missing crew</label>", crew, "t7"),
     ]
 
+    # the raw-supply table lists every tracked ware; only the under-supplied
+    # rows count as findings
+    flagged = {"t8": n_under}
+
     chips = " ".join(
-        f"<span class='chip {'chip0' if df.empty else 'chip1'}'>"
-        f"{title}: {len(df)}</span>"
-        for title, _d, df, _t in sections)
+        f"<span class='chip {'chip0' if flagged.get(tid, len(df)) == 0 else 'chip1'}'>"
+        f"{title}: {flagged.get(tid, len(df))}</span>"
+        for title, _d, df, tid in sections)
 
     body = []
     for title, desc, df, tid in sections:
-        body.append(f"<h3>{title} <small>({len(df)})</small></h3>")
+        body.append(f"<h3>{title} <small>({flagged.get(tid, len(df))})"
+                    "</small></h3>")
         body.append(f"<p class='note'>{desc}</p>")
         body.append(_table(df, tid))
 
