@@ -8,36 +8,54 @@ compare:
   Assigned-miner deliveries appear as ordinary intra-empire trades with the
   station as buyer (verified against the reference save: seller = the miner,
   seller commander = the station), so own-miner deliveries and external
-  purchases both count.
+  purchases both count. Deliveries executed by the station's own fleet are
+  additionally tracked separately ("own") to measure the fleet's real
+  delivery rate.
 - theoretical inflow: the mining subordinates assigned at save time, their
-  cargo capacity (ships.csv, resolved from the game's storage macros) times
-  an assumed round-trip rate. The save has no historical assignments, so
-  like the Trade History proxy logic this reflects the fleet NOW.
+  hold volume (ships.csv `cargo`, resolved from the game's storage macros)
+  times an assumed round-trip rate. The save has no historical assignments,
+  so like the Trade History proxy logic this reflects the fleet NOW.
 - consumption capacity: the station's module recipe inputs, reused from the
   Market tab's _station_rates result (passed in, never recomputed here).
 
-A station whose observed inflow is below its consumption capacity is
-under-supplied; the theoretical column says whether more miners are needed
-(theoretical < consumption too) or the assigned ones underperform.
+Units: ship holds are measured in m³, not units — an 8,800 m³ hold carries
+880 ore at 10 m³/unit — so every capacity-to-rate conversion goes through
+the ware's volume. "measured" is the fleet's real full-load rate: own
+deliveries in m³/h divided by the fleet's total hold m³ = full loads per
+miner per hour, the empirical counterpart of MINER_TRIPS_PER_H (the
+dashboard exposes the assumption as a slider preset to the measured rate).
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-# Assumed full-cargo deliveries per miner per hour for the theoretical
-# inflow: one round trip (fly to the field, mine a full hold, return, dock)
-# per hour. In-sector M miners in the reference save completed roughly half
-# that, so read the column as an optimistic ceiling, not a promise.
-MINER_TRIPS_PER_H = 1.0
+# Default assumed full-cargo deliveries per miner per hour for the
+# theoretical inflow when nothing was measured: fly to the field, mine a
+# full hold, return, dock. In-sector M miners over short hops in the
+# reference save sustained 3-4 loads/h; long hauls run well below 1.
+MINER_TRIPS_PER_H = 2.0
 
 # Observed inflow is a rolling rate over this window, clamped down to the
 # time since the first delivery of that ware to that station — a mining
 # operation started mid-window would otherwise look diluted.
 OBSERVED_WINDOW_H = 6.0
 
-_COLS = ["id", "ware", "class", "observed", "theoretical", "cons",
-         "balance", "miners"]
+_COLS = ["id", "ware", "class", "observed", "own", "theoretical",
+         "per_trip", "cons", "balance", "miners", "share", "class_cap",
+         "class_cons", "avg_cap", "measured", "deliveries", "window_h"]
+# own        units/h delivered by the station's currently assigned miners
+# per_trip   units of this ware per fleet-wide trip cycle (every miner one
+#            full load, the class pool split by `share`) — theoretical at
+#            any assumed trips/h = per_trip x rate, no Python round trip
+# share      the ware's slice of its class pool (volume-weighted Σ = 1)
+# class_cap  total hold volume (m³) of the station's miners of the class
+# class_cons Σ consumption of the class's wares at the station, in m³/h
+# avg_cap    hold volume of "one more miner": the class fleet's mean,
+#            falling back to typical_miner_capacity for stations with none
+# measured   the fleet's real full-load rate (own m³/h ÷ class_cap)
+# deliveries own-fleet delivery count inside the window (per ware)
+# window_h   the rolling window actually used for this ware
 
 
 def _miner_class(macro: str, cargo_tags: str) -> str:
@@ -50,10 +68,33 @@ def _miner_class(macro: str, cargo_tags: str) -> str:
     return "solid"
 
 
+def typical_miner_capacity(frames, ref) -> dict[str, float]:
+    """Median miner hold volume (m³) per class — the player's own miner
+    models when they have any, any game miner otherwise. Sizes "one more
+    miner" for a station with no assigned miners at all."""
+    rs = ref.ships
+    caps = pd.to_numeric(rs.get("cargo", pd.Series(dtype=float)),
+                         errors="coerce")
+    tags = rs.get("cargo_tags", pd.Series(dtype=str)).fillna("").astype(str)
+    purpose = rs.get("purpose", pd.Series(dtype=str)).fillna("")
+    own = set(frames.ships["macro"]) if not frames.ships.empty else set()
+    out: dict[str, float] = {}
+    for cls in ("solid", "liquid"):
+        pool = [(m, float(c)) for m, p, c, t
+                in zip(rs["macro"], purpose, caps, tags)
+                if (p == "mine" or "miner" in str(m)) and pd.notna(c)
+                and c > 0 and _miner_class(str(m), t) == cls]
+        mine = [c for m, c in pool if m in own]
+        vals = mine or [c for _m, c in pool]
+        out[cls] = float(pd.Series(vals).median()) if vals else 0.0
+    return out
+
+
 def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
-    """Per (player station, mineable ware): observed/theoretical inflow and
-    consumption capacity, all in units/h. `rates` is _station_rates(...)
-    output (id, faction, ware, prod, cons)."""
+    """Per (player station, mineable ware): observed/theoretical inflow,
+    consumption capacity (units/h) and the assigned fleet's measured
+    delivery rate. `rates` is _station_rates(...) output (id, faction,
+    ware, prod, cons)."""
     empty = pd.DataFrame(columns=_COLS)
     stations = frames.stations
     if stations.empty:
@@ -64,6 +105,11 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
     if minable.empty:
         return empty
     transport = dict(zip(minable["id"], minable["transport"].fillna("")))
+    vol = {w: (float(v) if pd.notna(v) and float(v) > 0 else 1.0)
+           for w, v in zip(minable["id"],
+                           pd.to_numeric(minable.get("volume",
+                                                     pd.Series(dtype=float)),
+                                         errors="coerce"))}
     # tradelog carries display names; map back to ware ids (a ware missing
     # from the localization falls through as its raw id)
     name_to_id = {ref.ware_name.get(w, w): w for w in minable["id"]}
@@ -83,8 +129,9 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
         # commander (same "Executed by" convention as the Trade History tab)
         raw["exec.code"] = (raw["seller.proxy.code"]
                             .fillna(raw["seller.code"]))
-    max_load = (raw.groupby("exec.code")["amount"].max()
-                if not raw.empty else pd.Series(dtype=float))
+        raw["m3"] = raw["amount"] * raw["ware"].map(vol).fillna(1.0)
+    max_load_m3 = (raw.groupby("exec.code")["m3"].max()
+                   if not raw.empty else pd.Series(dtype=float))
 
     ships = frames.ships
     rs = ref.ships
@@ -100,9 +147,11 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
     ship_info = (ships.set_index("id")[["macro", "code"]]
                  if not ships.empty
                  else pd.DataFrame(columns=["macro", "code"]))
-    cargo_by_id = (frames.station_cargo.groupby("id")["amount"].sum()
-                   if not frames.station_cargo.empty
-                   else pd.Series(dtype=float))
+    sc = frames.station_cargo
+    cargo_m3 = (sc.assign(m3=sc["amount"] * sc["ware"].map(vol).fillna(1.0))
+                .groupby("id")["m3"].sum()
+                if not sc.empty else pd.Series(dtype=float))
+    typical = typical_miner_capacity(frames, ref)
 
     wings = frames.wings
     time_now = frames.time_now
@@ -112,24 +161,10 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
     for _, st in stations.iterrows():
         sid, code = st["id"], str(st["code"])
 
-        deliveries = raw[raw["buyer.code"] == code] if not raw.empty else raw
-        observed: dict[str, float] = {}
-        for ware, grp in (deliveries.groupby("ware")
-                          if not deliveries.empty else ()):
-            window_h = max(0.5, min(
-                OBSERVED_WINDOW_H,
-                (time_now - float(grp["time"].min())) / 3600.0))
-            recent = grp[grp["time"] >= time_now - window_h * 3600.0]
-            observed[ware] = float(recent["amount"].sum()) / window_h
-
-        mine = rates[(rates["id"] == sid) & (rates["cons"] > 0)] \
-            if not rates.empty else rates
-        cons = (dict(zip(mine["ware"], mine["cons"]))
-                if not mine.empty else {})
-
         # assigned mining subordinates, bucketed by hold class
         class_cap: dict[str, float] = {}
         class_n: dict[str, int] = {}
+        fleet_codes: set[str] = set()
         followers = wings[wings["leader"] == sid]["follower"] \
             if not wings.empty else ()
         for fid in followers:
@@ -142,12 +177,35 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
             cap = cap_map.get(macro)
             if pd.isna(cap) or not cap:
                 # modded ship without game data: its biggest observed
-                # delivery, else whatever it carries right now
-                cap = float(max_load.get(str(ship_info.at[fid, "code"]),
-                                         0.0)) \
-                    or float(cargo_by_id.get(fid, 0.0))
+                # delivery, else whatever it carries right now (both m³)
+                cap = float(max_load_m3.get(str(ship_info.at[fid, "code"]),
+                                            0.0)) \
+                    or float(cargo_m3.get(fid, 0.0))
             class_cap[cls] = class_cap.get(cls, 0.0) + float(cap)
             class_n[cls] = class_n.get(cls, 0) + 1
+            fleet_codes.add(str(ship_info.at[fid, "code"]))
+
+        deliveries = raw[raw["buyer.code"] == code] if not raw.empty else raw
+        observed: dict[str, float] = {}
+        own: dict[str, float] = {}
+        n_deliv: dict[str, int] = {}
+        window: dict[str, float] = {}
+        for ware, grp in (deliveries.groupby("ware")
+                          if not deliveries.empty else ()):
+            window_h = max(0.5, min(
+                OBSERVED_WINDOW_H,
+                (time_now - float(grp["time"].min())) / 3600.0))
+            recent = grp[grp["time"] >= time_now - window_h * 3600.0]
+            mine_own = recent[recent["exec.code"].isin(fleet_codes)]
+            observed[ware] = float(recent["amount"].sum()) / window_h
+            own[ware] = float(mine_own["amount"].sum()) / window_h
+            n_deliv[ware] = int(len(mine_own))
+            window[ware] = window_h
+
+        mine = rates[(rates["id"] == sid) & (rates["cons"] > 0)] \
+            if not rates.empty else rates
+        cons = (dict(zip(mine["ware"], mine["cons"]))
+                if not mine.empty else {})
 
         ware_set = sorted(set(observed) | set(cons))
         for cls in sorted(set(class_cap) | {transport.get(w, "")
@@ -155,21 +213,35 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
             cls_wares = [w for w in ware_set if transport.get(w) == cls]
             if not cls_wares:
                 continue
-            # a class's miners are a shared pool: split their theoretical
-            # rate across the class's wares in proportion to consumption
-            # (evenly when the station consumes none of them)
-            total = class_cap.get(cls, 0.0) * MINER_TRIPS_PER_H
-            cons_sum = sum(cons.get(w, 0.0) for w in cls_wares)
+            cap_total = class_cap.get(cls, 0.0)
+            n = class_n.get(cls, 0)
+            # a class's miners are a shared pool: split their haul across
+            # the class's wares by consumption VOLUME (evenly when the
+            # station consumes none of them)
+            cons_m3 = sum(cons.get(w, 0.0) * vol.get(w, 1.0)
+                          for w in cls_wares)
+            own_m3 = sum(own.get(w, 0.0) * vol.get(w, 1.0)
+                         for w in cls_wares)
+            measured = own_m3 / cap_total if cap_total > 0 else 0.0
+            avg = cap_total / n if n and cap_total > 0 \
+                else typical.get(cls, 0.0)
             for w in cls_wares:
-                share = (cons.get(w, 0.0) / cons_sum if cons_sum > 0
-                         else 1.0 / len(cls_wares))
+                share = (cons.get(w, 0.0) * vol.get(w, 1.0) / cons_m3
+                         if cons_m3 > 0 else 1.0 / len(cls_wares))
+                per_trip = cap_total * share / vol.get(w, 1.0)
                 obs = observed.get(w, 0.0)
                 need = cons.get(w, 0.0)
                 rows.append({
                     "id": sid, "ware": w, "class": cls,
-                    "observed": obs, "theoretical": total * share,
+                    "observed": obs, "own": own.get(w, 0.0),
+                    "theoretical": per_trip * MINER_TRIPS_PER_H,
+                    "per_trip": per_trip,
                     "cons": need, "balance": obs - need,
-                    "miners": class_n.get(cls, 0),
+                    "miners": n, "share": share,
+                    "class_cap": cap_total, "class_cons": cons_m3,
+                    "avg_cap": avg, "measured": measured,
+                    "deliveries": n_deliv.get(w, 0),
+                    "window_h": window.get(w, 0.0),
                 })
 
     if not rows:
