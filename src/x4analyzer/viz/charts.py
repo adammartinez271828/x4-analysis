@@ -9,8 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ..cli import log
-from ..frames import Frames
-from ..refdata import RefData
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
 from .common import hourly_average, hourly_series, mixed_rainbow, save_widget
 
 SHIP_SERVICES = ["Ship construction", "Ship repair", "Ship resupply"]

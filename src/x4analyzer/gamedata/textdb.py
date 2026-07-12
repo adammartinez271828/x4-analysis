@@ -43,6 +43,12 @@ class TextDB:
     def raw(self, page: int, tid: int) -> str | None:
         return self._pages.get(page, {}).get(tid)
 
+    def items(self):
+        """All (page, tid, text) triples (for the analysis database)."""
+        for page, entries in self._pages.items():
+            for tid, text in entries.items():
+                yield page, tid, text
+
     def resolve(self, text: str, _depth: int = 0) -> str:
         """Resolve `{page,id}` refs, strip comments, unescape parentheses."""
         if _depth > 8:

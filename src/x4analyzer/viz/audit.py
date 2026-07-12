@@ -21,8 +21,8 @@ import pandas as pd
 
 from ..cli import log
 from ..config import Config
-from ..frames import Frames
-from ..refdata import RefData
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import _station_rates
 

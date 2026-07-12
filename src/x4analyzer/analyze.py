@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from .db import store
 from .cli import log
 from .config import Config
-from .frames import build_frames
-from .refdata import load_refdata
-from .saveparser import parse_savegame
+from .analysis.frames import build_frames, station_types_from_db
+from .gamedata.refdata import load_refdata
+from .save.parser import parse_savegame
 
 
 def run_analysis(cfg: Config) -> int:
@@ -21,7 +22,19 @@ def run_analysis(cfg: Config) -> int:
     if save.modified:
         log("NOTE: savegame is flagged as modified (mods active)")
 
-    frames = build_frames(save, ref, cfg)
+    conn = store.open_db(cfg, save.guid)
+    try:
+        log("Database:", store.db_path(cfg, save.guid))
+        store.write_reference(conn, ref)
+        store.import_legacy_caches(conn, cfg, save.guid, ref)
+        store.write_snapshot(conn, save, ref, save_file)
+        store.merge_events(conn, save, ref,
+                           station_types_from_db(conn, ref))
+
+        frames = build_frames(save, ref, conn)
+        store.write_derived(conn, frames)
+    finally:
+        conn.close()
 
     log(f"Log spans {frames.logged_hours:.1f} hours "
         f"({len(frames.log)} entries incl. cache)")
@@ -30,7 +43,7 @@ def run_analysis(cfg: Config) -> int:
     log(f"Trades: {len(frames.tradelog)} (sales {len(frames.sales)}, "
         f"buys {len(frames.buys)})")
 
-    from .dashboard import build_dashboard
+    from .viz.dashboard import build_dashboard
 
     out = build_dashboard(cfg, save, ref, frames)
     log("Dashboard:", out)

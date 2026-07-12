@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from x4analyzer.catalog import GameFiles
+from x4analyzer.gamedata.catalog import GameFiles
 
 
 def make_cat(directory: Path, name: str, files: dict[str, bytes]) -> None:

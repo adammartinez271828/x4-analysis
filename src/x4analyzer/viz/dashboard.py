@@ -10,21 +10,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .cli import log
-from .config import Config
-from .frames import Frames
-from .refdata import RefData
-from .saveparser import SaveData
-from .viz.advisor import build_advisor
-from .viz.charts import build_charts
-from .viz.common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
-from .viz.audit import build_audit
-from .viz.history import build_trade_history
-from .viz.map import build_map
-from .viz.market import build_market
-from .viz.pnl import build_pnl
-from .viz.sunbursts import build_sunbursts
-from .viz.tables import build_tables
+from ..cli import log
+from ..config import Config
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
+from ..save.parser import SaveData
+from .advisor import build_advisor
+from .charts import build_charts
+from .common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
+from .audit import build_audit
+from .history import build_trade_history
+from .map import build_map
+from .market import build_market
+from .pnl import build_pnl
+from .sunbursts import build_sunbursts
+from .tables import build_tables
 
 _CSS = f"""
 body{{font-family:sans-serif;background:{DARK_BG};color:{DARK_FG};margin:0;}}

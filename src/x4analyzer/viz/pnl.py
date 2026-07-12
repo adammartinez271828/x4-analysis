@@ -16,8 +16,8 @@ import pandas as pd
 
 from ..cli import log
 from ..config import Config
-from ..frames import Frames
-from ..refdata import RefData
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED, DARK_PLOT, mixed_rainbow
 
 _DT_CSS = "lib/datatables.min.css"

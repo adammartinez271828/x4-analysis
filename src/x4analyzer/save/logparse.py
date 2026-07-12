@@ -14,7 +14,7 @@ import re
 
 import pandas as pd
 
-from .cli import log
+from ..cli import log
 
 CODE_RE = r"[A-Z]{3}-[0-9]{3}"
 # splits "...[\012]..." (with optional sentence-ending dot) like the R pattern

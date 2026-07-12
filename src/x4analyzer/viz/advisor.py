@@ -21,9 +21,9 @@ import pandas as pd
 
 from ..cli import log
 from ..config import Config
-from ..frames import Frames
-from ..refdata import RefData
-from ..sectorgraph import build_adjacency, bfs_distances
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
+from ..analysis.sectorgraph import build_adjacency, bfs_distances
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import (EXCLUDED_OWNERS, _recipe_table, _station_rates,
                      actual_flows, construction_rates)

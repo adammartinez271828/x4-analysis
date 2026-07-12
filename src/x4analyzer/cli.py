@@ -32,11 +32,6 @@ def main(argv: list[str] | None = None) -> int:
     p_an.add_argument("--output-dir", type=Path, help="dashboard output directory")
     p_an.add_argument("--spoilers-hide", action="store_true",
                       help="hide undiscovered sectors/objects and resource details")
-    p_an.add_argument("--force-refresh", action="store_true",
-                      help="accepted for compatibility with the R version; "
-                           "sector resources are recomputed on every run")
-    p_an.add_argument("--no-cache-compress", action="store_true",
-                      help="keep cache files as plain CSV")
     p_an.add_argument("--history-hours", type=float, default=3.0,
                       help="history window for sunbursts/tables (default: 3)")
     p_an.add_argument("--no-browser", action="store_true",
@@ -64,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg.data_dir = args.data_dir
 
     if args.command == "extract-gamedata":
-        from .gamedata import extract_gamedata
+        from .gamedata.extract import extract_gamedata
 
         if args.game_dir:
             cfg.game_dir = args.game_dir
@@ -77,8 +72,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_dir:
         cfg.output_dir = args.output_dir
     cfg.spoilers_hide = args.spoilers_hide
-    cfg.cache_force_refresh = args.force_refresh
-    cfg.cache_compress = not args.no_cache_compress
     cfg.history_hours = args.history_hours
     cfg.open_browser = not args.no_browser
 

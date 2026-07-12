@@ -16,8 +16,8 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from ..config import Config
-from ..frames import Frames
-from ..refdata import RefData
+from ..analysis.frames import Frames
+from ..gamedata.refdata import RefData
 from .common import DARK_BG, save_widget
 
 X_DIV = 20_000_000

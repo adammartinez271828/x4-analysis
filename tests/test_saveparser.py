@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from x4analyzer.saveparser import parse_savegame
+from x4analyzer.save.parser import parse_savegame
 
 FIXTURE = """<?xml version="1.0"?>
 <savegame>
@@ -34,8 +34,10 @@ FIXTURE = """<?xml version="1.0"?>
             <area yieldid="sphere_medium_silicon_low" yield="200" starttime="0"/>
           </resourceareas>
           <connections><connection connection="sector">
+          <component class="zone" macro="zone001_macro" id="[0x15]" connection="sector">
+          <connections><connection connection="zone">
           <component class="station" macro="station_macro" id="[0x20]" owner="player"
-                     code="STA-001" connection="sector">
+                     code="STA-001" connection="zone">
             <control>
               <post id="manager" component="[0x99]"/>
             </control>
@@ -77,6 +79,8 @@ FIXTURE = """<?xml version="1.0"?>
               </component>
               </connection>
             </connections>
+          </component>
+          </connection></connections>
           </component>
           </connection></connections>
         </component>
@@ -129,6 +133,12 @@ def test_fixture_parse(save_file: Path) -> None:
     ship = next(c for c in d.components if c[1] == "ship_s")
     # ancestry: cluster and sector ids/macros propagated
     assert ship[10] == "[0x10]" and ship[12] == "[0x11]"
+    # real containment via the nearest COLLECTED ancestor: the ship is
+    # docked at the station; the station's enclosing zone (never a
+    # component row) is skipped so its parent resolves to the sector
+    assert ship[15] == "[0x20]"
+    station = next(c for c in d.components if c[1] == "station")
+    assert station[15] == "[0x11]"
     sector = next(c for c in d.components if c[1] == "sector")
     assert sector[7] == "1"  # contested
 

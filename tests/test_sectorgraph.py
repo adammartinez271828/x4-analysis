@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from x4analyzer.gamedata import _SECTOR_IN_PATH
-from x4analyzer.sectorgraph import build_adjacency, bfs_distances
+from x4analyzer.gamedata.extract import _SECTOR_IN_PATH
+from x4analyzer.analysis.sectorgraph import build_adjacency, bfs_distances
 
 
 def _ref(gates, sectors):
