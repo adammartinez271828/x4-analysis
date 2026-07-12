@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from x4analyzer.analysis.mining import (MINER_TRIPS_PER_H,
+from x4analyzer.analysis.mining import (ASSUMED_TRIPS_PER_H,
                                         OBSERVED_WINDOW_H, raw_inflow,
                                         typical_miner_capacity)
 
@@ -20,14 +20,15 @@ def _ref(ships=None):
     if ships is None:
         # cargo is hold VOLUME (m³): 8800 m³ = 880 ore at 10 m³/unit
         ships = [
-            ["miner_solid_a", "mine", 8800.0, "solid"],
-            ["miner_liquid_a", "mine", 10000.0, "liquid"],
-            ["trans_a", "trade", 5000.0, "container"],
+            ["miner_solid_a", "mine", 8800.0, "solid", "M"],
+            ["miner_solid_l", "mine", 40000.0, "solid", "L"],
+            ["miner_liquid_a", "mine", 10000.0, "liquid", "M"],
+            ["trans_a", "trade", 5000.0, "container", "M"],
         ]
     return SimpleNamespace(
         wares=wares,
         ships=pd.DataFrame(ships, columns=["macro", "purpose", "cargo",
-                                           "cargo_tags"]),
+                                           "cargo_tags", "class"]),
         ware_name={"ore": "Ore", "silicon": "Silicon", "methane": "Methane"},
     )
 
@@ -68,44 +69,44 @@ def test_observed_theoretical_and_split():
     )
     rates = _rates([["st1", "ore", 600.0], ["st1", "silicon", 200.0],
                     ["st1", "methane", 100.0]])
-    df = raw_inflow(frames, _ref(), rates).set_index("ware")
+    df, pools = raw_inflow(frames, _ref(), rates)
+    df = df.set_index("ware")
+    pl = pools.set_index(["class", "size"])
 
     # deliveries started 2h ago -> window clamps to 2h, 1760 units / 2h
     assert df.at["ore", "observed"] == 880.0
     assert df.at["ore", "own"] == 880.0
     assert df.at["ore", "deliveries"] == 2
     assert df.at["ore", "window_h"] == 2.0
-    # solid pool 2 x 8800 m³, split ore:silicon by consumption VOLUME
-    # 6000:2000 m³/h; per fleet trip: 17600 x 0.75 / 10 = 1320 ore units
+    # solid M pool 2 x 8800 m³; measured 8800 m³/h delivered / 17600 m³
+    assert pl.at[("solid", "M"), "miners"] == 2
+    assert pl.at[("solid", "M"), "cap"] == 17600.0
+    assert pl.at[("solid", "M"), "measured"] == 0.5
+    assert pl.at[("solid", "M"), "rate_src"] == "measured"
+    # solid inflow 8800 m³/h covers the 8000 m³/h demand -> no extra miners
+    assert pl.at[("solid", "M"), "class_obs"] == 8800.0
+    assert pl.at[("solid", "M"), "class_cons"] == 8000.0
+    assert pl.at[("solid", "M"), "more_miners"] == 0
+    # the L alternative is offered from game data, at the assumed L rate
+    assert pl.at[("solid", "L"), "miners"] == 0
+    assert pl.at[("solid", "L"), "avg_cap"] == 40000.0
+    assert pl.at[("solid", "L"), "rate"] == ASSUMED_TRIPS_PER_H["L"]
+    assert pl.at[("solid", "L"), "rate_src"] == "assumed"
+    # gas pool never delivered: borrows the empire median of M pools
+    assert pl.at[("liquid", "M"), "measured"] == 0.0
+    assert pl.at[("liquid", "M"), "rate"] == 0.5
+    assert pl.at[("liquid", "M"), "rate_src"] == "empire"
+    # nothing arrives: 600 m³/h gap / (10000 m³ x 0.5 loads/h) -> 1 M miner
+    assert pl.at[("liquid", "M"), "more_miners"] == 1
+    # no liquid L miner exists in the game data -> no L option row
+    assert ("liquid", "L") not in pl.index
+
+    # theoretical: solid supply 17600 x 0.5 = 8800 m³/h, split by
+    # consumption volume 6000:2000, converted back to units
     assert df.at["ore", "share"] == 0.75
-    assert df.at["ore", "per_trip"] == 1320.0
-    assert df.at["silicon", "per_trip"] == 440.0
-    assert df.at["ore", "miners"] == 2
-    assert df.at["ore", "class_cap"] == 17600.0
-    assert df.at["ore", "class_cons"] == 8000.0     # m³/h
-    assert df.at["ore", "avg_cap"] == 8800.0
-    # measured: 880 ore/h x 10 m³ = 8800 m³/h over a 17600 m³ pool = 0.5x
-    assert df.at["ore", "measured"] == 0.5
-    assert df.at["silicon", "measured"] == 0.5      # class-level value
-    # theoretical runs at the fleet's MEASURED rate
-    assert df.at["ore", "rate"] == 0.5
-    assert df.at["ore", "theoretical"] == 1320.0 * 0.5
-    assert df.at["silicon", "theoretical"] == 440.0 * 0.5
-    # solid inflow 8800 m³/h covers the 8000 m³/h class demand -> no
-    # extra miners for either solid ware
-    assert df.at["ore", "class_obs"] == 8800.0
-    assert df.at["ore", "more_miners"] == 0
-    assert df.at["silicon", "more_miners"] == 0
-    # liquid pool: 10000 m³ / 6 m³ per methane; the gas fleet never
-    # delivered, so it borrows the measured median of the other fleets
-    assert df.at["methane", "per_trip"] == 10000.0 / 6
-    assert df.at["methane", "miners"] == 1
-    assert df.at["methane", "measured"] == 0.0
-    assert df.at["methane", "rate"] == 0.5
-    assert df.at["methane", "theoretical"] == 10000.0 / 6 * 0.5
-    # nothing arrives: 600 m³/h gap / (10000 m³ x 0.5 loads/h) -> 1 miner
-    assert df.at["methane", "class_obs"] == 0.0
-    assert df.at["methane", "more_miners"] == 1
+    assert df.at["ore", "theoretical"] == 660.0
+    assert df.at["silicon", "theoretical"] == 220.0
+    assert df.at["methane", "theoretical"] == 10000.0 * 0.5 / 6
     assert df.at["ore", "balance"] == 880.0 - 600.0
     assert df.at["silicon", "observed"] == 0.0
 
@@ -120,27 +121,30 @@ def test_rolling_window_excludes_old_deliveries():
         ],
     )
     rates = _rates([["st1", "ore", 600.0]])
-    df = raw_inflow(frames, _ref(), rates).set_index("ware")
+    df, pools = raw_inflow(frames, _ref(), rates)
+    df = df.set_index("ware")
+    pl = pools.set_index(["class", "size"])
     assert df.at["ore", "observed"] == 880.0 / OBSERVED_WINDOW_H
-    assert df.at["ore", "miners"] == 0
     assert df.at["ore", "theoretical"] == 0.0
     # the delivering ship is not assigned to the station -> not "own"
     assert df.at["ore", "own"] == 0.0
-    assert df.at["ore", "measured"] == 0.0
-    # nothing measured anywhere -> the hardcoded assumption steps in
-    assert df.at["ore", "rate"] == MINER_TRIPS_PER_H
-    # "one more miner" sized from game data although none are assigned;
-    # the external deliveries count as supply: gap = 6000 - 1466.7 m³/h,
-    # / (8800 m³ x assumed rate 2.0) -> 1 miner
-    assert df.at["ore", "avg_cap"] == 8800.0
+    # no fleet, nothing measured anywhere -> per-size assumptions; the
+    # external deliveries count as supply: gap = 6000 - 1466.7 m³/h
     assert round(df.at["ore", "class_obs"], 1) == round(8800 / 6, 1)
-    assert df.at["ore", "more_miners"] == 1
+    assert pl.at[("solid", "M"), "miners"] == 0
+    assert pl.at[("solid", "M"), "avg_cap"] == 8800.0
+    assert pl.at[("solid", "M"), "rate"] == ASSUMED_TRIPS_PER_H["M"]
+    assert pl.at[("solid", "M"), "more_miners"] == 1
+    # the same shortfall quoted in L miners (bigger hold, slower assumed)
+    assert pl.at[("solid", "L"), "avg_cap"] == 40000.0
+    assert pl.at[("solid", "L"), "rate"] == ASSUMED_TRIPS_PER_H["L"]
+    assert pl.at[("solid", "L"), "more_miners"] == 1
 
 
 def test_modded_miner_capacity_fallbacks():
     # macro absent from ships.csv: hold volume falls back to the ship's
     # biggest observed delivery in m³ (via the proxy "Executed by" code),
-    # then to its current cargo volume
+    # then to its current cargo volume; size falls back to M
     frames = _frames(
         stations=[["st1", "STA-001", "Refinery"]],
         wings=[["st1", "m1"], ["st1", "m2"]],
@@ -153,15 +157,19 @@ def test_modded_miner_capacity_fallbacks():
         cargo=[["m2", "ore", 500.0]],
     )
     rates = _rates([["st1", "ore", 600.0]])
-    df = raw_inflow(frames, _ref(), rates).set_index("ware")
-    assert df.at["ore", "miners"] == 2
-    assert df.at["ore", "class_cap"] == (700 + 500) * 10.0   # m³
-    assert df.at["ore", "per_trip"] == 1200.0
+    df, pools = raw_inflow(frames, _ref(), rates)
+    df = df.set_index("ware")
+    pl = pools.set_index(["class", "size"])
+    assert pl.at[("solid", "M"), "miners"] == 2
+    assert pl.at[("solid", "M"), "cap"] == (700 + 500) * 10.0   # m³
     assert df.at["ore", "own"] == 700.0
     # measured 7000 m³/h over the 12000 m³ pool; theoretical at that rate
     # equals what the fleet actually delivered
-    assert round(df.at["ore", "rate"], 4) == round(7000 / 12000, 4)
+    assert round(pl.at[("solid", "M"), "measured"], 4) \
+        == round(7000 / 12000, 4)
     assert round(df.at["ore", "theoretical"], 6) == 700.0
+    # inflow 7000 m³/h covers the 6000 m³/h demand
+    assert pl.at[("solid", "M"), "more_miners"] == 0
 
 
 def test_even_split_without_consumption():
@@ -174,38 +182,44 @@ def test_even_split_without_consumption():
             [NOW - 1 * H, "Silicon", 100, "STA-001", "MIN-001", None],
         ],
     )
-    df = raw_inflow(frames, _ref(), _rates([])).set_index("ware")
+    df, pools = raw_inflow(frames, _ref(), _rates([]))
+    df = df.set_index("ware")
+    pl = pools.set_index(["class", "size"])
     assert df.at["ore", "share"] == 0.5
-    assert df.at["ore", "per_trip"] == 440.0
-    assert df.at["silicon", "per_trip"] == 440.0
     assert df.at["ore", "cons"] == 0.0
     # measured still works without consumption: 2000 m³/h over 8800 m³,
     # and theoretical at that rate reproduces the actual deliveries
-    assert round(df.at["ore", "measured"], 4) == round(2000 / 8800, 4)
+    assert round(pl.at[("solid", "M"), "measured"], 4) \
+        == round(2000 / 8800, 4)
     assert round(df.at["ore", "theoretical"], 6) == 100.0
-    assert df.at["ore", "more_miners"] == 0    # nothing consumed
+    assert pl.at[("solid", "M"), "more_miners"] == 0    # nothing consumed
 
 
 def test_typical_miner_capacity_prefers_own_fleet():
     ref = _ref(ships=[
-        ["miner_solid_a", "mine", 8800.0, "solid"],
-        ["miner_solid_big", "mine", 40000.0, "solid"],
-        ["miner_liquid_a", "mine", 10000.0, "liquid"],
+        ["miner_solid_a", "mine", 8800.0, "solid", "M"],
+        ["miner_solid_big", "mine", 12000.0, "solid", "M"],
+        ["miner_solid_l", "mine", 40000.0, "solid", "L"],
+        ["miner_liquid_a", "mine", 10000.0, "liquid", "M"],
     ])
     frames = _frames(
         stations=[["st1", "STA-001", "X"]], wings=[],
         ships=[["m1", "miner_solid_a", "MIN-001"]], tradelog=[])
     t = typical_miner_capacity(frames, ref)
-    assert t["solid"] == 8800.0      # player's own model, not the game median
-    assert t["liquid"] == 10000.0    # no own liquid miner -> game data
+    # player's own model wins over the game median of its size class
+    assert t[("solid", "M")] == 8800.0
+    assert t[("solid", "L")] == 40000.0
+    assert t[("liquid", "M")] == 10000.0
 
 
 def test_empty_inputs():
     frames = _frames(stations=[], wings=[], ships=[], tradelog=[])
-    df = raw_inflow(frames, _ref(), _rates([]))
-    assert df.empty
+    df, pools = raw_inflow(frames, _ref(), _rates([]))
+    assert df.empty and pools.empty
     assert list(df.columns) == [
-        "id", "ware", "class", "observed", "own", "theoretical", "per_trip",
-        "cons", "balance", "miners", "share", "class_cap", "class_cons",
-        "class_obs", "avg_cap", "measured", "rate", "more_miners",
-        "deliveries", "window_h"]
+        "id", "ware", "class", "observed", "own", "theoretical", "cons",
+        "balance", "share", "class_cons", "class_obs", "deliveries",
+        "window_h"]
+    assert list(pools.columns) == [
+        "id", "class", "size", "miners", "cap", "avg_cap", "measured",
+        "rate", "rate_src", "class_cons", "class_obs", "more_miners"]

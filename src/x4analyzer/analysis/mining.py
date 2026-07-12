@@ -13,62 +13,78 @@ compare:
   delivery rate.
 - theoretical inflow: the mining subordinates assigned at save time, their
   hold volume (ships.csv `cargo`, resolved from the game's storage macros)
-  times an assumed round-trip rate. The save has no historical assignments,
-  so like the Trade History proxy logic this reflects the fleet NOW.
+  times their measured delivery rate. The save has no historical
+  assignments, so like the Trade History proxy logic this reflects the
+  fleet NOW.
 - consumption capacity: the station's module recipe inputs, reused from the
   Market tab's _station_rates result (passed in, never recomputed here).
 
+Miners bucket into POOLS per (hold class, ship size): one solid pool feeds
+all mineral wares and one liquid pool all gases, but M and L miners cycle
+at very different rates (an L fills a far bigger hold and travels/docks
+slower), so each size keeps its own measured rate and the shortfall is
+quoted in alternatives — "+32 M or +12 L miners".
+
 Units: ship holds are measured in m³, not units — an 8,800 m³ hold carries
 880 ore at 10 m³/unit — so every capacity-to-rate conversion goes through
-the ware's volume. "measured" is the fleet's real full-load rate: own
-deliveries in m³/h divided by the fleet's total hold m³ = full loads per
-miner per hour. Theoretical inflow and "more miners" use that measured
-rate directly; fleets without delivery history borrow the empire-wide
-measured median, and only when nothing was measured anywhere does the
-MINER_TRIPS_PER_H assumption apply.
+the ware's volume. "measured" is a pool's real full-load rate: its own
+deliveries in m³/h divided by the pool's total hold m³ = full loads per
+miner per hour. Pools without delivery history borrow the empire-wide
+measured median for their size, and only when nothing was measured
+anywhere does the per-size assumption apply.
 """
 
 from __future__ import annotations
 
 import math
+import re
 
 import pandas as pd
 
-# Fallback full-cargo deliveries per miner per hour, used only when no
-# fleet has any measured delivery history: fly to the field, mine a full
-# hold, return, dock. In-sector M miners over short hops in the reference
-# save sustained 3-4 loads/h; long hauls run well below 1.
-MINER_TRIPS_PER_H = 2.0
+# Fallback full-cargo deliveries per miner per hour by ship size, used
+# only when no pool of that size has any measured delivery history:
+# bigger miners spend longer filling their hold and travel/dock slower,
+# so they complete fewer round trips. In-sector M miners over short hops
+# in the reference save sustained 3-4 loads/h; long hauls run well below 1.
+ASSUMED_TRIPS_PER_H = {"S": 3.0, "M": 2.0, "L": 1.0, "XL": 0.8}
 
 # Observed inflow is a rolling rate over this window, clamped down to the
 # time since the first delivery of that ware to that station — a mining
 # operation started mid-window would otherwise look diluted.
 OBSERVED_WINDOW_H = 6.0
 
-_COLS = ["id", "ware", "class", "observed", "own", "theoretical",
-         "per_trip", "cons", "balance", "miners", "share", "class_cap",
-         "class_cons", "class_obs", "avg_cap", "measured", "rate",
-         "more_miners", "deliveries", "window_h"]
+# ship sizes offered as "you could assign N of these instead" even when
+# the station has none (the assignable mining workhorses)
+OPTION_SIZES = ("M", "L")
+
+_SIZE_ORDER = {"S": 0, "M": 1, "L": 2, "XL": 3}
+
+_COLS = ["id", "ware", "class", "observed", "own", "theoretical", "cons",
+         "balance", "share", "class_cons", "class_obs", "deliveries",
+         "window_h"]
 # own        units/h delivered by the station's currently assigned miners
-# per_trip   units of this ware per fleet-wide trip cycle (every miner one
-#            full load, the class pool split by `share`)
-# share      the ware's slice of its class pool (volume-weighted Σ = 1)
-# class_cap  total hold volume (m³) of the station's miners of the class
+# share      the ware's slice of its class pools (volume-weighted Σ = 1)
 # class_cons Σ consumption of the class's wares at the station, in m³/h
 # class_obs  Σ observed inflow of the class's wares (all sources incl.
 #            external purchases), in m³/h
-# avg_cap    hold volume of "one more miner": the class fleet's mean,
-#            falling back to typical_miner_capacity for stations with none
-# measured   the fleet's real full-load rate (own m³/h ÷ class_cap);
-#            0 when the fleet has no delivery history
-# rate       loads/miner/h actually used: measured, else the empire-wide
-#            measured median, else MINER_TRIPS_PER_H
-# theoretical per_trip x rate (units/h)
-# more_miners additional miners of the class needed to close the OBSERVED
-#            shortfall (class_cons - class_obs; external purchases count
-#            as supply) at the fleet's rate; shared across the class
+# theoretical Σ over the class's pools of hold m³ x measured rate,
+#            allocated by share and converted to units/h
 # deliveries own-fleet delivery count inside the window (per ware)
 # window_h   the rolling window actually used for this ware
+
+_PCOLS = ["id", "class", "size", "miners", "cap", "avg_cap", "measured",
+          "rate", "rate_src", "class_cons", "class_obs", "more_miners"]
+# one row per (station, hold class, ship size) — assigned pools plus the
+# OPTION_SIZES alternatives a player could assign instead:
+# cap        total hold volume (m³) of the pool's assigned miners
+# avg_cap    hold volume of "one more miner" of this size: the pool's
+#            mean, falling back to typical_miner_capacity
+# measured   the pool's real full-load rate (own m³/h ÷ cap); 0 = none
+# rate       loads/miner/h actually used, by fallback chain:
+# rate_src   "measured" (this pool) / "empire" (median of same-size pools
+#            elsewhere) / "assumed" (ASSUMED_TRIPS_PER_H)
+# more_miners miners of THIS size that would close the class shortfall
+#            (class_cons - class_obs; external purchases count as supply)
 
 
 def _miner_class(macro: str, cargo_tags: str) -> str:
@@ -81,34 +97,50 @@ def _miner_class(macro: str, cargo_tags: str) -> str:
     return "solid"
 
 
-def typical_miner_capacity(frames, ref) -> dict[str, float]:
-    """Median miner hold volume (m³) per class — the player's own miner
-    models when they have any, any game miner otherwise. Sizes "one more
-    miner" for a station with no assigned miners at all."""
+_MACRO_SIZE = re.compile(r"_(xs|s|m|l|xl)_")
+
+
+def _miner_size(macro: str, size_map: dict) -> str:
+    """Ship size (S/M/L/XL) from game data, the macro name as fallback."""
+    size = str(size_map.get(macro, "") or "").upper()
+    if size in _SIZE_ORDER:
+        return size
+    m = _MACRO_SIZE.search(macro)
+    return m.group(1).upper() if m else "M"
+
+
+def typical_miner_capacity(frames, ref) -> dict[tuple[str, str], float]:
+    """(hold class, size) -> median miner hold volume (m³) — the player's
+    own miner models when they have any, any game miner otherwise. Sizes
+    "one more miner" for pools with none assigned."""
     rs = ref.ships
     caps = pd.to_numeric(rs.get("cargo", pd.Series(dtype=float)),
                          errors="coerce")
     tags = rs.get("cargo_tags", pd.Series(dtype=str)).fillna("").astype(str)
     purpose = rs.get("purpose", pd.Series(dtype=str)).fillna("")
+    size_map = dict(zip(rs["macro"], rs.get("class", pd.Series(dtype=str))
+                        .fillna("")))
     own = set(frames.ships["macro"]) if not frames.ships.empty else set()
-    out: dict[str, float] = {}
-    for cls in ("solid", "liquid"):
-        pool = [(m, float(c)) for m, p, c, t
-                in zip(rs["macro"], purpose, caps, tags)
-                if (p == "mine" or "miner" in str(m)) and pd.notna(c)
-                and c > 0 and _miner_class(str(m), t) == cls]
+    miners = [(str(m), _miner_class(str(m), t),
+               _miner_size(str(m), size_map), float(c))
+              for m, p, c, t in zip(rs["macro"], purpose, caps, tags)
+              if (p == "mine" or "miner" in str(m))
+              and pd.notna(c) and c > 0]
+    out: dict[tuple[str, str], float] = {}
+    for key in {(cls, size) for _m, cls, size, _c in miners}:
+        pool = [(m, c) for m, cls, size, c in miners if (cls, size) == key]
         mine = [c for m, c in pool if m in own]
         vals = mine or [c for _m, c in pool]
-        out[cls] = float(pd.Series(vals).median()) if vals else 0.0
+        out[key] = float(pd.Series(vals).median())
     return out
 
 
-def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
-    """Per (player station, mineable ware): observed/theoretical inflow,
-    consumption capacity (units/h) and the assigned fleet's measured
-    delivery rate. `rates` is _station_rates(...) output (id, faction,
-    ware, prod, cons)."""
-    empty = pd.DataFrame(columns=_COLS)
+def raw_inflow(frames, ref,
+               rates: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Returns (per-ware frame, per-pool frame) — see _COLS/_PCOLS.
+    `rates` is _station_rates(...) output (id, faction, ware, prod, cons).
+    """
+    empty = (pd.DataFrame(columns=_COLS), pd.DataFrame(columns=_PCOLS))
     stations = frames.stations
     if stations.empty:
         return empty
@@ -157,6 +189,8 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
     tags_map = dict(zip(rs["macro"], rs.get("cargo_tags",
                                             pd.Series(dtype=str))
                         .fillna("").astype(str)))
+    size_map = dict(zip(rs["macro"], rs.get("class", pd.Series(dtype=str))
+                        .fillna("")))
     ship_info = (ships.set_index("id")[["macro", "code"]]
                  if not ships.empty
                  else pd.DataFrame(columns=["macro", "code"]))
@@ -170,14 +204,16 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
     time_now = frames.time_now
     rates = rates[rates["ware"].isin(transport)] if not rates.empty else rates
 
-    rows: list[dict] = []
+    wrows: list[dict] = []
+    prows: list[dict] = []
     for _, st in stations.iterrows():
         sid, code = st["id"], str(st["code"])
 
-        # assigned mining subordinates, bucketed by hold class
-        class_cap: dict[str, float] = {}
-        class_n: dict[str, int] = {}
-        fleet_codes: set[str] = set()
+        # assigned mining subordinates, bucketed into (class, size) pools
+        pool_cap: dict[tuple, float] = {}
+        pool_n: dict[tuple, int] = {}
+        pool_own: dict[tuple, float] = {}   # m³/h delivered by the pool
+        code_pool: dict[str, tuple] = {}    # miner code -> its pool
         followers = wings[wings["leader"] == sid]["follower"] \
             if not wings.empty else ()
         for fid in followers:
@@ -186,7 +222,8 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
             macro = str(ship_info.at[fid, "macro"])
             if purpose.get(macro, "") != "mine" and "miner" not in macro:
                 continue
-            cls = _miner_class(macro, tags_map.get(macro, ""))
+            key = (_miner_class(macro, tags_map.get(macro, "")),
+                   _miner_size(macro, size_map))
             cap = cap_map.get(macro)
             if pd.isna(cap) or not cap:
                 # modded ship without game data: its biggest observed
@@ -194,9 +231,9 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
                 cap = float(max_load_m3.get(str(ship_info.at[fid, "code"]),
                                             0.0)) \
                     or float(cargo_m3.get(fid, 0.0))
-            class_cap[cls] = class_cap.get(cls, 0.0) + float(cap)
-            class_n[cls] = class_n.get(cls, 0) + 1
-            fleet_codes.add(str(ship_info.at[fid, "code"]))
+            pool_cap[key] = pool_cap.get(key, 0.0) + float(cap)
+            pool_n[key] = pool_n.get(key, 0) + 1
+            code_pool[str(ship_info.at[fid, "code"])] = key
 
         deliveries = raw[raw["buyer.code"] == code] if not raw.empty else raw
         observed: dict[str, float] = {}
@@ -209,11 +246,16 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
                 OBSERVED_WINDOW_H,
                 (time_now - float(grp["time"].min())) / 3600.0))
             recent = grp[grp["time"] >= time_now - window_h * 3600.0]
-            mine_own = recent[recent["exec.code"].isin(fleet_codes)]
+            mine_own = recent[recent["exec.code"].isin(code_pool)]
             observed[ware] = float(recent["amount"].sum()) / window_h
             own[ware] = float(mine_own["amount"].sum()) / window_h
             n_deliv[ware] = int(len(mine_own))
             window[ware] = window_h
+            for ecode, m3 in mine_own.groupby("exec.code")["m3"].sum() \
+                    .items():
+                key = code_pool[str(ecode)]
+                pool_own[key] = pool_own.get(key, 0.0) \
+                    + float(m3) / window_h
 
         mine = rates[(rates["id"] == sid) & (rates["cons"] > 0)] \
             if not rates.empty else rates
@@ -221,64 +263,91 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
                 if not mine.empty else {})
 
         ware_set = sorted(set(observed) | set(cons))
-        for cls in sorted(set(class_cap) | {transport.get(w, "")
-                                            for w in ware_set}):
+        fleet_classes = {cls for cls, _size in pool_cap}
+        for cls in sorted(fleet_classes | {transport.get(w, "")
+                                           for w in ware_set}):
             cls_wares = [w for w in ware_set if transport.get(w) == cls]
             if not cls_wares:
                 continue
-            cap_total = class_cap.get(cls, 0.0)
-            n = class_n.get(cls, 0)
-            # a class's miners are a shared pool: split their haul across
-            # the class's wares by consumption VOLUME (evenly when the
-            # station consumes none of them)
             cons_m3 = sum(cons.get(w, 0.0) * vol.get(w, 1.0)
                           for w in cls_wares)
             obs_m3 = sum(observed.get(w, 0.0) * vol.get(w, 1.0)
                          for w in cls_wares)
-            own_m3 = sum(own.get(w, 0.0) * vol.get(w, 1.0)
-                         for w in cls_wares)
-            measured = own_m3 / cap_total if cap_total > 0 else 0.0
-            avg = cap_total / n if n and cap_total > 0 \
-                else typical.get(cls, 0.0)
+
+            sizes = {s for c, s in pool_cap if c == cls} | set(OPTION_SIZES)
+            for size in sorted(sizes, key=lambda s: _SIZE_ORDER.get(s, 9)):
+                key = (cls, size)
+                cap, n = pool_cap.get(key, 0.0), pool_n.get(key, 0)
+                avg = cap / n if n and cap > 0 else typical.get(key, 0.0)
+                if n == 0 and avg <= 0:
+                    continue   # nothing assigned and no known model to size
+                prows.append({
+                    "id": sid, "class": cls, "size": size, "miners": n,
+                    "cap": cap, "avg_cap": avg,
+                    "measured": (pool_own.get(key, 0.0) / cap
+                                 if cap > 0 else 0.0),
+                    "class_cons": cons_m3, "class_obs": obs_m3,
+                })
+
             for w in cls_wares:
+                # the class's pools are shared: split their haul across
+                # the class's wares by consumption VOLUME (evenly when the
+                # station consumes none of them)
                 share = (cons.get(w, 0.0) * vol.get(w, 1.0) / cons_m3
                          if cons_m3 > 0 else 1.0 / len(cls_wares))
-                per_trip = cap_total * share / vol.get(w, 1.0)
                 obs = observed.get(w, 0.0)
                 need = cons.get(w, 0.0)
-                rows.append({
+                wrows.append({
                     "id": sid, "ware": w, "class": cls,
                     "observed": obs, "own": own.get(w, 0.0),
-                    "per_trip": per_trip,
                     "cons": need, "balance": obs - need,
-                    "miners": n, "share": share,
-                    "class_cap": cap_total, "class_cons": cons_m3,
-                    "class_obs": obs_m3,
-                    "avg_cap": avg, "measured": measured,
+                    "share": share, "_vol": vol.get(w, 1.0),
+                    "class_cons": cons_m3, "class_obs": obs_m3,
                     "deliveries": n_deliv.get(w, 0),
                     "window_h": window.get(w, 0.0),
                 })
 
-    if not rows:
+    if not wrows:
         return empty
-    df = pd.DataFrame(rows)
-    # fleets without delivery history borrow the empire-wide measured
-    # median; the hardcoded assumption is a last resort
-    med = df.loc[df["measured"] > 0, "measured"].median()
-    fallback = float(med) if pd.notna(med) else MINER_TRIPS_PER_H
-    df["rate"] = df["measured"].where(df["measured"] > 0, fallback)
-    df["theoretical"] = df["per_trip"] * df["rate"]
+    pools = pd.DataFrame(prows)
+    # rate fallback chain: this pool's measured rate, else the empire-wide
+    # measured median for the same ship size, else the per-size assumption
+    med = pools[pools["measured"] > 0].groupby("size")["measured"].median()
+    rate, src = [], []
+    for _, p in pools.iterrows():
+        if p["measured"] > 0:
+            rate.append(float(p["measured"]))
+            src.append("measured")
+        elif pd.notna(med.get(p["size"])):
+            rate.append(float(med.get(p["size"])))
+            src.append("empire")
+        else:
+            rate.append(ASSUMED_TRIPS_PER_H.get(p["size"], 1.0))
+            src.append("assumed")
+    pools["rate"] = rate
+    pools["rate_src"] = src
 
-    def _more(r) -> float:
+    def _more(p) -> float:
         # the shortfall the player actually experiences: consumption not
         # covered by current inflow (external purchases count as supply),
-        # closed by miners hauling at the fleet's demonstrated rate
-        gap = r["class_cons"] - r["class_obs"]
+        # closed by miners of THIS size hauling at the pool's rate
+        gap = p["class_cons"] - p["class_obs"]
         if gap <= 0:
             return 0
-        per = r["avg_cap"] * r["rate"]
+        per = p["avg_cap"] * p["rate"]
         return math.ceil(gap / per) if per > 0 else math.nan
 
-    df["more_miners"] = df.apply(_more, axis=1)
-    return df[_COLS].sort_values(["balance", "id", "ware"],
-                                 ignore_index=True)
+    pools["more_miners"] = pools.apply(_more, axis=1)
+
+    df = pd.DataFrame(wrows)
+    # theoretical inflow: every pool of the ware's class hauling at its
+    # own rate, allocated by share and converted back to units
+    supply = (pools["cap"] * pools["rate"]).groupby(
+        [pools["id"], pools["class"]]).sum()
+    key = list(zip(df["id"], df["class"]))
+    df["theoretical"] = (supply.reindex(key).fillna(0.0).to_numpy()
+                         * df["share"] / df["_vol"])
+    df = df.drop(columns="_vol")
+    return (df[_COLS].sort_values(["balance", "id", "ware"],
+                                  ignore_index=True),
+            pools[_PCOLS].reset_index(drop=True))

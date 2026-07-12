@@ -46,12 +46,22 @@ def _table(df: pd.DataFrame, tid: str) -> str:
                       float_format=lambda v: f"{v:,.1f}")
 
 
-def _mining_cards(inflow: pd.DataFrame, st_name: dict,
+def _rate_label(p) -> str:
+    """How trustworthy a pool's loads/h figure is."""
+    if p["rate_src"] == "measured":
+        return f"{p['rate']:.2f} loads/h measured"
+    if p["rate_src"] == "empire":
+        return f"≈{p['rate']:.2f} loads/h (your fleets' average)"
+    return f"~{p['rate']:.2f} loads/h assumed"
+
+
+def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
                   wname) -> tuple[str, int]:
     """Raw-supply cards, one per station: per hold class (solid/liquid)
     the OVERALL shortfall — raw consumption not covered by current inflow
-    — as a coverage bar, headlined by the miners needed to close it at
-    the fleet's measured rate; the per-ware rates are fine print. Returns
+    — as a coverage bar, headlined by the miners that would close it,
+    quoted per ship size ("assign +32 M or +12 L miners", each size at
+    its own measured rate); the per-ware rates are fine print. Returns
     (html, number of class pools that need miners)."""
     if inflow.empty:
         return "", 0
@@ -62,21 +72,24 @@ def _mining_cards(inflow: pd.DataFrame, st_name: dict,
         total_need = 0.0
         for cls in sorted(sgrp["class"].unique(), reverse=True):
             grp = sgrp[sgrp["class"] == cls]
+            pgrp = pools[(pools["id"] == sid) & (pools["class"] == cls)]
             r0 = grp.iloc[0]
             cons, obs = float(r0["class_cons"]), float(r0["class_obs"])
-            need = r0["more_miners"]
-            rate = float(r0["rate"])
-            miners = int(r0["miners"])
-            per_miner = float(r0["avg_cap"]) * rate
-            if pd.isna(need):
+            short = cons > 0 and obs < cons
+
+            opts = pgrp[pgrp["more_miners"] > 0] if short else pgrp.iloc[0:0]
+            if short:
                 n_need += 1
-                head = ("<span class='neg'>shortfall, but no known miner "
-                        "type to size</span>")
-            elif need > 0:
-                n_need += 1
-                total_need += float(need)
-                head = (f"<span class='neg'>assign +{int(need)} "
-                        f"miner{'s' if need > 1 else ''}</span>")
+                if opts.empty:
+                    head = ("<span class='neg'>shortfall, but no known "
+                            "miner type to size</span>")
+                else:
+                    total_need += float(opts["more_miners"].min())
+                    head = ("<span class='neg'>assign "
+                            + " or ".join(f"+{int(p['more_miners'])} "
+                                          f"{p['size']}"
+                                          for _, p in opts.iterrows())
+                            + " miners</span>")
             else:
                 head = "<span class='pos'>✓ covered</span>"
 
@@ -92,11 +105,23 @@ def _mining_cards(inflow: pd.DataFrame, st_name: dict,
             else:
                 bar = ("<div class='mnums'>no raw consumption — "
                        "inflow only</div>")
-            rate_s = (f"{rate:.2f} loads/h measured"
-                      if float(r0["measured"]) > 0
-                      else f"~{rate:.2f} loads/h assumed")
-            fleet = (f"{miners} miner{'s' if miners != 1 else ''} @ "
-                     f"{rate_s} · one more adds ≈ {per_miner:,.0f} m³/h")
+
+            lines = []
+            for _, p in pgrp.iterrows():
+                per_miner = float(p["avg_cap"]) * float(p["rate"])
+                if p["miners"] > 0:
+                    lines.append(
+                        f"<div class='mnums'>{int(p['miners'])} {p['size']}"
+                        f" miner{'s' if p['miners'] != 1 else ''} @ "
+                        f"{_rate_label(p)} · one more adds ≈ "
+                        f"{per_miner:,.0f} m³/h</div>")
+                elif short and p["more_miners"] > 0:
+                    # a size the station could assign instead
+                    lines.append(
+                        f"<div class='mnums'>{p['size']} option: "
+                        f"{p['avg_cap']:,.0f} m³ hold @ {_rate_label(p)} "
+                        f"· each adds ≈ {per_miner:,.0f} m³/h</div>")
+
             wrows = "".join(
                 f"<tr><td>{wname(r['ware'])}</td>"
                 f"<td>{r['observed']:,.0f}</td><td>{r['cons']:,.0f}</td>"
@@ -106,8 +131,8 @@ def _mining_cards(inflow: pd.DataFrame, st_name: dict,
             blocks.append(
                 f"<div class='mclass'><div class='mhead'>"
                 f"<b>{str(cls).capitalize()}</b>{head}</div>{bar}"
-                f"<div class='mnums'>{fleet}</div>"
-                "<table class='mwares'><tr><th>ware</th><th>in /h</th>"
+                + "".join(lines)
+                + "<table class='mwares'><tr><th>ware</th><th>in /h</th>"
                 f"<th>used /h</th><th>&Delta; /h</th></tr>{wrows}</table>"
                 "</div>")
         cards.append((total_need,
@@ -208,10 +233,10 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     # ---- 1b. raw resource supply ----------------------------------------------
     # per station and hold class: the overall shortfall (raw consumption
-    # not covered by current inflow) and the miners needed to close it at
-    # the fleet's measured delivery rate, rendered as cards
-    inflow = raw_inflow(frames, ref, rates)
-    mining_html, n_need = _mining_cards(inflow, st_name, wname)
+    # not covered by current inflow) and the miners needed to close it —
+    # quoted per ship size at each size's measured delivery rate
+    inflow, pools = raw_inflow(frames, ref, rates)
+    mining_html, n_need = _mining_cards(inflow, pools, st_name, wname)
 
     # ---- 2. output pile-up ---------------------------------------------------
     rows = []
@@ -449,11 +474,12 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "how many more miners to assign, per station and hold class: "
          "shortfall = raw consumption not covered by current inflow (own "
          f"miners + purchases, rolling window up to {OBSERVED_WINDOW_H:g}h"
-         "), converted to miners at the fleet's measured full-load rate "
-         "(~ = nothing measured yet, rate borrowed from your other "
-         "fleets). One solid pool feeds all mineral wares and one liquid "
-         "pool all gases — the per-ware rates are the fine print inside "
-         "each card", inflow, "t8"),
+         "), converted to miners per ship size — M and L cycle at very "
+         "different rates, so each size is quoted at its own measured "
+         "full-load rate (≈ = borrowed from your other fleets of that "
+         "size, ~ = assumed, nothing measured). One solid pool feeds all "
+         "mineral wares and one liquid pool all gases — the per-ware "
+         "rates are the fine print inside each card", inflow, "t8"),
         ("Output piling up",
          f"products holding more than {OUTPUT_PILE_H:g}h of production — "
          "sell it or production will choke", piling, "t2"),
