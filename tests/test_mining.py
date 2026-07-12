@@ -91,9 +91,11 @@ def test_observed_theoretical_and_split():
     assert df.at["ore", "rate"] == 0.5
     assert df.at["ore", "theoretical"] == 1320.0 * 0.5
     assert df.at["silicon", "theoretical"] == 440.0 * 0.5
-    # solid supply at measured rate: 17600 x 0.5 = 8800 m³/h covers the
-    # 8000 m³/h class demand -> no extra miners
+    # solid inflow 8800 m³/h covers the 8000 m³/h class demand -> no
+    # extra miners for either solid ware
+    assert df.at["ore", "class_obs"] == 8800.0
     assert df.at["ore", "more_miners"] == 0
+    assert df.at["silicon", "more_miners"] == 0
     # liquid pool: 10000 m³ / 6 m³ per methane; the gas fleet never
     # delivered, so it borrows the measured median of the other fleets
     assert df.at["methane", "per_trip"] == 10000.0 / 6
@@ -101,6 +103,9 @@ def test_observed_theoretical_and_split():
     assert df.at["methane", "measured"] == 0.0
     assert df.at["methane", "rate"] == 0.5
     assert df.at["methane", "theoretical"] == 10000.0 / 6 * 0.5
+    # nothing arrives: 600 m³/h gap / (10000 m³ x 0.5 loads/h) -> 1 miner
+    assert df.at["methane", "class_obs"] == 0.0
+    assert df.at["methane", "more_miners"] == 1
     assert df.at["ore", "balance"] == 880.0 - 600.0
     assert df.at["silicon", "observed"] == 0.0
 
@@ -124,9 +129,11 @@ def test_rolling_window_excludes_old_deliveries():
     assert df.at["ore", "measured"] == 0.0
     # nothing measured anywhere -> the hardcoded assumption steps in
     assert df.at["ore", "rate"] == MINER_TRIPS_PER_H
-    # "one more miner" sized from game data although none are assigned:
-    # gap 6000 m³/h / (8800 m³ x rate) -> 1 miner
+    # "one more miner" sized from game data although none are assigned;
+    # the external deliveries count as supply: gap = 6000 - 1466.7 m³/h,
+    # / (8800 m³ x assumed rate 2.0) -> 1 miner
     assert df.at["ore", "avg_cap"] == 8800.0
+    assert round(df.at["ore", "class_obs"], 1) == round(8800 / 6, 1)
     assert df.at["ore", "more_miners"] == 1
 
 
@@ -200,5 +207,5 @@ def test_empty_inputs():
     assert list(df.columns) == [
         "id", "ware", "class", "observed", "own", "theoretical", "per_trip",
         "cons", "balance", "miners", "share", "class_cap", "class_cons",
-        "avg_cap", "measured", "rate", "more_miners", "deliveries",
-        "window_h"]
+        "class_obs", "avg_cap", "measured", "rate", "more_miners",
+        "deliveries", "window_h"]

@@ -47,14 +47,16 @@ OBSERVED_WINDOW_H = 6.0
 
 _COLS = ["id", "ware", "class", "observed", "own", "theoretical",
          "per_trip", "cons", "balance", "miners", "share", "class_cap",
-         "class_cons", "avg_cap", "measured", "rate", "more_miners",
-         "deliveries", "window_h"]
+         "class_cons", "class_obs", "avg_cap", "measured", "rate",
+         "more_miners", "deliveries", "window_h"]
 # own        units/h delivered by the station's currently assigned miners
 # per_trip   units of this ware per fleet-wide trip cycle (every miner one
 #            full load, the class pool split by `share`)
 # share      the ware's slice of its class pool (volume-weighted Σ = 1)
 # class_cap  total hold volume (m³) of the station's miners of the class
 # class_cons Σ consumption of the class's wares at the station, in m³/h
+# class_obs  Σ observed inflow of the class's wares (all sources incl.
+#            external purchases), in m³/h
 # avg_cap    hold volume of "one more miner": the class fleet's mean,
 #            falling back to typical_miner_capacity for stations with none
 # measured   the fleet's real full-load rate (own m³/h ÷ class_cap);
@@ -62,8 +64,9 @@ _COLS = ["id", "ware", "class", "observed", "own", "theoretical",
 # rate       loads/miner/h actually used: measured, else the empire-wide
 #            measured median, else MINER_TRIPS_PER_H
 # theoretical per_trip x rate (units/h)
-# more_miners additional miners of the class needed so class_cap x rate
-#            covers class_cons; shared across the class's wares
+# more_miners additional miners of the class needed to close the OBSERVED
+#            shortfall (class_cons - class_obs; external purchases count
+#            as supply) at the fleet's rate; shared across the class
 # deliveries own-fleet delivery count inside the window (per ware)
 # window_h   the rolling window actually used for this ware
 
@@ -230,6 +233,8 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
             # station consumes none of them)
             cons_m3 = sum(cons.get(w, 0.0) * vol.get(w, 1.0)
                           for w in cls_wares)
+            obs_m3 = sum(observed.get(w, 0.0) * vol.get(w, 1.0)
+                         for w in cls_wares)
             own_m3 = sum(own.get(w, 0.0) * vol.get(w, 1.0)
                          for w in cls_wares)
             measured = own_m3 / cap_total if cap_total > 0 else 0.0
@@ -248,6 +253,7 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
                     "cons": need, "balance": obs - need,
                     "miners": n, "share": share,
                     "class_cap": cap_total, "class_cons": cons_m3,
+                    "class_obs": obs_m3,
                     "avg_cap": avg, "measured": measured,
                     "deliveries": n_deliv.get(w, 0),
                     "window_h": window.get(w, 0.0),
@@ -264,7 +270,10 @@ def raw_inflow(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
     df["theoretical"] = df["per_trip"] * df["rate"]
 
     def _more(r) -> float:
-        gap = r["class_cons"] - r["class_cap"] * r["rate"]
+        # the shortfall the player actually experiences: consumption not
+        # covered by current inflow (external purchases count as supply),
+        # closed by miners hauling at the fleet's demonstrated rate
+        gap = r["class_cons"] - r["class_obs"]
         if gap <= 0:
             return 0
         per = r["avg_cap"] * r["rate"]
