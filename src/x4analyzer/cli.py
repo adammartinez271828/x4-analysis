@@ -47,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
                       help="also scan non-DLC extensions for added ships")
     _add_common_args(p_ex)
 
+    p_gd = sub.add_parser(
+        "gamedata-dashboard",
+        help="build the game-data analysis dashboard (weapon-mod comparison)",
+    )
+    p_gd.add_argument("--game-dir", type=Path, help="X4 installation directory")
+    p_gd.add_argument("--output-dir", type=Path, help="dashboard output directory")
+    _add_common_args(p_gd)
+
     # default to `analyze` when no subcommand given
     if argv is None:
         argv = sys.argv[1:]
@@ -64,6 +72,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.game_dir:
             cfg.game_dir = args.game_dir
         return extract_gamedata(cfg, include_mods=args.include_mods)
+
+    if args.command == "gamedata-dashboard":
+        from .viz.weaponmods import build_gamedata_dashboard
+
+        if args.game_dir:
+            cfg.game_dir = args.game_dir
+        if args.output_dir:
+            cfg.output_dir = args.output_dir
+        return build_gamedata_dashboard(cfg)
 
     if args.save:
         cfg.savegame_override = args.save
