@@ -22,6 +22,7 @@ import pandas as pd
 from ..cli import log
 from ..config import Config
 from ..analysis.frames import Frames
+from ..analysis.mining import OBSERVED_WINDOW_H, raw_inflow
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import _station_rates
@@ -43,6 +44,103 @@ def _table(df: pd.DataFrame, tid: str) -> str:
     return df.to_html(index=False, border=0, table_id=tid,
                       classes="display nowrap", justify="left", escape=False,
                       float_format=lambda v: f"{v:,.1f}")
+
+
+def _rate_label(p) -> str:
+    """How trustworthy a pool's loads/h figure is."""
+    if p["rate_src"] == "measured":
+        return f"{p['rate']:.2f} loads/h measured"
+    if p["rate_src"] == "empire":
+        return f"≈{p['rate']:.2f} loads/h (your fleets' average)"
+    return f"~{p['rate']:.2f} loads/h assumed"
+
+
+def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
+                  wname) -> tuple[str, int]:
+    """Raw-supply cards, one per station: per hold class (solid/liquid)
+    the OVERALL shortfall — raw consumption not covered by current inflow
+    — as a coverage bar, headlined by the miners that would close it,
+    quoted per ship size ("assign +32 M or +12 L miners", each size at
+    its own measured rate); the per-ware rates are fine print. Returns
+    (html, number of class pools that need miners)."""
+    if inflow.empty:
+        return "", 0
+    n_need = 0
+    cards: list[tuple[float, str]] = []
+    for sid, sgrp in inflow.groupby("id", sort=False):
+        blocks = []
+        total_need = 0.0
+        for cls in sorted(sgrp["class"].unique(), reverse=True):
+            grp = sgrp[sgrp["class"] == cls]
+            pgrp = pools[(pools["id"] == sid) & (pools["class"] == cls)]
+            r0 = grp.iloc[0]
+            cons, obs = float(r0["class_cons"]), float(r0["class_obs"])
+            short = cons > 0 and obs < cons
+
+            opts = pgrp[pgrp["more_miners"] > 0] if short else pgrp.iloc[0:0]
+            if short:
+                n_need += 1
+                if opts.empty:
+                    head = ("<span class='neg'>shortfall, but no known "
+                            "miner type to size</span>")
+                else:
+                    total_need += float(opts["more_miners"].min())
+                    head = ("<span class='neg'>assign "
+                            + " or ".join(f"+{int(p['more_miners'])} "
+                                          f"{p['size']}"
+                                          for _, p in opts.iterrows())
+                            + " miners</span>")
+            else:
+                head = "<span class='pos'>✓ covered</span>"
+
+            if cons > 0:
+                pct = 100.0 * obs / cons
+                colour = ("#4ecf71" if pct >= 100
+                          else "#e8b84e" if pct >= 50 else "#ff6b6b")
+                bar = (f"<div class='mbar'><div style='width:"
+                       f"{min(pct, 100.0):.0f}%;background:{colour}'>"
+                       "</div></div>"
+                       f"<div class='mnums'>inflow {obs:,.0f} of "
+                       f"{cons:,.0f} m³/h consumed ({pct:.0f}%)</div>")
+            else:
+                bar = ("<div class='mnums'>no raw consumption — "
+                       "inflow only</div>")
+
+            lines = []
+            for _, p in pgrp.iterrows():
+                per_miner = float(p["avg_cap"]) * float(p["rate"])
+                if p["miners"] > 0:
+                    lines.append(
+                        f"<div class='mnums'>{int(p['miners'])} {p['size']}"
+                        f" miner{'s' if p['miners'] != 1 else ''} @ "
+                        f"{_rate_label(p)} · one more adds ≈ "
+                        f"{per_miner:,.0f} m³/h</div>")
+                elif short and p["more_miners"] > 0:
+                    # a size the station could assign instead
+                    lines.append(
+                        f"<div class='mnums'>{p['size']} option: "
+                        f"{p['avg_cap']:,.0f} m³ hold @ {_rate_label(p)} "
+                        f"· each adds ≈ {per_miner:,.0f} m³/h</div>")
+
+            wrows = "".join(
+                f"<tr><td>{wname(r['ware'])}</td>"
+                f"<td>{r['observed']:,.0f}</td><td>{r['cons']:,.0f}</td>"
+                f"<td class='{'pos' if r['balance'] >= 0 else 'neg'}'>"
+                f"{r['balance']:+,.0f}</td></tr>"
+                for _, r in grp.iterrows())
+            blocks.append(
+                f"<div class='mclass'><div class='mhead'>"
+                f"<b>{str(cls).capitalize()}</b>{head}</div>{bar}"
+                + "".join(lines)
+                + "<table class='mwares'><tr><th>ware</th><th>in /h</th>"
+                f"<th>used /h</th><th>&Delta; /h</th></tr>{wrows}</table>"
+                "</div>")
+        cards.append((total_need,
+                      f"<div class='mcard'><h4>{st_name.get(sid, sid)}</h4>"
+                      + "".join(blocks) + "</div>"))
+    cards.sort(key=lambda c: -c[0])
+    return ("<div class='mcards'>" + "".join(h for _n, h in cards)
+            + "</div>"), n_need
 
 
 def _remaining_construction(frames: Frames, ref: RefData,
@@ -132,6 +230,13 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                          "_sort": cover})
     starving = (pd.DataFrame(rows).sort_values("_sort").drop(columns="_sort")
                 if rows else pd.DataFrame())
+
+    # ---- 1b. raw resource supply ----------------------------------------------
+    # per station and hold class: the overall shortfall (raw consumption
+    # not covered by current inflow) and the miners needed to close it —
+    # quoted per ship size at each size's measured delivery rate
+    inflow, pools = raw_inflow(frames, ref, rates)
+    mining_html, n_need = _mining_cards(inflow, pools, st_name, wname)
 
     # ---- 2. output pile-up ---------------------------------------------------
     rows = []
@@ -365,6 +470,16 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         ("Production starving for inputs",
          f"inputs below {INPUT_LOW_H:g}h of cover at your stations "
          "(STALLED = stock is empty)", starving, "t1"),
+        ("Raw resource supply",
+         "how many more miners to assign, per station and hold class: "
+         "shortfall = raw consumption not covered by current inflow (own "
+         f"miners + purchases, rolling window up to {OBSERVED_WINDOW_H:g}h"
+         "), converted to miners per ship size — M and L cycle at very "
+         "different rates, so each size is quoted at its own measured "
+         "full-load rate (≈ = borrowed from your other fleets of that "
+         "size, ~ = assumed, nothing measured). One solid pool feeds all "
+         "mineral wares and one liquid pool all gases — the per-ware "
+         "rates are the fine print inside each card", inflow, "t8"),
         ("Output piling up",
          f"products holding more than {OUTPUT_PILE_H:g}h of production — "
          "sell it or production will choke", piling, "t2"),
@@ -387,20 +502,30 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "hide S ships that are only missing crew</label>", crew, "t7"),
     ]
 
+    # the raw-supply cards list every mining pool; only pools that need
+    # miners count as findings
+    flagged = {"t8": n_need}
+
     chips = " ".join(
-        f"<span class='chip {'chip0' if df.empty else 'chip1'}'>"
-        f"{title}: {len(df)}</span>"
-        for title, _d, df, _t in sections)
+        f"<span class='chip {'chip0' if flagged.get(tid, len(df)) == 0 else 'chip1'}'>"
+        f"{title}: {flagged.get(tid, len(df))}</span>"
+        for title, _d, df, tid in sections)
 
     body = []
     for title, desc, df, tid in sections:
-        body.append(f"<h3>{title} <small>({len(df)})</small></h3>")
+        body.append(f"<h3>{title} <small>({flagged.get(tid, len(df))})"
+                    "</small></h3>")
         body.append(f"<p class='note'>{desc}</p>")
-        body.append(_table(df, tid))
+        if tid == "t8":
+            body.append(mining_html
+                        or "<p class='ok'>Nothing found — all clear.</p>")
+        else:
+            body.append(_table(df, tid))
 
     tables_js = "\n".join(
         f"$('#{tid}').DataTable({{order: [], pageLength: 10}});"
-        for _t, _d, df, tid in sections if not df.empty and tid != "t7")
+        for _t, _d, df, tid in sections
+        if not df.empty and tid not in ("t7", "t8"))
     if not crew.empty:
         flag_idx = len(crew.columns) - 1
         tables_js += f"""
@@ -426,6 +551,20 @@ h3{{margin:22px 0 2px 0;}} h3 small{{color:{DARK_MUTED};font-weight:normal;}}
 .chip{{display:inline-block;padding:3px 10px;border-radius:12px;margin:2px;
   font-size:12px;border:1px solid #444;}}
 .chip0{{color:{DARK_MUTED};}} .chip1{{color:#e8b84e;border-color:#e8b84e;}}
+.mcards{{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;}}
+.mcard{{background:#252525;border:1px solid #3a3a3a;border-radius:8px;
+  padding:10px 14px;flex:1 1 340px;max-width:520px;}}
+.mcard h4{{margin:0 0 4px 0;}}
+.mclass{{margin:10px 0 2px 0;}}
+.mhead{{display:flex;justify-content:space-between;gap:10px;
+  margin-bottom:4px;}}
+.mbar{{background:#333;border-radius:4px;height:10px;overflow:hidden;}}
+.mbar div{{height:100%;}}
+.mnums{{color:{DARK_MUTED};font-size:12px;margin:3px 0;}}
+table.mwares{{border-collapse:collapse;font-size:12px;margin:2px 0 0 0;}}
+table.mwares th{{color:{DARK_MUTED};font-weight:normal;text-align:left;
+  padding:1px 14px 1px 0;}}
+table.mwares td{{padding:1px 14px 1px 0;}}
 table.dataTable, table.dataTable th, table.dataTable td{{color:{DARK_FG};}}
 table.dataTable.display tbody tr{{background:{DARK_BG};}}
 table.dataTable.display tbody tr.odd{{background:#252525;}}

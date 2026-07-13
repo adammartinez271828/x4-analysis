@@ -6,7 +6,7 @@ Outputs into the data directory:
     clusters.csv   macro, x, y, z, name, description, source
     sectors.csv    cluster, macro, x, y, z, name, source
     ships.csv      macro, model, class, race, purpose, hull, mass, cargo,
-                   crew, price, source
+                   cargo_tags, crew, price, source
     textdb.csv.gz  full page/id/text dump for resolving names in savegames
 """
 
@@ -372,8 +372,32 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
     return list(rows.values())
 
 
+def _ship_storages(gf: GameFiles) -> dict[str, tuple[str, str]]:
+    """Ship cargo hold macros -> (max, tags). A ship's cargo capacity lives
+    on separate storage macros referenced from the ship macro's connections,
+    not on the ship macro itself."""
+    stores: dict[str, tuple[str, str]] = {}
+    # ship hold macros sit next to the ship macros; some DLCs keep them
+    # under props/StorageModules (base game casing) or storagemodules
+    paths = gf.glob(
+        r"(extensions/[^/]+/)?assets/(units/size_[a-z]+"
+        r"|props/[Ss]torage[Mm]odules)/macros/storage_.*\.xml$"
+    )
+    for path in paths:
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for m in root.iter("macro"):
+            macro = (m.get("name") or "").lower()
+            cargo = m.find("properties/cargo")
+            if macro and cargo is not None:
+                stores[macro] = (cargo.get("max", ""), cargo.get("tags", ""))
+    return stores
+
+
 def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[list]:
     rows = {}
+    stores = _ship_storages(gf)
     paths = gf.glob(
         r"(extensions/[^/]+/)?assets/units/size_[a-z]+/macros/ship_.*\.xml$"
     )
@@ -394,6 +418,20 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
             people = m.find("properties/people")
             purpose = m.find("properties/purpose")
             name = tdb.resolve(ident.get("name", "")) if ident is not None else macro
+            if cargo is not None:
+                cargo_max = cargo.get("max", "")
+                cargo_tags = cargo.get("tags", "")
+            else:
+                # cargo capacity lives on the storage macros the ship links
+                # via its connections; sum them (tags-united)
+                holds = [stores[r] for r in (
+                    (mm.get("ref") or "").lower()
+                    for mm in m.findall("connections/connection/macro")
+                ) if r in stores]
+                cargo_max = str(sum(int(float(h[0] or 0)) for h in holds)) \
+                    if holds else ""
+                cargo_tags = " ".join(sorted(
+                    {t for h in holds for t in h[1].split()}))
             rows[macro] = [
                 macro,
                 name or macro,
@@ -402,7 +440,8 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
                 purpose.get("primary", "") if purpose is not None else "",
                 hull.get("max", "") if hull is not None else "",
                 physics.get("mass", "") if physics is not None else "",
-                cargo.get("max", "") if cargo is not None else "",
+                cargo_max,
+                cargo_tags,
                 people.get("capacity", "") if people is not None else "",
                 prices.get(macro.removesuffix("_macro"), ""),
                 source,
@@ -495,7 +534,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     _write_csv(
         cfg.data_dir / "ships.csv",
         ["macro", "model", "class", "race", "purpose", "hull", "mass",
-         "cargo", "crew", "price", "source"],
+         "cargo", "cargo_tags", "crew", "price", "source"],
         extract_ships(gf, tdb, prices),
     )
 
