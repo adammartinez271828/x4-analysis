@@ -73,6 +73,30 @@ EM_BULLET = b"""<macros>
   </macro>
 </macros>"""
 
+MORTAR_WEAPON = b"""<macros>
+  <macro name="weapon_gen_s_cannon_01_mk1_macro" class="weapon">
+    <properties>
+      <identification name="S Blast Mortar Mk1" mk="1" />
+      <bullet class="bullet_gen_s_cannon_01_mk1_macro" />
+      <heat overheat="10000" cooldelay="4" overheatcooldelay="2"
+            coolrate="580" reenable="7000" />
+    </properties>
+  </macro>
+</macros>"""
+
+# damage lives ONLY in <areadamage>; the <damage> element is absent
+MORTAR_BULLET = b"""<macros>
+  <macro name="bullet_gen_s_cannon_01_mk1_macro" class="bullet">
+    <properties>
+      <ammunition value="8" reload="12" />
+      <bullet speed="3000" lifetime="1.25" amount="1" barrelamount="1" />
+      <heat value="490" />
+      <reload time="0.9" />
+      <areadamage value="376" />
+    </properties>
+  </macro>
+</macros>"""
+
 # not a weapon: same file naming, must be skipped by the class filter
 LAUNCHER = b"""<macros>
   <macro name="weapon_arg_s_torpedolauncher_01_mk1_macro" class="missilelauncher">
@@ -134,8 +158,12 @@ def game_dir(tmp_path: Path) -> Path:
         "weapon_arg_s_ion_01_mk2_macro.xml": ION_WEAPON,
         "assets/props/WeaponSystems/torpedo/macros/"
         "weapon_arg_s_torpedolauncher_01_mk1_macro.xml": LAUNCHER,
+        "assets/props/WeaponSystems/heavy/macros/"
+        "weapon_gen_s_cannon_01_mk1_macro.xml": MORTAR_WEAPON,
         "assets/fx/weaponFx/macros/"
         "bullet_arg_s_ion_01_mk2_macro.xml": ION_BULLET,
+        "assets/fx/weaponFx/macros/"
+        "bullet_gen_s_cannon_01_mk1_macro.xml": MORTAR_BULLET,
         "libraries/equipmentmods.xml": EQUIPMENTMODS,
         "libraries/wares.xml": WARES,
         "t/0001-l044.xml": TFILE,
@@ -162,7 +190,8 @@ def test_extract_weapons(game_dir: Path):
     gf = GameFiles(game_dir)
     weapons = {w["macro"]: w for w in extract_weapons(gf, load_textdb(gf))}
     assert set(weapons) == {"weapon_arg_s_ion_01_mk2_macro",
-                            "weapon_ter_s_laser_02_mk1_macro"}
+                            "weapon_ter_s_laser_02_mk1_macro",
+                            "weapon_gen_s_cannon_01_mk1_macro"}
 
     em = weapons["weapon_ter_s_laser_02_mk1_macro"]
     assert em["name"] == "TER S Electromagnetic Gun Mk1"
@@ -172,6 +201,11 @@ def test_extract_weapons(game_dir: Path):
     assert em["dmg"] == 110.0 and em["dmg_hull"] == 70.0
     assert em["overheatcooldelay"] == 1.0   # timelines override wins
     assert em["source"] == "ego_dlc_timelines"
+
+    mortar = weapons["weapon_gen_s_cannon_01_mk1_macro"]
+    assert mortar["area_dmg"] == 376.0 and mortar["dmg"] == 0.0
+    assert mortar["has_damage"]           # areadamage alone counts
+    assert mortar["heat"] == 490.0 and mortar["ammo_clip"] == 8.0
 
     ion = weapons["weapon_arg_s_ion_01_mk2_macro"]
     assert ion["name"] == "ARG S Ion Blaster Mk2"

@@ -40,11 +40,22 @@ def _round(v: float | None) -> float | None:
 def _notes(w: dict) -> list[str]:
     notes = []
     if w.get("ammo_clip"):
+        clip = w["ammo_clip"]
+        s = "" if clip == 1 else "s"
         notes.append(
-            f"Clip weapon: {w['ammo_clip']:g} shots per clip, fixed "
+            f"Clip weapon: {clip:g} shot{s} per clip, fixed "
             f"{w.get('ammo_reload') or 0:g} s clip reload. Reload mods only "
             "speed up the shots within a burst; the clip reload itself is "
             "never modified.")
+        if clip == 1 or (not w.get("reload_rate")
+                         and not w.get("reload_time")):
+            notes.append("No shot interval inside the clip: the fire rate "
+                         "shown is the sustained rate (one clip per reload), "
+                         "and reload mods have nothing to modify.")
+    if (w.get("area_dmg") or 0) > 0:
+        notes.append("Explosive shots: damage includes the "
+                     f"{w['area_dmg']:g} explosion (area) damage per "
+                     "projectile on top of any direct-hit damage.")
     if w.get("chargetime"):
         notes.append(
             f"Charge weapon — simplified model: volley interval = reload "
@@ -325,9 +336,10 @@ def build_gamedata_dashboard(cfg: Config) -> int:
 multiplies the stat field exactly as the game stores it). Forced negative
 bonuses are taken at their least-bad value. Optional weighted bonuses are
 NOT included — expand a mod below the table to see them. Damage per volley
-= (value + shield/hull bonus) &times; projectiles per volley; vs-shield
-and vs-hull damage apply the bullet's shield/hull attributes on top of its
-base value.</p>
+= (value + shield/hull bonus + explosion damage) &times; projectiles per
+volley; vs-shield and vs-hull damage apply the bullet's shield/hull
+attributes on top of its base value, and explosive weapons (Blast Mortar,
+flak) carry their damage in the explosion.</p>
 <div class='tblwrap'><table id='stats'></table></div>
 <h3 style='font-size:15px;margin-bottom:4px'>Mod details</h3>
 <div id='moddetail'></div>

@@ -18,8 +18,12 @@ The rules below were validated in-game (session of 2026-07) — keep them:
 - Charge/beam weapons: shot interval = reload time + charge time (a
   simplified model); stats that need heat stay None when there is none.
 - Damage vs shields = value + shield attr, vs hull = value + hull attr,
-  each times projectile count (amount x barrelamount). Heat counts once
-  per volley (Split shotguns: amount=4, one 170-heat charge).
+  plus <areadamage> explosion damage (Blast Mortar/flak keep ALL damage
+  there), each times projectile count (amount x barrelamount). Heat
+  counts once per volley (Split shotguns: amount=4, one 170-heat charge).
+- A clip with no <reload> element (Boson Lance Mk1's one-shot clip) makes
+  the clip reload the entire firing cycle; reload mods have no field to
+  multiply, so they do nothing.
 
 The continuous-rate model treats every shot as occupying 1/rate seconds
 (matching the in-game validated 20.41 s figure) rather than simulating
@@ -96,8 +100,12 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
 
     proj = (weapon.get("amount") or 1.0) * (weapon.get("barrelamount") or 1.0)
     base = weapon.get("dmg") or 0.0
-    dmg_s = (base + (weapon.get("dmg_shield") or 0.0)) * md * proj
-    dmg_h = (base + (weapon.get("dmg_hull") or 0.0)) * md * proj
+    # explosion damage (<areadamage>) hits the target on top of the direct
+    # hit; explosive weapons like the Blast Mortar carry ALL damage there
+    area = weapon.get("area_dmg") or 0.0
+    dmg_s = (base + (weapon.get("dmg_shield") or 0.0) + area
+             + (weapon.get("area_dmg_shield") or 0.0)) * md * proj
+    dmg_h = (base + (weapon.get("dmg_hull") or 0.0) + area) * md * proj
 
     # volley interval: the reload mod multiplies the stored field literally
     interval = None
@@ -111,15 +119,22 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
 
     out: dict[str, float | None] = {k: None for k in STAT_KEYS}
     out["dmg_s"], out["dmg_h"] = dmg_s, dmg_h
-    if not interval or interval <= 0:
-        return out
-    rate = 1.0 / interval
-    out["rate"] = rate
 
     clip = weapon.get("ammo_clip") or 0.0
     clip_reload = weapon.get("ammo_reload") or 0.0
+    if interval is None and clip and clip_reload > 0:
+        # no <reload> element at all (Boson Lance Mk1: a one-shot clip):
+        # the clip reload IS the whole firing cycle, so reload mods have
+        # nothing to multiply
+        interval = 0.0
+    if interval is None or interval < 0 or (interval == 0 and not clip):
+        return out
+    rate = 1.0 / interval if interval > 0 else None
+
     # sustained volley rate including the FIXED clip reload (never modded)
     eff_rate = clip / (clip * interval + clip_reload) if clip else rate
+    # with no intra-burst interval the sustained rate is the only fire rate
+    out["rate"] = rate if rate is not None else eff_rate
 
     heat = weapon.get("heat") or 0.0
     overheat = weapon.get("overheat") or 0.0

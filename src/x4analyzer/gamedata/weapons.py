@@ -79,6 +79,7 @@ def _parse_bullets(gf: GameFiles) -> dict[str, dict]:
                 continue
             b = props.find("bullet")
             dmg = props.find("damage")
+            area = props.find("areadamage")
             bullets[name] = {
                 "speed": _f(b, "speed"),
                 "lifetime": _f(b, "lifetime"),
@@ -96,7 +97,11 @@ def _parse_bullets(gf: GameFiles) -> dict[str, dict]:
                 "dmg_shield": _f(dmg, "shield", 0.0),
                 "dmg_hull": _f(dmg, "hull", 0.0),
                 "dmg_repair": _f(dmg, "repair", 0.0),
-                "has_damage": dmg is not None,
+                # explosive weapons (Blast Mortar, flak) keep their damage
+                # in <areadamage>, sometimes with no <damage> at all
+                "area_dmg": _f(area, "value", 0.0),
+                "area_dmg_shield": _f(area, "shield", 0.0),
+                "has_damage": dmg is not None or area is not None,
             }
     return bullets
 

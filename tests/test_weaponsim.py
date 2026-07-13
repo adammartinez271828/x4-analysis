@@ -120,6 +120,43 @@ def test_charge_weapon_interval_includes_chargetime():
     assert s["rate"] == pytest.approx(1 / (3.8 + 0.4))
 
 
+def test_blast_mortar_area_damage():
+    # S Blast Mortar Mk1: ALL damage lives in <areadamage value="376">,
+    # the <damage> element is empty; clip 8 @ 1/0.9s + 12 s reload, 490
+    # heat per volley against a slow 580/s coolrate
+    w = {"overheat": 10000.0, "overheatcooldelay": 2.0, "coolrate": 580.0,
+         "reenable": 7000.0, "heat": 490.0, "reload_time": 0.9,
+         "ammo_clip": 8.0, "ammo_reload": 12.0,
+         "amount": 1.0, "barrelamount": 1.0,
+         "dmg": 0.0, "area_dmg": 376.0}
+    s = simulate(w)
+    assert s["dmg_s"] == pytest.approx(376.0)
+    assert s["dmg_h"] == pytest.approx(376.0)
+    eff = 8 / (8 * 0.9 + 12)                   # sustained volleys/s
+    assert s["t_overheat"] == pytest.approx(10000 / (490 * eff))
+    assert s["shots_cycle"] == pytest.approx(10000 / 490)
+    # direct-hit and explosion damage stack when both exist
+    both = simulate(dict(w, dmg=100.0, area_dmg_shield=50.0))
+    assert both["dmg_s"] == pytest.approx(526.0)
+    assert both["dmg_h"] == pytest.approx(476.0)
+
+
+def test_boson_lance_single_shot_clip():
+    # SPL S Boson Lance Mk1: <ammunition value="1" reload="12.2"/> and NO
+    # <reload> element — the clip reload is the entire firing cycle
+    w = {"overheat": 10000.0, "coolrate": 2000.0, "reenable": 1000.0,
+         "heat": 0.0, "ammo_clip": 1.0, "ammo_reload": 12.2,
+         "amount": 1.0, "barrelamount": 1.0, "dmg": 750.0}
+    s = simulate(w)
+    assert s["rate"] == pytest.approx(1 / 12.2)   # sustained rate
+    assert s["t_cycle"] == pytest.approx(12.2)
+    assert s["shots_cycle"] == pytest.approx(1.0)
+    assert s["cyc_dps_s"] == pytest.approx(750 / 12.2)
+    assert s["ss_cool"] == pytest.approx(12.2)
+    # nothing for a reload mod to multiply -> no effect
+    assert simulate(w, {"reload": 2.0}) == s
+
+
 def test_multi_projectile_volley():
     # Split shotgun pattern: 4 projectiles, one heat charge per volley
     w = {"overheat": 10000.0, "coolrate": 2000.0, "reenable": 8000.0,
