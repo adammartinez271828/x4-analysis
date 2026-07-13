@@ -162,7 +162,7 @@ const ROWS = [
 """
 
 _JS = """
-const QNAMES = {1:'Mk1', 2:'Mk2', 3:'Mk3'};
+const QNAMES = {1:'Basic', 2:'Enhanced', 3:'Exceptional'};
 const sel = document.getElementById('weapon');
 const groups = {};
 WEAPONS.forEach((w, i) => {
@@ -315,9 +315,9 @@ def build_gamedata_dashboard(cfg: Config) -> int:
 <p>
 <label for='weapon'>Weapon:</label><select id='weapon'></select>
 &nbsp;&nbsp;<label>Mod quality:</label>
-<label><input type='checkbox' id='q1' checked> Mk1</label>
-<label><input type='checkbox' id='q2' checked> Mk2</label>
-<label><input type='checkbox' id='q3' checked> Mk3</label>
+<label><input type='checkbox' id='q1' checked> Basic</label>
+<label><input type='checkbox' id='q2' checked> Enhanced</label>
+<label><input type='checkbox' id='q3' checked> Exceptional</label>
 </p>
 <div id='notes'></div>
 <p class='note'>Each mod column applies the mod at its OPTIMAL roll
