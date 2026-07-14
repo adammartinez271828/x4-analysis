@@ -318,10 +318,153 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
     return save_id
 
 
+# ---- entity registry (E: surrogate identity across snapshots) ---------------
+
+_ENTITY_CLASSES = ("station", "buildstorage")
+
+
+def _entity_domain(clazz: str) -> bool:
+    return clazz.startswith("ship_") or clazz in _ENTITY_CLASSES
+
+
+def update_entity_registry(conn: sqlite3.Connection, save: SaveData,
+                           ref: RefData | None = None) -> dict[str, int]:
+    """Resolve this snapshot's ships/stations/buildstorages against the
+    entity registry and return component id -> entity_id.
+
+    Identity is the surrogate entity_id; the game's own fields are only
+    matching evidence (codes are recycled after death, owner changes on
+    capture, names on rename — see the entity DDL). Matching: within the
+    (code, class) slot, an equal spawntime is the same physical entity —
+    an owner/name difference is then a capture/rename recorded in
+    entity_event, never a new entity. A different spawntime is a new
+    generation: mint a new entity; the unmatched predecessor is closed as
+    'recycled'. Open entities absent from the snapshot close as
+    'disappeared'. A closed entity whose exact (code, class, spawntime)
+    reappears is reopened, not duplicated — components drift in and out of
+    the universe tree (frames.universe's @connection filter), so identity
+    deliberately ignores placement and registers connectionless components
+    too. Idempotent for the same save; snapshots older than the registry
+    high-water mark are skipped (returns {}) — lifecycle edits from stale
+    observations would corrupt newer history.
+    """
+    t = save.game_time
+
+    prev = conn.execute("SELECT value FROM meta"
+                        " WHERE key = 'entity_registry_time'").fetchone()
+    if prev is not None and t < float(prev[0]):
+        log("WARNING: save predates the entity registry's newest snapshot; "
+            "entity resolution skipped for this run")
+        return {}
+
+    def resolve(name):
+        if ref is not None and name and "{" in name:
+            return ref.resolve_name(name)
+        return _s(name)
+
+    # open entities indexed by (code, class) slot; closed ones by the full
+    # evidence triple — an exact reappearance reopens instead of duplicating
+    slots: dict[tuple, list] = {}
+    closed: dict[tuple, list] = {}
+    for row in conn.execute(
+            "SELECT entity_id, code, class, macro, spawntime, owner, name,"
+            " gone_time FROM entity ORDER BY last_seen, entity_id"):
+        if row[7] is None:
+            slots.setdefault((row[1], row[2]), []).append(list(row))
+        else:
+            closed.setdefault((row[1], row[2], row[4]), []).append(list(row))
+
+    mapping: dict[str, int] = {}
+    claimed: set[int] = set()
+    minted_slots: set[tuple] = set()
+    new_rows: list[tuple] = []       # (cid, code, class, macro, spawn, owner, name)
+    updates: list[tuple] = []        # matched entity ids -> last_seen = t
+    reopened: list[tuple] = []       # resurrected entity ids
+    events: list[tuple] = []         # (entity_id, t, event, old, new)
+    field_updates: list[tuple] = []  # (owner, name, entity_id)
+
+    for c in save.components:
+        # (id, class, macro, name, code, owner, knownto, contested,
+        #  connection, spawntime, ...) — unlike the component table there is
+        # no @connection filter: identity is about the physical object, and
+        # real ships drift in and out of the universe tree between saves
+        cid, clazz, code = c[0], c[1], _s(c[4])
+        if not (code and _entity_domain(clazz)):
+            continue
+        macro, owner = _low(c[2]), _s(c[5])
+        name, spawn = resolve(c[3]), _f(c[9])
+
+        # several live same-slot candidates can exist (cross-faction code
+        # collisions in long games): prefer matching macro, then owner;
+        # entity_id order breaks remaining ties deterministically
+        best = None
+        for cand in slots.get((code, clazz), ()):
+            if cand[0] in claimed or cand[4] != spawn:
+                continue
+            if best is None or \
+                    (cand[3] == macro, cand[5] == owner) > \
+                    (best[3] == macro, best[5] == owner):
+                best = cand
+        if best is None:
+            # most recently seen resurrect-able match (list is in
+            # last_seen order)
+            for cand in reversed(closed.get((code, clazz, spawn), ())):
+                if cand[0] not in claimed:
+                    best = cand
+                    reopened.append((t, cand[0]))
+                    break
+        if best is not None:
+            eid = best[0]
+            claimed.add(eid)
+            mapping[cid] = eid
+            updates.append((t, eid))
+            if best[5] != owner:
+                events.append((eid, t, "captured", best[5], owner))
+            if best[6] != name:
+                events.append((eid, t, "renamed", best[6], name))
+            if best[5] != owner or best[6] != name:
+                field_updates.append((owner, name, eid))
+        else:
+            minted_slots.add((code, clazz))
+            new_rows.append((cid, code, clazz, macro, spawn, owner, name))
+
+    with conn:
+        for cid, code, clazz, macro, spawn, owner, name in new_rows:
+            cur = conn.execute(
+                "INSERT INTO entity (code, class, macro, spawntime, owner,"
+                " name, first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?)",
+                (code, clazz, macro, spawn, owner, name, t, t))
+            mapping[cid] = cur.lastrowid
+        conn.executemany(
+            "UPDATE entity SET last_seen = ? WHERE entity_id = ?", updates)
+        conn.executemany(
+            "UPDATE entity SET last_seen = ?, gone_time = NULL,"
+            " gone_reason = NULL WHERE entity_id = ?", reopened)
+        conn.executemany(
+            "UPDATE entity SET owner = ?, name = ? WHERE entity_id = ?",
+            field_updates)
+        conn.executemany(
+            "INSERT INTO entity_event VALUES (?,?,?,?,?)", events)
+        # unmatched open entities are gone: their code either resurfaced on
+        # a new generation (recycled) or vanished with them (disappeared —
+        # destroyed, sold or despawned; snapshots cannot tell which)
+        gone = [(t, "recycled" if (e[1], e[2]) in minted_slots
+                 else "disappeared", e[0])
+                for entities in slots.values() for e in entities
+                if e[0] not in claimed]
+        conn.executemany(
+            "UPDATE entity SET gone_time = ?, gone_reason = ?"
+            " WHERE entity_id = ?", gone)
+        conn.execute("INSERT OR REPLACE INTO meta VALUES "
+                     "('entity_registry_time', ?)", (str(t),))
+    return mapping
+
+
 # ---- event history (E: merged across runs, replaces the csv.gz caches) -----
 
 def merge_events(conn: sqlite3.Connection, save: SaveData,
-                 ref: RefData | None = None, stypes: dict | None = None) -> None:
+                 ref: RefData | None = None, stypes: dict | None = None,
+                 entities: dict[str, int] | None = None) -> None:
     """Merge the save's rolling log/economylog windows into the event
     tables (semantics originally ported from the retired csv cache layer;
     one transaction per table, so a crash never half-merges; running twice
@@ -339,10 +482,14 @@ def merge_events(conn: sqlite3.Connection, save: SaveData,
     against the save they came from. `stypes` (station id -> display type,
     see frames.station_types) feeds the unnamed-station fallback. Player
     subordinates additionally record the commander they traded for.
+    `entities` (component id -> entity_id, from update_entity_registry)
+    additionally stamps rows with the surrogate entity identity; parties
+    it does not cover get NULL.
     """
     ident = _identities(save, ref, stypes or {})
     _merge_log(conn, save.log_entries)
-    _merge_trades(conn, save.trades, ident, _player_edges(save))
+    _merge_trades(conn, save.trades, ident, _player_edges(save),
+                  entities or {})
     _merge_removed(conn, save.removed_objects)
 
 
@@ -443,13 +590,15 @@ _TX_COLS = ("time", "ware", "buyer_id", "seller_id", "price_cr", "amount",
             "raw_attrs", "buyer_faction", "buyer_code", "buyer_name",
             "seller_faction", "seller_code", "seller_name",
             "buyer_cmdr_id", "buyer_cmdr_name", "buyer_cmdr_code",
-            "seller_cmdr_id", "seller_cmdr_name", "seller_cmdr_code")
+            "seller_cmdr_id", "seller_cmdr_name", "seller_cmdr_code",
+            "buyer_entity", "seller_entity",
+            "buyer_cmdr_entity", "seller_cmdr_entity")
 _STOCK_COLS = ("time", "owner_id", "ware", "level", "raw_attrs",
-               "owner_faction", "owner_code", "owner_name")
+               "owner_faction", "owner_code", "owner_name", "owner_entity")
 
 
 def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
-                  ident: dict, edges: dict) -> None:
+                  ident: dict, edges: dict, entities: dict) -> None:
     # the economylog's type="trade" entries are two different record types:
     # real transactions (buyer AND seller AND price; v is a traded amount)
     # vs owner-only stock snapshots (v is the level AFTER a trade)
@@ -464,6 +613,10 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
         faction, code, name = ident.get(leader, nobody)
         return (leader, name, code)
 
+    def cmdr_entity(party_id):
+        leader = edges.get(party_id)
+        return entities.get(leader) if leader is not None else None
+
     tx, stock = [], []
     for t in trades:
         time = _time_of(t)
@@ -476,13 +629,16 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
                        _f(t.get("v")), raw,
                        *ident.get(t["buyer"], nobody),
                        *ident.get(t["seller"], nobody),
-                       *cmdr(t["buyer"]), *cmdr(t["seller"])))
+                       *cmdr(t["buyer"]), *cmdr(t["seller"]),
+                       entities.get(t["buyer"]), entities.get(t["seller"]),
+                       cmdr_entity(t["buyer"]), cmdr_entity(t["seller"])))
         elif t.get("owner") and not t.get("buyer"):
             # absent v means an empty stock, not unknown (the game omits
             # default attrs); NULL would punch holes into the LAG deltas
             stock.append((time, t["owner"], t.get("ware") or "",
                           _f(t.get("v")) or 0.0, raw,
-                          *ident.get(t["owner"], nobody)))
+                          *ident.get(t["owner"], nobody),
+                          entities.get(t["owner"])))
 
     _merge_window(conn, "trade_tx", tx, _TX_COLS)
     _merge_window(conn, "stock_event", stock, _STOCK_COLS)
@@ -649,6 +805,7 @@ def _import_tradelog_cache(conn: sqlite3.Connection,
             b_fac, b_exec[2], b_exec[1],
             s_fac, s_exec[2], s_exec[1],
             *b_cmdr, *s_cmdr,
+            None, None, None, None,  # entity ids: unresolvable for csv rows
             0,  # epoch: pre-DB history, one continuous csv timeline
         ))
     with conn:

@@ -41,6 +41,11 @@ class Frames:
     pirates: pd.DataFrame
     police: pd.DataFrame
 
+    # entity registry: one row per physical ship/station/buildstorage ever
+    # observed, surrogate entity_id (codes recycle, ids remap, names/owners
+    # mutate — the registry is the durable identity)
+    entities: pd.DataFrame = None
+
     # all stations' construction entries: id, index, macro (market analysis)
     # NOTE: includes planned-but-unbuilt entries (station sequences list the
     # whole plan; build storages carry expansion plans) — use built_modules
@@ -328,6 +333,13 @@ def build_frames(save: SaveData, ref: RefData,
     ]
     df_log = df_log.drop_duplicates().reset_index(drop=True)
 
+    # ---- entity registry (surrogate identity across snapshots) -----------------
+    log("Preparing entity registry -> entities")
+    entities = _read(conn, """
+        SELECT entity_id, code, class, macro, spawntime, owner, name,
+               first_seen, last_seen, gone_time, gone_reason
+        FROM entity ORDER BY entity_id""")
+
     # ---- tradelog (R 559-647) -------------------------------------------------
     # the merged trade_tx history; parties were resolved to display-ready
     # identities at merge time (the only moment their runtime ids are
@@ -340,14 +352,20 @@ def build_frames(save: SaveData, ref: RefData,
                buyer_id, buyer_faction, buyer_code, buyer_name,
                buyer_cmdr_id, buyer_cmdr_name, buyer_cmdr_code,
                seller_id, seller_faction, seller_code, seller_name,
-               seller_cmdr_id, seller_cmdr_name, seller_cmdr_code
+               seller_cmdr_id, seller_cmdr_name, seller_cmdr_code,
+               buyer_entity, seller_entity,
+               buyer_cmdr_entity, seller_cmdr_entity
         FROM trade_tx ORDER BY time""")
-    # A rename must not split an object's history: the code (ABC-123) is the
-    # stable identity, names are display-only, and trade_tx keeps whatever
-    # name each row was merged under. Re-resolve display names per code —
-    # the current save's name when the object still exists, otherwise the
-    # latest name the history recorded for that code.
+    # A rename must not split an object's history: names are display-only
+    # and trade_tx keeps whatever name each row was merged under.
+    # Re-resolve display names, best evidence first: the entity registry's
+    # current name (exact surrogate identity), else per code — the current
+    # save's name when the object still exists, otherwise the latest name
+    # the history recorded for that code (codes are unique among the
+    # living but recycled after death; entity ids never are).
     if not tl.empty:
+        ent_name = entities.dropna(subset=["name"]) \
+            .set_index("entity_id")["name"]
         seen = pd.concat(
             [tl[["time", f"{side}{k}_code", f"{side}{k}_name"]]
              .set_axis(["time", "code", "name"], axis=1)
@@ -361,7 +379,10 @@ def build_frames(save: SaveData, ref: RefData,
         for col in ("buyer_name", "seller_name",
                     "buyer_cmdr_name", "seller_cmdr_name"):
             codes = tl[col.replace("_name", "_code")]
-            tl[col] = codes.map(name_by_code).fillna(tl[col])
+            eids = tl[col.replace("_name", "_entity")]
+            tl[col] = (eids.map(ent_name)
+                       .fillna(codes.map(name_by_code))
+                       .fillna(tl[col]))
     tradelog = pd.DataFrame({
         "time": tl["time"],
         "commodity": tl["ware"].map(ref.ware_name).fillna(tl["ware"]),
@@ -385,6 +406,10 @@ def build_frames(save: SaveData, ref: RefData,
         tradelog[f"{side}.proxy.id"] = tl[f"{side}_id"].where(proxied)
         tradelog[f"{side}.proxy.name"] = tl[f"{side}_name"].where(proxied)
         tradelog[f"{side}.proxy.code"] = tl[f"{side}_code"].where(proxied)
+        tradelog[f"{side}.entity"] = tl[f"{side}_entity"].where(
+            ~proxied, tl[f"{side}_cmdr_entity"]).astype("Int64")
+        tradelog[f"{side}.proxy.entity"] = \
+            tl[f"{side}_entity"].where(proxied).astype("Int64")
     tradelog["seller.faction"] = pd.Categorical(
         tradelog["seller.faction"], categories=faction_levels, ordered=True)
     tradelog["buyer.faction"] = pd.Categorical(
@@ -504,6 +529,7 @@ def build_frames(save: SaveData, ref: RefData,
         wings=wings, npcs=npcs, stations=stations, ships=ships, log=df_log,
         tradelog=tradelog, sales=sales, buys=buys, destroyed=destroyed,
         transfers=transfers, pirates=pirates, police=police,
+        entities=entities,
         station_modules=module_list, global_trades=gt,
         station_cargo=_read(conn, f"""
             SELECT object_id AS id, ware, amount FROM cargo

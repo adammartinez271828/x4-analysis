@@ -265,7 +265,11 @@ CREATE TABLE trade_tx (          -- real transactions: buyer AND seller AND pric
   raw_attrs TEXT,                -- JSON
   buyer_faction TEXT, buyer_code TEXT, buyer_name TEXT,    -- resolved at merge
   seller_faction TEXT, seller_code TEXT, seller_name TEXT,
-  epoch     INTEGER NOT NULL DEFAULT 0
+  epoch     INTEGER NOT NULL DEFAULT 0,
+  buyer_cmdr_id TEXT, buyer_cmdr_name TEXT, buyer_cmdr_code TEXT,   -- v3
+  seller_cmdr_id TEXT, seller_cmdr_name TEXT, seller_cmdr_code TEXT,
+  buyer_entity INTEGER, seller_entity INTEGER,                      -- v4
+  buyer_cmdr_entity INTEGER, seller_cmdr_entity INTEGER
 );
 CREATE INDEX idx_tx_time ON trade_tx(time);
 CREATE INDEX idx_tx_ware ON trade_tx(ware);
@@ -277,7 +281,8 @@ CREATE TABLE stock_event (       -- owner-only entries: stock level snapshots
   level     REAL,                -- @v — here v is the stock AFTER a trade,
   raw_attrs TEXT,                -- NOT an amount (overcounts ~40x if summed)
   owner_faction TEXT, owner_code TEXT, owner_name TEXT,    -- resolved at merge
-  epoch     INTEGER NOT NULL DEFAULT 0
+  epoch     INTEGER NOT NULL DEFAULT 0,
+  owner_entity INTEGER                                     -- v4
 );
 CREATE INDEX idx_stock ON stock_event(owner_id, ware, time);
 
@@ -300,6 +305,41 @@ CREATE TABLE removed_object (    -- /savegame/economylog/removed/object
   id    TEXT, name TEXT, code TEXT, owner TEXT,
   raw_attrs TEXT
 );
+
+-- Entity registry (v4): one row per physical ship/station/buildstorage
+-- ever observed in an analyzed snapshot. entity_id is a surrogate key WE
+-- mint: the game guarantees uniqueness for none of its own fields (codes
+-- are recycled after death — measured: 163 recycles in 21 game-minutes,
+-- and live cross-faction collisions exist in long games; owner changes on
+-- capture; names on rename; runtime ids remap every load). (code, class)
+-- is the slot, spawntime the generation; owner/name hold CURRENT values
+-- with changes logged to entity_event. Registered without the component
+-- table's @connection filter — identity is about the object, and real
+-- ships drift in and out of the universe tree; an exact reappearance of
+-- a closed (code, class, spawntime) reopens the entity.
+CREATE TABLE entity (
+  entity_id  INTEGER PRIMARY KEY,
+  code       TEXT NOT NULL,
+  class      TEXT NOT NULL,
+  macro      TEXT,
+  spawntime  REAL,               -- 0 = existed at world creation
+  owner      TEXT,               -- current
+  name       TEXT,               -- current, NULL when unnamed
+  first_seen REAL NOT NULL,      -- game time of first observing snapshot
+  last_seen  REAL NOT NULL,
+  gone_time  REAL,               -- first snapshot absent from; death is
+  gone_reason TEXT               --   in [last_seen, gone_time].
+);                               -- 'recycled' | 'disappeared'
+CREATE INDEX idx_entity_slot ON entity(code, class);
+
+CREATE TABLE entity_event (      -- capture/rename observed on a living entity
+  entity_id INTEGER NOT NULL,
+  time      REAL NOT NULL,
+  event     TEXT NOT NULL,       -- 'captured' | 'renamed'
+  old_value TEXT,
+  new_value TEXT
+);
+CREATE INDEX idx_entity_event ON entity_event(entity_id);
 ```
 
 **Merge semantics** (originally ported from the retired csv cache layer,
@@ -323,6 +363,12 @@ transaction per table so a crash never half-merges):
   identity and epoch 0, degrading to per-id behavior. v3 adds
   `*_cmdr_id/name/code` to trade_tx: the commander a player subordinate
   executed the trade for, resolved from the fleet hierarchy at merge time.
+  v4 adds the `*_entity` columns: parties resolved to entity registry ids
+  (`store.update_entity_registry` runs before `merge_events` and hands the
+  component-id → entity_id map in; rows merged before the registry existed
+  keep NULL). The registry itself only moves forward in game time —
+  analyzing a save older than `meta.entity_registry_time` skips entity
+  resolution for that run.
 - Pre-DB history from the retired csv.gz caches is imported once per
   database (`store.import_legacy_caches`, meta flag `csv_caches_imported`):
   only rows older than the tables' coverage, since the overlap was

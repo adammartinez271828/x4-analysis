@@ -28,8 +28,9 @@ def run_analysis(cfg: Config) -> int:
         store.write_reference(conn, ref)
         store.import_legacy_caches(conn, cfg, save.guid, ref)
         store.write_snapshot(conn, save, ref, save_file)
+        entities = store.update_entity_registry(conn, save, ref)
         store.merge_events(conn, save, ref,
-                           station_types_from_db(conn, ref))
+                           station_types_from_db(conn, ref), entities)
 
         frames = build_frames(save, ref, conn)
         store.write_derived(conn, frames)

@@ -16,11 +16,12 @@ must load, never fail. FK comments are documentation only.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
-EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object")
+EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object",
+                "entity", "entity_event")
 
 # Event-history migrations: old version -> targeted ALTERs bringing the E
 # tables to the next version (everything else is dropped and recreated).
@@ -55,8 +56,18 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
         "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_name TEXT",
         "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_code TEXT",
     ),
+    # v4 links event rows to the entity registry: *_entity columns carry
+    # the surrogate entity_id resolved at merge time (NULL for rows merged
+    # before the registry existed or parties absent from the snapshot).
+    "3": (
+        "ALTER TABLE trade_tx ADD COLUMN buyer_entity INTEGER",
+        "ALTER TABLE trade_tx ADD COLUMN seller_entity INTEGER",
+        "ALTER TABLE trade_tx ADD COLUMN buyer_cmdr_entity INTEGER",
+        "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_entity INTEGER",
+        "ALTER TABLE stock_event ADD COLUMN owner_entity INTEGER",
+    ),
 }
-NEXT_VERSION = {"1": "2", "2": "3"}
+NEXT_VERSION = {"1": "2", "2": "3", "3": "4"}
 
 WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",
@@ -223,7 +234,9 @@ TABLES: dict[str, str] = {
   seller_faction TEXT, seller_code TEXT, seller_name TEXT,
   epoch     INTEGER NOT NULL DEFAULT 0,
   buyer_cmdr_id TEXT, buyer_cmdr_name TEXT, buyer_cmdr_code TEXT,
-  seller_cmdr_id TEXT, seller_cmdr_name TEXT, seller_cmdr_code TEXT
+  seller_cmdr_id TEXT, seller_cmdr_name TEXT, seller_cmdr_code TEXT,
+  buyer_entity INTEGER, seller_entity INTEGER,
+  buyer_cmdr_entity INTEGER, seller_cmdr_entity INTEGER
 )""",
     "stock_event": """CREATE TABLE IF NOT EXISTS stock_event (
   time      REAL NOT NULL,
@@ -232,7 +245,8 @@ TABLES: dict[str, str] = {
   level     REAL,
   raw_attrs TEXT,
   owner_faction TEXT, owner_code TEXT, owner_name TEXT,
-  epoch     INTEGER NOT NULL DEFAULT 0
+  epoch     INTEGER NOT NULL DEFAULT 0,
+  owner_entity INTEGER
 )""",
     "log_entry": """CREATE TABLE IF NOT EXISTS log_entry (
   time        REAL NOT NULL,
@@ -250,6 +264,37 @@ TABLES: dict[str, str] = {
   time  REAL,
   id    TEXT, name TEXT, code TEXT, owner TEXT,
   raw_attrs TEXT
+)""",
+    # entity registry: one row per physical ship/station/buildstorage ever
+    # observed in a snapshot. entity_id is a surrogate key WE mint — the
+    # game guarantees uniqueness for none of its own fields (codes are
+    # recycled after death, owner changes on capture, names on rename, and
+    # runtime ids remap every load). (code, class) is the slot, spawntime
+    # the generation (0 = existed at world creation; only the first
+    # generation of a slot can carry it). owner/name are the CURRENT
+    # values; changes are recorded in entity_event. gone_time is the game
+    # time of the first analyzed snapshot the entity was absent from
+    # (death happened somewhere in [last_seen, gone_time]).
+    "entity": """CREATE TABLE IF NOT EXISTS entity (
+  entity_id  INTEGER PRIMARY KEY,
+  code       TEXT NOT NULL,
+  class      TEXT NOT NULL,
+  macro      TEXT,
+  spawntime  REAL,
+  owner      TEXT,
+  name       TEXT,
+  first_seen REAL NOT NULL,
+  last_seen  REAL NOT NULL,
+  gone_time  REAL,
+  gone_reason TEXT
+)""",
+    # observed identity changes on a living entity (capture, rename)
+    "entity_event": """CREATE TABLE IF NOT EXISTS entity_event (
+  entity_id INTEGER NOT NULL,
+  time      REAL NOT NULL,
+  event     TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT
 )""",
     # ---- reference (R) -----------------------------------------------------
     "ware": """CREATE TABLE IF NOT EXISTS ware (
@@ -327,6 +372,8 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_stock ON stock_event(owner_id, ware, time)",
     "CREATE INDEX IF NOT EXISTS idx_log_time ON log_entry(category, time)",
     "CREATE INDEX IF NOT EXISTS idx_recipe ON recipe(ware, method)",
+    "CREATE INDEX IF NOT EXISTS idx_entity_slot ON entity(code, class)",
+    "CREATE INDEX IF NOT EXISTS idx_entity_event ON entity_event(entity_id)",
 )
 
 # The frames.py replacement layer. (Re)created at every connect so

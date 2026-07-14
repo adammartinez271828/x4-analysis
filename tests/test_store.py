@@ -183,10 +183,10 @@ def events_save(log=(), trades=(), removed=(), components=(),
     return s
 
 
-def comp(cid, code, owner, name=""):
+def comp(cid, code, owner, name="", clazz="station", spawn=""):
     """Minimal 16-field component tuple (id/name/code/owner populated)."""
-    return (cid, "station", "macro", name, code, owner,
-            "", "", "conn", "", "", "", "", "", "", "")
+    return (cid, clazz, "macro", name, code, owner,
+            "", "", "conn", spawn, "", "", "", "", "", "")
 
 
 def dump(conn, table):
@@ -642,6 +642,148 @@ def test_tradelog_rename_does_not_split_history(cfg, save_data, ref, conn):
     assert list(tl["seller.proxy.name"]) == ["Current Ship", "Current Ship"]
 
 
+# ---- entity registry ---------------------------------------------------------
+
+def snap(t, comps):
+    """A minimal SaveData acting as one analyzed snapshot at game time t."""
+    s = events_save(components=comps)
+    s.game_time = t
+    return s
+
+
+def entity_rows(conn):
+    return conn.execute(
+        "SELECT entity_id, code, class, owner, name, spawntime,"
+        " gone_time, gone_reason FROM entity ORDER BY entity_id").fetchall()
+
+
+def test_entity_registry_mint_and_idempotent(conn, ref):
+    comps = [comp("[0x1]", "SHP-001", "argon", "Alpha",
+                  clazz="ship_s", spawn="10.0"),
+             comp("[0x2]", "STA-001", "argon", "Dock"),
+             comp("[0x3]", "", "argon"),          # no code: not registered
+             comp("[0x4]", "ZON-001", "argon", clazz="zone")]  # wrong class
+    m1 = store.update_entity_registry(conn, snap(1000.0, comps), ref)
+    assert sorted(m1) == ["[0x1]", "[0x2]"]
+    m2 = store.update_entity_registry(conn, snap(1000.0, comps), ref)
+    assert m2 == m1                                # same save: same entities
+    assert len(entity_rows(conn)) == 2
+
+
+def test_entity_registry_capture_and_rename(conn, ref):
+    m1 = store.update_entity_registry(conn, snap(1000.0, [
+        comp("[0x1]", "SHP-001", "xenon", "Prey", clazz="ship_s",
+             spawn="10.0")]), ref)
+    m2 = store.update_entity_registry(conn, snap(2000.0, [
+        comp("[0x9]", "SHP-001", "player", "Trophy", clazz="ship_s",
+             spawn="10.0")]), ref)
+    # same spawntime = the same physical ship, boarded and renamed
+    assert m2["[0x9]"] == m1["[0x1]"]
+    (eid, code, clazz, owner, name, spawn, gone, reason), = entity_rows(conn)
+    assert (owner, name, gone) == ("player", "Trophy", None)
+    assert conn.execute(
+        "SELECT event, old_value, new_value FROM entity_event"
+        " ORDER BY event").fetchall() == [
+        ("captured", "xenon", "player"), ("renamed", "Prey", "Trophy")]
+
+
+def test_entity_registry_recycle_and_disappear(conn, ref):
+    m1 = store.update_entity_registry(conn, snap(1000.0, [
+        comp("[0x1]", "SHP-001", "xenon", clazz="ship_s", spawn="10.0"),
+        comp("[0x2]", "STA-001", "argon", "Dock")]), ref)
+    # the fighter died; its code resurfaced on a new hull (new spawntime),
+    # the station is simply absent
+    m2 = store.update_entity_registry(conn, snap(2000.0, [
+        comp("[0x9]", "SHP-001", "xenon", clazz="ship_s",
+             spawn="1500.0")]), ref)
+    assert m2["[0x9]"] != m1["[0x1]"]
+    by_id = {r[0]: r for r in entity_rows(conn)}
+    assert by_id[m1["[0x1]"]][6:] == (2000.0, "recycled")
+    assert by_id[m1["[0x2]"]][6:] == (2000.0, "disappeared")
+    assert by_id[m2["[0x9]"]][6:] == (None, None)
+
+
+def test_entity_registry_live_collision(conn, ref):
+    # two same-class live ships sharing a code (observed in a 559h save):
+    # distinct spawntimes keep them two entities, stably re-matched
+    comps = [comp("[0x1]", "VER-731", "split", clazz="ship_s", spawn="10.0"),
+             comp("[0x2]", "VER-731", "teladi", clazz="ship_s", spawn="99.0")]
+    m1 = store.update_entity_registry(conn, snap(1000.0, comps), ref)
+    assert m1["[0x1]"] != m1["[0x2]"]
+    m2 = store.update_entity_registry(conn, snap(2000.0, comps), ref)
+    assert m2 == m1
+
+
+def test_entity_registry_resurrects_exact_reappearance(conn, ref):
+    # components drift in and out of the save's universe tree between
+    # snapshots; an exact (code, class, spawntime) reappearance is the same
+    # physical ship and must reopen its entity, not mint a duplicate
+    m1 = store.update_entity_registry(conn, snap(1000.0, [
+        comp("[0x1]", "SHP-001", "argon", clazz="ship_s", spawn="10.0")]), ref)
+    store.update_entity_registry(conn, snap(2000.0, []), ref)
+    assert entity_rows(conn)[0][7] == "disappeared"
+    m3 = store.update_entity_registry(conn, snap(3000.0, [
+        comp("[0x9]", "SHP-001", "argon", clazz="ship_s", spawn="10.0")]), ref)
+    assert m3["[0x9]"] == m1["[0x1]"]
+    (row,) = entity_rows(conn)
+    assert row[6:] == (None, None)       # reopened
+
+
+def test_entity_registry_skips_stale_snapshot(conn, ref):
+    store.update_entity_registry(conn, snap(2000.0, [
+        comp("[0x1]", "SHP-001", "argon", clazz="ship_s", spawn="10.0")]), ref)
+    m = store.update_entity_registry(conn, snap(1000.0, [
+        comp("[0x1]", "SHP-002", "argon", clazz="ship_s", spawn="10.0")]), ref)
+    assert m == {}                       # older than the high-water mark
+    assert len(entity_rows(conn)) == 1   # and nothing was minted or closed
+
+
+def test_trade_tx_entity_linkage(conn, ref):
+    conn.execute("DELETE FROM trade_tx")
+    conn.commit()
+    comps = [comp("[0x20]", "STA-001", "player", "My Station"),
+             comp("[0x30]", "SHP-001", "player", "My Trader",
+                  clazz="ship_s", spawn="10.0"),
+             comp("[0xB]", "NPC-001", "argon", "Buyer Co")]
+    save = snap(5000.0, comps)
+    save.commander_links = [("[0x30]", "[0xC1]")]
+    save.subordinate_conns = [("[0x20]", "[0xC1]")]
+    save.trades = [{"time": "50.0", "ware": "energycells", "buyer": "[0xB]",
+                    "seller": "[0x30]", "price": "1000", "v": "10"}]
+    ents = store.update_entity_registry(conn, save, ref)
+    store.merge_events(conn, save, ref, entities=ents)
+    assert conn.execute(
+        "SELECT buyer_entity, seller_entity, seller_cmdr_entity,"
+        " buyer_cmdr_entity FROM trade_tx").fetchall() == [
+        (ents["[0xB]"], ents["[0x30]"], ents["[0x20]"], None)]
+
+
+def test_frames_prefers_entity_name(cfg, save_data, ref, conn):
+    """The registry's current name beats the merge-time snapshot: a trade
+    merged under an old name displays the name after a later rename, keyed
+    by entity id (immune to code recycling, unlike the code fallback)."""
+    from x4analyzer.analysis.frames import build_frames
+
+    conn.execute("DELETE FROM trade_tx")
+    conn.commit()
+    comps = [comp("[0x30]", "SHP-001", "player", "Old Name",
+                  clazz="ship_s", spawn="10.0"),
+             comp("[0xB]", "NPC-001", "argon", "Buyer Co")]
+    save = snap(5000.0, comps)
+    save.trades = [{"time": "50.0", "ware": "ice", "buyer": "[0xB]",
+                    "seller": "[0x30]", "price": "1000", "v": "10"}]
+    ents = store.update_entity_registry(conn, save, ref)
+    store.merge_events(conn, save, ref, entities=ents)
+    store.update_entity_registry(conn, snap(6000.0, [
+        comp("[0x31]", "SHP-001", "player", "New Name",
+             clazz="ship_s", spawn="10.0"),
+        comp("[0xB]", "NPC-001", "argon", "Buyer Co")]), ref)
+
+    tl = build_frames(save_data, ref, conn).tradelog
+    assert list(tl["seller.name"]) == ["New Name"]
+    assert list(tl["seller.entity"]) == [ents["[0x30]"]]
+
+
 def test_legacy_csv_import(cfg, save_data, ref):
     import gzip
 
@@ -704,6 +846,10 @@ def test_v2_database_migrates_keeping_trades(cfg):
     conn.execute("INSERT INTO trade_tx VALUES (5.0, 'ice', '[0x1]', '[0x2]',"
                  " 10.0, 3.0, NULL, 'argon', 'AAA-111', 'A',"
                  " 'teladi', 'BBB-222', 'B', 0)")
+    conn.execute("CREATE TABLE stock_event (time REAL NOT NULL,"
+                 " owner_id TEXT NOT NULL, ware TEXT NOT NULL, level REAL,"
+                 " raw_attrs TEXT, owner_faction TEXT, owner_code TEXT,"
+                 " owner_name TEXT, epoch INTEGER NOT NULL DEFAULT 0)")
     conn.commit()
     conn.close()
 
