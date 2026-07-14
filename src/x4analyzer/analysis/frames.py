@@ -342,6 +342,26 @@ def build_frames(save: SaveData, ref: RefData,
                seller_id, seller_faction, seller_code, seller_name,
                seller_cmdr_id, seller_cmdr_name, seller_cmdr_code
         FROM trade_tx ORDER BY time""")
+    # A rename must not split an object's history: the code (ABC-123) is the
+    # stable identity, names are display-only, and trade_tx keeps whatever
+    # name each row was merged under. Re-resolve display names per code —
+    # the current save's name when the object still exists, otherwise the
+    # latest name the history recorded for that code.
+    if not tl.empty:
+        seen = pd.concat(
+            [tl[["time", f"{side}{k}_code", f"{side}{k}_name"]]
+             .set_axis(["time", "code", "name"], axis=1)
+             for side in ("buyer", "seller") for k in ("", "_cmdr")],
+            ignore_index=True).dropna(subset=["code", "name"])
+        seen = seen[(seen["code"] != "") & (seen["name"] != "")]
+        seen = seen.sort_values("time", kind="stable")
+        name_by_code = dict(zip(seen["code"], seen["name"]))
+        alive = universe[(universe["code"] != "") & (universe["name"] != "")]
+        name_by_code.update(zip(alive["code"], alive["name"]))
+        for col in ("buyer_name", "seller_name",
+                    "buyer_cmdr_name", "seller_cmdr_name"):
+            codes = tl[col.replace("_name", "_code")]
+            tl[col] = codes.map(name_by_code).fillna(tl[col])
     tradelog = pd.DataFrame({
         "time": tl["time"],
         "commodity": tl["ware"].map(ref.ware_name).fillna(tl["ware"]),

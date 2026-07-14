@@ -64,6 +64,7 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 
 ## Gotchas
 
+- Ship/station **names are display-only and change on player rename; the code (`ABC-123`) is the stable identity** — key every join, grouping, and dedup on codes (or component ids within one save), never on names. `trade_tx` stores names as merged; `frames` re-resolves tradelog display names per code (current save wins, else latest in history) so renamed objects don't split in per-object views.
 - Stations list their build plan TWICE in the save (construction sequence + expand queue repeat the same entry ids) and sequences include unbuilt entries: `frames.station_modules` dedupes by (id, entry) at build time, and anything measuring existing capacity/storage/value must use `frames.built_modules` (validated against in-game module counts: pre-fix hull-parts "capacity" was nearly 2x reality).
 - pandas `itertuples()` mangles the dotted column names — use `iterrows()` or positional access when a loop touches columns like `sector.id`.
 - Money in save files is in cents; divide by 100 (trade `price`, log `money`).
