@@ -1,20 +1,32 @@
 """Weapon firing-cycle simulation with equipment mods.
 
-The rules below were validated in-game (session of 2026-07) — keep them:
+The rules below were validated in-game (sessions of 2026-07) — keep them:
 
-- A mod multiplies its stat field EXACTLY as stored. `<reload rate>` gets
-  multiplied directly (x2 = double fire rate, so the optimal roll is the
-  range MAX); `<reload time>` likewise (optimal = range MIN). Same literal
-  rule for damage, coolrate and chargetime.
-- Heat weapons: each volley adds the bullet's `<heat value>`; no cooling
-  while firing (cooldelay never elapses). At `overheat` the weapon goes
-  offline for `overheatcooldelay`, then cools at `coolrate` and re-enables
-  once heat reaches `reenable`. Reference numbers (TER S Electromagnetic
-  Gun Mk1): 10000/350 = 28.57 volleys per heat bar, 10000/(350*1.4) =
-  20.41 s cold time-to-overheat.
+- Reload mods are RATE-semantic on EVERY weapon: a `<reload rate>` is
+  multiplied by the mod (x2 = double fire rate), a `<reload time>` is
+  DIVIDED by it (x1.2 = 20% faster). The optimal roll is always the
+  range MAX. (Corrected 2026-07: S Plasma Cannon Mk1, reload time 2.6 s,
+  fired 5 shots in ~10.4 s bare and ~8.7 s under reload x1.2 — the old
+  literal-multiply rule mis-predicted a slowdown.) Damage and coolrate
+  multiply directly; chargetime multiplies a duration (optimal = MIN).
+- Heat weapons: each volley adds the bullet's `<heat value>`, and the
+  weapon COOLS BETWEEN SHOTS once `cooldelay` has elapsed since the last
+  one: net heat per shot = heat - coolrate * max(0, interval - cooldelay).
+  Weapons whose net is <= 0 never overheat. (Validated 2026-07 on the
+  S Plasma Cannon Mk1: 2600 heat, 1000/s coolrate, 1.8 s cooldelay ->
+  net 1800/shot, sits at 9800/10000 after five bare shots without
+  overheating, but overheats on the fifth shot under a +20% fire-rate
+  mod because the shorter gap cools less.) Fast weapons whose interval
+  never exceeds cooldelay reduce to the old no-cooling-while-firing
+  model — reference numbers (TER S Electromagnetic Gun Mk1, interval
+  0.71 s < cooldelay 1.0 s): 10000/350 = 28.57 volleys per heat bar,
+  10000/(350*1.4) = 20.41 s cold time-to-overheat. At `overheat` the
+  weapon goes offline for `overheatcooldelay`, then cools at `coolrate`
+  and re-enables once heat reaches `reenable`.
 - Clip weapons (`<ammunition value reload>`): the clip reload time is
-  FIXED — reload mods only scale the shot interval inside the burst, and
-  cooling mods do nothing when the bullet has no per-shot heat.
+  FIXED — reload mods only scale the shot interval inside the burst.
+  The weapon also cools during the clip-reload pause (after cooldelay),
+  so many clip weapons never overheat in practice.
 - Charge/beam weapons: shot interval = reload time + charge time (a
   simplified model); stats that need heat stay None when there is none.
 - Damage vs shields = value + shield attr, vs hull = value + hull attr,
@@ -26,7 +38,8 @@ The rules below were validated in-game (session of 2026-07) — keep them:
   multiply, so they do nothing.
 
 The continuous-rate model treats every shot as occupying 1/rate seconds
-(matching the in-game validated 20.41 s figure) rather than simulating
+and heat as accruing at the net rate (matching both the 20.41 s EM Gun
+figure and the plasma-cannon shot counts) rather than simulating
 discrete shot ticks.
 """
 
@@ -54,14 +67,14 @@ def reload_kind(weapon: dict) -> str | None:
 
 
 def optimal_mult(stat: str, lo: float, hi: float,
-                 rkind: str | None) -> float:
-    """Best-for-player end of a mod roll range, given how the target weapon
-    stores the stat. Because multipliers are literal, 'best' flips with the
-    field: reload rate wants MAX, reload time wants MIN; a malus range
-    (both ends < 1) picks its least-bad end the same way."""
+                 rkind: str | None = None) -> float:
+    """Best-for-player end of a mod roll range. Reload mods are
+    rate-semantic on every weapon (verified in-game 2026-07), so reload —
+    like damage and cooling — always wants the MAX; chargetime multiplies
+    a duration and wants the MIN. A malus range (both ends < 1) picks its
+    least-bad end the same way. `rkind` is kept for API compatibility but
+    no longer changes the result."""
     if stat == "chargetime":
-        return min(lo, hi)
-    if stat == "reload" and rkind == "time":
         return min(lo, hi)
     return max(lo, hi)
 
@@ -107,13 +120,15 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
              + (weapon.get("area_dmg_shield") or 0.0)) * md * proj
     dmg_h = (base + (weapon.get("dmg_hull") or 0.0) + area) * md * proj
 
-    # volley interval: the reload mod multiplies the stored field literally
+    # volley interval: reload mods are rate-semantic on every weapon
+    # (verified in-game 2026-07) - they multiply a stored rate and DIVIDE
+    # a stored time
     interval = None
     if weapon.get("reload_rate"):
         r = weapon["reload_rate"] * mr
         interval = 1.0 / r if r > 0 else None
     elif weapon.get("reload_time"):
-        interval = weapon["reload_time"] * mr
+        interval = weapon["reload_time"] / mr if mr > 0 else None
     if weapon.get("chargetime"):
         interval = (interval or 0.0) + weapon["chargetime"] * mct
 
@@ -139,16 +154,26 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
     heat = weapon.get("heat") or 0.0
     overheat = weapon.get("overheat") or 0.0
     coolrate = (weapon.get("coolrate") or 0.0) * mc
+    net_heat = 0.0
     if heat > 0 and overheat > 0 and coolrate > 0:
         out["coolrate"] = coolrate
+        # the weapon cools between shots once cooldelay has elapsed; slow
+        # weapons therefore accrue less than <heat> per shot and may never
+        # overheat at all (verified in-game 2026-07, S Plasma Cannon Mk1)
+        cd = weapon.get("cooldelay") or 0.0
+        cooled_shot = coolrate * max(0.0, (interval or 0.0) - cd)
+        if clip and clip_reload > 0:
+            cooled_shot += coolrate * max(0.0, clip_reload - cd) / clip
+        net_heat = heat - cooled_shot
+    if net_heat > 0 and eff_rate:
         ohcd = weapon.get("overheatcooldelay") or 0.0
         reenable = weapon.get("reenable") or 0.0
-        heat_rate = heat * eff_rate
+        heat_rate = net_heat * eff_rate
 
         # cold cycle: 0 -> overheat -> fully cooled
         t_over = overheat / heat_rate
         t_cool = ohcd + overheat / coolrate
-        shots = overheat / heat
+        shots = overheat / net_heat
         out.update(t_overheat=t_over, t_cooldown=t_cool,
                    t_cycle=t_over + t_cool, shots_cycle=shots,
                    cyc_dmg_s=shots * dmg_s, cyc_dmg_h=shots * dmg_h,

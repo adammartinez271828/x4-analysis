@@ -191,11 +191,11 @@ function fmt(v, dec) {
   return v.toLocaleString('en-US',
     {minimumFractionDigits: dec, maximumFractionDigits: dec});
 }
-// literal-multiply rule: the optimal end of a roll range depends on how the
-// weapon stores the stat (reload rate wants max, reload time wants min)
+// reload mods are rate-semantic on every weapon (a stored reload time is
+// DIVIDED by the multiplier - verified in-game 2026-07), so like damage
+// and cooling they want the range max; chargetime is a duration (min)
 function applied(stat, lo, hi, rk) {
   if (stat === 'chargetime') return Math.min(lo, hi);
-  if (stat === 'reload' && rk === 'time') return Math.min(lo, hi);
   return Math.max(lo, hi);
 }
 function range(lo, hi) {
@@ -332,8 +332,9 @@ def build_gamedata_dashboard(cfg: Config) -> int:
 </p>
 <div id='notes'></div>
 <p class='note'>Each mod column applies the mod at its OPTIMAL roll
-(hover a column header for the roll range and applied multipliers; a mod
-multiplies the stat field exactly as the game stores it). Forced negative
+(hover a column header for the roll range and applied multipliers; reload
+mods change fire rate on every weapon &mdash; a stored reload time is
+divided by the multiplier). Forced negative
 bonuses are taken at their least-bad value. Optional weighted bonuses are
 NOT included — expand a mod below the table to see them. Damage per volley
 = (value + shield/hull bonus + explosion damage) &times; projectiles per
