@@ -27,8 +27,19 @@ The rules below were validated in-game (sessions of 2026-07) — keep them:
   FIXED — reload mods only scale the shot interval inside the burst.
   The weapon also cools during the clip-reload pause (after cooldelay),
   so many clip weapons never overheat in practice.
-- Charge/beam weapons: shot interval = reload time + charge time (a
-  simplified model); stats that need heat stay None when there is none.
+- Beam weapons (hitscan, projectile speed = c): rendered as many sub-shots
+  packed into a live window; `dmg_s` is the per-second intensity and the beam
+  is live for `lifetime` of each `reload_time` cycle. Peak DPS = dmg_s x
+  reload; sustained = peak x structural duty (lifetime / reload_time) x any
+  heat duty. Verified in-game 2026-07: ARG M Beam Turret, dmg_s 168, lifetime
+  3, reload_time 7 -> encyclopedia Weapon Output 168 x 3/7 = 72 MW. (The old
+  model treated the beam as one 168-damage shot per 7 s = 24 MW, understating
+  beams ~3x.) Reload is rate-semantic: it shortens the gap between sub-shots,
+  so it RAISES the per-second intensity (peak and sustained both scale x
+  reload -- S Beam Emitter burst 110 -> 134 under reload x1.225), but does NOT
+  change the on/off cycle, so structural duty is reload-independent.
+- Charge weapons: shot interval = reload time + charge time (a simplified
+  model); stats that need heat stay None when there is none.
 - Damage vs shields = value + shield attr, vs hull = value + hull attr,
   plus <areadamage> explosion damage (Blast Mortar/flak keep ALL damage
   there), each times projectile count (amount x barrelamount). Heat
@@ -56,6 +67,15 @@ STAT_KEYS = [
     "cyc_dmg_s", "cyc_dmg_h", "cyc_dps_s", "cyc_dps_h",
     "ss_fire", "ss_cool", "duty", "ss_dps_s", "ss_dps_h",
 ]
+
+
+# projectile speed of a beam bullet is the speed of light (hitscan); this is
+# the reliable discriminator for beams, whose <damage> is a per-second rate.
+SPEED_OF_LIGHT = 299792500.0
+
+
+def is_beam(weapon: dict) -> bool:
+    return (weapon.get("speed") or 0.0) >= SPEED_OF_LIGHT
 
 
 def reload_kind(weapon: dict) -> str | None:
@@ -134,6 +154,49 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
 
     out: dict[str, float | None] = {k: None for k in STAT_KEYS}
     out["dmg_s"], out["dmg_h"] = dmg_s, dmg_h
+
+    if is_beam(weapon):
+        # A beam is rendered as many sub-shots packed into its live window;
+        # `dmg_s` is the resulting per-second intensity and the beam is live
+        # for `lifetime` of every `reload_time` cycle. A reload mod shortens
+        # the gap between sub-shots, so it RAISES the peak intensity (and thus
+        # sustained) but does NOT change the on/off cycle -- structural duty is
+        # reload-independent. Verified in-game 2026-07: S Beam Emitter burst
+        # 110 -> 134 under a reload x1.225 mod (peak scales), and ARG M Beam
+        # Turret encyclopedia Weapon Output = 168 x lifetime 3 / reload_time
+        # 7 = 72 MW (structural duty). Peak = dmg_s x reload; sustained =
+        # peak x structural duty x heat duty.
+        life = weapon.get("lifetime") or 0.0
+        rt = weapon.get("reload_time") or 0.0
+        struct_duty = min(1.0, life / rt) if rt > 0 else 1.0
+        out["rate"] = mr  # peak = dmg_s x mr (reload packs in more sub-shots)
+        heat = weapon.get("heat") or 0.0
+        overheat = weapon.get("overheat") or 0.0
+        coolrate = (weapon.get("coolrate") or 0.0) * mc
+        heat_duty = 1.0
+        if heat > 0 and overheat > 0 and coolrate > 0:
+            # A live beam does not cool while firing; `heat` is the heat it
+            # accrues per second at base intensity, so a reload mod (which
+            # packs in more sub-shots) raises the heat rate x mr -> a
+            # heat-limited beam's sustained scales SUB-linearly with reload,
+            # like every other heat weapon (the in-game *display* over-credits
+            # reload here, as the S Pulse Laser overheat count showed for
+            # bullets). The exact beam heat rate is not yet in-game validated;
+            # this reproduces the prior bare sustained for the emitters.
+            out["coolrate"] = coolrate
+            ohcd = weapon.get("overheatcooldelay") or 0.0
+            reenable = weapon.get("reenable") or 0.0
+            band = max(overheat - reenable, 0.0)
+            ss_fire = band / (heat * mr) if mr > 0 else band / heat
+            ss_cool = ohcd + (band / coolrate if coolrate > 0 else 0.0)
+            heat_duty = (ss_fire / (ss_fire + ss_cool)
+                         if ss_fire + ss_cool > 0 else 0.0)
+            out.update(ss_fire=ss_fire, ss_cool=ss_cool)
+        duty = struct_duty * heat_duty
+        peak_s, peak_h = dmg_s * mr, dmg_h * mr
+        out.update(duty=duty, ss_dps_s=peak_s * struct_duty * heat_duty,
+                   ss_dps_h=peak_h * struct_duty * heat_duty)
+        return out
 
     clip = weapon.get("ammo_clip") or 0.0
     clip_reload = weapon.get("ammo_reload") or 0.0

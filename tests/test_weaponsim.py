@@ -200,6 +200,44 @@ def test_plasma_cannon_between_shot_cooling_matches_ingame():
     assert f["shots_cycle"] < 5 <= s["shots_cycle"]
 
 
+# ARG M Beam Turret Mk1: hitscan beam (speed = c), heatless. Its <damage> is
+# dealt per second while the beam is live (lifetime 3 s of every 7 s cycle).
+BEAM_TURRET = {
+    "speed": 299792500.0, "lifetime": 3.0, "reload_time": 7.0, "heat": 0.0,
+    "amount": 1.0, "barrelamount": 1.0,
+    "dmg": 126.0, "dmg_shield": 42.0, "dmg_hull": 0.0,
+}
+
+
+def test_beam_output_matches_ingame_encyclopedia():
+    # verified 2026-07: encyclopedia shows damage-vs-shield 168 (= per-second
+    # beam damage) and Weapon Output 72 = 168 x lifetime 3 / reload_time 7
+    s = simulate(BEAM_TURRET)
+    assert s["dmg_s"] == pytest.approx(168.0)          # per-second intensity
+    assert s["dmg_s"] * s["rate"] == pytest.approx(168.0)  # peak/burst = dmg_s
+    assert s["ss_dps_s"] == pytest.approx(72.0)         # sustained = peak x duty
+    assert s["duty"] == pytest.approx(3.0 / 7.0)
+
+
+def test_beam_reload_raises_intensity_and_sustained():
+    # reload packs more sub-shots into the live beam -> higher peak AND higher
+    # sustained (verified: S Beam Emitter burst 110 -> 134 under reload x1.225).
+    # It does NOT change the beam's on/off cycle, so structural duty is fixed.
+    s = simulate(BEAM_TURRET, {"reload": 1.225})
+    assert s["dmg_s"] * s["rate"] == pytest.approx(168.0 * 1.225)  # peak scales
+    assert s["ss_dps_s"] == pytest.approx(72.0 * 1.225)           # sustained too
+    assert s["duty"] == pytest.approx(3.0 / 7.0)                  # cycle unchanged
+    # a continuous beam (lifetime == reload) also gains: reload still raises the
+    # sub-shot rate, so its sustained scales too (it is NOT reload-inert)
+    cont = dict(BEAM_TURRET, lifetime=7.0)
+    assert simulate(cont, {"reload": 2.0})["ss_dps_s"] == \
+        pytest.approx(2.0 * simulate(cont)["ss_dps_s"])
+
+
+def test_beam_cooling_is_inert_when_heatless():
+    assert simulate(BEAM_TURRET, {"cooling": 1.9}) == simulate(BEAM_TURRET)
+
+
 def test_guaranteed_stats():
     assert guaranteed_stats(SLASHER) == ["damage", "cooling", "reload"]
     pool_mod = dict(SLASHER, forced=False)
