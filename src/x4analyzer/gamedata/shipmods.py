@@ -4,11 +4,14 @@ weapons, engines and shields. The <ship> section is the most heterogeneous:
 hazard resistance, so there is no single physics model - each mod is a direct
 multiplier (or, for radarcloak, an additive signature reduction) on its stat.
 
-Stat directions (whether higher is better):
-  maxhull, radarrange, *capacity, hidecargochance   -> higher better
-  mass, drag, regiondamage                          -> lower better
-  radarcloak                                        -> additive, MORE NEGATIVE
-                                                       (bigger reduction) better
+Stat kinds and directions:
+  maxhull, radarrange            -> MULTIPLIER, higher better (neutral 1)
+  mass, drag, regiondamage       -> MULTIPLIER, lower better  (neutral 1)
+  radarcloak                     -> ADDITIVE signature reduction, more
+                                    negative better (neutral 0)
+  *capacity                      -> ADDITIVE FLAT count (+N consumables, base
+                                    ~8 on S ships to ~20 on L), higher better
+  hidecargochance                -> ADDITIVE chance, higher better (neutral 0)
 """
 
 from __future__ import annotations
@@ -23,10 +26,13 @@ from .textdb import TextDB
 _PARSER = etree.XMLParser(recover=True, huge_tree=True)
 _MOD_WARE = re.compile(r"^mod_ship_")
 
-# higher-is-better by default; these are the exceptions (lower is better)
+# multiplier stats where lower is better
 LOWER_BETTER = {"mass", "drag", "regiondamage"}
-# additive signature reduction (default 0, more negative = stealthier)
-ADDITIVE = {"radarcloak"}
+# additive stats (neutral 0, realized values SUM not multiply)
+ADDITIVE = {"radarcloak", "hidecargochance", "countermeasurecapacity",
+            "deployablecapacity", "missilecapacity", "unitcapacity"}
+# stats whose OPTIMAL roll is the low end (lower/more-negative is better)
+OPTIMAL_MIN = LOWER_BETTER | {"radarcloak"}
 
 
 def _f(el, attr, default=None):
@@ -106,10 +112,7 @@ def _pick(stat: str, lo: float, hi: float, roll: str) -> float:
         return lo
     if roll == "max":
         return hi
-    # optimal: additive & lower-better want the MIN, higher-better wants MAX
-    if stat in ADDITIVE or stat in LOWER_BETTER:
-        return lo
-    return hi
+    return lo if stat in OPTIMAL_MIN else hi     # optimal
 
 
 def realized_mults(mod: dict, roll: str = "optimal") -> dict[str, float]:
@@ -128,12 +131,13 @@ def realized_mults(mod: dict, roll: str = "optimal") -> dict[str, float]:
 
 def goodness(stat: str, value: float) -> float:
     """A monotonic 'higher = better' scalar for a stat's realized value, so
-    mods can be Pareto-compared. Multiplier stats: value or 1/value; radarcloak
-    (additive, default 0): the size of the reduction."""
-    if stat in ADDITIVE:
+    mods can be Pareto-compared."""
+    if stat == "radarcloak":
         return -value                      # -0.5 signature -> 0.5 goodness
+    if stat in ADDITIVE:
+        return value                       # capacities / hidecargo: more = better
     if stat in LOWER_BETTER:
-        return 1.0 / value if value else 1.0
+        return 1.0 / value if value else 1e9  # regiondamage 0 = total immunity
     return value
 
 
