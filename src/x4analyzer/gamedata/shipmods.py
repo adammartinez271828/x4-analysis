@@ -6,9 +6,12 @@ multiplier (or, for radarcloak, an additive signature reduction) on its stat.
 
 Stat kinds and directions:
   maxhull, radarrange            -> MULTIPLIER, higher better (neutral 1)
-  mass, drag, regiondamage       -> MULTIPLIER, lower better  (neutral 1)
+  mass, drag                     -> MULTIPLIER, lower better  (neutral 1)
   radarcloak                     -> ADDITIVE signature reduction, more
                                     negative better (neutral 0)
+  regiondamage                   -> ADDITIVE hazard-damage REDUCTION fraction,
+                                    higher better (neutral 0; 1.0 = 100%
+                                    reduction/immunity, -1.0 = double damage)
   *capacity                      -> ADDITIVE FLAT count (+N consumables, base
                                     ~8 on S ships to ~20 on L), higher better
   hidecargochance                -> ADDITIVE chance, higher better (neutral 0)
@@ -27,10 +30,11 @@ _PARSER = etree.XMLParser(recover=True, huge_tree=True)
 _MOD_WARE = re.compile(r"^mod_ship_")
 
 # multiplier stats where lower is better
-LOWER_BETTER = {"mass", "drag", "regiondamage"}
+LOWER_BETTER = {"mass", "drag"}
 # additive stats (neutral 0, realized values SUM not multiply)
-ADDITIVE = {"radarcloak", "hidecargochance", "countermeasurecapacity",
-            "deployablecapacity", "missilecapacity", "unitcapacity"}
+ADDITIVE = {"radarcloak", "hidecargochance", "regiondamage",
+            "countermeasurecapacity", "deployablecapacity", "missilecapacity",
+            "unitcapacity"}
 # stats whose OPTIMAL roll is the low end (lower/more-negative is better)
 OPTIMAL_MIN = LOWER_BETTER | {"radarcloak"}
 
