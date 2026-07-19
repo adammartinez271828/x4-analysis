@@ -418,12 +418,15 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     # the legend lives in a dedicated right-hand strip (outside the plot
     # area) so it never overlaps sectors; the plot area stays the exact
-    # 1536x864 the marker px sizes are tuned for
-    legend_w = 220
+    # 1536x864 the marker px sizes are tuned for. Edge-row hexes overhang
+    # the axis range by a few px, so markers draw unclipped into a small
+    # top/bottom margin instead of being cut off.
+    legend_w, edge_pad = 220, 12
+    fig.update_traces(cliponaxis=False)
     fig.update_layout(
-        width=1536 + legend_w, height=864, autosize=False,
+        width=1536 + legend_w, height=864 + 2 * edge_pad, autosize=False,
         paper_bgcolor=DARK_BG, plot_bgcolor=DARK_BG,
-        margin={"b": 0, "l": 0, "r": legend_w, "t": 0},
+        margin={"b": edge_pad, "l": 0, "r": legend_w, "t": edge_pad},
         legend={"x": 1.0, "y": 0.96, "xanchor": "left", "yanchor": "top",
                 "itemsizing": "constant",
                 "groupclick": "toggleitem",

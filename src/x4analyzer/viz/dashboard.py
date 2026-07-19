@@ -101,7 +101,7 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     log("Generating sector map")
     tabs: dict[str, list[str]] = {
         "Map": ["<p>" + _iframe(build_map(frames, ref, cfg, files_dir, guid),
-                                "width:1756px;height:864px;", lazy=False)
+                                "width:1756px;height:888px;", lazy=False)
                 + "</p>"],
         "Trade": [], "Trade Breakdown": [], "Trade History": [],
         "Station P&L": [], "Market": [], "Audit": [], "Build Advisor": [],
