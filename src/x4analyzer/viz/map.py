@@ -310,6 +310,25 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     fig = go.Figure()
 
+    # gate/accelerator connections (gates.csv): lines between the display
+    # positions of linked sectors, drawn first so they sit underneath all
+    # markers. Default off; spoiler mode drops links touching hidden
+    # sectors because pos only holds plotted ones.
+    pos = dict(zip(plot_sectors["macro"],
+                   zip(plot_sectors["x"], plot_sectors["y"])))
+    gx: list[float | None] = []
+    gy: list[float | None] = []
+    for r in ref.gates.itertuples(index=False):
+        if r.sector_a in pos and r.sector_b in pos:
+            gx += [pos[r.sector_a][0], pos[r.sector_b][0], None]
+            gy += [pos[r.sector_a][1], pos[r.sector_b][1], None]
+    if gx:
+        fig.add_scatter(
+            x=gx, y=gy, mode="lines", name="Gates & Accelerators",
+            hoverinfo="skip", legendgroup="Base Map", legendrank=1001,
+            visible="legendonly",
+            line={"color": "rgba(140,170,200,0.55)", "width": 1.5})
+
     # resource overlay: one hidden trace per resource, markers sized by the
     # sector's yield normalized to the galaxy max. Added first so the filled
     # hexes render underneath the base-map linework. The inline JS below
