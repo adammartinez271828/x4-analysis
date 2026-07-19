@@ -33,12 +33,8 @@ _SUFFIX = re.compile(r" [12IVX]+.*$")
 
 
 # slot patterns for n sectors sharing one cluster hex, in (dx, dy) grid units
-# of (X_DIV/8, Y_DIV*0.4); |dx| == 2 means X_DIV/4 on the x axis. Matches the
+# of (X_DIV/8, Y_DIV/4); |dx| == 2 means X_DIV/4 on the x axis. Matches the
 # arrangements the R script hand-tuned per sector name (e.g. Grand Exchange).
-# The y unit is wider than R's Y_DIV/4: with the axis range auto-widened for
-# DLC content the small hexes (fixed px symbols) span more data units than
-# the R tuning assumed, and vertically stacked slots overlapped ~11px.
-# Y_DIV*0.4 clears them while the pair still fits inside the cluster hex.
 _SLOTS = {
     1: [(0, 0)],
     2: [(-1, 1), (1, -1)],
@@ -145,7 +141,7 @@ _LEGEND_JS = """
 
 def _slot_xy(dx: int, dy: int) -> tuple[float, float]:
     x = dx * (X_DIV / 4 if abs(dx) == 2 else X_DIV / 8)
-    return x, dy * (Y_DIV * 0.4)
+    return x, dy * (Y_DIV / 4)
 
 
 def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
@@ -284,7 +280,9 @@ def _tooltips(res: pd.DataFrame, resource_cols: list[str], ref: RefData,
 
 
 def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
-              guid: str) -> str:
+              guid: str) -> tuple[str, int, int]:
+    """Returns (widget src, iframe width px, iframe height px) — the page
+    size depends on how far DLC content widens the axis ranges."""
     plot_sectors = _layout_sectors(frames, ref, cfg)
     plot_clusters = ref.clusters[
         ref.clusters["macro"].isin(plot_sectors["cluster.macro"])
@@ -439,15 +437,26 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
               for n in labels["altname"]],
         textfont={"size": 8, "color": "rgba(240,240,96,0.63)"})
 
+    # R's fixed 5.10 ranges, widened if DLC content falls outside them
+    xr = (min(X_RANGE[0], plot_sectors["x"].min() - X_DIV / 2),
+          max(X_RANGE[1], plot_sectors["x"].max() + X_DIV / 2))
+    yr = (min(Y_RANGE[0], plot_sectors["y"].min() - Y_DIV / 2),
+          max(Y_RANGE[1], plot_sectors["y"].max() + Y_DIV / 2))
+    # the marker px sizes above are R's, tuned for the fixed ranges on a
+    # 1536x864 plot area. When the ranges widen, grow the plot area to keep
+    # that px-per-unit density — otherwise the fixed-px hexes outgrow the
+    # compressed grid and vertically adjacent clusters overlap (~8px on a
+    # full-DLC galaxy). Without widening this is exactly 1536x864.
+    plot_w = round((xr[1] - xr[0]) * 1536 / (X_RANGE[1] - X_RANGE[0]))
+    plot_h = round((yr[1] - yr[0]) * 864 / (Y_RANGE[1] - Y_RANGE[0]))
     # the legend lives in a dedicated right-hand strip (outside the plot
-    # area) so it never overlaps sectors; the plot area stays the exact
-    # 1536x864 the marker px sizes are tuned for. Edge-row hexes overhang
-    # the axis range by a few px, so markers draw unclipped into a small
-    # top/bottom margin instead of being cut off.
+    # area) so it never overlaps sectors; edge-row hexes overhang the axis
+    # range by a few px, so markers draw unclipped into a small top/bottom
+    # margin instead of being cut off.
     legend_w, edge_pad = 220, 12
     fig.update_traces(cliponaxis=False)
     fig.update_layout(
-        width=1536 + legend_w, height=864 + 2 * edge_pad, autosize=False,
+        width=plot_w + legend_w, height=plot_h + 2 * edge_pad, autosize=False,
         paper_bgcolor=DARK_BG, plot_bgcolor=DARK_BG,
         margin={"b": edge_pad, "l": 0, "r": legend_w, "t": edge_pad},
         legend={"x": 1.0, "y": 0.96, "xanchor": "left", "yanchor": "top",
@@ -456,15 +465,11 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                 "traceorder": "grouped",
                 "font": {"size": 13, "color": "#b0b0b0"},
                 "bgcolor": "rgba(30,30,30,0)"},
-        # R's fixed 5.10 ranges, widened if DLC content falls outside them
-        xaxis={"range": (min(X_RANGE[0], plot_sectors["x"].min() - X_DIV / 2),
-                         max(X_RANGE[1], plot_sectors["x"].max() + X_DIV / 2)),
-               "fixedrange": True, "visible": False},
-        yaxis={"range": (min(Y_RANGE[0], plot_sectors["y"].min() - Y_DIV / 2),
-                         max(Y_RANGE[1], plot_sectors["y"].max() + Y_DIV / 2)),
-               "fixedrange": True, "visible": False},
+        xaxis={"range": xr, "fixedrange": True, "visible": False},
+        yaxis={"range": yr, "fixedrange": True, "visible": False},
     )
-    return save_widget(fig, files_dir, "Sector map", guid,
-                       extra_html=_LEGEND_JS
-                       .replace("__MAX_PX__", str(res_max_px))
-                       .replace("__MIN_PX__", str(res_min_px)))
+    src = save_widget(fig, files_dir, "Sector map", guid,
+                      extra_html=_LEGEND_JS
+                      .replace("__MAX_PX__", str(res_max_px))
+                      .replace("__MIN_PX__", str(res_min_px)))
+    return src, plot_w + legend_w, plot_h + 2 * edge_pad
