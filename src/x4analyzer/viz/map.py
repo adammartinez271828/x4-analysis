@@ -33,8 +33,12 @@ _SUFFIX = re.compile(r" [12IVX]+.*$")
 
 
 # slot patterns for n sectors sharing one cluster hex, in (dx, dy) grid units
-# of (X_DIV/8, Y_DIV/4); |dx| == 2 means X_DIV/4 on the x axis. Matches the
+# of (X_DIV/8, Y_DIV*0.4); |dx| == 2 means X_DIV/4 on the x axis. Matches the
 # arrangements the R script hand-tuned per sector name (e.g. Grand Exchange).
+# The y unit is wider than R's Y_DIV/4: with the axis range auto-widened for
+# DLC content the small hexes (fixed px symbols) span more data units than
+# the R tuning assumed, and vertically stacked slots overlapped ~11px.
+# Y_DIV*0.4 clears them while the pair still fits inside the cluster hex.
 _SLOTS = {
     1: [(0, 0)],
     2: [(-1, 1), (1, -1)],
@@ -141,7 +145,7 @@ _LEGEND_JS = """
 
 def _slot_xy(dx: int, dy: int) -> tuple[float, float]:
     x = dx * (X_DIV / 4 if abs(dx) == 2 else X_DIV / 8)
-    return x, dy * (Y_DIV / 4)
+    return x, dy * (Y_DIV * 0.4)
 
 
 def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
