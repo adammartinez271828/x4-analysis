@@ -300,7 +300,7 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     labels = _labels(plot_sectors, ref)
 
     # marker sizing for a 1536x864 map (R makeMap defaults)
-    big, small, border = 62, 25, 6
+    big, small, border = 62, 25, 3
     contested_big, contested_small = 44, 20
     opacity = 0.6
     hexsym = "hexagon2-open"
