@@ -32,9 +32,9 @@ _WRAP = re.compile(
 _SUFFIX = re.compile(r" [12IVX]+.*$")
 
 
-# slot patterns for n sectors sharing one cluster hex, in (dx, dy) grid units
-# of (X_DIV/8, Y_DIV/4); |dx| == 2 means X_DIV/4 on the x axis. Matches the
-# arrangements the R script hand-tuned per sector name (e.g. Grand Exchange).
+# slot patterns for n sectors sharing one cluster hex, in (dx, dy) grid
+# steps (8px, 14px at the fixed map density). Matches the arrangements the
+# R script hand-tuned per sector name (e.g. Grand Exchange).
 _SLOTS = {
     1: [(0, 0)],
     2: [(-1, 1), (1, -1)],
@@ -139,9 +139,19 @@ _LEGEND_JS = """
 """
 
 
+# data units per px at the R-tuned density the plot area is scaled to keep
+_UPX = (X_RANGE[1] - X_RANGE[0]) / 1536
+_UPY = (Y_RANGE[1] - Y_RANGE[0]) / 864
+
+
 def _slot_xy(dx: int, dy: int) -> tuple[float, float]:
-    x = dx * (X_DIV / 4 if abs(dx) == 2 else X_DIV / 8)
-    return x, dy * (Y_DIV / 4)
+    # 8px/14px per grid step: the largest offsets where the 2-/3-slot
+    # arrangements keep their 28x24px sector hexes fully inside the 65px
+    # cluster hex with ~2px stroke clearance AND no sibling pair overlaps
+    # (the old X_DIV/8, Y_DIV/4 steps kissed the outline at the corners,
+    # and |dx|==2 slots doubled to X_DIV/2, poking out of the left vertex).
+    # 4+ hexes cannot all fit disjointly; those keep R's waist overlaps.
+    return dx * 8 * _UPX, dy * 14 * _UPY
 
 
 def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
