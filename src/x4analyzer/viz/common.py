@@ -41,9 +41,11 @@ def ensure_lib(files_dir: Path) -> None:
             shutil.copy(src, dst)
 
 
-def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str) -> str:
+def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str,
+                extra_html: str = "") -> str:
     """Write a plotly figure as a standalone dark-themed widget page; returns
-    the dashboard-relative src path."""
+    the dashboard-relative src path. extra_html is appended to the body
+    (widget-specific scripts, e.g. the map's legend interactivity)."""
     # plotly_dark supplies dark-friendly grid/axis/hover colours; figures that
     # set their own backgrounds (the map) keep them, everything else gets the
     # shared dark grey
@@ -81,7 +83,7 @@ def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str) -> str:
         f"<script src='{_PLOTLY_JS}'></script>"
         f"<style>html,body{{height:100%;}}"
         f"body{{margin:0;background:{DARK_BG};}}</style></head>"
-        f"<body>{body}{fs_btn}</body></html>"
+        f"<body>{body}{fs_btn}{extra_html}</body></html>"
     )
     name = f"{title}_{guid}.html"
     (files_dir / name).write_text(html, encoding="utf-8")

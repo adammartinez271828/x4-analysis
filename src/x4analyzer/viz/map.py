@@ -45,6 +45,100 @@ _SLOTS = {
 }
 
 
+# Legend interactivity for the resource overlay and faction group, injected
+# into the widget page via save_widget(extra_html=...). Traces are identified
+# by the meta.kind set on them in build_map; __MAX_PX__/__MIN_PX__ are filled
+# from the same constants the Python-side initial sizes use.
+_LEGEND_JS = """
+<script>
+(function () {
+  var MAX_PX = __MAX_PX__, MIN_PX = __MIN_PX__;
+
+  function isShown(t) {
+    return t.visible === true || t.visible === undefined || t.visible === null;
+  }
+  function indicesOf(gd, kind) {
+    var idx = [];
+    gd.data.forEach(function (t, i) {
+      if (t.meta && t.meta.kind === kind) idx.push(i);
+    });
+    return idx;
+  }
+  function visibleFactions(gd) {
+    var names = {};
+    gd.data.forEach(function (t) {
+      if (t.meta && t.meta.kind === "faction" && isShown(t)) {
+        names[t.meta.faction] = true;
+      }
+    });
+    return names;
+  }
+
+  // resize the (single) visible resource trace: normalize to the max over
+  // sectors of visible factions; hidden factions' sectors drop to nothing
+  function renormalize(gd) {
+    var shown = indicesOf(gd, "resource").filter(function (i) {
+      return isShown(gd.data[i]);
+    });
+    if (shown.length !== 1) return;
+    var t = gd.data[shown[0]];
+    var facs = visibleFactions(gd);
+    var maxv = 0;
+    t.meta.raw.forEach(function (v, i) {
+      if (facs[t.meta.faction[i]] && v > maxv) maxv = v;
+    });
+    var sizes = t.meta.raw.map(function (v, i) {
+      if (v <= 0 || maxv <= 0 || !facs[t.meta.faction[i]]) return 0;
+      return Math.max(MIN_PX, v / maxv * MAX_PX);
+    });
+    Plotly.restyle(gd, {"marker.size": [sizes]}, shown);
+  }
+
+  function attach() {
+    var gd = document.querySelector(".plotly-graph-div");
+    if (!gd || !gd.on) { setTimeout(attach, 50); return; }
+    gd.on("plotly_legendclick", function (ev) {
+      var t = gd.data[ev.curveNumber];
+      if (!t.meta || !t.meta.kind) return;  // default toggle for base/overlays
+
+      if (t.meta.kind === "faction-control") {
+        Plotly.restyle(gd,
+            {visible: t.meta.action === "all" ? true : "legendonly"},
+            indicesOf(gd, "faction"))
+          .then(function () { renormalize(gd); });
+        return false;
+      }
+      if (t.meta.kind === "resource") {
+        // single-select: show only the clicked resource, or hide it if it
+        // was already the visible one
+        var wasShown = isShown(t);
+        var idx = indicesOf(gd, "resource");
+        Plotly.restyle(gd,
+            {visible: idx.map(function (i) {
+              return (!wasShown && i === ev.curveNumber) ? true : "legendonly";
+            })}, idx)
+          .then(function () { renormalize(gd); });
+        return false;
+      }
+      if (t.meta.kind === "faction") {
+        // do the toggle ourselves so renormalize runs after it, not before
+        Plotly.restyle(gd, {visible: isShown(t) ? "legendonly" : true},
+                       [ev.curveNumber])
+          .then(function () { renormalize(gd); });
+        return false;
+      }
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", attach);
+  } else {
+    attach();
+  }
+})();
+</script>
+"""
+
+
 def _slot_xy(dx: int, dy: int) -> tuple[float, float]:
     x = dx * (X_DIV / 4 if abs(dx) == 2 else X_DIV / 8)
     return x, dy * (Y_DIV / 4)
@@ -215,6 +309,38 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         return [b if c == "b" else s for c in df["sizecat"]]
 
     fig = go.Figure()
+
+    # resource overlay: one hidden trace per resource, markers sized by the
+    # sector's yield normalized to the galaxy max. Added first so the filled
+    # hexes render underneath the base-map linework. The inline JS below
+    # single-selects them from the legend and renormalizes against the max
+    # over visible factions only (meta carries the raw yields for that).
+    res_max_px, res_min_px = 56, 4
+    if frames.resource_cols:
+        res_raw = plot_sectors.merge(
+            frames.sectors[["macro"] + frames.resource_cols],
+            on="macro", how="left")
+        for i, col in enumerate(frames.resource_cols):
+            vals = res_raw[col].fillna(0.0)
+            maxv = float(vals.max())
+            fig.add_scatter(
+                x=res_raw["x"], y=res_raw["y"], mode="markers",
+                name=ref.ware_name.get(col, col),
+                legendgroup="Resources", legendrank=1002,
+                legendgrouptitle={"text": "Resources",
+                                  "font": {"color": "#b0b0b0"}}
+                if i == 0 else None,
+                visible="legendonly", hoverinfo="text",
+                hovertext=res_raw["tooltip"],
+                marker={"symbol": "hexagon2", "opacity": 0.85,
+                        "line": {"width": 1},
+                        "size": [0.0 if v <= 0 or maxv <= 0 else
+                                 max(res_min_px, v / maxv * res_max_px)
+                                 for v in vals]},
+                meta={"kind": "resource",
+                      "raw": [float(v) for v in vals],
+                      "faction": [str(o) for o in res_raw["ownername"]]})
+
     fig.add_scatter(
         x=plot_clusters["x"], y=plot_clusters["y"], mode="markers",
         name="Cluster Outlines", hoverinfo="skip", legendgroup="Base Map",
@@ -257,7 +383,9 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                     "symbol": symbol,
                     "line": {"color": "#ffffff", "width": 1}})
 
-    for owner in plot_sectors["owner"].unique():
+    owner_order = (plot_sectors.groupby("owner")["ownername"].first()
+                   .sort_values().index)
+    for owner in owner_order:
         sub = plot_sectors[plot_sectors["owner"] == owner]
         fig.add_scatter(
             x=sub["x"], y=sub["y"], mode="markers",
@@ -266,7 +394,20 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             legendgrouptitle={"text": "Factions", "font": {"color": "#b0b0b0"}},
             marker={"color": sub["colour"].iloc[0], "opacity": opacity,
                     "size": sizes(sub, big, small), "symbol": hexsym,
-                    "line": {"width": border}})
+                    "line": {"width": border}},
+            meta={"kind": "faction",
+                  "faction": str(sub["ownername"].iloc[0])})
+
+    # legend-only show-all / hide-all buttons for the faction group, handled
+    # by the inline JS. They need one real (invisible) data point so plotly
+    # emits legendclick for them; visible=True avoids the greyed-out styling.
+    for rank, label, action in ((997, "All factions", "all"),
+                                (998, "No factions", "none")):
+        fig.add_scatter(
+            x=[0], y=[0], mode="markers", name=label, hoverinfo="skip",
+            legendgroup="Factions", legendrank=rank,
+            marker={"size": 0, "opacity": 0},
+            meta={"kind": "faction-control", "action": action})
 
     fig.add_scatter(
         x=labels["x"], y=labels["y"], mode="text", name="Sector Names",
@@ -297,4 +438,7 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                          max(Y_RANGE[1], plot_sectors["y"].max() + Y_DIV / 2)),
                "fixedrange": True, "visible": False},
     )
-    return save_widget(fig, files_dir, "Sector map", guid)
+    return save_widget(fig, files_dir, "Sector map", guid,
+                       extra_html=_LEGEND_JS
+                       .replace("__MAX_PX__", str(res_max_px))
+                       .replace("__MIN_PX__", str(res_min_px)))
