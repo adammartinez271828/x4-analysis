@@ -80,14 +80,13 @@ border-radius:3px;padding:5px 9px;font-size:13px;width:170px;outline:none;}
 .pulse{fill:none;stroke:#ffe066;stroke-width:4;
 animation:pulse 0.65s ease-out 3;}
 @keyframes pulse{from{stroke-opacity:0.9;}to{stroke-opacity:0;}}
-#panel{position:fixed;top:0;bottom:0;right:__LEGW__px;width:320px;
-box-sizing:border-box;background:rgba(28,28,28,0.97);border-left:1px solid
-#444;border-right:1px solid #444;padding:14px 16px;overflow-y:auto;
-z-index:12;transform:translateX(calc(100% + __LEGW__px + 24px));
-transition:transform 0.22s ease-out,visibility 0s linear 0.22s;
-visibility:hidden;font-size:13px;color:__FG__;}
-#panel.open{transform:none;visibility:visible;transition:transform 0.22s
-ease-out,visibility 0s;}
+#panel{flex:none;width:0;height:100%;box-sizing:border-box;
+overflow:hidden;background:rgba(28,28,28,0.97);
+transition:width 0.22s ease-out;font-size:13px;color:__FG__;}
+#panel.open{width:320px;border-left:1px solid #444;
+border-right:1px solid #444;}
+#panelbody{position:relative;width:320px;height:100%;box-sizing:border-box;
+padding:14px 16px;overflow-y:auto;}
 #panel h3{margin:0 30px 6px 0;font-size:16px;color:#f0f060;}
 #panel h4{margin:14px 0 5px 0;font-size:13px;color:#b0b0b0;
 border-bottom:1px solid #3a3a3a;padding-bottom:3px;}
@@ -116,11 +115,11 @@ pointer-events:none;}
 </style></head><body>
 <div id='wrap'>
 <svg id='map' xmlns='http://www.w3.org/2000/svg'></svg>
+<div id='panel'><div id='panelbody'></div></div>
 <div id='legend'></div>
 </div>
 <div id='searchwrap'><input id='search' type='text' placeholder='Find sector&#8230;'
 autocomplete='off' spellcheck='false'><span id='searchinfo'></span></div>
-<div id='panel'></div>
 <div id='tip'></div>
 __FSBTN__
 <script>window.X4MAP = __DATA__;</script>

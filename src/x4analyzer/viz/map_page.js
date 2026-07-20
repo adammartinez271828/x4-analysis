@@ -633,11 +633,25 @@
     setTimeout(function () { p.remove(); }, 2000);
   }
 
-  // --- sector detail panel ---
+  // --- sector detail panel. It takes layout space next to the map (the
+  // svg shrinks and re-fits) instead of overlaying it, so the rightmost
+  // map content is never hidden behind it. ---
   var panel = document.getElementById("panel");
+  var panelBody = document.getElementById("panelbody");
   var policeByI = {}, piratesByI = {};
   D.police.forEach(function (r) { policeByI[r.i] = r.count; });
   D.pirates.forEach(function (r) { piratesByI[r.i] = r.count; });
+
+  // track the svg's changing size while the panel's width transition runs
+  // (rAF can stall in hidden iframes, so always settle once at the end)
+  function reflow() {
+    var t0 = performance.now();
+    (function step() {
+      applyView();
+      if (performance.now() - t0 < 300) requestAnimationFrame(step);
+    })();
+    setTimeout(applyView, 350);
+  }
 
   function openPanel(i) {
     var s = D.sectors[i];
@@ -680,11 +694,13 @@
         }).join("")
       : "<div class='pstat'><small>None known</small></div>";
 
-    panel.innerHTML = h;
+    panelBody.innerHTML = h;
+    var wasOpen = panel.classList.contains("open");
     panel.classList.add("open");
+    if (!wasOpen) reflow();
     document.getElementById("panelclose")
       .addEventListener("click", closePanel);
-    panel.querySelectorAll(".plink").forEach(function (a) {
+    panelBody.querySelectorAll(".plink").forEach(function (a) {
       a.addEventListener("click", function () {
         var j = +a.dataset.j;
         var n = D.sectors[j];
@@ -694,7 +710,11 @@
       });
     });
   }
-  function closePanel() { panel.classList.remove("open"); }
+  function closePanel() {
+    if (!panel.classList.contains("open")) return;
+    panel.classList.remove("open");
+    reflow();
+  }
 
   var searchBox = document.getElementById("search");
   var searchInfo = document.getElementById("searchinfo");
