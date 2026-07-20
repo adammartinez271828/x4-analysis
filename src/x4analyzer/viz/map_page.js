@@ -281,6 +281,14 @@
     });
   }
 
+  function labelText(cls, x, y, lines, firstDy) {
+    var t = el("text", {"class": cls, x: x, y: y,
+                        "text-anchor": "middle"}, layers.labels);
+    lines.forEach(function (line, j) {
+      var ts = el("tspan", {x: x, dy: j > 0 ? "1.1em" : firstDy}, t);
+      ts.textContent = line;
+    });
+  }
   D.labels.forEach(function (lb) {
     // every name hangs from just under its hex's top edge (the text
     // block grows downward): single sectors and sub-sector suffixes
@@ -289,16 +297,20 @@
     // at the zoomed-out threshold), so they cannot collide.
     var size = lb.kind === "base" ? C.big + C.border
       : lb.big ? C.big : C.small;
-    var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x,
-                        y: lb.y - size * R3_4 + 1.5,
-                        "text-anchor": "middle"}, layers.labels);
-    lb.lines.forEach(function (line, j) {
-      var ts = el("tspan", {
-        x: lb.x,
-        dy: j > 0 ? "1.1em" : "0.95em",
-      }, t);
-      ts.textContent = line;
-    });
+    labelText("seclabel k-" + lb.kind, lb.x,
+              lb.y - size * R3_4 + 1.5, lb.lines, "0.95em");
+    if (lb.kind !== "base") return;
+    // zoomed-in companion: the cluster name floats above the hex's top
+    // line (the block ends just above it), or below the bottom line when
+    // another sector hex encroaches on the strip above (lb.flip)
+    var hh = size * R3_4;
+    if (lb.flip) {
+      labelText("seclabel k-basein", lb.x, lb.y + hh + 1.5,
+                lb.lines, "0.95em");
+    } else {
+      labelText("seclabel k-basein", lb.x, lb.y - hh - 1.5, lb.lines,
+                (-((lb.lines.length - 1) * 1.1 + 0.25)).toFixed(2) + "em");
+    }
   });
 
   // --- tooltip (the payload tip strings are the same HTML the plotly

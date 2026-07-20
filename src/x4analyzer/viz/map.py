@@ -110,6 +110,7 @@ stroke-width:calc(1px*var(--sw));}
 .pulse{stroke-width:calc(4px*var(--sw));}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
 #ly-labels.zoomed-out .k-suffix{display:none;}
+#ly-labels.zoomed-out .k-basein{display:none;}
 #ly-labels:not(.zoomed-out) .k-base{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
@@ -447,6 +448,23 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                            "big": bool(r["big"]),
                            "lines": _WRAP.sub("\n", str(r["altname"]))
                            .split("\n")})
+
+    # zoomed-in cluster names float just above the cluster hex's top
+    # line; when another sector hex encroaches on that strip (a hex
+    # directly above, e.g. Scale Plate Green under Company Regard) the
+    # name flips below the bottom line instead
+    r3_4 = 3 ** 0.5 / 4
+    c_half_h = 65 * r3_4
+    for rec in label_recs:
+        if rec["kind"] != "base":
+            continue
+        strip_bot = rec["y"] - c_half_h
+        strip_top = strip_bot - 14
+        rec["flip"] = any(
+            abs(s["x"] - rec["x"]) < (31 if s["big"] else 14.5) + 26
+            and s["y"] - (26.9 if s["big"] else 12.6) < strip_bot
+            and s["y"] + (26.9 if s["big"] else 12.6) > strip_top
+            for s in sectors)
 
     cbig, csmall = 44, 20  # contested marker sizes
 
