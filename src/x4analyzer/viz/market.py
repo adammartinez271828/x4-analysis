@@ -1032,7 +1032,14 @@ function tripProfit(r) {{
 }}
 // one-way trip: plain-space legs at 80% of the loadout travel speed,
 // highway-sector legs at an assumed 10 km/s average for S/M, plus the
-// flat dock/transfer/undock overhead from the control
+// flat dock/transfer/undock overhead from the control. S/M ships take
+// the highway-favouring route (kps/khs) when it differs from the
+// km-shortest one
+function isSM() {{ return SHIP && (SHIP.cls === 'S' || SHIP.cls === 'M'); }}
+function routeKm(r) {{
+  if (isSM() && r.kps !== undefined) return [r.kps, r.khs];
+  return [r.kp, r.kh];
+}}
 function dockSeconds() {{
   const id = SHIP && (SHIP.cls === 'L' || SHIP.cls === 'XL')
     ? 'oppdockl' : 'oppdock';
@@ -1041,8 +1048,9 @@ function dockSeconds() {{
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
   const v = 0.8 * SHIP.speed;
-  const hwv = (SHIP.cls === 'S' || SHIP.cls === 'M') ? 10000 : v;
-  return r.kp * 1000 / v + r.kh * 1000 / hwv + dockSeconds();
+  const hwv = isSM() ? 10000 : v;
+  const km = routeKm(r);
+  return km[0] * 1000 / v + km[1] * 1000 / hwv + dockSeconds();
 }}
 function crPerHour(r) {{
   const t = tripSeconds(r), trip = tripProfit(r);
@@ -1139,8 +1147,11 @@ $('#opps tbody').on('click', 'tr', function() {{
     + (trip === null ? "." : ("; one " + fmt(HOLD)
        + " m&sup3; trip nets <b>" + fmt(trip) + " Cr</b>."));
   if (r.kp !== null) {{
-    h += "<br>Route &asymp; " + fmt(r.kp) + " km plain"
-      + (r.kh ? " + " + fmt(r.kh) + " km in highway sectors" : "") + ".";
+    const km = routeKm(r);
+    h += "<br>Route &asymp; " + fmt(km[0]) + " km plain"
+      + (km[1] ? " + " + fmt(km[1]) + " km in highway sectors" : "")
+      + (isSM() && r.kps !== undefined
+         ? " (highway-favouring S/M route)" : "") + ".";
     const t = tripSeconds(r);
     if (t !== null)
       h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.8"

@@ -45,72 +45,133 @@ TOP_N = 15       # cheapest asks / highest bids considered per ware
 MAX_PAIRS = 25   # pairs kept per ware, ranked by the per-m³-per-jump rate
 
 
+# highway-sector km cost this fraction of plain km when routing an S/M
+# ship: ~10 km/s on the ring vs ~1 km/s effective travel speed. Only the
+# RATIO steers the path choice, so one representative value covers all
+# S/M ships and the km split stays ship-independent.
+_SM_HW_COST = 0.1
+
+
 class _Router:
-    """Route lengths between stations: BFS shortest-hop path over the
-    sector graph, legs measured through the actual gate positions
-    (gates.csv endpoint offsets; same-cluster superhighway links without
-    a gates row fall back to sector centres). Returns (km_plain, km_hw)
-    with each leg attributed by its sector's local-highway flag."""
+    """Route lengths between stations over a gate graph: nodes are the
+    actual gate endpoints (gates.csv offsets; same-cluster superhighway
+    links without a gates row get synthetic portals at the sector
+    centres), in-sector edges join every gate pair, portal transits are
+    free. Dijkstra minimizes TIME, not hops — validated against player
+    trader logs, where shortest-hop paths through the dense core ran
+    ~15-20%% long — with highway-sector km discounted for S/M routing.
+    Returns (km_plain, km_hw), each leg attributed by its sector's
+    local-highway flag."""
 
     def __init__(self, ref: RefData):
-        self.adj = build_adjacency(ref)
-        self.edge_pos: dict[tuple, tuple] = {}
+        self.hw = dict(zip(ref.sectors["macro"],
+                           ref.sectors.get("highway", 0)))
+        self.sector: list[str] = []     # node -> sector macro
+        self.pos: list[tuple] = []      # node -> (x, z) metres
+        self.by_sector: dict[str, list[int]] = {}
+        self.portals: list[tuple] = []  # (node_i, node_j) free transits
+
+        def node(sector: str, p: tuple) -> int:
+            i = len(self.sector)
+            self.sector.append(sector)
+            self.pos.append(p)
+            self.by_sector.setdefault(sector, []).append(i)
+            return i
+
         has_pts = {"ax", "az", "bx", "bz"} <= set(ref.gates.columns)
+        linked: set[tuple] = set()
         for r in ref.gates.itertuples(index=False):
             a, b = str(r.sector_a), str(r.sector_b)
             pa = (float(r.ax), float(r.az)) if has_pts else (0.0, 0.0)
             pb = (float(r.bx), float(r.bz)) if has_pts else (0.0, 0.0)
-            self.edge_pos.setdefault((a, b), (pa, pb))
-            self.edge_pos.setdefault((b, a), (pb, pa))
-        self.hw = dict(zip(ref.sectors["macro"],
-                           ref.sectors.get("highway", 0)))
-        self._paths: dict[str, dict] = {}
+            self.portals.append((node(a, pa), node(b, pb)))
+            linked.update([(a, b), (b, a)])
+        # belt-and-braces like build_adjacency: same-cluster pairs are
+        # mutually reachable even without an extracted sechighway row
+        for _cl, grp in ref.sectors.groupby("cluster"):
+            macros = list(grp["macro"])
+            for i, a in enumerate(macros):
+                for b in macros[i + 1:]:
+                    if (a, b) not in linked:
+                        self.portals.append(
+                            (node(a, (0.0, 0.0)), node(b, (0.0, 0.0))))
+        self.portal_of: dict[int, list[int]] = {}
+        for i, j in self.portals:
+            self.portal_of.setdefault(i, []).append(j)
+            self.portal_of.setdefault(j, []).append(i)
+        self._cache: dict[tuple, tuple | None] = {}
 
-    def _prev(self, start: str) -> dict:
-        if start not in self._paths:
-            prev: dict[str, str | None] = {start: None}
-            queue = [start]
-            while queue:
-                cur = queue.pop(0)
-                for nxt in self.adj.get(cur, ()):
-                    if nxt not in prev:
-                        prev[nxt] = cur
-                        queue.append(nxt)
-            self._paths[start] = prev
-        return self._paths[start]
+    def _w(self, sector: str, sm: bool) -> float:
+        return _SM_HW_COST if sm and self.hw.get(sector) else 1.0
 
-    def _gate(self, a: str, b: str) -> tuple:
-        return self.edge_pos.get((a, b), ((0.0, 0.0), (0.0, 0.0)))
+    @staticmethod
+    def _dist(p, q) -> float:
+        return math.hypot(p[0] - q[0], p[1] - q[1]) / 1000.0
 
-    def legs_km(self, sa: str, pa: tuple, sb: str,
-                pb: tuple) -> tuple[float, float] | None:
-        """(km_plain, km_hw) from station at `pa` in sector `sa` to
-        station at `pb` in `sb`; None when unreachable."""
-        def dist(p, q):
-            return math.hypot(p[0] - q[0], p[1] - q[1]) / 1000.0
-
-        def add(acc, sector, p, q):
-            acc[1 if self.hw.get(sector) else 0] += dist(p, q)
-
-        acc = [0.0, 0.0]
+    def route_km(self, sa: str, pa: tuple, sb: str, pb: tuple,
+                 sm: bool) -> tuple[float, float] | None:
+        """(km_plain, km_hw) of the time-optimal route from station `pa`
+        in sector `sa` to station `pb` in `sb` under S/M (`sm`) or L/XL
+        cost weights; None when unreachable."""
         if sa == sb:
-            add(acc, sa, pa, pb)
-            return acc[0], acc[1]
-        prev = self._prev(sa)
-        if sb not in prev:
+            d = self._dist(pa, pb)
+            return (0.0, d) if self.hw.get(sa) else (d, 0.0)
+        key = (sa, pa, sm)
+        if key not in self._cache:
+            self._cache[key] = self._dijkstra_all(sa, pa, sm)
+        best, split = self._cache[key]
+        goal = None
+        for n in self.by_sector.get(sb, ()):
+            if n not in best:
+                continue
+            d = self._dist(self.pos[n], pb)
+            total = best[n] + d * self._w(sb, sm)
+            if goal is None or total < goal[0]:
+                kp, kh = split[n]
+                if self.hw.get(sb):
+                    kh += d
+                else:
+                    kp += d
+                goal = (total, kp, kh)
+        if goal is None:
             return None
-        path = [sb]
-        while path[-1] != sa:
-            path.append(prev[path[-1]])
-        path.reverse()
-        # first leg: station -> exit gate; middle: entry -> exit gate;
-        # last: entry gate -> station
-        add(acc, sa, pa, self._gate(path[0], path[1])[0])
-        for i in range(1, len(path) - 1):
-            add(acc, path[i], self._gate(path[i - 1], path[i])[1],
-                self._gate(path[i], path[i + 1])[0])
-        add(acc, sb, self._gate(path[-2], path[-1])[1], pb)
-        return acc[0], acc[1]
+        return round(goal[1], 4), round(goal[2], 4)
+
+    def _dijkstra_all(self, sa: str, pa: tuple, sm: bool) -> tuple:
+        """Single-source relaxation over the whole gate graph: node ->
+        (cost, (km_plain, km_hw)) along the cheapest route. One run per
+        distinct seller station serves every buyer."""
+        import heapq
+        best: dict[int, float] = {}
+        split: dict[int, tuple] = {}
+        heap = []
+        for n in self.by_sector.get(sa, ()):
+            d = self._dist(pa, self.pos[n])
+            sp = (0.0, d) if self.hw.get(sa) else (d, 0.0)
+            heapq.heappush(heap, (d * self._w(sa, sm), n, sp))
+        while heap:
+            cost, n, sp = heapq.heappop(heap)
+            if n in best and best[n] <= cost:
+                continue
+            best[n] = cost
+            split[n] = sp
+            # free portal transit to the twin endpoint(s), then in-sector
+            # hops from there to every gate of the arrival sector
+            for m in self.portal_of.get(n, ()):
+                msec = self.sector[m]
+                for k in self.by_sector[msec]:
+                    d = self._dist(self.pos[m], self.pos[k]) if k != m \
+                        else 0.0
+                    c2 = cost + d * self._w(msec, sm)
+                    if k in best and best[k] <= c2:
+                        continue
+                    kp, kh = sp
+                    if self.hw.get(msec):
+                        kh += d
+                    else:
+                        kp += d
+                    heapq.heappush(heap, (c2, k, (kp, kh)))
+        return best, split
 
 
 def build_opportunities(frames: Frames, ref: RefData,
@@ -205,8 +266,12 @@ def build_opportunities(frames: Frames, ref: RefData,
                 j = jumps(str(s["sector"]), str(b["sector"]))
                 if j is None:   # disconnected (modded galaxy): not flyable
                     continue
-                km = router.legs_km(str(s["sector"]), (s["sx"], s["sz"]),
-                                    str(b["sector"]), (b["sx"], b["sz"]))
+                km = router.route_km(str(s["sector"]), (s["sx"], s["sz"]),
+                                     str(b["sector"]), (b["sx"], b["sz"]),
+                                     sm=False)
+                km_s = router.route_km(str(s["sector"]), (s["sx"], s["sz"]),
+                                       str(b["sector"]), (b["sx"], b["sz"]),
+                                       sm=True)
                 du = min(float(s["amount"]), float(b["amount"]))
                 pairs.append({
                     "w": ware,
@@ -221,9 +286,16 @@ def build_opportunities(frames: Frames, ref: RefData,
                     # same-sector runs count as one hop: a trip still
                     # happens, and rate stays finite/sortable
                     "rate": round(spread / vol / max(1, j), 2),
-                    # route length, plain-space vs local-highway sectors
+                    # route length, plain-space vs local-highway sectors;
+                    # kps/khs = the S/M-optimal route (highway km cheap)
+                    # when it differs from the km-shortest L/XL one
                     "kp": round(km[0], 1) if km else None,
                     "kh": round(km[1], 1) if km else None,
+                    **({"kps": round(km_s[0], 1),
+                        "khs": round(km_s[1], 1)}
+                       if km_s and km and
+                       (abs(km_s[0] - km[0]) > 0.5
+                        or abs(km_s[1] - km[1]) > 0.5) else {}),
                     "du": du,
                     "dm3": round(du * vol, 1),
                     "total": round(du * spread, 0),

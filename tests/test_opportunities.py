@@ -170,6 +170,40 @@ def test_spoilers_hide_unknown_endpoints():
                                _cfg(spoilers_hide=True)) == []
 
 
+def test_sm_route_prefers_highway_branch():
+    # diamond: a->p->b is 60 km all plain; a->h->b is 200 km of which
+    # 180 km cross the highway sector h. L/XL takes the short plain
+    # branch; S/M's discounted highway km make the long branch cheaper
+    ref = _ref(
+        gates=pd.DataFrame({
+            "sector_a": ["sec_a", "sec_p", "sec_a", "sec_h"],
+            "sector_b": ["sec_p", "sec_b", "sec_h", "sec_b"],
+            "ax": [10_000.0, 20_000.0, 10_000.0, 90_000.0],
+            "az": [0.0] * 4,
+            "bx": [-10_000.0, -10_000.0, -90_000.0, -10_000.0],
+            "bz": [0.0] * 4,
+        }),
+        sectors=pd.DataFrame({
+            "cluster": ["cl_a", "cl_p", "cl_h", "cl_b"],
+            "macro": ["sec_a", "sec_p", "sec_h", "sec_b"],
+            "highway": [0, 0, 1, 0],
+        }),
+    )
+    uni = _universe()
+    uni.loc[uni["id"] == "buy_npc", "sector.macro"] = "sec_b"
+    uni.loc[uni["id"] == "buy_npc", ["sx", "sz"]] = [10_000.0, 0.0]
+    frames = _frames(_offers([
+        ("sell_npc", "sell", "silicon", 500.0, 171.0),
+        ("buy_npc", "buy", "silicon", 300.0, 460.0),
+    ]))
+    frames.universe = uni
+    (r,) = build_opportunities(frames, ref, _cfg())
+    # L route: 10 + 30 + 20 = 60 km plain via sec_p
+    assert (r["kp"], r["kh"]) == (60.0, 0.0)
+    # S/M route: 10 + 20 plain, 180 across the highway sector
+    assert (r["kps"], r["khs"]) == (30.0, 180.0)
+
+
 def test_player_trade_ships_loadout_speed():
     engines = pd.DataFrame({
         "id": ["ship1", "ship1"],
