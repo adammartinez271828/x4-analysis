@@ -29,7 +29,8 @@ from ..cli import log
 from ..analysis.frames import Frames
 from ..analysis.opportunities import (MAX_PAIRS as _OPP_MAX_PAIRS,
                                       TOP_N as _OPP_TOP_N,
-                                      build_opportunities, ship_presets)
+                                      build_opportunities,
+                                      player_trade_ships)
 from ..config import Config
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED, DARK_PLOT
@@ -642,7 +643,7 @@ def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     log("-> Trade opportunities")
     opps = build_opportunities(frames, ref, cfg)
-    presets = ship_presets(ref)
+    presets = player_trade_ships(frames, ref)
 
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
     table_rows = json.dumps([[
@@ -805,13 +806,21 @@ its goods at 0 Cr (the full bid is empire profit; the row shows the
 station's list price for reference). Own stations as buyers earn the
 empire nothing and are not listed. "Exclude player stations" shows pure
 open-market arbitrage.</li>
-<li>Set a <b>cargo hold</b> (or pick a ship) to see the profit of one
-full trip on each lane: min(hold, depth) &times; spread.</li>
+<li>Pick one of <b>your trade ships</b> to see the profit of one full
+trip (min(hold, depth) &times; spread), the trip time and <b>Cr/h</b>.
+Speed is the ship's ACTUAL loadout: mounted engines &times; travel
+thrust &divide; hull drag, flown at 80% of travel speed (engine mods and
+spool-up are not modelled). Route length uses real station and gate
+positions along the jump path; S and M ships ride local highways at an
+assumed 10 km/s average in sectors that have them, one way, no docking
+time. A manual cargo-hold value keeps the last picked ship's speed.</li>
 </ul>
 <p>Lanes reflect the analyzed save: good spreads attract NPC traders and
 may be gone. Faction hostility, ware legality and trade licenses are not
 modelled — check the factions column before dispatching. Construction
-sites appear as buyers (tagged); Xenon are excluded throughout.</p>
+sites appear as buyers (tagged); Xenon are excluded throughout;
+Quettanauts barter instead of trading credits, so their lanes are
+excluded unless you untick the box.</p>
 </div>
 </details>
 <p>
@@ -821,7 +830,7 @@ sites appear as buyers (tagged); Xenon are excluded throughout.</p>
        style='width:90px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label for='oppjumps'>Max jumps:</label>
-<input type='number' id='oppjumps' min='0' value='99'
+<input type='number' id='oppjumps' min='0' value='5'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label for='oppdepth'>Min depth m&sup3;:</label>
@@ -830,13 +839,18 @@ sites appear as buyers (tagged); Xenon are excluded throughout.</p>
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
 exclude player stations</label>
+&nbsp;&nbsp;<label><input type='checkbox' id='oppnoqt' checked>
+exclude Quettanauts (barter only)</label>
 </p>
 <table id='opps' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>From</th><th>To</th>
 <th>Ask</th><th>Bid</th><th>Profit/u</th><th>Profit/m&sup3;</th>
 <th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
-the closest feasible proxy for earnings per unit of time'>Cr/m&sup3;&middot;jump</th>
-<th>Depth m&sup3;</th><th>Trip profit</th><th>Lane total</th></tr></thead>
+a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
+<th>Depth m&sup3;</th><th>Trip profit</th>
+<th title='trip profit / travel time for the picked ship: real route
+length, 80% of loadout travel speed, S/M on local highways at 10 km/s
+average'>Cr/h</th><th>Lane total</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select> <span id='wareinfo' class='note'></span></p>
@@ -994,10 +1008,28 @@ document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
 
 // ---- trade opportunities ----
-let HOLD = 0;   // cargo hold m³ for the per-trip what-if (0 = unset)
+let HOLD = 0;     // cargo hold m³ for the per-trip what-if (0 = unset)
+let SHIP = null;  // picked player ship: cls/cargo/speed (speed in m/s)
 function tripProfit(r) {{
   if (!HOLD) return null;
   return Math.floor(Math.min(r.du, HOLD / r.vol)) * r.spread;
+}}
+// one-way trip: plain-space legs at 80% of the loadout travel speed,
+// highway-sector legs at an assumed 10 km/s average for S/M
+function tripSeconds(r) {{
+  if (!SHIP || !SHIP.speed || r.kp === null) return null;
+  const v = 0.8 * SHIP.speed;
+  const hwv = (SHIP.cls === 'S' || SHIP.cls === 'M') ? 10000 : v;
+  return r.kp * 1000 / v + r.kh * 1000 / hwv;
+}}
+function crPerHour(r) {{
+  const t = tripSeconds(r), trip = tripProfit(r);
+  return (t === null || trip === null || t <= 0) ? null : trip * 3600 / t;
+}}
+function fmtMin(sec) {{
+  if (sec < 90) return Math.round(sec) + ' s';
+  return sec >= 5400 ? (sec / 3600).toFixed(1) + ' h'
+                     : Math.round(sec / 60) + ' min';
 }}
 function endLabel(e) {{
   let h = "<span style='color:" + ((FCOLOURS[e.f]) || '#4ecf71')
@@ -1005,6 +1037,8 @@ function endLabel(e) {{
   if (e.p) h += " <span class='pos' title='own station: goods counted at"
     + " 0 Cr; list price shown in the Ask column tooltip'>own</span>";
   if (e.c) h += " <span class='warn' title='construction site'>site</span>";
+  if (e.qt) h += " <span class='warn' title='Quettanauts barter instead"
+    + " of trading credits'>barter</span>";
   return h;
 }}
 const oppNum = (d, t) => t === 'display' ? fmt(d) : d;
@@ -1033,6 +1067,15 @@ const opps = $('#opps').DataTable({{
         : fmt(v) + ' Cr';
       return v === null ? -1 : v;
     }}}},
+    {{data: null, render: (d, t, r) => {{
+      const v = crPerHour(r);
+      if (t === 'display') return v === null
+        ? "<span class='note' title='pick one of your trade ships"
+          + " above'>&mdash;</span>"
+        : "<span title='one-way trip ~" + fmtMin(tripSeconds(r))
+          + "'>" + fmt(v) + "</span>";
+      return v === null ? -1 : v;
+    }}}},
     {{data: 'total', render: (d, t) => t === 'display'
         ? fmt(d) + ' Cr' : d}},
   ],
@@ -1043,6 +1086,8 @@ $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (rowData.dm3 < +document.getElementById('oppdepth').value) return false;
   if (document.getElementById('oppnoplayer').checked
       && (rowData.s.p || rowData.b.p)) return false;
+  if (document.getElementById('oppnoqt').checked
+      && (rowData.s.qt || rowData.b.qt)) return false;
   return true;
 }});
 // expandable arithmetic: the numbers must be auditable against the
@@ -1062,36 +1107,54 @@ $('#opps tbody').on('click', 'tr', function() {{
     + " (" + fmt(r.b.amt) + " u wanted).<br>"
     + "Spread " + fmt(r.spread) + " Cr/u &divide; " + r.vol
     + " m&sup3;/u = <b>" + r.pm3 + " Cr/m&sup3;</b>"
-    + " &divide; " + Math.max(1, r.j) + " jump" + (r.j === 1 ? "" : "s")
+    + " &divide; " + Math.max(1, r.j) + " jump"
+    + (Math.max(1, r.j) === 1 ? "" : "s")
+    + (r.j === 0 ? " (same sector)" : "")
     + " = <b>" + r.rate + " Cr/m&sup3;&middot;jump</b>."
     + " Depth min(" + fmt(r.s.amt) + ", " + fmt(r.b.amt) + ") = "
     + fmt(r.du) + " u = " + fmt(r.dm3) + " m&sup3; &rarr; lane total <b>"
     + fmt(r.total) + " Cr</b> at quoted prices"
     + (trip === null ? "." : ("; one " + fmt(HOLD)
-       + " m&sup3; trip nets <b>" + fmt(trip) + " Cr</b>."))
-    + "</div>";
+       + " m&sup3; trip nets <b>" + fmt(trip) + " Cr</b>."));
+  if (r.kp !== null) {{
+    h += "<br>Route &asymp; " + fmt(r.kp) + " km plain"
+      + (r.kh ? " + " + fmt(r.kh) + " km in highway sectors" : "") + ".";
+    const t = tripSeconds(r);
+    if (t !== null)
+      h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.8"
+        + ((SHIP.cls === 'S' || SHIP.cls === 'M') && r.kh
+           ? " (highways at 10 km/s)" : "")
+        + " &asymp; <b>" + fmtMin(t) + "</b> one way &rarr; <b>"
+        + fmt(crPerHour(r)) + " Cr/h</b>.";
+  }}
+  h += "</div>";
   row.child(h, 'note').show();
 }});
 const shipSel = document.getElementById('oppship');
-shipSel.appendChild(new Option('— pick a ship —', ''));
+shipSel.appendChild(new Option(
+  SHIPS.length ? '— pick one of your trade ships —'
+               : '— no player trade ships in this save —', ''));
 SHIPS.forEach((s, i) => shipSel.appendChild(
-  new Option(s.m + ' (' + s.cls + ', ' + fmt(s.cargo) + ' m³)', i)));
+  new Option(s.l + ' — ' + s.model + ' (' + s.cls + ', ' + fmt(s.cargo)
+    + ' m³' + (s.speed ? ', ' + fmt(s.speed) + ' m/s travel' : '')
+    + ')', i)));
 function oppRedraw() {{ opps.rows().invalidate('data').draw(false); }}
 shipSel.addEventListener('change', () => {{
-  const s = SHIPS[+shipSel.value];
-  document.getElementById('opphold').value = s ? s.cargo : '';
-  HOLD = s ? s.cargo : 0;
+  SHIP = SHIPS[+shipSel.value] || null;
+  document.getElementById('opphold').value = SHIP ? SHIP.cargo : '';
+  HOLD = SHIP ? SHIP.cargo : 0;
   oppRedraw();
 }});
+// a manual hold tweak keeps the picked ship's speed/class
 document.getElementById('opphold').addEventListener('input', e => {{
   HOLD = +e.target.value || 0;
-  shipSel.value = '';
   oppRedraw();
 }});
 ['oppjumps', 'oppdepth'].forEach(id =>
   document.getElementById(id).addEventListener('input', () => opps.draw()));
-document.getElementById('oppnoplayer').addEventListener(
-  'change', () => opps.draw());
+['oppnoplayer', 'oppnoqt'].forEach(id =>
+  document.getElementById(id).addEventListener(
+    'change', () => opps.draw()));
 document.getElementById('actual').addEventListener('change', e => {{
   ACT = e.target.checked;
   const th = $('#market thead th');

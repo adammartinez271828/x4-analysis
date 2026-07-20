@@ -4,9 +4,10 @@ Outputs into the data directory:
     factions.csv   id, shortname, name, primaryrace, colour, source
     wares.csv      id, name, group, transport, volume, tags, price_avg, source
     clusters.csv   macro, x, y, z, name, description, source
-    sectors.csv    cluster, macro, x, y, z, name, source
+    sectors.csv    cluster, macro, x, y, z, name, sunlight, highway, source
     ships.csv      macro, model, class, race, purpose, hull, mass, cargo,
-                   cargo_tags, crew, price, source
+                   cargo_tags, crew, price, drag_forward, source
+    engines.csv    macro, size, type, mk, forward, travel_thrust
     textdb.csv.gz  full page/id/text dump for resolving names in savegames
 """
 
@@ -187,6 +188,23 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 except ValueError:
                     pass
 
+    # sectors with a local (ring) highway: the sector macro carries a
+    # connection ref="zonehighways" (superhighways between sectors are a
+    # different ref and live in gates.csv)
+    highway_secs: set[str] = set()
+    for path in gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
+                        r"[^/]*sectors\.xml$"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for macro_el in root.iter("macro"):
+            if macro_el.get("class") != "sector":
+                continue
+            for conn in macro_el.iter("connection"):
+                if conn.get("ref") == "zonehighways":
+                    highway_secs.add((macro_el.get("name") or "").lower())
+                    break
+
     # sector membership + in-cluster offsets: clusters.xml variants
     sectors: dict[str, list] = {}
     cluster_files = [
@@ -215,7 +233,7 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 name, _descr = names.get(smacro, (smacro, ""))
                 sun = sunlight.get(smacro, sunlight.get(cluster_macro, 1.0))
                 sectors[smacro] = [cluster_macro, smacro, x, y, z, name, sun,
-                                   source]
+                                   int(smacro in highway_secs), source]
 
     return list(clusters.values()), list(sectors.values())
 
@@ -517,6 +535,7 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
                     if holds else ""
                 cargo_tags = " ".join(sorted(
                     {t for h in holds for t in h[1].split()}))
+            drag = m.find("properties/physics/drag")
             rows[macro] = [
                 macro,
                 name or macro,
@@ -529,6 +548,7 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
                 cargo_tags,
                 people.get("capacity", "") if people is not None else "",
                 prices.get(macro.removesuffix("_macro"), ""),
+                drag.get("forward", "") if drag is not None else "",
                 source,
             ]
     return list(rows.values())
@@ -582,7 +602,8 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     )
     _write_csv(
         cfg.data_dir / "sectors.csv",
-        ["cluster", "macro", "x", "y", "z", "name", "sunlight", "source"],
+        ["cluster", "macro", "x", "y", "z", "name", "sunlight", "highway",
+         "source"],
         sector_rows,
     )
 
@@ -619,8 +640,19 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     _write_csv(
         cfg.data_dir / "ships.csv",
         ["macro", "model", "class", "race", "purpose", "hull", "mass",
-         "cargo", "cargo_tags", "crew", "price", "source"],
+         "cargo", "cargo_tags", "crew", "price", "drag_forward", "source"],
         extract_ships(gf, tdb, prices),
+    )
+
+    log("Extracting engines")
+    from .engines import extract_engines
+    _write_csv(
+        cfg.data_dir / "engines.csv",
+        ["macro", "size", "type", "mk", "forward", "travel_thrust"],
+        [[e["macro"], e.get("size") or "", e.get("type") or "",
+          e.get("mk") or "", e.get("forward") or 0,
+          (e.get("travel") or {}).get("thrust", 0) or 0]
+         for e in extract_engines(gf)],
     )
 
     log("Done.")

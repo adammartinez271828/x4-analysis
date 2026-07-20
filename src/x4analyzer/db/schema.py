@@ -73,7 +73,7 @@ WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",
     "npc", "npc_skill", "post", "people", "cargo", "trade_offer",
     "build_resource", "ship_order", "resource", "floating_ware",
-    "datavault",
+    "datavault", "ship_engine",
 )
 
 REFERENCE_TABLES = (
@@ -236,6 +236,15 @@ TABLES: dict[str, str] = {
   loot         INTEGER NOT NULL,
   blueprints   TEXT,
   PRIMARY KEY (save_id, object_id)
+)""",
+    # equipped engines of PLAYER ships (speed-from-loadout for the trade
+    # opportunity travel times); n = mounted count of that engine macro
+    "ship_engine": """CREATE TABLE IF NOT EXISTS ship_engine (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  macro     TEXT NOT NULL,
+  n         INTEGER NOT NULL,
+  PRIMARY KEY (save_id, object_id, macro)
 )""",
     # ---- event history (E) -------------------------------------------------
     # identity columns are resolved at merge time — the only moment the

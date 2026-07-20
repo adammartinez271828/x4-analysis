@@ -64,6 +64,7 @@ EXPECTED_COUNTS = {
     "resource": 2,
     "floating_ware": 2,   # scrap cube + the Erlking vault's loot wares
     "datavault": 2,
+    "ship_engine": 1,     # 2 identical engines aggregate to one n=2 row
     # event history (merged, not rebuilt)
     "trade_tx": 1,
     "stock_event": 1,
@@ -75,6 +76,12 @@ EXPECTED_COUNTS = {
 def test_snapshot_row_counts(conn):
     for table, expected in EXPECTED_COUNTS.items():
         assert count(conn, table) == expected, table
+
+
+def test_ship_engine_rows(conn):
+    rows = conn.execute(
+        "SELECT object_id, macro, n FROM ship_engine").fetchall()
+    assert rows == [("[0x30]", "engine_arg_s_travel_01_mk3_macro", 2)]
 
 
 def test_datavault_rows(conn):

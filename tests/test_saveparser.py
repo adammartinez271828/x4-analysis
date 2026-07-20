@@ -73,6 +73,14 @@ FIXTURE = """<?xml version="1.0"?>
                   <connection connection="commander" id="[0xC9]">
                     <connected connection="[0xC1]"/>
                   </connection>
+                  <connection connection="con_engine01">
+                    <component class="engine" connection="engine"
+                        macro="engine_arg_s_travel_01_mk3_macro" id="[0x31]"/>
+                  </connection>
+                  <connection connection="con_engine02">
+                    <component class="engine" connection="engine"
+                        macro="engine_arg_s_travel_01_mk3_macro" id="[0x32]"/>
+                  </connection>
                 </connections>
                 <component class="npc" macro="char_macro" id="[0x99]" owner="player"
                            name="Jane Doe" code="NPC-001" connection="crew">
@@ -207,6 +215,12 @@ def test_fixture_parse(save_file: Path) -> None:
         in d.build_resources
     assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \
         in d.floating_wares
+
+    # equipped engines attributed to the nearest ship ancestor
+    assert d.ship_engines == [
+        ("[0x30]", "engine_arg_s_travel_01_mk3_macro"),
+        ("[0x30]", "engine_arg_s_travel_01_mk3_macro"),
+    ]
 
     # data vaults: matched on macro (classes differ), sector-local
     # position summed over the zone offset like stations

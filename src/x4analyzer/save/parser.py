@@ -91,6 +91,9 @@ class SaveData:
     # loot = collectable child components still uncollected; blueprints =
     # blueprint macros still inside (Erlking; empty once collected)
     datavaults: list = field(default_factory=list)
+    # equipped engines: (ship_id, engine_macro) per engine component (all
+    # ships; the store keeps player ships only — speed-from-loadout)
+    ship_engines: list = field(default_factory=list)
 
 
 def _open_save(path: Path) -> IO[bytes]:
@@ -207,6 +210,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         sector_macro_stack.pop()
                 elif clazz == "npc" and npc_stack and npc_stack[-1][0] == cid:
                     d.npcs.append(tuple(npc_stack.pop()))
+                elif clazz == "engine" and object_stack:
+                    d.ship_engines.append((object_stack[-1], macro))
 
                 if clazz in _UNIVERSE_CLASSES or _SHIP_RE.match(clazz):
                     cluster_id = cluster_macro = sector_id = sector_macro = ""

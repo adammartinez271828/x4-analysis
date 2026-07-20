@@ -74,6 +74,8 @@ class Frames:
     # data vaults (regular + Erlking): id, macro, code, knownto,
     # sector.macro, sx, sz, unlocked, loot, blueprints
     datavaults: pd.DataFrame = None
+    # player ships' equipped engines: id, macro, n (mounted count)
+    ship_engines: pd.DataFrame = None
 
     resource_cols: list = field(default_factory=list)
     faction_levels: list = field(default_factory=list)
@@ -559,6 +561,9 @@ def build_frames(save: SaveData, ref: RefData,
                    unlocked, loot, blueprints
             FROM datavault WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["code", "knownto", "sector.macro", "blueprints"]),
+        ship_engines=_read(conn, f"""
+            SELECT object_id AS id, macro, n
+            FROM ship_engine WHERE save_id = {_CUR} ORDER BY rowid"""),
         resource_cols=resource_cols, faction_levels=faction_levels,
         time_now=time_now, logged_hours=logged_hours,
         player_faction_name=player_faction_name,

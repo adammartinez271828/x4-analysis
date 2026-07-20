@@ -317,6 +317,20 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, _low(sector), ware, amount)
              for sector, ware, amount in save.floating_wares])
 
+        # engines of player ships only (speed-from-loadout; NPC loadouts
+        # would multiply the table size for no analysis value)
+        player_ships = {c[0] for c in save.components
+                        if c[1].startswith("ship_") and c[5] == "player"}
+        eng_counts: dict[tuple, int] = {}
+        for sid, macro in save.ship_engines:
+            if sid in player_ships:
+                key = (sid, macro.lower())
+                eng_counts[key] = eng_counts.get(key, 0) + 1
+        conn.executemany(
+            "INSERT OR REPLACE INTO ship_engine VALUES (?,?,?,?)",
+            [(save_id, sid, macro, n)
+             for (sid, macro), n in eng_counts.items()])
+
         conn.executemany(
             "INSERT OR REPLACE INTO datavault VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             [(save_id, vid, _low(macro), _s(code), _s(knownto),
