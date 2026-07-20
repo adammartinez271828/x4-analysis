@@ -136,6 +136,7 @@ stroke-width:calc(1px*var(--sw));}
 #ly-facilities.off-equipdock .fk-equipdock{display:none;}
 #ly-facilities.off-trading .fk-trading{display:none;}
 #ly-facilities.off-khaak .fk-khaak{display:none;}
+#ly-facilities .fdim{opacity:0.22;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
@@ -418,7 +419,8 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         x, y = px(r["x"], r["y"])
         index[r["macro"]] = len(sectors)
         sectors.append({
-            "macro": r["macro"], "name": str(r["name"]),
+            "macro": r["macro"], "cluster": r["cluster.macro"],
+            "name": str(r["name"]),
             "owner": str(r["ownername"]), "colour": str(r["colour"]),
             "big": bool(r["sizecat"] == "b"),
             "contested": int(r["contested"]),
@@ -471,7 +473,16 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         return None
 
     st_recs: list[tuple] = []   # (sector macro, sector idx, record, offset)
+    # factions that own stations but no sectors (Ministry of Finance,
+    # Alliance of the Word, Yaki, ...) still get a Factions legend entry
+    # so their facility icons can be faction-dimmed; Kha'ak stays out —
+    # it has its own facility toggle and never dims
+    extra_factions: dict[str, str] = {}
     for _, r in st.sort_values(["fname", "name"]).iterrows():
+        if r["owner"] != "khaak":
+            extra_factions.setdefault(
+                str(r["fname"]),
+                ref.faction_colour.get(r["owner"], "#808080"))
         off = None
         if "sx" in st.columns and pd.notna(r["sx"]) and pd.notna(r["sz"]):
             off = (float(r["sx"]), float(r["sz"]))
@@ -524,26 +535,15 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
              for ia, ib, pa, pb in raw_gates]
 
     # finalize station records with in-hex positions (centre when the
-    # snapshot predates position tracking), grouped per sector; plus the
-    # per-cluster facility-kind union for the low-zoom icon rows
+    # snapshot predates position tracking), grouped per sector. The
+    # renderer derives the per-cluster low-zoom icon rows from these
+    # (sector records carry their cluster macro), including per-kind
+    # owners for faction-dimming.
     stations: dict[str, list[dict]] = {}
     for macro, si, rec, off in st_recs:
         rec["x"], rec["y"] = in_hex_pt(si, off) if off \
             else (sectors[si]["x"], sectors[si]["y"])
         stations.setdefault(macro, []).append(rec)
-
-    sec_cluster = dict(zip(plot_sectors["macro"],
-                           plot_sectors["cluster.macro"]))
-    fac_order = ["hq", "shipyard", "wharf", "equipdock", "trading", "khaak"]
-    fac_sets: dict[str, set] = {}
-    for macro, _si, rec, _off in st_recs:
-        kinds = fac_sets.setdefault(sec_cluster[macro], set())
-        if rec["fac"]:
-            kinds.add(rec["fac"])
-        if rec["hq"]:
-            kinds.add("hq")
-    facilities = {cl: [k for k in fac_order if k in kinds]
-                  for cl, kinds in fac_sets.items() if kinds}
 
     label_recs = []
     for _, r in labels.iterrows():
@@ -606,11 +606,15 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             })
 
     # the player is always a faction (sector ownership arrives later in a
-    # playthrough; the legend entry and colour must exist from the start)
+    # playthrough; the legend entry and colour must exist from the start),
+    # and station-only factions join for facility dimming
     factions = []
-    for owner in sorted({s["owner"] for s in sectors} | {"Player"}, key=str):
+    names = {s["owner"] for s in sectors} | {"Player"} \
+        | set(extra_factions)
+    for owner in sorted(names, key=str):
         colour = next((s["colour"] for s in sectors if s["owner"] == owner),
-                      ref.faction_colour.get("player", "#28C76F"))
+                      extra_factions.get(owner)
+                      or ref.faction_colour.get("player", "#28C76F"))
         factions.append({"name": owner, "colour": colour})
 
 
@@ -628,7 +632,6 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "labels": label_recs, "police": overlay_recs(police, "interdictions"),
         "pirates": overlay_recs(pirates, "harassments"),
         "resources": resources, "factions": factions, "stations": stations,
-        "facilities": facilities,
     }
 
 

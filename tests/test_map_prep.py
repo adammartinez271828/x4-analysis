@@ -273,9 +273,10 @@ def test_payload_station_facilities_and_positions():
     # st2 has no sx/sz: falls back to the hex centre
     s2 = by_code["BBB-222"]
     assert (s2["x"], s2["y"]) == (sec["x"], sec["y"])
-    # per-cluster facility union, fixed order, hq included
-    assert p["facilities"]["cluster_a"] == ["shipyard", "trading"]
-    assert p["facilities"]["cluster_b"] == ["hq", "equipdock"]
+    # sector records carry their cluster macro (the renderer derives the
+    # per-cluster facility rows from stations + this mapping)
+    assert {s["macro"]: s["cluster"] for s in p["sectors"]} == {
+        "sec_a1": "cluster_a", "sec_b1": "cluster_b", "sec_b2": "cluster_b"}
 
 
 def test_payload_khaak_stations():
@@ -284,7 +285,6 @@ def test_payload_khaak_stations():
     p = _payload(f, _ref(), _cfg())
     by_code = {s["code"]: s for lst in p["stations"].values() for s in lst}
     assert by_code["AAA-111"]["fac"] == "khaak"
-    assert "khaak" in p["facilities"]["cluster_a"]
 
 
 def test_payload_resources_aligned(payload):

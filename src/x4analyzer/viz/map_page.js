@@ -413,25 +413,66 @@
   var clusterPos = {};
   D.clusters.forEach(function (c) { clusterPos[c.macro] = c; });
 
-  var facRows = [];   // {el, x, y} zoomed-out cluster rows
+  // per-cluster facility kinds with the owners contributing each kind
+  // (derived from the stations; drives the low-zoom rows and dimming)
+  var FAC_ORDER = ["hq", "shipyard", "wharf", "equipdock", "trading",
+                   "khaak"];
+  var secByMacro = {};
+  D.sectors.forEach(function (s) { secByMacro[s.macro] = s; });
+  var clusterFacs = {};   // cluster macro -> kind -> [owner names]
+  Object.keys(D.stations).forEach(function (m) {
+    var sec = secByMacro[m];
+    if (!sec) return;
+    D.stations[m].forEach(function (stn) {
+      var kinds = [];
+      if (stn.fac) kinds.push(stn.fac);
+      if (stn.hq) kinds.push("hq");
+      kinds.forEach(function (k) {
+        var e = clusterFacs[sec.cluster] = clusterFacs[sec.cluster] || {};
+        (e[k] = e[k] || []).push(stn.owner);
+      });
+    });
+  });
+
+  var facRows = [];       // {el, x, y} zoomed-out cluster rows
+  var facRowIcons = [];   // {el, kind, owners} for dimming
   function buildClusterRows() {
     layers.facClusters.textContent = "";
     facRows = [];
-    Object.keys(D.facilities).forEach(function (cl) {
+    facRowIcons = [];
+    Object.keys(clusterFacs).forEach(function (cl) {
       var c = clusterPos[cl];
-      var kinds = D.facilities[cl].filter(function (k) {
-        return state.layers["fac_" + k];
+      var kinds = FAC_ORDER.filter(function (k) {
+        return clusterFacs[cl][k] && state.layers["fac_" + k];
       });
       if (!c || !kinds.length) return;
       var g = el("g", {}, layers.facClusters);
       kinds.forEach(function (k, j) {
-        el("use", {href: "#ic-" + k, "class": "fk-" + k,
-                   x: (j - (kinds.length - 1) / 2) * 11, y: 0}, g);
+        var u = el("use", {href: "#ic-" + k, "class": "fk-" + k,
+                           x: (j - (kinds.length - 1) / 2) * 11, y: 0}, g);
+        facRowIcons.push({el: u, kind: k, owners: clusterFacs[cl][k]});
       });
       // just inside the cluster hex's bottom edge
       facRows.push({el: g, x: c.x, y: c.y + (C.big + C.border) * R3_4 - 6});
     });
+    updateFacDim();
     applyFacTransforms(svg.getBoundingClientRect().width / view.w || 1);
+  }
+
+  // non-Kha'ak facility icons dim with their owning faction: a station
+  // icon when its owner is deselected, a cluster-row icon when EVERY
+  // faction contributing that kind is deselected. Owners without a
+  // legend entry (Kha'ak owns no sectors) never dim.
+  function ownerOff(o) { return state.factions[o] === false; }
+  function updateFacDim() {
+    facRowIcons.forEach(function (r) {
+      r.el.classList.toggle("fdim",
+        r.kind !== "khaak" && r.owners.every(ownerOff));
+    });
+    facSt.forEach(function (r) {
+      r.el.classList.toggle("fdim",
+        r.kind !== "khaak" && ownerOff(r.owner));
+    });
   }
 
   var facSt = [];     // {el, x, y} zoomed-in per-station icons
@@ -454,7 +495,8 @@
       });
       g.addEventListener("mousemove", moveTip);
       g.addEventListener("mouseleave", hideTip);
-      facSt.push({el: g, x: stn.x, y: stn.y});
+      facSt.push({el: g, x: stn.x, y: stn.y, owner: stn.owner,
+                  kind: stn.fac || "hq"});
     });
   });
 
@@ -529,6 +571,7 @@
     // deselected factions dim instead of vanishing, so the map keeps its
     // shape even with No factions selected
     factionG[name].classList.toggle("dim", !state.factions[name]);
+    updateFacDim();
     saveState();
   }
 
