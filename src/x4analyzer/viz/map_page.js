@@ -461,15 +461,19 @@
     zoomAt(p.x, p.y, Math.exp(ev.deltaY * 0.002));
   }, {passive: false});
 
-  var drag = null;
+  var drag = null, dragged = false;
   svg.addEventListener("pointerdown", function (ev) {
     if (ev.button !== 0) return;
     drag = {x: ev.clientX, y: ev.clientY};
+    dragged = false;
     svg.setPointerCapture(ev.pointerId);
     svg.classList.add("dragging");
   });
   svg.addEventListener("pointermove", function (ev) {
     if (!drag) return;
+    if (Math.abs(ev.clientX - drag.x) + Math.abs(ev.clientY - drag.y) > 3)
+      dragged = true;
+    if (!dragged) return;
     hideTip();
     var r = svg.getBoundingClientRect();
     view.x -= (ev.clientX - drag.x) * view.w / r.width;
@@ -485,6 +489,17 @@
   });
   svg.addEventListener("dblclick", resetView);
 
+  // click (not drag) on a sector opens the detail panel; pointer capture
+  // can retarget the click to the svg, so fall back to a point hit-test
+  svg.addEventListener("click", function (ev) {
+    if (dragged) return;
+    var t = ev.target;
+    if (!(t && t.dataset && t.dataset.i !== undefined))
+      t = document.elementFromPoint(ev.clientX, ev.clientY);
+    if (t && t.dataset && t.dataset.i !== undefined)
+      openPanel(+t.dataset.i);
+  });
+
   window.addEventListener("keydown", function (ev) {
     if (ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName))
       return;
@@ -497,6 +512,7 @@
       case "ArrowUp": view.y -= view.h * step; applyView(); break;
       case "ArrowDown": view.y += view.h * step; applyView(); break;
       case "Home": case "0": resetView(); break;
+      case "Escape": closePanel(); break;
       default: return;
     }
     ev.preventDefault();
@@ -552,6 +568,69 @@
     }, svg);
     setTimeout(function () { p.remove(); }, 2000);
   }
+
+  // --- sector detail panel ---
+  var panel = document.getElementById("panel");
+  var policeByI = {}, piratesByI = {};
+  D.police.forEach(function (r) { policeByI[r.i] = r.count; });
+  D.pirates.forEach(function (r) { piratesByI[r.i] = r.count; });
+
+  function openPanel(i) {
+    var s = D.sectors[i];
+    var h = "<span id='panelclose' title='Close (Esc)'>&#x2715;</span>" +
+      "<h3>" + esc(s.name) + "</h3>" +
+      "<div class='prow'>" + esc(s.owner) +
+      (s.contested === 1 ? " <b>(Contested)</b>" : "") + "</div>";
+    if (policeByI[i] !== undefined)
+      h += "<div class='prow'>Police interdictions (" +
+        C.hours.toFixed(0) + "h): " + policeByI[i] + "</div>";
+    if (piratesByI[i] !== undefined)
+      h += "<div class='prow'>Pirate harassments (" +
+        C.hours.toFixed(0) + "h): " + piratesByI[i] + "</div>";
+
+    var res = D.resources.filter(function (r) { return r.yields[i] > 0; });
+    h += "<h4>Resources</h4>";
+    h += res.length
+      ? res.map(function (r) {
+          return "<div class='pstat'>" + esc(r.name) + " <small>" +
+            Math.round(r.yields[i]) + "</small></div>";
+        }).join("")
+      : "<div class='pstat'><small>None</small></div>";
+
+    h += "<h4>Connections</h4>";
+    h += neighbors[i].length
+      ? neighbors[i].map(function (j) {
+          return "<div class='pstat'><span class='plink' data-j='" + j +
+            "'>" + esc(D.sectors[j].name) + "</span></div>";
+        }).join("")
+      : "<div class='pstat'><small>None known</small></div>";
+
+    var sts = D.stations[s.macro] || [];
+    h += "<h4>Stations (" + sts.length + ")</h4>";
+    h += sts.length
+      ? sts.map(function (st) {
+          return "<div class='pstat'>" + esc(st.name) +
+            (st.code ? " (" + esc(st.code) + ")" : "") + "<br><small>" +
+            esc(st.owner) + (st.type ? " &middot; " + esc(st.type) : "") +
+            "</small></div>";
+        }).join("")
+      : "<div class='pstat'><small>None known</small></div>";
+
+    panel.innerHTML = h;
+    panel.classList.add("open");
+    document.getElementById("panelclose")
+      .addEventListener("click", closePanel);
+    panel.querySelectorAll(".plink").forEach(function (a) {
+      a.addEventListener("click", function () {
+        var j = +a.dataset.j;
+        var n = D.sectors[j];
+        animateViewTo(n.x, n.y, Math.min(view.w, fitW() / 4));
+        pulseSector(j);
+        openPanel(j);
+      });
+    });
+  }
+  function closePanel() { panel.classList.remove("open"); }
 
   var searchBox = document.getElementById("search");
   var searchInfo = document.getElementById("searchinfo");

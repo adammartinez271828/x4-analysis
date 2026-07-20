@@ -79,6 +79,23 @@ border-radius:3px;padding:5px 9px;font-size:13px;width:170px;outline:none;}
 .pulse{fill:none;stroke:#ffe066;stroke-width:4;
 animation:pulse 0.65s ease-out 3;}
 @keyframes pulse{from{stroke-opacity:0.9;}to{stroke-opacity:0;}}
+#panel{position:fixed;top:0;bottom:0;right:__LEGW__px;width:320px;
+box-sizing:border-box;background:rgba(28,28,28,0.97);border-left:1px solid
+#444;border-right:1px solid #444;padding:14px 16px;overflow-y:auto;
+z-index:12;transform:translateX(120%);transition:transform 0.22s ease-out;
+font-size:13px;color:__FG__;}
+#panel.open{transform:none;}
+#panel h3{margin:0 30px 6px 0;font-size:16px;color:#f0f060;}
+#panel h4{margin:14px 0 5px 0;font-size:13px;color:#b0b0b0;
+border-bottom:1px solid #3a3a3a;padding-bottom:3px;}
+#panel .prow{color:#c8c8c8;margin:2px 0;}
+#panelclose{position:absolute;top:8px;right:12px;cursor:pointer;
+font-size:18px;color:#9a9a9a;}
+#panelclose:hover{color:#fff;}
+.plink{color:#8ab8e8;cursor:pointer;}
+.plink:hover{text-decoration:underline;}
+.pstat{margin:3px 0;color:#c8c8c8;}
+.pstat small{color:#9a9a9a;}
 #legend{flex:none;width:__LEGW__px;box-sizing:border-box;height:100%;
 overflow-y:auto;padding:24px 8px 12px 14px;font-size:13px;user-select:none;}
 .lgroup{margin-bottom:16px;}
@@ -100,6 +117,7 @@ pointer-events:none;}
 </div>
 <div id='searchwrap'><input id='search' type='text' placeholder='Find sector&#8230;'
 autocomplete='off' spellcheck='false'><span id='searchinfo'></span></div>
+<div id='panel'></div>
 <div id='tip'></div>
 __FSBTN__
 <script>window.X4MAP = __DATA__;</script>
@@ -365,6 +383,25 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         colour = next(s["colour"] for s in sectors if s["owner"] == owner)
         factions.append({"name": owner, "colour": colour})
 
+    # stations per plotted sector for the detail panel (and the player
+    # assets overlay). Spoiler mode also drops undiscovered stations, so
+    # no hidden names reach the page.
+    uni = frames.universe
+    st = uni[uni["class"] == "station"].copy()
+    if cfg.spoilers_hide:
+        st = st[st["knownto"] == "player"]
+    st = st[st["sector.macro"].isin(index)]
+    st["fname"] = st["owner"].map(ref.faction_name).fillna(
+        st["owner"].str.capitalize())
+    st.loc[st["owner"] == "player", "fname"] = "Player"
+    stations: dict[str, list[dict]] = {}
+    for _, r in st.sort_values(["fname", "name"]).iterrows():
+        stations.setdefault(r["sector.macro"], []).append({
+            "name": str(r["name"]), "code": str(r["code"]),
+            "owner": str(r["fname"]),
+            "type": str(r["stype"]) if pd.notna(r["stype"]) else "",
+        })
+
     return {
         "scene": {"w": round((xr[1] - xr[0]) / _UPX, 2),
                   "h": round((yr[1] - yr[0]) / _UPY, 2),
@@ -378,7 +415,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "sectors": sectors, "clusters": clusters, "gates": gates,
         "labels": label_recs, "police": overlay_recs(police, "interdictions"),
         "pirates": overlay_recs(pirates, "harassments"),
-        "resources": resources, "factions": factions,
+        "resources": resources, "factions": factions, "stations": stations,
     }
 
 
