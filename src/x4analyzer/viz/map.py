@@ -187,12 +187,12 @@ _UPY = (Y_RANGE[1] - Y_RANGE[0]) / 864
 
 
 def _slot_xy(dx: int, dy: int) -> tuple[float, float]:
-    # 8px/14px per grid step: the largest offsets where the 2-/3-slot
-    # arrangements keep their 28x24px sector hexes fully inside the 65px
-    # cluster hex with ~2px stroke clearance AND no sibling pair overlaps
-    # (the old X_DIV/8, Y_DIV/4 steps kissed the outline at the corners,
-    # and |dx|==2 slots doubled to X_DIV/2, poking out of the left vertex).
-    # 4+ hexes cannot all fit disjointly; those keep R's waist overlaps.
+    # 8px/14px per grid step. With 29px sub-sector hexes these are the
+    # tightest arrangements that still work: the 2-slot diagonal pair and
+    # the 3-slot vertical pair keep a ~2px gap, and every slot stays
+    # inside the 65px cluster hex within stroke clearance (the bottom
+    # corner of a (±1,∓1) slot lands exactly on the outline). 4+ hexes
+    # cannot all fit disjointly; those keep R's waist overlaps.
     return dx * 8 * _UPX, dy * 14 * _UPY
 
 
@@ -410,7 +410,9 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     # 75% of the hex half-width — connections attach at their approximate
     # in-sector positions. Older gates.csv without the endpoint columns
     # falls back to hex centres.
-    big, small = 62, 25
+    # sub-sector hexes are sized to nearly fill their cluster-hex slots
+    # (see _slot_xy); the single-sector 62px matches R
+    big, small = 62, 29
     has_pts = {"ax", "az", "bx", "bz"} <= set(ref.gates.columns)
     raw_gates = []
     for r in ref.gates.itertuples(index=False):
