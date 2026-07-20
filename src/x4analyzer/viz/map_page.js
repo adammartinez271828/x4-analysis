@@ -139,7 +139,7 @@
   // gates under resources under outlines under overlays under faction hexes
   // under labels; transparent hover targets on top) ---
   var layers = {};
-  ["gates", "resources", "clusters", "sectors", "contested",
+  ["gates", "resources", "clusters", "contested",
    "police", "pirates", "player", "factions", "highlight", "labels",
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
@@ -178,27 +178,25 @@
   }
   function clearGateHighlight() { layers.highlight.textContent = ""; }
 
+  // cluster grouping boxes: neutral and subtle so the faction colours
+  // carry the map
   D.clusters.forEach(function (c) {
     el("polygon", {points: hexPoints(c.x, c.y, C.big + C.border),
                    fill: "none", stroke: "#B0B0B0", "stroke-width": 2,
-                   "stroke-opacity": C.opacity}, layers.clusters);
+                   "stroke-opacity": 0.45}, layers.clusters);
   });
 
-  D.sectors.forEach(function (s) {
-    el("polygon", {points: hexPoints(s.x, s.y,
-                                     (s.big ? C.big : C.small) + C.border),
-                   fill: "none", stroke: "#F0F0F0", "stroke-width": 2,
-                   "stroke-opacity": C.opacity}, layers.sectors);
-  });
-
+  // one hex per sector, the faction colour IS the sector edge (no
+  // separate neutral outline ring): bright while the faction is
+  // selected, dimmed via .dim (never hidden) while deselected
   var factionG = {};   // faction name -> <g> of its sector hexes
   D.factions.forEach(function (f) {
     factionG[f.name] = el("g", {"data-faction": f.name}, layers.factions);
   });
   D.sectors.forEach(function (s) {
     el("polygon", {points: hexPoints(s.x, s.y, s.big ? C.big : C.small),
-                   fill: "none", stroke: s.colour, "stroke-width": C.border,
-                   "stroke-opacity": C.opacity}, factionG[s.owner]);
+                   fill: "none", stroke: s.colour,
+                   "stroke-width": C.border}, factionG[s.owner]);
   });
 
   // --- overlays (all default off, toggled from the legend) ---
@@ -310,13 +308,11 @@
   function hideTip() { tip.style.display = "none"; }
 
   // transparent hover/hit hexes, one per sector, on top of everything;
-  // they follow their faction's visibility like plotly hover did
-  var hoverByFaction = {};
+  // dimmed sectors stay hoverable (they are still on the map)
   D.sectors.forEach(function (s, si) {
     var p = el("polygon", {points: hexPoints(s.x, s.y,
                                              s.big ? C.big : C.small),
                            fill: "transparent", "data-i": si}, layers.hover);
-    (hoverByFaction[s.owner] = hoverByFaction[s.owner] || []).push(p);
     p.addEventListener("mouseenter", function (ev) {
       tip.innerHTML = s.tip;
       tip.style.display = "block";
@@ -332,7 +328,7 @@
 
   // --- legend state + panel ---
   var state = {
-    layers: {gates: false, clusters: true, sectors: true, labels: true,
+    layers: {gates: false, clusters: true, labels: true,
              contested: false, police: false, pirates: false,
              player: false},
     factions: {},
@@ -372,7 +368,7 @@
   }
 
   var layerG = {gates: layers.gates, clusters: layers.clusters,
-                sectors: layers.sectors, labels: layers.labels,
+                labels: layers.labels,
                 contested: layers.contested, police: layers.police,
                 pirates: layers.pirates, player: layers.player};
 
@@ -381,11 +377,9 @@
     saveState();
   }
   function applyFaction(name) {
-    var on = state.factions[name];
-    factionG[name].style.display = on ? "" : "none";
-    (hoverByFaction[name] || []).forEach(function (p) {
-      p.style.display = on ? "" : "none";
-    });
+    // deselected factions dim instead of vanishing, so the map keeps its
+    // shape even with No factions selected
+    factionG[name].classList.toggle("dim", !state.factions[name]);
     saveState();
   }
 
@@ -453,7 +447,6 @@
 
   var gBase = lgroup("Base Map");
   [["clusters", "Cluster Outlines", hexSwatch("#B0B0B0")],
-   ["sectors", "Sector Outlines", hexSwatch("#F0F0F0")],
    ["labels", "Sector Names",
     "<span style='color:rgba(240,240,96,0.8);font-size:11px;" +
     "font-weight:bold'>Aa</span>"],
@@ -522,6 +515,7 @@
   }
 
   Object.keys(layerG).forEach(applyLayer);
+  D.factions.forEach(function (f) { applyFaction(f.name); });
 
   // --- pan/zoom input wiring ---
   svg.addEventListener("wheel", function (ev) {

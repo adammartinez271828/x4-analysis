@@ -100,6 +100,8 @@ cursor:grab;}
 #ly-labels.zoomed-out .k-suffix{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
+#ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
+#ly-factions g.dim polygon{stroke-opacity:0.15;}
 #ly-highlight *{pointer-events:none;}
 .pbadge{font-size:9px;font-weight:bold;fill:#e8e8e8;}
 .glhl-line{stroke:rgba(150,200,255,0.85);stroke-width:2.5;}
