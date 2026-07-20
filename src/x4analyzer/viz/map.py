@@ -44,13 +44,28 @@ _SLOTS = {
     6: [(-1, 1), (1, 1), (-2, 0), (2, 0), (-1, -1), (1, -1)],
 }
 
-# multi-sector clusters whose sectors sit EXACTLY vertically carry no
-# horizontal signal anywhere in the game files (sector offsets, zone
-# layouts and highway splines are all x=0), yet the in-game map still
-# leans each pair one way. These leans were verified in-game: Earth/The
-# Moon and Tharka's Cascade lean left-handed; Savage Spur and Faulty
-# Logic lean right-handed (the default, so they are not listed).
-_TIE_LEFT = {"cluster_104_macro", "cluster_32_macro"}
+# multi-sector clusters the in-game map draws mirrored across the
+# vertical axis ("left-handed", vs the right-handed _SLOTS defaults like
+# Grand Exchange). The full vanilla+DLC list was audited in-game; no
+# game data file predicts it — the in-cluster sector offsets, zone
+# layouts and highway spline positions all fail to correlate (e.g.
+# Black Hole Sun's offsets lean opposite to its in-game arrangement),
+# so the lean lives in Egosoft's map code only. Unlisted clusters
+# (future DLC, mods) default to right-handed.
+_LEFT_HANDED = {
+    "cluster_04_macro",    # Nopileos' Fortune
+    "cluster_06_macro",    # Black Hole Sun
+    "cluster_21_macro",    # Scale Plate Green
+    "cluster_26_macro",    # Atiya's Misfortune
+    "cluster_32_macro",    # Tharka's Cascade
+    "cluster_42_macro",    # Hewa's Twin III/IV
+    "cluster_50_macro",    # Turquoise Sea
+    "cluster_104_macro",   # Earth / The Moon
+    "cluster_108_macro",   # Saturn / Titan
+    "cluster_408_macro",   # Thuruk's Demise
+    "cluster_416_macro",   # Guiding Star
+    "cluster_606_macro",   # Kingdom End
+}
 
 
 # The map page: a self-contained SVG renderer (no plotly, no lib/ assets).
@@ -182,20 +197,9 @@ def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
             slots = [(-1, 1), (1, 1), (-2, 0), (2, 0), (-1, -1), (1, -1),
                      (0, 2), (0, -2)][:n]
         slots = sorted(slots, key=lambda s: (-s[1], s[0]))
-        if multi:
-            # handedness: the _SLOTS patterns are the "right-handed"
-            # arrangements (Grand Exchange, Black Hole Sun). Clusters whose
-            # real in-cluster x offsets disagree are mirrored across the
-            # vertical axis (Saturn, Hatikvah's Choice, Litany of Fury,
-            # Emperor's Pride, Kingdom End). Exactly-vertical pairs score
-            # zero and fall back to the verified _TIE_LEFT table.
-            xs = group["_ox"].tolist()
-            mean = sum(xs) / len(xs)
-            score = sum((x - mean) * dx
-                        for x, (dx, _) in zip(xs, slots))
-            if score < 0 or (score == 0 and cluster_macro in _TIE_LEFT):
-                slots = sorted([(-dx, dy) for dx, dy in slots],
-                               key=lambda s: (-s[1], s[0]))
+        if multi and cluster_macro in _LEFT_HANDED:
+            slots = sorted([(-dx, dy) for dx, dy in slots],
+                           key=lambda s: (-s[1], s[0]))
 
         for (_, row), (dx, dy) in zip(group.iterrows(), slots):
             sx, sy = _slot_xy(dx, dy) if multi else (0.0, 0.0)
