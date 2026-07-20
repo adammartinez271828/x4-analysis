@@ -255,8 +255,11 @@ def _resource_levels(plot_sectors: pd.DataFrame, sectors: pd.DataFrame,
             res[col] = 0
             continue
         q50, q75 = positive.quantile(0.5), positive.quantile(0.75)
-        res[col] = pd.cut(vals, [-1, 0, q50, q75, float("inf")],
-                          labels=[0, 1, 2, 3]).astype(int)
+        # same binning as pd.cut([-1, 0, q50, q75, inf]) but robust to
+        # duplicate edges (q50 == q75 when few sectors have the resource,
+        # e.g. a barely-explored map under spoilers_hide)
+        res[col] = ((vals > 0).astype(int) + (vals > q50).astype(int)
+                    + (vals > q75).astype(int))
     return res
 
 
