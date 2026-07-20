@@ -32,8 +32,55 @@
   }
 
   var svg = document.getElementById("map");
-  svg.setAttribute("viewBox",
-    "0 " + (-SC.pad) + " " + SC.w + " " + (SC.h + 2 * SC.pad));
+
+  // --- viewBox pan/zoom controller. home = the whole scene plus the edge
+  // pad ring, so overhanging edge hexes stay visible (the svg clips at the
+  // viewBox, which is what keeps zoomed content out of the legend);
+  // zoom level 1 = home. ---
+  var home = {x: -SC.pad, y: -SC.pad,
+              w: SC.w + 2 * SC.pad, h: SC.h + 2 * SC.pad};
+  var view = {x: home.x, y: home.y, w: home.w, h: home.h};
+  var MAX_ZOOM = 10;
+
+  function zoomLevel() { return home.w / view.w; }
+
+  function applyView() {
+    // keep the view inside the scene; at zoom 1 this pins it exactly
+    view.w = Math.min(home.w, Math.max(home.w / MAX_ZOOM, view.w));
+    view.h = view.w * home.h / home.w;
+    view.x = Math.min(home.x + home.w - view.w, Math.max(home.x, view.x));
+    view.y = Math.min(home.y + home.h - view.h, Math.max(home.y, view.y));
+    svg.setAttribute("viewBox",
+      view.x + " " + view.y + " " + view.w + " " + view.h);
+    var z = zoomLevel();
+    // labels counter-scale (8px at home, capped at 13 screen px when
+    // zoomed in) and the per-sector suffix labels of multi-sector
+    // clusters only appear once zoomed in enough to separate them
+    layers.labels.style.fontSize = Math.min(8, 13 / z).toFixed(2) + "px";
+    layers.labels.classList.toggle("zoomed-out", z < 1.6);
+  }
+
+  function sceneXY(ev) {
+    var r = svg.getBoundingClientRect();
+    return {x: view.x + (ev.clientX - r.left) / r.width * view.w,
+            y: view.y + (ev.clientY - r.top) / r.height * view.h};
+  }
+
+  // zoom by factor f (>1 = out) keeping scene point (px,py) under the cursor
+  function zoomAt(px, py, f) {
+    var w2 = Math.min(home.w, Math.max(home.w / MAX_ZOOM, view.w * f));
+    f = w2 / view.w;
+    view.x = px - (px - view.x) * f;
+    view.y = py - (py - view.y) * f;
+    view.w = w2;
+    view.h = view.h * f;
+    applyView();
+  }
+
+  function resetView() {
+    view = {x: home.x, y: home.y, w: home.w, h: home.h};
+    applyView();
+  }
 
   // --- scene graph, in stacking order (matches the old plotly trace order:
   // gates under resources under outlines under overlays under faction hexes
@@ -71,7 +118,7 @@
   });
 
   D.labels.forEach(function (lb) {
-    var t = el("text", {"class": "seclabel", x: lb.x, y: lb.y,
+    var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x, y: lb.y,
                         "text-anchor": "middle"}, layers.labels);
     var k = lb.lines.length;
     lb.lines.forEach(function (line, j) {
@@ -215,4 +262,62 @@
   });
 
   Object.keys(layerG).forEach(applyLayer);
+
+  // --- pan/zoom input wiring ---
+  svg.addEventListener("wheel", function (ev) {
+    ev.preventDefault();   // never scroll the page/dashboard from the map
+    hideTip();
+    var p = sceneXY(ev);
+    zoomAt(p.x, p.y, Math.exp(ev.deltaY * 0.002));
+  }, {passive: false});
+
+  var drag = null;
+  svg.addEventListener("pointerdown", function (ev) {
+    if (ev.button !== 0) return;
+    drag = {x: ev.clientX, y: ev.clientY};
+    svg.setPointerCapture(ev.pointerId);
+    svg.classList.add("dragging");
+  });
+  svg.addEventListener("pointermove", function (ev) {
+    if (!drag) return;
+    hideTip();
+    var r = svg.getBoundingClientRect();
+    view.x -= (ev.clientX - drag.x) * view.w / r.width;
+    view.y -= (ev.clientY - drag.y) * view.h / r.height;
+    drag = {x: ev.clientX, y: ev.clientY};
+    applyView();
+  });
+  ["pointerup", "pointercancel"].forEach(function (n) {
+    svg.addEventListener(n, function () {
+      drag = null;
+      svg.classList.remove("dragging");
+    });
+  });
+  svg.addEventListener("dblclick", resetView);
+
+  window.addEventListener("keydown", function (ev) {
+    if (ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName))
+      return;
+    var cx = view.x + view.w / 2, cy = view.y + view.h / 2, step = 0.15;
+    switch (ev.key) {
+      case "+": case "=": zoomAt(cx, cy, 1 / 1.3); break;
+      case "-": case "_": zoomAt(cx, cy, 1.3); break;
+      case "ArrowLeft": view.x -= view.w * step; applyView(); break;
+      case "ArrowRight": view.x += view.w * step; applyView(); break;
+      case "ArrowUp": view.y -= view.h * step; applyView(); break;
+      case "ArrowDown": view.y += view.h * step; applyView(); break;
+      case "Home": case "0": resetView(); break;
+      default: return;
+    }
+    ev.preventDefault();
+  });
+
+  var homeBtn = document.createElement("div");
+  homeBtn.id = "x4home";
+  homeBtn.title = "Reset view (or double-click / Home)";
+  homeBtn.innerHTML = "&#x2302;";
+  homeBtn.addEventListener("click", resetView);
+  document.body.appendChild(homeBtn);
+
+  applyView();
 })();

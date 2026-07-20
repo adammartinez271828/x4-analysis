@@ -57,9 +57,14 @@ html,body{height:100%;}
 body{margin:0;background:__BG__;color:#b0b0b0;
 font-family:'Open Sans',verdana,arial,sans-serif;}
 #wrap{display:flex;align-items:flex-start;}
-#map{flex:none;display:block;overflow:visible;}
-.seclabel{font-size:8px;font-weight:bold;fill:rgba(240,240,96,0.63);}
+#map{flex:none;display:block;overflow:hidden;cursor:grab;}
+#map.dragging{cursor:grabbing;}
+.seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
+#ly-labels.zoomed-out .k-suffix{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
+#x4home{position:fixed;bottom:34px;right:10px;z-index:20;cursor:pointer;
+font-size:22px;line-height:1;color:#b0b0b0;opacity:0.45;user-select:none;}
+#x4home:hover{opacity:1;}
 #legend{flex:none;width:__LEGW__px;box-sizing:border-box;
 padding:44px 8px 12px 14px;font-size:13px;user-select:none;}
 .lgroup{margin-bottom:16px;}
@@ -374,7 +379,10 @@ def _write_page(payload: dict, files_dir: Path, guid: str) -> str:
         .replace("__BG__", DARK_BG)
         .replace("__FG__", DARK_FG)
         .replace("__LEGW__", str(payload["scene"]["legend_w"]))
-        .replace("__W__", str(round(payload["scene"]["w"])))
+        # the edge pad rings the whole scene (viewBox starts at -pad) so
+        # edge-row hexes can overhang the axis range unclipped on all sides
+        .replace("__W__", str(round(payload["scene"]["w"])
+                              + 2 * payload["scene"]["pad"]))
         .replace("__H__", str(round(payload["scene"]["h"])
                               + 2 * payload["scene"]["pad"]))
     )
@@ -389,6 +397,8 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     size depends on how far DLC content widens the axis ranges."""
     p = _payload(frames, ref, cfg)
     src = _write_page(p, files_dir, guid)
-    return (src, round(p["scene"]["w"]) + p["scene"]["legend_w"],
+    return (src,
+            round(p["scene"]["w"]) + 2 * p["scene"]["pad"]
+            + p["scene"]["legend_w"],
             round(p["scene"]["h"]) + 2 * p["scene"]["pad"])
 
