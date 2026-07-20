@@ -144,7 +144,7 @@
   // gates under resources under outlines under overlays under faction hexes
   // under labels; transparent hover targets on top) ---
   var layers = {};
-  ["gates", "resources", "clusters", "contested",
+  ["gates", "shighways", "resources", "clusters", "contested",
    "police", "pirates", "player", "factions", "highlight", "labels",
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
@@ -210,11 +210,15 @@
 
   // gate records: [ia, ib, x1, y1, x2, y2] — the endpoints sit at the
   // gates' approximate in-sector positions, so lines attach there and
-  // each endpoint gets a small dot
+  // each endpoint gets a small dot. Links between sectors of one
+  // cluster are superhighways (accelerators) and draw in their own
+  // toggleable layer; only jump gates ever cross clusters
   D.gates.forEach(function (g) {
-    el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5]}, layers.gates);
-    el("circle", {cx: g[2], cy: g[3], r: 2}, layers.gates);
-    el("circle", {cx: g[4], cy: g[5], r: 2}, layers.gates);
+    var sh = D.sectors[g[0]].cluster === D.sectors[g[1]].cluster;
+    var ly = sh ? layers.shighways : layers.gates;
+    el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5]}, ly);
+    el("circle", {cx: g[2], cy: g[3], r: 2}, ly);
+    el("circle", {cx: g[4], cy: g[5], r: 2}, ly);
   });
 
   // hover adjacency from the gate links
@@ -593,7 +597,7 @@
 
   // --- legend state + panel ---
   var state = {
-    layers: {gates: false, clusters: true, labels: true,
+    layers: {gates: false, shighways: false, clusters: true, labels: true,
              contested: false, police: false, pirates: false,
              player: false, vaults: false, erlking: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
@@ -647,8 +651,8 @@
     } catch (e) { /* storage unavailable: persistence is best-effort */ }
   }
 
-  var layerG = {gates: layers.gates, clusters: layers.clusters,
-                labels: layers.labels,
+  var layerG = {gates: layers.gates, shighways: layers.shighways,
+                clusters: layers.clusters, labels: layers.labels,
                 contested: layers.contested, police: layers.police,
                 pirates: layers.pirates, player: layers.player,
                 vaults: layers.vaults, erlking: layers.erlking};
@@ -746,12 +750,18 @@
       });
   });
 
+  function dashSwatch(colour) {
+    return "<svg width='18' height='14'><line x1='1' y1='7' x2='17' y2='7'" +
+      " stroke='" + colour + "' stroke-width='2'" +
+      " stroke-dasharray='3,2'/></svg>";
+  }
   var gBase = lgroup("Base Map");
   [["clusters", "Cluster Outlines", hexSwatch("#B0B0B0")],
    ["labels", "Sector Names",
     "<span style='color:rgba(240,240,96,0.8);font-size:11px;" +
     "font-weight:bold'>Aa</span>"],
-   ["gates", "Gates &amp; Accelerators", lineSwatch("rgba(140,170,200,0.8)")],
+   ["gates", "Gates", lineSwatch("rgba(140,170,200,0.8)")],
+   ["shighways", "Superhighways", dashSwatch("rgba(110,220,190,0.85)")],
   ].forEach(function (row) {
     litem(gBase, row[1], row[2],
       function () { return state.layers[row[0]]; },

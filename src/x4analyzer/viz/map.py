@@ -116,6 +116,8 @@ controller): they grow until ~1.3x their base screen weight, then hold */
 #ly-clusters polygon{stroke-width:calc(2px*var(--sw));}
 #ly-gates line{stroke-width:calc(1.5px*var(--sw));}
 #ly-gates circle{r:calc(2px*var(--sw));}
+#ly-shighways line{stroke-width:calc(1.5px*var(--sw));}
+#ly-shighways circle{r:calc(2px*var(--sw));}
 #ly-contested path,#ly-police path,#ly-pirates path{
 stroke-width:calc(1px*var(--sw));}
 #ly-resources polygon{stroke-width:calc(1px*var(--sw));}
@@ -140,6 +142,8 @@ stroke-width:calc(1px*var(--sw));}
 #ly-facilities .fdim{opacity:0.22;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
+#ly-shighways line{stroke:rgba(110,220,190,0.6);stroke-dasharray:4,3;}
+#ly-shighways circle{fill:rgba(110,220,190,0.85);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
 #ly-factions g.dim polygon{stroke-opacity:0.15;}
 #ly-highlight *{pointer-events:none;}
