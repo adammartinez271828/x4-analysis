@@ -278,6 +278,15 @@ def test_payload_station_facilities_and_positions():
     assert p["facilities"]["cluster_b"] == ["hq", "equipdock"]
 
 
+def test_payload_khaak_stations():
+    f = _frames()
+    f.universe.loc[f.universe["id"] == "st1", "owner"] = "khaak"
+    p = _payload(f, _ref(), _cfg())
+    by_code = {s["code"]: s for lst in p["stations"].values() for s in lst}
+    assert by_code["AAA-111"]["fac"] == "khaak"
+    assert "khaak" in p["facilities"]["cluster_a"]
+
+
 def test_payload_resources_aligned(payload):
     (ore,) = payload["resources"]   # no sunlight column in the synthetic ref
     assert ore["name"] == "Ore"

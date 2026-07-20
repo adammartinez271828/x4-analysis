@@ -192,6 +192,11 @@
     el("path", {d: "M-1.4,-3.2 L3.2,-1.9 L-1.4,-0.6 Z",
                 fill: "#D62828"}, g);
   });
+  iconDef("khaak", function (g) {      // crystal spike cluster
+    el("path", {d: "M0,-3.7 L0.9,-0.9 L3.7,0 L0.9,0.9 L0,3.7 " +
+                   "L-0.9,0.9 L-3.7,0 L-0.9,-0.9 Z",
+                fill: "#B012B0"}, g);
+  });
 
   // gate records: [ia, ib, x1, y1, x2, y2] — the endpoints sit at the
   // gates' approximate in-sector positions, so lines attach there and
@@ -403,7 +408,8 @@
   // switching is pure CSS off the svg's zoomed-out class) ---
   var FAC_KINDS = [["hq", "Faction HQs"], ["shipyard", "Shipyards"],
                    ["wharf", "Wharfs"], ["equipdock", "Equipment Docks"],
-                   ["trading", "Trading Stations"]];
+                   ["trading", "Trading Stations"],
+                   ["khaak", "Kha'ak Stations"]];
   var clusterPos = {};
   D.clusters.forEach(function (c) { clusterPos[c.macro] = c; });
 
@@ -473,7 +479,7 @@
              contested: false, police: false, pirates: false,
              player: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
-             fac_equipdock: true, fac_trading: true},
+             fac_equipdock: true, fac_trading: true, fac_khaak: true},
     factions: {},
     resource: null,   // id of the single-selected resource overlay
   };

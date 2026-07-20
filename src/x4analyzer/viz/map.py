@@ -135,6 +135,7 @@ stroke-width:calc(1px*var(--sw));}
 #ly-facilities.off-wharf .fk-wharf{display:none;}
 #ly-facilities.off-equipdock .fk-equipdock{display:none;}
 #ly-facilities.off-trading .fk-trading{display:none;}
+#ly-facilities.off-khaak .fk-khaak{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
@@ -455,7 +456,9 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     wharfs = set(ships_bm[~lxl]["id"])
     equips = set(bm[bm["macro"].str.contains("_equip_", na=False)]["id"])
 
-    def facility(sid: str, stype) -> str | None:
+    def facility(sid: str, owner: str, stype) -> str | None:
+        if owner == "khaak":   # hives/nests/weapon platforms
+            return "khaak"
         if sid in shipyards:
             return "shipyard"
         if sid in wharfs:
@@ -476,7 +479,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             "name": str(r["name"]), "code": str(r["code"]),
             "owner": str(r["fname"]),
             "type": str(r["stype"]) if pd.notna(r["stype"]) else "",
-            "fac": facility(r["id"], r["stype"]),
+            "fac": facility(r["id"], str(r["owner"]), r["stype"]),
             "hq": bool("faction_hq" in st.columns
                        and pd.notna(r["faction_hq"])
                        and r["faction_hq"] == 1),
@@ -531,7 +534,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
 
     sec_cluster = dict(zip(plot_sectors["macro"],
                            plot_sectors["cluster.macro"]))
-    fac_order = ["hq", "shipyard", "wharf", "equipdock", "trading"]
+    fac_order = ["hq", "shipyard", "wharf", "equipdock", "trading", "khaak"]
     fac_sets: dict[str, set] = {}
     for macro, _si, rec, _off in st_recs:
         kinds = fac_sets.setdefault(sec_cluster[macro], set())
