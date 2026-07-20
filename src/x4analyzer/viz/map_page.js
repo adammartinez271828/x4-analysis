@@ -155,39 +155,40 @@
   layers.facStations = el("g", {id: "fac-stations"}, layers.facilities);
 
   // facility icon glyphs, drawn in a ~10x10 box around the origin with a
-  // dark backing disc so they read on any hex colour
+  // white backing disc so they pop against the dark map; glyph colours
+  // are darkened to read on white
   var defs = el("defs", {}, svg);
   function iconDef(id, draw) {
     var g = el("g", {id: "ic-" + id}, defs);
-    el("circle", {r: 5, fill: "rgba(12,12,12,0.88)",
-                  stroke: "#666", "stroke-width": 0.5}, g);
+    el("circle", {r: 5, fill: "rgba(245,245,245,0.95)",
+                  stroke: "#333", "stroke-width": 0.5}, g);
     draw(g);
   }
   iconDef("shipyard", function (g) {   // large ship silhouette
     el("path", {d: "M0,-3.2 L3.4,2.6 L0,1.2 L-3.4,2.6 Z",
-                fill: "#6FA8FF"}, g);
+                fill: "#1D5FCC"}, g);
   });
   iconDef("wharf", function (g) {      // small ship silhouette
     el("path", {d: "M0,-2.3 L2.4,1.9 L0,0.9 L-2.4,1.9 Z",
-                fill: "#7FDCA8"}, g);
+                fill: "#1E8F4E"}, g);
   });
   iconDef("equipdock", function (g) {  // hex nut
-    el("polygon", {points: hexPoints(0, 0, 6.4), fill: "#C9A0FF"}, g);
-    el("circle", {r: 1.3, fill: "#0c0c0c"}, g);
+    el("polygon", {points: hexPoints(0, 0, 6.4), fill: "#7A3FD1"}, g);
+    el("circle", {r: 1.3, fill: "#F5F5F5"}, g);
   });
   iconDef("trading", function (g) {    // stacked crates
     el("rect", {x: -2.7, y: 0.1, width: 2.4, height: 2.4,
-                fill: "#FFC04D"}, g);
+                fill: "#C77800"}, g);
     el("rect", {x: 0.3, y: 0.1, width: 2.4, height: 2.4,
-                fill: "#FFC04D"}, g);
+                fill: "#C77800"}, g);
     el("rect", {x: -1.2, y: -2.6, width: 2.4, height: 2.4,
-                fill: "#FFC04D"}, g);
+                fill: "#C77800"}, g);
   });
   iconDef("hq", function (g) {         // flag
     el("line", {x1: -1.8, y1: -3.2, x2: -1.8, y2: 3.2,
-                stroke: "#ddd", "stroke-width": 0.7}, g);
+                stroke: "#333", "stroke-width": 0.7}, g);
     el("path", {d: "M-1.4,-3.2 L3.2,-1.9 L-1.4,-0.6 Z",
-                fill: "#FF5C5C"}, g);
+                fill: "#D62828"}, g);
   });
 
   // gate records: [ia, ib, x1, y1, x2, y2] — the endpoints sit at the
