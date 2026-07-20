@@ -143,7 +143,7 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
             + "</p>")
 
     log("Generating market overview")
-    market = build_market(frames, ref, files_dir, guid)
+    market = build_market(frames, ref, cfg, files_dir, guid)
     if market:
         tabs["Market"].append(
             "<p>" + _iframe(market, "width:100%;height:1600px;", lazy=True)

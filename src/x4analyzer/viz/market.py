@@ -27,6 +27,10 @@ import pandas as pd
 
 from ..cli import log
 from ..analysis.frames import Frames
+from ..analysis.opportunities import (MAX_PAIRS as _OPP_MAX_PAIRS,
+                                      TOP_N as _OPP_TOP_N,
+                                      build_opportunities, ship_presets)
+from ..config import Config
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED, DARK_PLOT
 
@@ -301,7 +305,7 @@ def actual_flows(frames: Frames, ref: RefData) -> tuple[dict, dict]:
             pd.DataFrame(crows, columns=["id", "ware", "rate"]))
 
 
-def build_market(frames: Frames, ref: RefData, files_dir: Path,
+def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                  guid: str) -> str | None:
     rates = _station_rates(frames, ref)
     gt = frames.global_trades
@@ -636,6 +640,10 @@ def build_market(frames: Frames, ref: RefData, files_dir: Path,
         rec_all[rec_all["ware"].isin(set(targets))]["input_ware"].dropna()
     ) - {""})
 
+    log("-> Trade opportunities")
+    opps = build_opportunities(frames, ref, cfg)
+    presets = ship_presets(ref)
+
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["constr_h"], r["balance"],
@@ -773,6 +781,64 @@ estimated <b>actual</b> flows instead of theoretical capacity
 <th>Fill %</th><th>Satisfy (h)</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
+<h3 style='margin:4px 0'>Trade opportunities</h3>
+<details class='note'>
+<summary>What these lanes mean &amp; caveats</summary>
+<div class='notebody'>
+<p>Every open <b>sell offer</b> paired with every open <b>buy offer</b> of
+the same ware (up to the {_OPP_TOP_N} cheapest asks &times; {_OPP_TOP_N}
+highest bids per ware; the {_OPP_MAX_PAIRS} best lanes per ware are kept).
+Metrics normalize the spread the way a hauler earns it:</p>
+<ul>
+<li><b>Profit/m&sup3;</b> — spread &divide; ware volume: what one trip
+earns per unit of cargo hold. A dense cheap ware can beat a bulky
+expensive one whose per-unit profit looks larger.</li>
+<li><b>Cr/m&sup3;&middot;jump</b> — the above &divide; gate jumps between
+the two sectors (same-sector lanes count as one jump). A coarse proxy for
+time: highways and sector size are not modelled.</li>
+<li><b>Depth</b> — min(units offered, units wanted). Quoted prices are one
+point on the game's price curve and move against you as you trade, so
+per-trip and lane totals are capped by depth (and your hold) rather than
+extrapolated.</li>
+<li><b>Player stations</b> — an own station as the <b>origin</b> counts
+its goods at 0 Cr (the full bid is empire profit; the row shows the
+station's list price for reference). Own stations as buyers earn the
+empire nothing and are not listed. "Exclude player stations" shows pure
+open-market arbitrage.</li>
+<li>Set a <b>cargo hold</b> (or pick a ship) to see the profit of one
+full trip on each lane: min(hold, depth) &times; spread.</li>
+</ul>
+<p>Lanes reflect the analyzed save: good spreads attract NPC traders and
+may be gone. Faction hostility, ware legality and trade licenses are not
+modelled — check the factions column before dispatching. Construction
+sites appear as buyers (tagged); Xenon are excluded throughout.</p>
+</div>
+</details>
+<p>
+<label for='oppship'>Ship:</label><select id='oppship'></select>
+&nbsp;<label for='opphold'>Cargo hold m&sup3;:</label>
+<input type='number' id='opphold' min='0' step='100' value=''
+       style='width:90px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label for='oppjumps'>Max jumps:</label>
+<input type='number' id='oppjumps' min='0' value='99'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label for='oppdepth'>Min depth m&sup3;:</label>
+<input type='number' id='oppdepth' min='0' step='100' value='0'
+       style='width:90px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
+exclude player stations</label>
+</p>
+<table id='opps' class='display nowrap' style='width:100%'>
+<thead><tr><th>Ware</th><th>From</th><th>To</th>
+<th>Ask</th><th>Bid</th><th>Profit/u</th><th>Profit/m&sup3;</th>
+<th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
+the closest feasible proxy for earnings per unit of time'>Cr/m&sup3;&middot;jump</th>
+<th>Depth m&sup3;</th><th>Trip profit</th><th>Lane total</th></tr></thead>
+</table>
+<hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select> <span id='wareinfo' class='note'></span></p>
 <div id='volume' style='height:320px'></div>
 <p><label for='minvol'>Min offer volume:</label>
@@ -793,6 +859,8 @@ estimated <b>actual</b> flows instead of theoretical capacity
 </div>
 <script>
 const ROWS = {table_rows};
+const OPPS = {json.dumps(opps, separators=(",", ":"))};
+const SHIPS = {json.dumps(presets, separators=(",", ":"))};
 const DETAIL = {json.dumps(detail, separators=(",", ":"))};
 const WNAMES = {json.dumps(ware_names, separators=(",", ":"))};
 const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
@@ -918,11 +986,112 @@ $('#market tbody').on('click', 'tr', function() {{
 }});
 
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
+  if (settings.nTable.id !== 'market') return true;
   if (!document.getElementById('buildonly').checked) return true;
   return BUILD_WARES.has(rowData[19]);
 }});
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
+
+// ---- trade opportunities ----
+let HOLD = 0;   // cargo hold m³ for the per-trip what-if (0 = unset)
+function tripProfit(r) {{
+  if (!HOLD) return null;
+  return Math.floor(Math.min(r.du, HOLD / r.vol)) * r.spread;
+}}
+function endLabel(e) {{
+  let h = "<span style='color:" + ((FCOLOURS[e.f]) || '#4ecf71')
+    + "'>" + e.f + "</span> " + e.l + ", " + e.sec;
+  if (e.p) h += " <span class='pos' title='own station: goods counted at"
+    + " 0 Cr; list price shown in the Ask column tooltip'>own</span>";
+  if (e.c) h += " <span class='warn' title='construction site'>site</span>";
+  return h;
+}}
+const oppNum = (d, t) => t === 'display' ? fmt(d) : d;
+const opps = $('#opps').DataTable({{
+  data: OPPS,
+  order: [[8, 'desc']], pageLength: 15,
+  columns: [
+    {{data: 'wn'}},
+    {{data: null, render: (d, t, r) => t === 'display' ? endLabel(r.s)
+        : r.s.l + ' ' + r.s.sec}},
+    {{data: null, render: (d, t, r) => t === 'display' ? endLabel(r.b)
+        : r.b.l + ' ' + r.b.sec}},
+    {{data: 'ask', render: (d, t, r) => t === 'display'
+        ? (r.s.p ? "<span class='pos' title='station lists "
+           + fmt(r.s.price) + " Cr'>0</span>" : fmt(d)) : d}},
+    {{data: 'bid', render: oppNum}},
+    {{data: 'spread', render: oppNum}},
+    {{data: 'pm3'}},
+    {{data: 'j'}},
+    {{data: 'rate'}},
+    {{data: 'dm3', render: oppNum}},
+    {{data: null, render: (d, t, r) => {{
+      const v = tripProfit(r);
+      if (t === 'display') return v === null
+        ? "<span class='note' title='set a cargo hold above'>&mdash;</span>"
+        : fmt(v) + ' Cr';
+      return v === null ? -1 : v;
+    }}}},
+    {{data: 'total', render: (d, t) => t === 'display'
+        ? fmt(d) + ' Cr' : d}},
+  ],
+}});
+$.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
+  if (settings.nTable.id !== 'opps') return true;
+  if (rowData.j > +document.getElementById('oppjumps').value) return false;
+  if (rowData.dm3 < +document.getElementById('oppdepth').value) return false;
+  if (document.getElementById('oppnoplayer').checked
+      && (rowData.s.p || rowData.b.p)) return false;
+  return true;
+}});
+// expandable arithmetic: the numbers must be auditable against the
+// in-game trade menu, never an opaque score
+$('#opps tbody').on('click', 'tr', function() {{
+  const row = opps.row(this);
+  if (row.child.isShown()) {{ row.child.hide(); return; }}
+  const r = row.data();
+  if (!r) return;
+  const trip = tripProfit(r);
+  let h = "<div class='note' style='padding:6px 12px'>Buy <b>" + r.wn
+    + "</b> at <b>" + fmt(r.ask) + " Cr</b>"
+    + (r.s.p ? " (own production; station lists " + fmt(r.s.price)
+       + " Cr)" : "")
+    + " from " + endLabel(r.s) + " (" + fmt(r.s.amt) + " u offered)"
+    + " &rarr; sell at <b>" + fmt(r.bid) + " Cr</b> to " + endLabel(r.b)
+    + " (" + fmt(r.b.amt) + " u wanted).<br>"
+    + "Spread " + fmt(r.spread) + " Cr/u &divide; " + r.vol
+    + " m&sup3;/u = <b>" + r.pm3 + " Cr/m&sup3;</b>"
+    + " &divide; " + Math.max(1, r.j) + " jump" + (r.j === 1 ? "" : "s")
+    + " = <b>" + r.rate + " Cr/m&sup3;&middot;jump</b>."
+    + " Depth min(" + fmt(r.s.amt) + ", " + fmt(r.b.amt) + ") = "
+    + fmt(r.du) + " u = " + fmt(r.dm3) + " m&sup3; &rarr; lane total <b>"
+    + fmt(r.total) + " Cr</b> at quoted prices"
+    + (trip === null ? "." : ("; one " + fmt(HOLD)
+       + " m&sup3; trip nets <b>" + fmt(trip) + " Cr</b>."))
+    + "</div>";
+  row.child(h, 'note').show();
+}});
+const shipSel = document.getElementById('oppship');
+shipSel.appendChild(new Option('— pick a ship —', ''));
+SHIPS.forEach((s, i) => shipSel.appendChild(
+  new Option(s.m + ' (' + s.cls + ', ' + fmt(s.cargo) + ' m³)', i)));
+function oppRedraw() {{ opps.rows().invalidate('data').draw(false); }}
+shipSel.addEventListener('change', () => {{
+  const s = SHIPS[+shipSel.value];
+  document.getElementById('opphold').value = s ? s.cargo : '';
+  HOLD = s ? s.cargo : 0;
+  oppRedraw();
+}});
+document.getElementById('opphold').addEventListener('input', e => {{
+  HOLD = +e.target.value || 0;
+  shipSel.value = '';
+  oppRedraw();
+}});
+['oppjumps', 'oppdepth'].forEach(id =>
+  document.getElementById(id).addEventListener('input', () => opps.draw()));
+document.getElementById('oppnoplayer').addEventListener(
+  'change', () => opps.draw());
 document.getElementById('actual').addEventListener('change', e => {{
   ACT = e.target.checked;
   const th = $('#market thead th');
