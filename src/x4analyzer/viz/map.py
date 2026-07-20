@@ -33,11 +33,14 @@ _SUFFIX = re.compile(r" [12IVX]+.*$")
 
 
 # slot patterns for n sectors sharing one cluster hex, in (dx, dy) grid
-# steps (8px, 14px at the fixed map density). Matches the arrangements the
-# R script hand-tuned per sector name (e.g. Grand Exchange).
+# steps (8px, 14px at the fixed map density). Derived from the arrangements
+# the R script hand-tuned per sector name (e.g. Grand Exchange), except the
+# 2-slot pattern which R had mirrored versus the in-game map: the audited
+# right-handed default is top-RIGHT + bottom-left, matching the 3-slot
+# Grand Exchange shape (top and bottom sectors on the right).
 _SLOTS = {
     1: [(0, 0)],
-    2: [(-1, 1), (1, -1)],
+    2: [(1, 1), (-1, -1)],
     3: [(1, 1), (-2, 0), (1, -1)],
     4: [(-1, 1), (1, 1), (-1, -1), (1, -1)],
     5: [(-1, 1), (1, 1), (-2, 0), (-1, -1), (1, -1)],

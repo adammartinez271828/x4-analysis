@@ -125,16 +125,17 @@ def test_layout_handedness():
     def slot_dx(out, macro):
         return out[out["macro"] == macro].iloc[0]["x"] / (8 * _UPX)
 
-    # unlisted clusters keep the right-handed _SLOTS default regardless of
-    # their offsets (the offsets do not predict the in-game arrangement)
-    f, r = _two_sector_cluster(1e6, 5e6, -1e6, -5e6)
+    # unlisted clusters keep the right-handed default (2-sector: top-right
+    # + bottom-left) regardless of their offsets — the offsets do not
+    # predict the in-game arrangement
+    f, r = _two_sector_cluster(1e6, -5e6, -1e6, 5e6)
     out = _layout_sectors(f, r, _cfg())
-    assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
+    assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
 
     # clusters in the in-game-audited _LEFT_HANDED table are mirrored
     f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0, cluster="cluster_06_macro")
     out = _layout_sectors(f, r, _cfg())
-    assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
+    assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
 
 
 def test_labels_kinds():
