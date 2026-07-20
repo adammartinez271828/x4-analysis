@@ -52,7 +52,7 @@ Save locations: `~/.config/EgoSoft/X4/<player-id>/save/` on Linux,
 
 | Tab | What's in it |
 |---|---|
-| **Map** | Interactive hex map of the galaxy: faction ownership, contested sectors, police/pirate activity overlays, per-sector resource ratings in tooltips. Handles all DLC sectors automatically. |
+| **Map** | Fully interactive hex map of the galaxy: pan/zoom, sector search, click-through sector detail panel (stations, resource yields, gate connections), faction ownership with dim-instead-of-hide selection, contested sectors, police/pirate activity, resource overlays, and gate/accelerator lines drawn at their approximate in-sector positions. Handles all DLC sectors automatically. |
 | **Trade** | Your empire's income/expenses over time: sales and buys by faction/seller/buyer, costs vs profits, station account transfers (hourly + cumulative). |
 | **Trade Breakdown** | Sunbursts of recent sales and buys by commodity, station, and counterparty faction. |
 | **Trade History** | Pick any of your stations or ships and browse its complete purchase/sale history — hourly volumes, per-commodity totals, and a searchable trade table with counterparties. |
