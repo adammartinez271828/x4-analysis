@@ -203,13 +203,16 @@ def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
 
 def _labels(plot_sectors: pd.DataFrame, ref: RefData) -> pd.DataFrame:
     """Sector labels: multi-sector clusters get one base-name label at the
-    cluster centre plus per-sector suffix labels (R 840-864)."""
+    cluster centre plus per-sector suffix labels (R 840-864). kind tags the
+    label role: "single" (lone sector), "suffix" (per-sector suffix) or
+    "base" (cluster base name)."""
     cluster_names = dict(zip(ref.clusters["macro"], ref.clusters["name"]))
     recs = []
     for cmacro, group in plot_sectors.groupby("cluster.macro"):
         if len(group) == 1:
             row = group.iloc[0]
-            recs.append({"x": row["x"], "y": row["y"], "altname": row["name"]})
+            recs.append({"x": row["x"], "y": row["y"], "altname": row["name"],
+                         "kind": "single"})
             continue
         base = str(cluster_names.get(cmacro, "")) or \
             _SUFFIX.sub("", str(group.iloc[0]["name"]))
@@ -218,15 +221,18 @@ def _labels(plot_sectors: pd.DataFrame, ref: RefData) -> pd.DataFrame:
             name = str(row.name)
             if name.startswith(base + " ") and len(name) > len(base) + 1:
                 recs.append({"x": row.x, "y": row.y,
-                             "altname": name[len(base) + 1:]})
+                             "altname": name[len(base) + 1:],
+                             "kind": "suffix"})
                 base_used = True
             else:
-                recs.append({"x": row.x, "y": row.y, "altname": name})
+                recs.append({"x": row.x, "y": row.y, "altname": name,
+                             "kind": "single"})
         if base_used:
             recs.append({
                 "x": float(group.iloc[0]["cluster.x"]),
                 "y": float(group.iloc[0]["cluster.y"]),
                 "altname": base,
+                "kind": "base",
             })
     return pd.DataFrame(recs).dropna(subset=["altname"])
 
@@ -289,10 +295,15 @@ def _tooltips(res: pd.DataFrame, resource_cols: list[str], ref: RefData,
     return pd.Series(tips, index=res.index)
 
 
-def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
-              guid: str) -> tuple[str, int, int]:
-    """Returns (widget src, iframe width px, iframe height px) — the page
-    size depends on how far DLC content widens the axis ranges."""
+def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
+    """All map content as plain records in reference-pixel space.
+
+    Reference-px space: x right, y DOWN, one unit = one px at the R-tuned
+    1536x864 density (map x = galaxy x, map y = galaxy z, so the R ranges
+    still anchor the scale). The data->px transform is anisotropic (~3.4%),
+    so it is applied here on the Python side; in px space hexes are regular
+    polygons at the R-tuned px sizes and zoom is a uniform scale.
+    """
     plot_sectors = _layout_sectors(frames, ref, cfg)
     plot_clusters = ref.clusters[
         ref.clusters["macro"].isin(plot_sectors["cluster.macro"])
@@ -311,30 +322,119 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                                         cfg.overlay_hours)
     labels = _labels(plot_sectors, ref)
 
-    # marker sizing for a 1536x864 map (R makeMap defaults)
-    big, small, border = 62, 25, 3
-    contested_big, contested_small = 44, 20
-    opacity = 0.6
+    # R's fixed 5.10 ranges, widened if DLC content falls outside them.
+    # The scene is the px-space image of the widened ranges, so without
+    # widening it is exactly 1536x864 (the density the px sizes below are
+    # tuned for).
+    xr = (min(X_RANGE[0], plot_sectors["x"].min() - X_DIV / 2),
+          max(X_RANGE[1], plot_sectors["x"].max() + X_DIV / 2))
+    yr = (min(Y_RANGE[0], plot_sectors["y"].min() - Y_DIV / 2),
+          max(Y_RANGE[1], plot_sectors["y"].max() + Y_DIV / 2))
+
+    def px(x: float, y: float) -> tuple[float, float]:
+        return round((x - xr[0]) / _UPX, 2), round((yr[1] - y) / _UPY, 2)
+
+    sectors: list[dict] = []
+    index: dict[str, int] = {}
+    for _, r in plot_sectors.iterrows():
+        x, y = px(r["x"], r["y"])
+        index[r["macro"]] = len(sectors)
+        sectors.append({
+            "macro": r["macro"], "name": str(r["name"]),
+            "owner": str(r["ownername"]), "colour": str(r["colour"]),
+            "big": bool(r["sizecat"] == "b"),
+            "contested": int(r["contested"]),
+            "tip": str(r["tooltip"]), "x": x, "y": y,
+        })
+
+    clusters = []
+    for _, r in plot_clusters.iterrows():
+        x, y = px(float(r["x"]), float(r["y"]))
+        clusters.append({"macro": r["macro"], "x": x, "y": y})
+
+    # gate/accelerator segments between plotted sectors only, so spoiler
+    # mode drops links touching hidden sectors
+    gates = []
+    for r in ref.gates.itertuples(index=False):
+        if r.sector_a in index and r.sector_b in index:
+            a, b = sectors[index[r.sector_a]], sectors[index[r.sector_b]]
+            gates.append([a["x"], a["y"], b["x"], b["y"]])
+
+    label_recs = []
+    for _, r in labels.iterrows():
+        x, y = px(float(r["x"]), float(r["y"]))
+        label_recs.append({"x": x, "y": y, "kind": r["kind"],
+                           "lines": _WRAP.sub("\n", str(r["altname"]))
+                           .split("\n")})
+
+    cbig, csmall = 44, 20
+
+    def overlay_recs(overlay: pd.DataFrame, count_name: str) -> list[dict]:
+        recs = []
+        for _, r in overlay.iterrows():
+            size = int(1 + round(r["scale"] * ((cbig if r["sizecat"] == "b"
+                                                else csmall) - 1)))
+            recs.append({"i": index[r["macro"]],
+                         "count": int(r[count_name]), "size": size})
+        return recs
+
+    resources = []
+    if frames.resource_cols:
+        res_raw = plot_sectors.merge(
+            frames.sectors[["macro"] + frames.resource_cols],
+            on="macro", how="left")
+        for col in frames.resource_cols:
+            resources.append({
+                "id": col, "name": ref.ware_name.get(col, col),
+                "yields": [float(v) for v in res_raw[col].fillna(0.0)],
+            })
+
+    factions = []
+    for owner in sorted({s["owner"] for s in sectors}, key=str):
+        colour = next(s["colour"] for s in sectors if s["owner"] == owner)
+        factions.append({"name": owner, "colour": colour})
+
+    return {
+        "scene": {"w": round((xr[1] - xr[0]) / _UPX, 2),
+                  "h": round((yr[1] - yr[0]) / _UPY, 2),
+                  "pad": 12, "legend_w": 220},
+        # marker sizing for the 1536x864 reference density (R makeMap
+        # defaults); res_max/res_min bound the resource overlay hex sizes
+        "const": {"big": 62, "small": 25, "border": 3,
+                  "cbig": cbig, "csmall": csmall,
+                  "res_max": 56, "res_min": 4, "opacity": 0.6,
+                  "hours": cfg.overlay_hours},
+        "sectors": sectors, "clusters": clusters, "gates": gates,
+        "labels": label_recs, "police": overlay_recs(police, "interdictions"),
+        "pirates": overlay_recs(pirates, "harassments"),
+        "resources": resources, "factions": factions,
+    }
+
+
+def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
+              guid: str) -> tuple[str, int, int]:
+    """Returns (widget src, iframe width px, iframe height px) — the page
+    size depends on how far DLC content widens the axis ranges."""
+    p = _payload(frames, ref, cfg)
+    c = p["const"]
+    sectors = p["sectors"]
+    big, small, border = c["big"], c["small"], c["border"]
+    opacity = c["opacity"]
     hexsym = "hexagon2-open"
 
-    def sizes(df, b, s):
-        return [b if c == "b" else s for c in df["sizecat"]]
+    def sizes(recs, b, s):
+        return [b if r["big"] else s for r in recs]
 
     fig = go.Figure()
 
-    # gate/accelerator connections (gates.csv): lines between the display
-    # positions of linked sectors, drawn first so they sit underneath all
-    # markers. Default off; spoiler mode drops links touching hidden
-    # sectors because pos only holds plotted ones.
-    pos = dict(zip(plot_sectors["macro"],
-                   zip(plot_sectors["x"], plot_sectors["y"])))
-    gx: list[float | None] = []
-    gy: list[float | None] = []
-    for r in ref.gates.itertuples(index=False):
-        if r.sector_a in pos and r.sector_b in pos:
-            gx += [pos[r.sector_a][0], pos[r.sector_b][0], None]
-            gy += [pos[r.sector_a][1], pos[r.sector_b][1], None]
-    if gx:
+    # gate/accelerator connections, drawn first so they sit underneath all
+    # markers. Default off.
+    if p["gates"]:
+        gx: list[float | None] = []
+        gy: list[float | None] = []
+        for xa, ya, xb, yb in p["gates"]:
+            gx += [xa, xb, None]
+            gy += [ya, yb, None]
         fig.add_scatter(
             x=gx, y=gy, mode="lines", name="Gates & Accelerators",
             hoverinfo="skip", legendgroup="Base Map", legendrank=1001,
@@ -346,88 +446,81 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     # hexes render underneath the base-map linework. The inline JS below
     # single-selects them from the legend and renormalizes against the max
     # over visible factions only (meta carries the raw yields for that).
-    res_max_px, res_min_px = 56, 4
-    if frames.resource_cols:
-        res_raw = plot_sectors.merge(
-            frames.sectors[["macro"] + frames.resource_cols],
-            on="macro", how="left")
-        for i, col in enumerate(frames.resource_cols):
-            vals = res_raw[col].fillna(0.0)
-            maxv = float(vals.max())
-            fig.add_scatter(
-                x=res_raw["x"], y=res_raw["y"], mode="markers",
-                name=ref.ware_name.get(col, col),
-                legendgroup="Resources", legendrank=1002,
-                legendgrouptitle={"text": "Resources",
-                                  "font": {"color": "#b0b0b0"}}
-                if i == 0 else None,
-                visible="legendonly", hoverinfo="text",
-                hovertext=res_raw["tooltip"],
-                marker={"symbol": "hexagon2", "opacity": 0.85,
-                        "line": {"width": 1},
-                        "size": [0.0 if v <= 0 or maxv <= 0 else
-                                 max(res_min_px, v / maxv * res_max_px)
-                                 for v in vals]},
-                meta={"kind": "resource",
-                      "raw": [float(v) for v in vals],
-                      "faction": [str(o) for o in res_raw["ownername"]]})
+    sx = [s["x"] for s in sectors]
+    sy = [s["y"] for s in sectors]
+    tips = [s["tip"] for s in sectors]
+    for i, r in enumerate(p["resources"]):
+        maxv = max(r["yields"], default=0.0)
+        fig.add_scatter(
+            x=sx, y=sy, mode="markers", name=r["name"],
+            legendgroup="Resources", legendrank=1002,
+            legendgrouptitle={"text": "Resources",
+                              "font": {"color": "#b0b0b0"}}
+            if i == 0 else None,
+            visible="legendonly", hoverinfo="text", hovertext=tips,
+            marker={"symbol": "hexagon2", "opacity": 0.85,
+                    "line": {"width": 1},
+                    "size": [0.0 if v <= 0 or maxv <= 0 else
+                             max(c["res_min"], v / maxv * c["res_max"])
+                             for v in r["yields"]]},
+            meta={"kind": "resource", "raw": r["yields"],
+                  "faction": [s["owner"] for s in sectors]})
 
     fig.add_scatter(
-        x=plot_clusters["x"], y=plot_clusters["y"], mode="markers",
+        x=[cl["x"] for cl in p["clusters"]],
+        y=[cl["y"] for cl in p["clusters"]], mode="markers",
         name="Cluster Outlines", hoverinfo="skip", legendgroup="Base Map",
         legendgrouptitle={"text": "Base Map", "font": {"color": "#b0b0b0"}},
         marker={"color": "#B0B0B0", "opacity": opacity, "size": big + border,
                 "symbol": hexsym, "line": {"width": 2}})
     fig.add_scatter(
-        x=plot_sectors["x"], y=plot_sectors["y"], mode="markers",
+        x=sx, y=sy, mode="markers",
         name="Sector Outlines", hoverinfo="skip", legendgroup="Base Map",
         marker={"color": "#F0F0F0", "opacity": opacity,
-                "size": sizes(plot_sectors, big + border, small + border),
+                "size": sizes(sectors, big + border, small + border),
                 "symbol": hexsym, "line": {"width": 2}})
 
-    contested = plot_sectors[plot_sectors["contested"] == 1]
+    contested = [s for s in sectors if s["contested"] == 1]
     fig.add_scatter(
-        x=contested["x"], y=contested["y"], mode="markers",
+        x=[s["x"] for s in contested], y=[s["y"] for s in contested],
+        mode="markers",
         name="Contested Sectors", hoverinfo="skip", legendgroup="Overlays",
         legendgrouptitle={"text": "Overlays", "font": {"color": "#b0b0b0"}},
         visible="legendonly", legendrank=1001,
         marker={"color": "#EEEE33", "opacity": opacity,
-                "size": sizes(contested, contested_big, contested_small),
+                "size": sizes(contested, c["cbig"], c["csmall"]),
                 "symbol": "diamond-x",
                 "line": {"color": "#ffffff", "width": 1}})
     for overlay, name, colour, symbol in (
-        (police, f"Police Interdictions ({cfg.overlay_hours:.0f}h)",
+        (p["police"], f"Police Interdictions ({c['hours']:.0f}h)",
          "#3333EE", "star"),
-        (pirates, f"Pirate Harassments ({cfg.overlay_hours:.0f}h)",
+        (p["pirates"], f"Pirate Harassments ({c['hours']:.0f}h)",
          "#EE3333", "star-triangle-down"),
     ):
-        if overlay.empty:
+        if not overlay:
             continue
-        size = [int(1 + round(sc * ((contested_big if c == "b"
-                                     else contested_small) - 1)))
-                for sc, c in zip(overlay["scale"], overlay["sizecat"])]
         fig.add_scatter(
-            x=overlay["x"], y=overlay["y"], mode="markers", name=name,
+            x=[sectors[r["i"]]["x"] for r in overlay],
+            y=[sectors[r["i"]]["y"] for r in overlay],
+            mode="markers", name=name,
             hoverinfo="skip", legendgroup="Overlays", visible="legendonly",
             legendrank=1001,
-            marker={"color": colour, "opacity": opacity, "size": size,
-                    "symbol": symbol,
+            marker={"color": colour, "opacity": opacity,
+                    "size": [r["size"] for r in overlay], "symbol": symbol,
                     "line": {"color": "#ffffff", "width": 1}})
 
-    owner_order = (plot_sectors.groupby("owner")["ownername"].first()
-                   .sort_values().index)
-    for owner in owner_order:
-        sub = plot_sectors[plot_sectors["owner"] == owner]
+    for f in p["factions"]:
+        sub = [s for s in sectors if s["owner"] == f["name"]]
         fig.add_scatter(
-            x=sub["x"], y=sub["y"], mode="markers",
-            name=str(sub["ownername"].iloc[0]), hoverinfo="text",
-            hovertext=sub["tooltip"], legendgroup="Factions", legendrank=999,
+            x=[s["x"] for s in sub], y=[s["y"] for s in sub], mode="markers",
+            name=f["name"], hoverinfo="text",
+            hovertext=[s["tip"] for s in sub],
+            legendgroup="Factions", legendrank=999,
             legendgrouptitle={"text": "Factions", "font": {"color": "#b0b0b0"}},
-            marker={"color": sub["colour"].iloc[0], "opacity": opacity,
+            marker={"color": f["colour"], "opacity": opacity,
                     "size": sizes(sub, big, small), "symbol": hexsym,
                     "line": {"width": border}},
-            meta={"kind": "faction",
-                  "faction": str(sub["ownername"].iloc[0])})
+            meta={"kind": "faction", "faction": f["name"]})
 
     # legend-only show-all / hide-all buttons for the faction group, handled
     # by the inline JS. They need one real (invisible) data point so plotly
@@ -441,29 +534,21 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             meta={"kind": "faction-control", "action": action})
 
     fig.add_scatter(
-        x=labels["x"], y=labels["y"], mode="text", name="Sector Names",
+        x=[lb["x"] for lb in p["labels"]], y=[lb["y"] for lb in p["labels"]],
+        mode="text", name="Sector Names",
         hoverinfo="skip", legendgroup="Base Map",
-        text=["<b>" + _WRAP.sub("<br>", str(n)) + "</b>"
-              for n in labels["altname"]],
+        text=["<b>" + "<br>".join(lb["lines"]) + "</b>"
+              for lb in p["labels"]],
         textfont={"size": 8, "color": "rgba(240,240,96,0.63)"})
 
-    # R's fixed 5.10 ranges, widened if DLC content falls outside them
-    xr = (min(X_RANGE[0], plot_sectors["x"].min() - X_DIV / 2),
-          max(X_RANGE[1], plot_sectors["x"].max() + X_DIV / 2))
-    yr = (min(Y_RANGE[0], plot_sectors["y"].min() - Y_DIV / 2),
-          max(Y_RANGE[1], plot_sectors["y"].max() + Y_DIV / 2))
-    # the marker px sizes above are R's, tuned for the fixed ranges on a
-    # 1536x864 plot area. When the ranges widen, grow the plot area to keep
-    # that px-per-unit density — otherwise the fixed-px hexes outgrow the
-    # compressed grid and vertically adjacent clusters overlap (~8px on a
-    # full-DLC galaxy). Without widening this is exactly 1536x864.
-    plot_w = round((xr[1] - xr[0]) * 1536 / (X_RANGE[1] - X_RANGE[0]))
-    plot_h = round((yr[1] - yr[0]) * 864 / (Y_RANGE[1] - Y_RANGE[0]))
+    # px space renders 1:1 (one data unit = one px); the y axis range is
+    # reversed because px space is y-down
+    plot_w, plot_h = round(p["scene"]["w"]), round(p["scene"]["h"])
     # the legend lives in a dedicated right-hand strip (outside the plot
     # area) so it never overlaps sectors; edge-row hexes overhang the axis
     # range by a few px, so markers draw unclipped into a small top/bottom
     # margin instead of being cut off.
-    legend_w, edge_pad = 220, 12
+    legend_w, edge_pad = p["scene"]["legend_w"], p["scene"]["pad"]
     fig.update_traces(cliponaxis=False)
     fig.update_layout(
         width=plot_w + legend_w, height=plot_h + 2 * edge_pad, autosize=False,
@@ -475,11 +560,13 @@ def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                 "traceorder": "grouped",
                 "font": {"size": 13, "color": "#b0b0b0"},
                 "bgcolor": "rgba(30,30,30,0)"},
-        xaxis={"range": xr, "fixedrange": True, "visible": False},
-        yaxis={"range": yr, "fixedrange": True, "visible": False},
+        xaxis={"range": (0, p["scene"]["w"]), "fixedrange": True,
+               "visible": False},
+        yaxis={"range": (p["scene"]["h"], 0), "fixedrange": True,
+               "visible": False},
     )
     src = save_widget(fig, files_dir, "Sector map", guid,
                       extra_html=_LEGEND_JS
-                      .replace("__MAX_PX__", str(res_max_px))
-                      .replace("__MIN_PX__", str(res_min_px)))
+                      .replace("__MAX_PX__", str(c["res_max"]))
+                      .replace("__MIN_PX__", str(c["res_min"])))
     return src, plot_w + legend_w, plot_h + 2 * edge_pad
