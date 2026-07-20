@@ -139,7 +139,8 @@
   // under labels; transparent hover targets on top) ---
   var layers = {};
   ["gates", "resources", "clusters", "sectors", "contested",
-   "police", "pirates", "factions", "highlight", "labels", "hover"]
+   "police", "pirates", "player", "factions", "highlight", "labels",
+   "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
 
   D.gates.forEach(function (g) {
@@ -210,6 +211,28 @@
                   stroke: "#ffffff", "stroke-width": 1,
                   "stroke-opacity": C.opacity}, layers[row[0]]);
     });
+  });
+
+  // player assets overlay: sectors holding player stations get a dashed
+  // hex ring in the player colour plus a station-count badge
+  var playerColour = (D.factions.filter(function (f) {
+    return f.name === "Player";
+  })[0] || {}).colour || "#00E060";
+  D.sectors.forEach(function (s) {
+    var n = (D.stations[s.macro] || []).filter(function (st) {
+      return st.owner === "Player";
+    }).length;
+    if (!n) return;
+    var sz = s.big ? C.big : C.small;
+    el("polygon", {points: hexPoints(s.x, s.y, sz + 8), fill: "none",
+                   stroke: playerColour, "stroke-width": 2,
+                   "stroke-dasharray": "5,3"}, layers.player);
+    var bx = s.x + sz * 0.38, by = s.y - sz * 0.38;
+    el("circle", {cx: bx, cy: by, r: 8, fill: "#1e1e1e",
+                  stroke: playerColour, "stroke-width": 1.5}, layers.player);
+    var t = el("text", {x: bx, y: by, dy: "0.35em", "class": "pbadge",
+                        "text-anchor": "middle"}, layers.player);
+    t.textContent = n;
   });
 
   // resource overlay: one hidden group per resource; hex sizes are set by
@@ -303,7 +326,8 @@
   // --- legend state + panel ---
   var state = {
     layers: {gates: false, clusters: true, sectors: true, labels: true,
-             contested: false, police: false, pirates: false},
+             contested: false, police: false, pirates: false,
+             player: false},
     factions: {},
     resource: null,   // id of the single-selected resource overlay
   };
@@ -312,7 +336,7 @@
   var layerG = {gates: layers.gates, clusters: layers.clusters,
                 sectors: layers.sectors, labels: layers.labels,
                 contested: layers.contested, police: layers.police,
-                pirates: layers.pirates};
+                pirates: layers.pirates, player: layers.player};
 
   function applyLayer(name) {
     layerG[name].style.display = state.layers[name] ? "" : "none";
@@ -418,6 +442,11 @@
   if (D.pirates.length)
     overlayRows.push(["pirates", "Pirate Harassments" + hoursTxt,
                       pathSwatch(starTriDownPath, "#EE3333", 9)]);
+  if (layers.player.childNodes.length)
+    overlayRows.push(["player", "Player Assets",
+      "<svg width='18' height='14' viewBox='-9 -7 18 14'><polygon points='" +
+      hexPoints(0, 0, 12) + "' fill='none' stroke='" + playerColour +
+      "' stroke-width='1.5' stroke-dasharray='3,2'/></svg>"]);
   overlayRows.forEach(function (row) {
     litem(gOver, row[1], row[2],
       function () { return state.layers[row[0]]; },

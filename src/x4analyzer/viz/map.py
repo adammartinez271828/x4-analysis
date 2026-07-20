@@ -64,6 +64,7 @@ cursor:grab;}
 #ly-labels.zoomed-out .k-suffix{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
 #ly-highlight *{pointer-events:none;}
+.pbadge{font-size:9px;font-weight:bold;fill:#e8e8e8;}
 .glhl-line{stroke:rgba(150,200,255,0.85);stroke-width:2.5;}
 .glhl-hex{fill:none;stroke:rgba(150,200,255,0.7);stroke-width:2.5;}
 #x4home{position:fixed;bottom:34px;right:10px;z-index:20;cursor:pointer;
