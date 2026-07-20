@@ -55,6 +55,16 @@ def main(argv: list[str] | None = None) -> int:
     p_gd.add_argument("--output-dir", type=Path, help="dashboard output directory")
     _add_common_args(p_gd)
 
+    p_fi = sub.add_parser(
+        "find",
+        help="locate objects in a savegame (default: the Erlking data vaults)",
+    )
+    p_fi.add_argument("--save", type=Path, help="savegame file (default: most recent)")
+    p_fi.add_argument("--x4-user-dir", type=Path, help="X4 user dir with <id>/save/")
+    p_fi.add_argument("--macro", help="macro regex to search for "
+                                      "(default: landmarks_erlking_vault_*)")
+    _add_common_args(p_fi)
+
     # default to `analyze` when no subcommand given
     if argv is None:
         argv = sys.argv[1:]
@@ -81,6 +91,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_dir:
             cfg.output_dir = args.output_dir
         return build_gamedata_dashboard(cfg)
+
+    if args.command == "find":
+        from .save.find import run_find
+
+        if args.save:
+            cfg.savegame_override = args.save
+        if args.x4_user_dir:
+            cfg.x4_user_dir = args.x4_user_dir
+        return run_find(cfg, args.macro)
 
     if args.save:
         cfg.savegame_override = args.save
