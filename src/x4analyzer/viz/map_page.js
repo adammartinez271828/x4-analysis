@@ -104,9 +104,12 @@
     var sPx = svg.getBoundingClientRect().width / view.w || 1;
     layers.labels.style.fontSize =
       Math.min(13 / sPx, Math.max(8, 7.5 / sPx)).toFixed(2) + "px";
-    layers.labels.classList.toggle("zoomed-out", sPx < 1.6);
+    // the zoom-state class lives on the svg root: labels AND the
+    // facility overlay modes key off it
+    svg.classList.toggle("zoomed-out", sPx < 1.6);
     // stroke weights stop growing beyond 1.3x their base screen weight
     svg.style.setProperty("--sw", Math.min(1, 1.3 / sPx).toFixed(3));
+    applyFacTransforms(sPx);
     saveState();
   }
 
@@ -145,6 +148,47 @@
    "police", "pirates", "player", "factions", "highlight", "labels",
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
+  // facilities sit above the hover layer so their icons can take
+  // pointer events for their own tooltips (zoomed-in only, via CSS)
+  layers.facilities = el("g", {id: "ly-facilities"}, svg);
+  layers.facClusters = el("g", {id: "fac-clusters"}, layers.facilities);
+  layers.facStations = el("g", {id: "fac-stations"}, layers.facilities);
+
+  // facility icon glyphs, drawn in a ~10x10 box around the origin with a
+  // dark backing disc so they read on any hex colour
+  var defs = el("defs", {}, svg);
+  function iconDef(id, draw) {
+    var g = el("g", {id: "ic-" + id}, defs);
+    el("circle", {r: 5, fill: "rgba(12,12,12,0.88)",
+                  stroke: "#666", "stroke-width": 0.5}, g);
+    draw(g);
+  }
+  iconDef("shipyard", function (g) {   // large ship silhouette
+    el("path", {d: "M0,-3.2 L3.4,2.6 L0,1.2 L-3.4,2.6 Z",
+                fill: "#6FA8FF"}, g);
+  });
+  iconDef("wharf", function (g) {      // small ship silhouette
+    el("path", {d: "M0,-2.3 L2.4,1.9 L0,0.9 L-2.4,1.9 Z",
+                fill: "#7FDCA8"}, g);
+  });
+  iconDef("equipdock", function (g) {  // hex nut
+    el("polygon", {points: hexPoints(0, 0, 6.4), fill: "#C9A0FF"}, g);
+    el("circle", {r: 1.3, fill: "#0c0c0c"}, g);
+  });
+  iconDef("trading", function (g) {    // stacked crates
+    el("rect", {x: -2.7, y: 0.1, width: 2.4, height: 2.4,
+                fill: "#FFC04D"}, g);
+    el("rect", {x: 0.3, y: 0.1, width: 2.4, height: 2.4,
+                fill: "#FFC04D"}, g);
+    el("rect", {x: -1.2, y: -2.6, width: 2.4, height: 2.4,
+                fill: "#FFC04D"}, g);
+  });
+  iconDef("hq", function (g) {         // flag
+    el("line", {x1: -1.8, y1: -3.2, x2: -1.8, y2: 3.2,
+                stroke: "#ddd", "stroke-width": 0.7}, g);
+    el("path", {d: "M-1.4,-3.2 L3.2,-1.9 L-1.4,-0.6 Z",
+                fill: "#FF5C5C"}, g);
+  });
 
   // gate records: [ia, ib, x1, y1, x2, y2] — the endpoints sit at the
   // gates' approximate in-sector positions, so lines attach there and
@@ -351,11 +395,82 @@
     });
   });
 
+  // --- facility overlays: per-cluster icon rows while zoomed out,
+  // per-station icons at their in-hex positions once zoomed in (mode
+  // switching is pure CSS off the svg's zoomed-out class) ---
+  var FAC_KINDS = [["hq", "Faction HQs"], ["shipyard", "Shipyards"],
+                   ["wharf", "Wharfs"], ["equipdock", "Equipment Docks"],
+                   ["trading", "Trading Stations"]];
+  var clusterPos = {};
+  D.clusters.forEach(function (c) { clusterPos[c.macro] = c; });
+
+  var facRows = [];   // {el, x, y} zoomed-out cluster rows
+  function buildClusterRows() {
+    layers.facClusters.textContent = "";
+    facRows = [];
+    Object.keys(D.facilities).forEach(function (cl) {
+      var c = clusterPos[cl];
+      var kinds = D.facilities[cl].filter(function (k) {
+        return state.layers["fac_" + k];
+      });
+      if (!c || !kinds.length) return;
+      var g = el("g", {}, layers.facClusters);
+      kinds.forEach(function (k, j) {
+        el("use", {href: "#ic-" + k, "class": "fk-" + k,
+                   x: (j - (kinds.length - 1) / 2) * 11, y: 0}, g);
+      });
+      // just inside the cluster hex's bottom edge
+      facRows.push({el: g, x: c.x, y: c.y + (C.big + C.border) * R3_4 - 6});
+    });
+    applyFacTransforms(svg.getBoundingClientRect().width / view.w || 1);
+  }
+
+  var facSt = [];     // {el, x, y} zoomed-in per-station icons
+  Object.keys(D.stations).forEach(function (m) {
+    D.stations[m].forEach(function (stn) {
+      if (!stn.fac && !stn.hq) return;
+      var g = el("g", {}, layers.facStations);
+      if (stn.fac)
+        el("use", {href: "#ic-" + stn.fac, "class": "fk-" + stn.fac}, g);
+      if (stn.hq)
+        el("use", {href: "#ic-hq", "class": "fk-hq",
+                   x: stn.fac ? 7 : 0, y: stn.fac ? -6 : 0}, g);
+      g.addEventListener("mouseenter", function (ev) {
+        tip.innerHTML = "<b>" + esc(stn.name || stn.type || "Station") +
+          (stn.code ? " (" + esc(stn.code) + ")" : "") + "</b><br>" +
+          esc(stn.owner) + (stn.type ? " &middot; " + esc(stn.type) : "") +
+          (stn.hq ? "<br>Faction headquarters" : "");
+        tip.style.display = "block";
+        moveTip(ev);
+      });
+      g.addEventListener("mousemove", moveTip);
+      g.addEventListener("mouseleave", hideTip);
+      facSt.push({el: g, x: stn.x, y: stn.y});
+    });
+  });
+
+  // icons counter-scale with zoom: cluster rows grow to a ~13 screen px
+  // cap while zoomed out; station icons hold ~16 screen px zoomed in
+  function applyFacTransforms(sPx) {
+    var kLow = Math.min(0.9, 1.3 / sPx).toFixed(3);
+    facRows.forEach(function (r) {
+      r.el.setAttribute("transform",
+        "translate(" + r.x + "," + r.y + ") scale(" + kLow + ")");
+    });
+    var kHi = Math.min(0.8, 1.6 / sPx).toFixed(3);
+    facSt.forEach(function (r) {
+      r.el.setAttribute("transform",
+        "translate(" + r.x + "," + r.y + ") scale(" + kHi + ")");
+    });
+  }
+
   // --- legend state + panel ---
   var state = {
     layers: {gates: false, clusters: true, labels: true,
              contested: false, police: false, pirates: false,
-             player: false},
+             player: false,
+             fac_hq: true, fac_shipyard: true, fac_wharf: true,
+             fac_equipdock: true, fac_trading: true},
     factions: {},
     resource: null,   // id of the single-selected resource overlay
   };
@@ -514,6 +629,25 @@
       });
   });
 
+  function applyFacKind(k) {
+    layers.facilities.classList.toggle("off-" + k,
+                                       !state.layers["fac_" + k]);
+    buildClusterRows();
+    saveState();
+  }
+  var gFacil = lgroup("Facilities");
+  FAC_KINDS.forEach(function (row) {
+    var k = row[0];
+    litem(gFacil, row[1],
+      "<svg width='18' height='14' viewBox='-6.5 -6.5 13 13'>" +
+      "<use href='#ic-" + k + "'/></svg>",
+      function () { return state.layers["fac_" + k]; },
+      function () {
+        state.layers["fac_" + k] = !state.layers["fac_" + k];
+        applyFacKind(k);
+      });
+  });
+
   // resources are single-select: showing one hides the others; clicking
   // the shown one again clears the overlay (same semantics as before)
   function selectResource(id) {
@@ -541,6 +675,11 @@
 
   Object.keys(layerG).forEach(applyLayer);
   D.factions.forEach(function (f) { applyFaction(f.name); });
+  FAC_KINDS.forEach(function (row) {
+    layers.facilities.classList.toggle("off-" + row[0],
+                                       !state.layers["fac_" + row[0]]);
+  });
+  buildClusterRows();
 
   // --- pan/zoom input wiring ---
   svg.addEventListener("wheel", function (ev) {
@@ -723,6 +862,8 @@
           (st.code ? " <small>(" + esc(st.code) + ")</small>" : "");
         if (st.name && st.type)
           h += "<br><small>" + esc(st.type) + "</small>";
+        if (st.hq)
+          h += "<br><small>&#x2691; Faction headquarters</small>";
         h += "</div>";
       });
     } else {

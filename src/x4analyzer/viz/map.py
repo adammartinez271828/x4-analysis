@@ -123,9 +123,18 @@ stroke-width:calc(1px*var(--sw));}
 #ly-player polygon{stroke-width:calc(2px*var(--sw));}
 .pulse{stroke-width:calc(4px*var(--sw));}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
-#ly-labels.zoomed-out .k-suffix{display:none;}
-#ly-labels.zoomed-out .k-basein{display:none;}
-#ly-labels:not(.zoomed-out) .k-base{display:none;}
+#map.zoomed-out .k-suffix{display:none;}
+#map.zoomed-out .k-basein{display:none;}
+#map:not(.zoomed-out) .k-base{display:none;}
+#ly-facilities{pointer-events:none;}
+#map.zoomed-out #fac-stations{display:none;}
+#map:not(.zoomed-out) #fac-clusters{display:none;}
+#map:not(.zoomed-out) #fac-stations g{pointer-events:auto;}
+#ly-facilities.off-hq .fk-hq{display:none;}
+#ly-facilities.off-shipyard .fk-shipyard{display:none;}
+#ly-facilities.off-wharf .fk-wharf{display:none;}
+#ly-facilities.off-equipdock .fk-equipdock{display:none;}
+#ly-facilities.off-trading .fk-trading{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
