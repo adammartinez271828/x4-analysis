@@ -70,6 +70,16 @@ _LEFT_HANDED = {
     "cluster_606_macro",   # Kingdom End
 }
 
+# clusters whose sectors the in-game map orders opposite to their
+# in-cluster offsets (also audited in-game). Both are mostly-horizontal
+# pairs where the z difference deciding "top" is a few Mm of noise; the
+# game puts the data's "lower" sector on the top slot. Applied as a
+# reversal of the offset-sorted sector order before slot assignment.
+_SWAP_ORDER = {
+    "cluster_15_macro",    # Ianamus Zura (VII top, IV bottom)
+    "cluster_19_macro",    # Hewa's Twin (II top, I bottom)
+}
+
 
 # The map page: a self-contained SVG renderer (no plotly, no lib/ assets).
 # The client script lives in map_page.js next to this module and is inlined
@@ -194,6 +204,8 @@ def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
             _ox=group["macro"].map(offsets["x"]).fillna(0.0),
             _oz=group["macro"].map(offsets["z"]).fillna(0.0),
         ).sort_values(["_oz", "_ox"], ascending=[False, True])
+        if cluster_macro in _SWAP_ORDER:
+            group = group.iloc[::-1]
         n = len(group)
         slots = _SLOTS.get(n) if multi else _SLOTS[1]
         if slots is None:  # 7+ sectors: ring layout

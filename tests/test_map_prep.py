@@ -137,6 +137,13 @@ def test_layout_handedness():
     out = _layout_sectors(f, r, _cfg())
     assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
 
+    # clusters in _SWAP_ORDER assign their sectors to slots in reversed
+    # offset order (Hewa's Twin, Ianamus Zura): the data's "top" sector
+    # takes the bottom slot
+    f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0, cluster="cluster_19_macro")
+    out = _layout_sectors(f, r, _cfg())
+    assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
+
 
 def test_labels_kinds():
     plot = _layout_sectors(_frames(), _ref(), _cfg())
