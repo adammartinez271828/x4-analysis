@@ -168,6 +168,25 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
             name, descr = names.get(macro, (macro, ""))
             clusters[macro] = [macro, x, y, z, name, descr, source]
 
+    # per-sector sunlight multiplier from mapdefaults.xml (dataset
+    # properties/area sunlight=...; base game first, DLC datasets later —
+    # they only add their own sectors but let them win on overlap)
+    sunlight: dict[str, float] = {}
+    md_paths = sorted(gf.glob(r"(extensions/[^/]+/)?libraries/mapdefaults\.xml$"),
+                      key=lambda p: p.startswith("extensions"))
+    for path in md_paths:
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for ds in root.iter("dataset"):
+            macro = (ds.get("macro") or "").lower()
+            area = ds.find("properties/area")
+            if macro and area is not None and area.get("sunlight"):
+                try:
+                    sunlight[macro] = float(area.get("sunlight"))
+                except ValueError:
+                    pass
+
     # sector membership + in-cluster offsets: clusters.xml variants
     sectors: dict[str, list] = {}
     cluster_files = [
@@ -194,7 +213,9 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 y = float(pos.get("y", 0)) if pos is not None else 0.0
                 z = float(pos.get("z", 0)) if pos is not None else 0.0
                 name, _descr = names.get(smacro, (smacro, ""))
-                sectors[smacro] = [cluster_macro, smacro, x, y, z, name, source]
+                sun = sunlight.get(smacro, sunlight.get(cluster_macro, 1.0))
+                sectors[smacro] = [cluster_macro, smacro, x, y, z, name, sun,
+                                   source]
 
     return list(clusters.values()), list(sectors.values())
 
@@ -561,7 +582,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     )
     _write_csv(
         cfg.data_dir / "sectors.csv",
-        ["cluster", "macro", "x", "y", "z", "name", "source"],
+        ["cluster", "macro", "x", "y", "z", "name", "sunlight", "source"],
         sector_rows,
     )
 
