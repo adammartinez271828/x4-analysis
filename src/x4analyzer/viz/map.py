@@ -88,14 +88,10 @@ _CLUSTER_NAMES = {
 }
 
 # zoomed-in cluster-name placement overrides of the encroachment
-# geometry (user preference): these render ABOVE the hex despite a
-# neighbour above / BELOW despite a free top strip
-_NAME_ABOVE = {
-    "cluster_104_macro",   # Earth (Mercury above)
-    "cluster_108_macro",   # Saturn (Jupiter above)
-}
+# geometry (user preference): render BELOW despite a free top strip
 _NAME_BELOW = {
-    "cluster_19_macro",    # Hewa's Twin I/II
+    "cluster_19_macro",    # Hewa's Twin I/II (pairs with III/IV's label)
+    "cluster_50_macro",    # Turquoise Sea (matches Scale Plate Green)
 }
 
 
@@ -466,9 +462,12 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                            .split("\n")})
 
     # zoomed-in cluster names float just above the cluster hex's top
-    # line; when another sector hex encroaches on that strip (a hex
-    # directly above, e.g. Scale Plate Green under Company Regard) the
-    # name flips below the bottom line instead
+    # line; when another sector hex sits DIRECTLY above (same grid
+    # column, e.g. Scale Plate Green under Company Regard) the name
+    # flips below the bottom line instead. The horizontal window is
+    # deliberately tight: diagonal neighbours sit half a grid column
+    # (~36px) off-centre and do not count (Mercury is top-LEFT of Earth,
+    # Jupiter top-RIGHT of Saturn).
     r3_4 = 3 ** 0.5 / 4
     c_half_h = 65 * r3_4
     for rec, (_, lr) in zip(label_recs, labels.iterrows()):
@@ -476,12 +475,11 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             continue
         strip_bot = rec["y"] - c_half_h
         strip_top = strip_bot - 14
-        rec["flip"] = lr["cluster"] in _NAME_BELOW or (
-            lr["cluster"] not in _NAME_ABOVE and any(
-                abs(s["x"] - rec["x"]) < (31 if s["big"] else 14.5) + 26
-                and s["y"] - (26.9 if s["big"] else 12.6) < strip_bot
-                and s["y"] + (26.9 if s["big"] else 12.6) > strip_top
-                for s in sectors))
+        rec["flip"] = lr["cluster"] in _NAME_BELOW or any(
+            abs(s["x"] - rec["x"]) < 20
+            and s["y"] - (26.9 if s["big"] else 12.6) < strip_bot
+            and s["y"] + (26.9 if s["big"] else 12.6) > strip_top
+            for s in sectors)
 
     cbig, csmall = 44, 20  # contested marker sizes
 
