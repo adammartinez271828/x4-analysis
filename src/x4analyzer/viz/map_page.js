@@ -282,15 +282,25 @@
   }
 
   D.labels.forEach(function (lb) {
-    var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x, y: lb.y,
+    // sector names hang from just under their hex's top edge (the text
+    // block grows downward); the cluster base name of multi-sector
+    // clusters stays centred — the sub-hexes occupy the cluster's top
+    // edge, so there is no free top line for it
+    var size = lb.kind === "single" ? C.big
+      : lb.kind === "suffix" ? C.small : 0;
+    var y = size ? lb.y - size * R3_4 + 1.5 : lb.y;
+    var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x, y: y,
                         "text-anchor": "middle"}, layers.labels);
     var k = lb.lines.length;
     lb.lines.forEach(function (line, j) {
-      // centre the line block on the point: baseline of line j sits at
-      // 0.35em (visual centre of one line) minus half the block height
       var ts = el("tspan", {
         x: lb.x,
-        dy: j === 0 ? (0.35 - (k - 1) * 0.55).toFixed(2) + "em" : "1.1em",
+        // top-anchored: first baseline one cap-height below the edge;
+        // centred (base labels): baseline of line j sits at 0.35em minus
+        // half the block height
+        dy: j > 0 ? "1.1em"
+          : size ? "0.95em"
+          : (0.35 - (k - 1) * 0.55).toFixed(2) + "em",
       }, t);
       ts.textContent = line;
     });
