@@ -478,7 +478,12 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     # so their facility icons can be faction-dimmed; Kha'ak stays out —
     # it has its own facility toggle and never dims
     extra_factions: dict[str, str] = {}
-    for _, r in st.sort_values(["fname", "name", "code"],
+    # sort by the DISPLAYED label: most NPC factories have an empty name
+    # in the save and render their type instead, so the name alone would
+    # collapse to a code sort
+    st["_disp"] = st["name"].replace("", pd.NA).fillna(st["stype"]) \
+        .fillna("")
+    for _, r in st.sort_values(["fname", "_disp", "code"],
                                key=lambda s: s.str.lower()).iterrows():
         if r["owner"] != "khaak":
             extra_factions.setdefault(
