@@ -248,18 +248,22 @@
   // renormalize() (yield normalized to the max over visible factions'
   // sectors — a direct port of the old plotly legend JS)
   var resourceG = {};   // resource id -> {g, polys, yields, colour}
-  D.resources.forEach(function (r, ri) {
+  var resColourIdx = 0;
+  D.resources.forEach(function (r) {
+    // sunlight gets a fixed sun-yellow; the save resources keep their
+    // established colorway positions
+    var colour = r.id === "sunlight" ? "#FFD24D"
+      : COLORWAY[(++resColourIdx) % COLORWAY.length];
     var g = el("g", {"data-resource": r.id}, layers.resources);
     g.style.display = "none";
     var polys = D.sectors.map(function (s) {
-      return el("polygon", {fill: resColour(ri), "fill-opacity": 0.85,
+      return el("polygon", {fill: colour, "fill-opacity": 0.85,
                             stroke: "#444444", "stroke-width": 1,
                             "stroke-opacity": 0.85}, g);
     });
     resourceG[r.id] = {g: g, polys: polys, yields: r.yields,
-                       colour: resColour(ri)};
+                       colour: colour};
   });
-  function resColour(ri) { return COLORWAY[(ri + 1) % COLORWAY.length]; }
 
   function renormalize() {
     if (!state.resource) return;
@@ -687,12 +691,12 @@
       h += "<div class='prow'>Pirate harassments (" +
         C.hours.toFixed(0) + "h): " + piratesByI[i] + "</div>";
 
-    var res = D.resources.filter(function (r) { return r.yields[i] > 0; });
     h += "<h4>Resources</h4>";
-    h += res.length
-      ? res.map(function (r) {
+    h += D.resources.length
+      ? D.resources.map(function (r) {
+          var v = Math.round(r.yields[i]);
           return "<div class='pstat'>" + esc(r.name) + " <small>" +
-            Math.round(r.yields[i]) + "</small></div>";
+            (r.id === "sunlight" ? v + "%" : v) + "</small></div>";
         }).join("")
       : "<div class='pstat'><small>None</small></div>";
 
@@ -706,14 +710,24 @@
 
     var sts = D.stations[s.macro] || [];
     h += "<h4>Stations (" + sts.length + ")</h4>";
-    h += sts.length
-      ? sts.map(function (st) {
-          return "<div class='pstat'>" + esc(st.name) +
-            (st.code ? " (" + esc(st.code) + ")" : "") + "<br><small>" +
-            esc(st.owner) + (st.type ? " &middot; " + esc(st.type) : "") +
-            "</small></div>";
-        }).join("")
-      : "<div class='pstat'><small>None known</small></div>";
+    if (sts.length) {
+      // grouped by owning faction (the payload is sorted by owner)
+      var lastOwner = null;
+      sts.forEach(function (st) {
+        if (st.owner !== lastOwner) {
+          h += "<div class='pfac'>" + esc(st.owner) + "</div>";
+          lastOwner = st.owner;
+        }
+        var nm = st.name || st.type || "Station";
+        h += "<div class='pstat pind'>" + esc(nm) +
+          (st.code ? " <small>(" + esc(st.code) + ")</small>" : "");
+        if (st.name && st.type)
+          h += "<br><small>" + esc(st.type) + "</small>";
+        h += "</div>";
+      });
+    } else {
+      h += "<div class='pstat'><small>None known</small></div>";
+    }
 
     panelBody.innerHTML = h;
     var wasOpen = panel.classList.contains("open");

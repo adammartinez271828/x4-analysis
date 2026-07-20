@@ -165,6 +165,8 @@ font-size:18px;color:#9a9a9a;}
 .plink:hover{text-decoration:underline;}
 .pstat{margin:3px 0;color:#c8c8c8;}
 .pstat small{color:#9a9a9a;}
+.pfac{margin:9px 0 3px 0;color:#b0b0b0;font-weight:bold;font-size:12.5px;}
+.pind{margin-left:12px;}
 #legend{flex:none;width:__LEGW__px;box-sizing:border-box;height:100%;
 overflow-y:auto;padding:24px 8px 12px 14px;font-size:13px;user-select:none;}
 .lgroup{margin-bottom:16px;}
@@ -492,7 +494,17 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                          "count": int(r[count_name]), "size": size})
         return recs
 
+    # sunlight leads the resource list: a per-sector property from the
+    # game files (mapdefaults.xml via sectors.csv), stored as a percentage
+    # so e.g. Avarice's 1390% renders meaningfully
     resources = []
+    if "sunlight" in ref.sectors.columns:
+        smap = dict(zip(ref.sectors["macro"], ref.sectors["sunlight"]))
+        resources.append({
+            "id": "sunlight", "name": "Sunlight",
+            "yields": [round(float(smap.get(s["macro"], 1.0)) * 100)
+                       for s in sectors],
+        })
     if frames.resource_cols:
         res_raw = plot_sectors.merge(
             frames.sectors[["macro"] + frames.resource_cols],
@@ -503,9 +515,12 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                 "yields": [float(v) for v in res_raw[col].fillna(0.0)],
             })
 
+    # the player is always a faction (sector ownership arrives later in a
+    # playthrough; the legend entry and colour must exist from the start)
     factions = []
-    for owner in sorted({s["owner"] for s in sectors}, key=str):
-        colour = next(s["colour"] for s in sectors if s["owner"] == owner)
+    for owner in sorted({s["owner"] for s in sectors} | {"Player"}, key=str):
+        colour = next((s["colour"] for s in sectors if s["owner"] == owner),
+                      ref.faction_colour.get("player", "#28C76F"))
         factions.append({"name": owner, "colour": colour})
 
     # stations per plotted sector for the detail panel (and the player

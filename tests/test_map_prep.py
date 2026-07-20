@@ -242,11 +242,29 @@ def test_payload_stations_grouped_and_typed(payload):
 
 
 def test_payload_resources_aligned(payload):
-    (ore,) = payload["resources"]
+    (ore,) = payload["resources"]   # no sunlight column in the synthetic ref
     assert ore["name"] == "Ore"
     by_macro = dict(zip((s["macro"] for s in payload["sectors"]),
                         ore["yields"]))
     assert by_macro == {"sec_a1": 100.0, "sec_b1": 0.0, "sec_b2": 50.0}
+
+
+def test_payload_sunlight_first_and_player_faction():
+    ref = _ref()
+    ref.sectors["sunlight"] = [1.23, 0.5, 13.9]
+    frames = _frames()
+    frames.sectors["owner"] = ["argon", "argon", "argon"]   # player owns none
+    p = _payload(frames, ref, _cfg())
+    sun = p["resources"][0]
+    assert sun["id"] == "sunlight" and sun["name"] == "Sunlight"
+    by_macro = dict(zip((s["macro"] for s in p["sectors"]), sun["yields"]))
+    assert by_macro == {"sec_a1": 123, "sec_b1": 50, "sec_b2": 1390}
+    assert p["resources"][1]["id"] == "ore"
+    # the player faction is always present, with the game colour
+    names = [f["name"] for f in p["factions"]]
+    assert "Player" in names
+    player = next(f for f in p["factions"] if f["name"] == "Player")
+    assert player["colour"] == "#00ff00"   # from ref.faction_colour
 
 
 def test_payload_spoilers_hide_drops_everything_hidden():
