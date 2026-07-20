@@ -31,6 +31,39 @@
       .join(" ");
   }
 
+  // overlay symbol paths, ported verbatim from plotly.js's symbol defs
+  // (all coefficients are relative to r = size/2; y-down like our space)
+  function starPath(cx, cy, size) {
+    var n = size / 2 * 1.4;
+    function p(mx, my) {
+      return (cx + mx * n).toFixed(2) + "," + (cy + my * n).toFixed(2);
+    }
+    return "M" + p(0.225, -0.309) + "L" + p(0.951, -0.309) +
+      "L" + p(0.363, 0.118) + "L" + p(0.588, 0.809) + "L" + p(0, 0.382) +
+      "L" + p(-0.588, 0.809) + "L" + p(-0.363, 0.118) +
+      "L" + p(-0.951, -0.309) + "L" + p(-0.225, -0.309) +
+      "L" + p(0, -1) + "Z";
+  }
+  function starTriDownPath(cx, cy, size) {
+    var r = size / 2, n = Math.sqrt(3) * 0.8 * r, i = 0.8 * r,
+      a = 1.6 * r, o = (4 * r).toFixed(2);
+    var arc = "A" + o + "," + o + " 0 0 1 ";
+    function p(x, y) { return (cx + x).toFixed(2) + "," + (cy + y).toFixed(2); }
+    return "M" + p(n, -i) + arc + p(-n, -i) + arc + p(0, a) +
+      arc + p(n, -i) + "Z";
+  }
+  function diamondXPath(cx, cy, size) {
+    var r = size / 2, n = 1.3 * r, i = 0.65 * r;
+    function p(x, y) { return (cx + x).toFixed(2) + "," + (cy + y).toFixed(2); }
+    return "M" + p(n, 0) + "L" + p(0, n) + "L" + p(-n, 0) + "L" + p(0, -n) +
+      "ZM" + p(-i, -i) + "L" + p(i, i) + "M" + p(-i, i) + "L" + p(i, -i);
+  }
+
+  // the plotly_dark colorway the resource traces used to cycle through
+  // (offset 1: the gates trace took the first slot)
+  var COLORWAY = ["#636efa", "#EF553B", "#00cc96", "#ab63fa", "#FFA15A",
+                  "#19d3f3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"];
+
   var svg = document.getElementById("map");
 
   // --- viewBox pan/zoom controller. home = the whole scene plus the edge
@@ -117,6 +150,62 @@
                    "stroke-opacity": C.opacity}, factionG[s.owner]);
   });
 
+  // --- overlays (all default off, toggled from the legend) ---
+  D.sectors.forEach(function (s) {
+    if (s.contested !== 1) return;
+    el("path", {d: diamondXPath(s.x, s.y, s.big ? C.cbig : C.csmall),
+                fill: "#EEEE33", "fill-opacity": C.opacity,
+                stroke: "#ffffff", "stroke-width": 1,
+                "stroke-opacity": C.opacity}, layers.contested);
+  });
+  [["police", starPath, "#3333EE"],
+   ["pirates", starTriDownPath, "#EE3333"]].forEach(function (row) {
+    D[row[0]].forEach(function (r) {
+      var s = D.sectors[r.i];
+      el("path", {d: row[1](s.x, s.y, r.size),
+                  fill: row[2], "fill-opacity": C.opacity,
+                  stroke: "#ffffff", "stroke-width": 1,
+                  "stroke-opacity": C.opacity}, layers[row[0]]);
+    });
+  });
+
+  // resource overlay: one hidden group per resource; hex sizes are set by
+  // renormalize() (yield normalized to the max over visible factions'
+  // sectors — a direct port of the old plotly legend JS)
+  var resourceG = {};   // resource id -> {g, polys, yields, colour}
+  D.resources.forEach(function (r, ri) {
+    var g = el("g", {"data-resource": r.id}, layers.resources);
+    g.style.display = "none";
+    var polys = D.sectors.map(function (s) {
+      return el("polygon", {fill: resColour(ri), "fill-opacity": 0.85,
+                            stroke: "#444444", "stroke-width": 1,
+                            "stroke-opacity": 0.85}, g);
+    });
+    resourceG[r.id] = {g: g, polys: polys, yields: r.yields,
+                       colour: resColour(ri)};
+  });
+  function resColour(ri) { return COLORWAY[(ri + 1) % COLORWAY.length]; }
+
+  function renormalize() {
+    if (!state.resource) return;
+    var res = resourceG[state.resource];
+    var maxv = 0;
+    res.yields.forEach(function (v, i) {
+      if (state.factions[D.sectors[i].owner] && v > maxv) maxv = v;
+    });
+    res.polys.forEach(function (poly, i) {
+      var v = res.yields[i];
+      if (v <= 0 || maxv <= 0 || !state.factions[D.sectors[i].owner]) {
+        poly.style.display = "none";
+        return;
+      }
+      poly.style.display = "";
+      var sz = Math.max(C.res_min, v / maxv * C.res_max);
+      var s = D.sectors[i];
+      poly.setAttribute("points", hexPoints(s.x, s.y, sz));
+    });
+  }
+
   D.labels.forEach(function (lb) {
     var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x, y: lb.y,
                         "text-anchor": "middle"}, layers.labels);
@@ -166,13 +255,17 @@
 
   // --- legend state + panel ---
   var state = {
-    layers: {gates: false, clusters: true, sectors: true, labels: true},
+    layers: {gates: false, clusters: true, sectors: true, labels: true,
+             contested: false, police: false, pirates: false},
     factions: {},
+    resource: null,   // id of the single-selected resource overlay
   };
   D.factions.forEach(function (f) { state.factions[f.name] = true; });
 
   var layerG = {gates: layers.gates, clusters: layers.clusters,
-                sectors: layers.sectors, labels: layers.labels};
+                sectors: layers.sectors, labels: layers.labels,
+                contested: layers.contested, police: layers.police,
+                pirates: layers.pirates};
 
   function applyLayer(name) {
     layerG[name].style.display = state.layers[name] ? "" : "none";
@@ -233,6 +326,7 @@
       applyFaction(f.name);
       facItems[f.name].classList.toggle("off", !on);
     });
+    renormalize();
   }
   allBtn.addEventListener("click", function () { setAllFactions(true); });
   noneBtn.addEventListener("click", function () { setAllFactions(false); });
@@ -242,6 +336,7 @@
       function () {
         state.factions[f.name] = !state.factions[f.name];
         applyFaction(f.name);
+        renormalize();
       });
   });
 
@@ -260,6 +355,54 @@
         applyLayer(row[0]);
       });
   });
+
+  function pathSwatch(pathFn, fill, size) {
+    return "<svg width='18' height='14' viewBox='-9 -7 18 14'><path d='" +
+      pathFn(0, 0, size) + "' fill='" + fill +
+      "' stroke='#ffffff' stroke-width='0.8'/></svg>";
+  }
+  var hoursTxt = " (" + C.hours.toFixed(0) + "h)";
+  var gOver = lgroup("Overlays");
+  var overlayRows = [["contested", "Contested Sectors",
+                      pathSwatch(diamondXPath, "#EEEE33", 9)]];
+  if (D.police.length)
+    overlayRows.push(["police", "Police Interdictions" + hoursTxt,
+                      pathSwatch(starPath, "#3333EE", 10)]);
+  if (D.pirates.length)
+    overlayRows.push(["pirates", "Pirate Harassments" + hoursTxt,
+                      pathSwatch(starTriDownPath, "#EE3333", 9)]);
+  overlayRows.forEach(function (row) {
+    litem(gOver, row[1], row[2],
+      function () { return state.layers[row[0]]; },
+      function () {
+        state.layers[row[0]] = !state.layers[row[0]];
+        applyLayer(row[0]);
+      });
+  });
+
+  // resources are single-select: showing one hides the others; clicking
+  // the shown one again clears the overlay (same semantics as before)
+  function selectResource(id) {
+    state.resource = state.resource === id ? null : id;
+    D.resources.forEach(function (r) {
+      var sel = state.resource === r.id;
+      resourceG[r.id].g.style.display = sel ? "" : "none";
+      resItems[r.id].classList.toggle("off", !sel);
+    });
+    renormalize();
+  }
+  var resItems = {};
+  if (D.resources.length) {
+    var gRes = lgroup("Resources");
+    D.resources.forEach(function (r) {
+      resItems[r.id] = litem(gRes, esc(r.name),
+        "<svg width='18' height='14' viewBox='-9 -7 18 14'><polygon points='"
+        + hexPoints(0, 0, 11) + "' fill='" + resourceG[r.id].colour +
+        "' fill-opacity='0.85'/></svg>",
+        function () { return state.resource === r.id; },
+        function () { selectResource(r.id); });
+    });
+  }
 
   Object.keys(layerG).forEach(applyLayer);
 
