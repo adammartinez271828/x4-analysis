@@ -100,6 +100,48 @@ def test_layout_sectors_slots_and_spoilers():
     assert set(hidden["macro"]) == {"sec_a1", "sec_b1"}
 
 
+def _two_sector_cluster(z_top, x_top, z_bot, x_bot):
+    """A ref/frames pair with one 2-sector cluster at given offsets."""
+    ref = _ref(
+        clusters=pd.DataFrame({"macro": ["cl"], "x": [0.0], "z": [0.0],
+                               "name": ["Pair"]}),
+        sectors=pd.DataFrame({
+            "cluster": ["cl", "cl"], "macro": ["top", "bot"],
+            "x": [x_top, x_bot], "z": [z_top, z_bot],
+            "name": ["Pair I", "Pair II"],
+        }),
+        gates=pd.DataFrame(columns=["sector_a", "sector_b"]),
+    )
+    frames = _frames(sectors=pd.DataFrame({
+        "cluster.macro": ["cl", "cl"], "macro": ["top", "bot"],
+        "name": ["Pair I", "Pair II"], "owner": ["argon", "argon"],
+        "knownto": ["player", "player"], "contested": [0, 0],
+        "ore": [0.0, 0.0],
+    }))
+    return frames, ref
+
+
+def test_layout_handedness():
+    def slot_dx(out, macro):
+        return out[out["macro"] == macro].iloc[0]["x"] / (8 * _UPX)
+
+    # right-handed (Black Hole Sun shape): top sector west of bottom one
+    f, r = _two_sector_cluster(1e6, -5e6, -1e6, 5e6)
+    out = _layout_sectors(f, r, _cfg())
+    assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
+
+    # left-handed (Saturn shape): top sector east of bottom one -> mirrored
+    f, r = _two_sector_cluster(1e6, 5e6, -1e6, -5e6)
+    out = _layout_sectors(f, r, _cfg())
+    assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
+
+    # exactly vertical (Faulty Logic / Earth+Moon): no horizontal signal,
+    # leans left-handed like the in-game map
+    f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0)
+    out = _layout_sectors(f, r, _cfg())
+    assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
+
+
 def test_labels_kinds():
     plot = _layout_sectors(_frames(), _ref(), _cfg())
     labels = _labels(plot, _ref())

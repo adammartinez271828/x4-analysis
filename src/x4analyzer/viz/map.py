@@ -174,6 +174,22 @@ def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
             slots = [(-1, 1), (1, 1), (-2, 0), (2, 0), (-1, -1), (1, -1),
                      (0, 2), (0, -2)][:n]
         slots = sorted(slots, key=lambda s: (-s[1], s[0]))
+        if multi:
+            # handedness: the _SLOTS patterns are the "right-handed"
+            # arrangements (Grand Exchange, Black Hole Sun). Clusters whose
+            # real in-cluster x offsets disagree are mirrored across the
+            # vertical axis (Saturn, Hatikvah's Choice, Litany of Fury,
+            # Emperor's Pride, Kingdom End). Exactly-vertical pairs carry
+            # no horizontal signal (Faulty Logic, Earth/The Moon, Savage
+            # Spur, Tharka's Cascade); the in-game map leans those
+            # left-handed, so ties mirror too.
+            xs = group["_ox"].tolist()
+            mean = sum(xs) / len(xs)
+            score = sum((x - mean) * dx
+                        for x, (dx, _) in zip(xs, slots))
+            if score <= 0:
+                slots = sorted([(-dx, dy) for dx, dy in slots],
+                               key=lambda s: (-s[1], s[0]))
 
         for (_, row), (dx, dy) in zip(group.iterrows(), slots):
             sx, sy = _slot_xy(dx, dy) if multi else (0.0, 0.0)
