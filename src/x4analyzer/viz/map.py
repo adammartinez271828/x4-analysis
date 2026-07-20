@@ -83,9 +83,11 @@ animation:pulse 0.65s ease-out 3;}
 #panel{position:fixed;top:0;bottom:0;right:__LEGW__px;width:320px;
 box-sizing:border-box;background:rgba(28,28,28,0.97);border-left:1px solid
 #444;border-right:1px solid #444;padding:14px 16px;overflow-y:auto;
-z-index:12;transform:translateX(120%);transition:transform 0.22s ease-out;
-font-size:13px;color:__FG__;}
-#panel.open{transform:none;}
+z-index:12;transform:translateX(calc(100% + __LEGW__px + 24px));
+transition:transform 0.22s ease-out,visibility 0s linear 0.22s;
+visibility:hidden;font-size:13px;color:__FG__;}
+#panel.open{transform:none;visibility:visible;transition:transform 0.22s
+ease-out,visibility 0s;}
 #panel h3{margin:0 30px 6px 0;font-size:16px;color:#f0f060;}
 #panel h4{margin:14px 0 5px 0;font-size:13px;color:#b0b0b0;
 border-bottom:1px solid #3a3a3a;padding-bottom:3px;}
