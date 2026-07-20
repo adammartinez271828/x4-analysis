@@ -164,12 +164,9 @@
                   stroke: "#333", "stroke-width": 0.5}, g);
     draw(g);
   }
-  iconDef("shipyard", function (g) {   // large ship in a gantry frame
-    el("path", {d: "M0,-3.1 L2.6,2.4 L0,1.3 L-2.6,2.4 Z",
+  iconDef("shipyard", function (g) {   // single large ship silhouette
+    el("path", {d: "M0,-3.4 L3.5,2.7 L0,1.3 L-3.5,2.7 Z",
                 fill: "#1D5FCC"}, g);
-    el("path", {d: "M-3.7,-2.6 L-3.7,3 M3.7,-2.6 L3.7,3",
-                stroke: "#1D5FCC", "stroke-width": 0.9,
-                fill: "none"}, g);
   });
   iconDef("wharf", function (g) {      // pair of small craft
     el("path", {d: "M-1.9,-2.4 L-0.3,1.1 L-1.9,0.4 L-3.5,1.1 Z",
