@@ -63,6 +63,9 @@ cursor:grab;}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
 #ly-labels.zoomed-out .k-suffix{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
+#ly-highlight *{pointer-events:none;}
+.glhl-line{stroke:rgba(150,200,255,0.85);stroke-width:2.5;}
+.glhl-hex{fill:none;stroke:rgba(150,200,255,0.7);stroke-width:2.5;}
 #x4home{position:fixed;bottom:34px;right:10px;z-index:20;cursor:pointer;
 font-size:22px;line-height:1;color:#b0b0b0;opacity:0.45;user-select:none;}
 #x4home:hover{opacity:1;}
@@ -320,13 +323,13 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         x, y = px(float(r["x"]), float(r["y"]))
         clusters.append({"macro": r["macro"], "x": x, "y": y})
 
-    # gate/accelerator segments between plotted sectors only, so spoiler
-    # mode drops links touching hidden sectors
+    # gate/accelerator links as sector-index pairs (the renderer also
+    # derives hover adjacency from them), between plotted sectors only, so
+    # spoiler mode drops links touching hidden sectors
     gates = []
     for r in ref.gates.itertuples(index=False):
         if r.sector_a in index and r.sector_b in index:
-            a, b = sectors[index[r.sector_a]], sectors[index[r.sector_b]]
-            gates.append([a["x"], a["y"], b["x"], b["y"]])
+            gates.append([index[r.sector_a], index[r.sector_b]])
 
     label_recs = []
     for _, r in labels.iterrows():

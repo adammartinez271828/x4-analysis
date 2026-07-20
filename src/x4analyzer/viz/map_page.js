@@ -139,12 +139,36 @@
   // under labels; transparent hover targets on top) ---
   var layers = {};
   ["gates", "resources", "clusters", "sectors", "contested",
-   "police", "pirates", "factions", "labels", "hover"]
+   "police", "pirates", "factions", "highlight", "labels", "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
 
   D.gates.forEach(function (g) {
-    el("line", {x1: g[0], y1: g[1], x2: g[2], y2: g[3]}, layers.gates);
+    var a = D.sectors[g[0]], b = D.sectors[g[1]];
+    el("line", {x1: a.x, y1: a.y, x2: b.x, y2: b.y}, layers.gates);
   });
+
+  // hover adjacency from the gate links
+  var neighbors = D.sectors.map(function () { return []; });
+  D.gates.forEach(function (g) {
+    neighbors[g[0]].push(g[1]);
+    neighbors[g[1]].push(g[0]);
+  });
+
+  // hovering a sector shows its gate links and neighbour hexes (also
+  // while the gates layer itself is off)
+  function showGateHighlight(i) {
+    clearGateHighlight();
+    var s = D.sectors[i];
+    neighbors[i].forEach(function (j) {
+      var n = D.sectors[j];
+      el("line", {x1: s.x, y1: s.y, x2: n.x, y2: n.y,
+                  "class": "glhl-line"}, layers.highlight);
+      el("polygon", {points: hexPoints(n.x, n.y,
+                                       (n.big ? C.big : C.small) + 6),
+                     "class": "glhl-hex"}, layers.highlight);
+    });
+  }
+  function clearGateHighlight() { layers.highlight.textContent = ""; }
 
   D.clusters.forEach(function (c) {
     el("polygon", {points: hexPoints(c.x, c.y, C.big + C.border),
@@ -258,18 +282,22 @@
   // transparent hover/hit hexes, one per sector, on top of everything;
   // they follow their faction's visibility like plotly hover did
   var hoverByFaction = {};
-  D.sectors.forEach(function (s) {
+  D.sectors.forEach(function (s, si) {
     var p = el("polygon", {points: hexPoints(s.x, s.y,
                                              s.big ? C.big : C.small),
-                           fill: "transparent"}, layers.hover);
+                           fill: "transparent", "data-i": si}, layers.hover);
     (hoverByFaction[s.owner] = hoverByFaction[s.owner] || []).push(p);
     p.addEventListener("mouseenter", function (ev) {
       tip.innerHTML = s.tip;
       tip.style.display = "block";
       moveTip(ev);
+      showGateHighlight(si);
     });
     p.addEventListener("mousemove", moveTip);
-    p.addEventListener("mouseleave", hideTip);
+    p.addEventListener("mouseleave", function () {
+      hideTip();
+      clearGateHighlight();
+    });
   });
 
   // --- legend state + panel ---
