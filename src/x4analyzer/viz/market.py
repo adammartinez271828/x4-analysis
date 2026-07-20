@@ -842,14 +842,15 @@ excluded unless you untick the box.</p>
        style='width:90px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label for='oppdock' title='flat per-trip overhead: docking,
-cargo transfer and undocking at both endpoints'>Dock time S/M:</label>
-<input type='number' id='oppdock' min='0' step='0.5' value='4'
+cargo transfer (~15&ndash;30 s for an M once docked) and undocking at
+both endpoints'>Dock time S/M:</label>
+<input type='number' id='oppdock' min='0' step='0.5' value='2'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;<label for='oppdockl' title='L/XL ships queue for piers and fly
-long docking approaches, so their per-trip overhead is higher'>L/XL
-(min):</label>
-<input type='number' id='oppdockl' min='0' step='0.5' value='8'
+long docking approaches, and goods transfer takes ~60 s once docked,
+so their per-trip overhead is higher'>L/XL (min):</label>
+<input type='number' id='oppdockl' min='0' step='0.5' value='5'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
