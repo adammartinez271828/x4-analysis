@@ -813,10 +813,11 @@ thrust &divide; hull drag, flown at 80% of travel speed (engine mods and
 spool-up are not modelled). Route length uses real station and gate
 positions along the jump path; S and M ships ride local highways at an
 assumed 10 km/s average in sectors that have them, one way, plus the
-flat <b>dock time</b> from the control (docking, cargo transfer and
-undocking at both endpoints — it keeps 15-second same-sector hops from
-posting absurd Cr/h). A manual cargo-hold value keeps the last picked
-ship's speed.</li>
+flat <b>dock time</b> for the ship's size class (docking, cargo
+transfer and undocking at both endpoints; L/XL default higher — pier
+queues and long approaches — and the overhead keeps 15-second
+same-sector hops from posting absurd Cr/h). A manual cargo-hold value
+keeps the last picked ship's speed.</li>
 </ul>
 <p>Lanes reflect the analyzed save: good spreads attract NPC traders and
 may be gone. Faction hostility, ware legality and trade licenses are not
@@ -841,8 +842,14 @@ excluded unless you untick the box.</p>
        style='width:90px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label for='oppdock' title='flat per-trip overhead: docking,
-cargo transfer and undocking at both endpoints'>Dock time (min):</label>
+cargo transfer and undocking at both endpoints'>Dock time S/M:</label>
 <input type='number' id='oppdock' min='0' step='0.5' value='4'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;<label for='oppdockl' title='L/XL ships queue for piers and fly
+long docking approaches, so their per-trip overhead is higher'>L/XL
+(min):</label>
+<input type='number' id='oppdockl' min='0' step='0.5' value='8'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
@@ -1026,7 +1033,9 @@ function tripProfit(r) {{
 // highway-sector legs at an assumed 10 km/s average for S/M, plus the
 // flat dock/transfer/undock overhead from the control
 function dockSeconds() {{
-  return (+document.getElementById('oppdock').value || 0) * 60;
+  const id = SHIP && (SHIP.cls === 'L' || SHIP.cls === 'XL')
+    ? 'oppdockl' : 'oppdock';
+  return (+document.getElementById(id).value || 0) * 60;
 }}
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
@@ -1166,7 +1175,8 @@ document.getElementById('opphold').addEventListener('input', e => {{
 }});
 ['oppjumps', 'oppdepth'].forEach(id =>
   document.getElementById(id).addEventListener('input', () => opps.draw()));
-document.getElementById('oppdock').addEventListener('input', oppRedraw);
+['oppdock', 'oppdockl'].forEach(id =>
+  document.getElementById(id).addEventListener('input', oppRedraw));
 ['oppnoplayer', 'oppnoqt'].forEach(id =>
   document.getElementById(id).addEventListener(
     'change', () => opps.draw()));
