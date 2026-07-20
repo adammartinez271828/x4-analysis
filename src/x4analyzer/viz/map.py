@@ -99,6 +99,7 @@ cursor:grab;}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
 #ly-labels.zoomed-out .k-suffix{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
+#ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-highlight *{pointer-events:none;}
 .pbadge{font-size:9px;font-weight:bold;fill:#e8e8e8;}
 .glhl-line{stroke:rgba(150,200,255,0.85);stroke-width:2.5;}
@@ -387,13 +388,38 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         x, y = px(float(r["x"]), float(r["y"]))
         clusters.append({"macro": r["macro"], "x": x, "y": y})
 
-    # gate/accelerator links as sector-index pairs (the renderer also
-    # derives hover adjacency from them), between plotted sectors only, so
-    # spoiler mode drops links touching hidden sectors
-    gates = []
+    # gate/accelerator links as sector-index pairs plus endpoint scene
+    # coords (the renderer derives hover adjacency from the indices),
+    # between plotted sectors only, so spoiler mode drops links touching
+    # hidden sectors. The endpoint zone offsets (sector-local metres from
+    # gates.csv) are scaled per sector so the farthest endpoint sits at
+    # 75% of the hex half-width — connections attach at their approximate
+    # in-sector positions. Older gates.csv without the endpoint columns
+    # falls back to hex centres.
+    big, small = 62, 25
+    has_pts = {"ax", "az", "bx", "bz"} <= set(ref.gates.columns)
+    raw_gates = []
     for r in ref.gates.itertuples(index=False):
         if r.sector_a in index and r.sector_b in index:
-            gates.append([index[r.sector_a], index[r.sector_b]])
+            pa = (float(r.ax), float(r.az)) if has_pts else (0.0, 0.0)
+            pb = (float(r.bx), float(r.bz)) if has_pts else (0.0, 0.0)
+            raw_gates.append((index[r.sector_a], index[r.sector_b], pa, pb))
+    reach: dict[int, float] = {}
+    for ia, ib, pa, pb in raw_gates:
+        reach[ia] = max(reach.get(ia, 0.0), (pa[0]**2 + pa[1]**2) ** 0.5)
+        reach[ib] = max(reach.get(ib, 0.0), (pb[0]**2 + pb[1]**2) ** 0.5)
+
+    def gate_pt(i: int, p: tuple[float, float]) -> tuple[float, float]:
+        s = sectors[i]
+        sc = reach.get(i, 0.0)
+        if sc <= 0:
+            return s["x"], s["y"]
+        r_px = (big if s["big"] else small) / 2 * 0.75
+        return (round(s["x"] + p[0] / sc * r_px, 2),
+                round(s["y"] - p[1] / sc * r_px, 2))
+
+    gates = [[ia, ib, *gate_pt(ia, pa), *gate_pt(ib, pb)]
+             for ia, ib, pa, pb in raw_gates]
 
     label_recs = []
     for _, r in labels.iterrows():
@@ -402,7 +428,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                            "lines": _WRAP.sub("\n", str(r["altname"]))
                            .split("\n")})
 
-    cbig, csmall = 44, 20
+    cbig, csmall = 44, 20  # contested marker sizes
 
     def overlay_recs(overlay: pd.DataFrame, count_name: str) -> list[dict]:
         recs = []
@@ -454,7 +480,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                   "pad": 12, "legend_w": 220},
         # marker sizing for the 1536x864 reference density (R makeMap
         # defaults); res_max/res_min bound the resource overlay hex sizes
-        "const": {"big": 62, "small": 25, "border": 3,
+        "const": {"big": big, "small": small, "border": 3,
                   "cbig": cbig, "csmall": csmall,
                   "res_max": 56, "res_min": 4, "opacity": 0.6,
                   "hours": cfg.overlay_hours},

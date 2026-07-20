@@ -187,8 +187,32 @@ def test_payload_scene_and_sectors(payload):
 
 def test_payload_gates_are_index_pairs(payload):
     idx = {s["macro"]: i for i, s in enumerate(payload["sectors"])}
-    assert sorted(map(tuple, payload["gates"])) == sorted([
+    assert sorted((g[0], g[1]) for g in payload["gates"]) == sorted([
         (idx["sec_a1"], idx["sec_b1"]), (idx["sec_b1"], idx["sec_b2"])])
+    # without endpoint columns the endpoints fall back to the hex centres
+    for g in payload["gates"]:
+        a, b = payload["sectors"][g[0]], payload["sectors"][g[1]]
+        assert (g[2], g[3]) == (a["x"], a["y"])
+        assert (g[4], g[5]) == (b["x"], b["y"])
+
+
+def test_payload_gate_endpoints_scaled_into_hex():
+    ref = _ref(gates=pd.DataFrame({
+        "sector_a": ["sec_a1"], "sector_b": ["sec_b1"],
+        "ax": [100_000.0], "az": [-200_000.0],   # east, south edge
+        "bx": [0.0], "bz": [200_000.0],          # north edge
+    }))
+    p = _payload(_frames(), ref, _cfg())
+    (g,) = p["gates"]
+    a, b = p["sectors"][g[0]], p["sectors"][g[1]]
+    # endpoint A: east of centre (px x greater), south (px y greater,
+    # y-down), inside the hex (within half the hex width)
+    assert 0 < g[2] - a["x"] < 31 and 0 < g[3] - a["y"] < 31
+    # the farthest endpoint sits at 75% of the hex half-width
+    dist = ((g[2] - a["x"]) ** 2 + (g[3] - a["y"]) ** 2) ** 0.5
+    assert abs(dist - 0.75 * 62 / 2) < 0.1
+    # endpoint B: due north of its centre
+    assert g[4] == b["x"] and g[5] < b["y"]
 
 
 def test_payload_stations_grouped_and_typed(payload):

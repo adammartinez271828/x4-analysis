@@ -144,26 +144,32 @@
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
 
+  // gate records: [ia, ib, x1, y1, x2, y2] — the endpoints sit at the
+  // gates' approximate in-sector positions, so lines attach there and
+  // each endpoint gets a small dot
   D.gates.forEach(function (g) {
-    var a = D.sectors[g[0]], b = D.sectors[g[1]];
-    el("line", {x1: a.x, y1: a.y, x2: b.x, y2: b.y}, layers.gates);
+    el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5]}, layers.gates);
+    el("circle", {cx: g[2], cy: g[3], r: 2}, layers.gates);
+    el("circle", {cx: g[4], cy: g[5], r: 2}, layers.gates);
   });
 
   // hover adjacency from the gate links
   var neighbors = D.sectors.map(function () { return []; });
+  var gatesByI = D.sectors.map(function () { return []; });
   D.gates.forEach(function (g) {
     neighbors[g[0]].push(g[1]);
     neighbors[g[1]].push(g[0]);
+    gatesByI[g[0]].push(g);
+    gatesByI[g[1]].push(g);
   });
 
   // hovering a sector shows its gate links and neighbour hexes (also
   // while the gates layer itself is off)
   function showGateHighlight(i) {
     clearGateHighlight();
-    var s = D.sectors[i];
-    neighbors[i].forEach(function (j) {
-      var n = D.sectors[j];
-      el("line", {x1: s.x, y1: s.y, x2: n.x, y2: n.y,
+    gatesByI[i].forEach(function (g) {
+      var n = D.sectors[g[0] === i ? g[1] : g[0]];
+      el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5],
                   "class": "glhl-line"}, layers.highlight);
       el("polygon", {points: hexPoints(n.x, n.y,
                                        (n.big ? C.big : C.small) + 6),
