@@ -282,25 +282,20 @@
   }
 
   D.labels.forEach(function (lb) {
-    // sector names hang from just under their hex's top edge (the text
-    // block grows downward); the cluster base name of multi-sector
-    // clusters stays centred — the sub-hexes occupy the cluster's top
-    // edge, so there is no free top line for it
-    var size = lb.kind === "single" ? C.big
-      : lb.kind === "suffix" ? C.small : 0;
-    var y = size ? lb.y - size * R3_4 + 1.5 : lb.y;
-    var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x, y: y,
+    // every name hangs from just under its hex's top edge (the text
+    // block grows downward): single sectors and sub-sector suffixes
+    // under their own hex, the cluster base name under the cluster hex.
+    // Base and suffix labels are never visible together (CSS swaps them
+    // at the zoomed-out threshold), so they cannot collide.
+    var size = lb.kind === "base" ? C.big + C.border
+      : lb.big ? C.big : C.small;
+    var t = el("text", {"class": "seclabel k-" + lb.kind, x: lb.x,
+                        y: lb.y - size * R3_4 + 1.5,
                         "text-anchor": "middle"}, layers.labels);
-    var k = lb.lines.length;
     lb.lines.forEach(function (line, j) {
       var ts = el("tspan", {
         x: lb.x,
-        // top-anchored: first baseline one cap-height below the edge;
-        // centred (base labels): baseline of line j sits at 0.35em minus
-        // half the block height
-        dy: j > 0 ? "1.1em"
-          : size ? "0.95em"
-          : (0.35 - (k - 1) * 0.55).toFixed(2) + "em",
+        dy: j > 0 ? "1.1em" : "0.95em",
       }, t);
       ts.textContent = line;
     });

@@ -110,6 +110,7 @@ stroke-width:calc(1px*var(--sw));}
 .pulse{stroke-width:calc(4px*var(--sw));}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
 #ly-labels.zoomed-out .k-suffix{display:none;}
+#ly-labels:not(.zoomed-out) .k-base{display:none;}
 #ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
@@ -259,27 +260,29 @@ def _labels(plot_sectors: pd.DataFrame, ref: RefData) -> pd.DataFrame:
         if len(group) == 1:
             row = group.iloc[0]
             recs.append({"x": row["x"], "y": row["y"], "altname": row["name"],
-                         "kind": "single"})
+                         "kind": "single", "big": row["sizecat"] == "b"})
             continue
         base = str(cluster_names.get(cmacro, "")) or \
             _SUFFIX.sub("", str(group.iloc[0]["name"]))
         base_used = False
         for row in group.itertuples():
             name = str(row.name)
+            big = row.sizecat == "b"
             if name.startswith(base + " ") and len(name) > len(base) + 1:
                 recs.append({"x": row.x, "y": row.y,
                              "altname": name[len(base) + 1:],
-                             "kind": "suffix"})
+                             "kind": "suffix", "big": big})
                 base_used = True
             else:
                 recs.append({"x": row.x, "y": row.y, "altname": name,
-                             "kind": "single"})
+                             "kind": "single", "big": big})
         if base_used:
             recs.append({
                 "x": float(group.iloc[0]["cluster.x"]),
                 "y": float(group.iloc[0]["cluster.y"]),
                 "altname": base,
                 "kind": "base",
+                "big": True,
             })
     return pd.DataFrame(recs).dropna(subset=["altname"])
 
@@ -441,6 +444,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     for _, r in labels.iterrows():
         x, y = px(float(r["x"]), float(r["y"]))
         label_recs.append({"x": x, "y": y, "kind": r["kind"],
+                           "big": bool(r["big"]),
                            "lines": _WRAP.sub("\n", str(r["altname"]))
                            .split("\n")})
 
