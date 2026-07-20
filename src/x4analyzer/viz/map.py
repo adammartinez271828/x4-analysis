@@ -127,6 +127,7 @@ stroke-width:calc(1px*var(--sw));}
 #map.zoomed-out .k-basein{display:none;}
 #map:not(.zoomed-out) .k-base{display:none;}
 #ly-facilities{pointer-events:none;}
+#map.zoomed-out #ly-plystations{display:none;}
 #map.zoomed-out #fac-stations{display:none;}
 #map:not(.zoomed-out) #fac-clusters{display:none;}
 #map:not(.zoomed-out) #fac-stations g{pointer-events:auto;}

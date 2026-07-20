@@ -148,6 +148,11 @@
    "police", "pirates", "player", "factions", "highlight", "labels",
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
+  // player station markers sit above the hover layer so they can take
+  // pointer events for their tooltips (zoomed-in only: the zoomed-out
+  // CSS hides them — the dashed ring + count badge covers that mode);
+  // facilities come after so their icons stay on top where both overlap
+  layers.playerStations = el("g", {id: "ly-plystations"}, svg);
   // facilities sit above the hover layer so their icons can take
   // pointer events for their own tooltips (zoomed-in only, via CSS)
   layers.facilities = el("g", {id: "ly-facilities"}, svg);
@@ -275,15 +280,19 @@
   });
 
   // player assets overlay: sectors holding player stations get a dashed
-  // hex ring in the player colour plus a station-count badge
+  // hex ring in the player colour plus a station-count badge; zoomed in,
+  // each station also gets a diamond marker at its in-hex position with
+  // a name/code tooltip (markers live in the top playerStations group so
+  // they are hoverable through the hit hexes)
   var playerColour = (D.factions.filter(function (f) {
     return f.name === "Player";
   })[0] || {}).colour || "#00E060";
+  var plySt = [];     // {el, x, y} markers, counter-scaled with zoom
   D.sectors.forEach(function (s) {
-    var n = (D.stations[s.macro] || []).filter(function (st) {
+    var mine = (D.stations[s.macro] || []).filter(function (st) {
       return st.owner === "Player";
-    }).length;
-    if (!n) return;
+    });
+    if (!mine.length) return;
     var sz = s.big ? C.big : C.small;
     el("polygon", {points: hexPoints(s.x, s.y, sz + 8), fill: "none",
                    stroke: playerColour, "stroke-width": 2,
@@ -293,7 +302,23 @@
                   stroke: playerColour, "stroke-width": 1.5}, layers.player);
     var t = el("text", {x: bx, y: by, dy: "0.35em", "class": "pbadge",
                         "text-anchor": "middle"}, layers.player);
-    t.textContent = n;
+    t.textContent = mine.length;
+    mine.forEach(function (stn) {
+      var g = el("g", {}, layers.playerStations);
+      el("path", {d: "M0,-3.2 L3.2,0 L0,3.2 L-3.2,0 Z",
+                  fill: playerColour, stroke: "#1e1e1e",
+                  "stroke-width": 0.8}, g);
+      g.addEventListener("mouseenter", function (ev) {
+        tip.innerHTML = "<b>" + esc(stn.name || stn.type || "Station") +
+          (stn.code ? " (" + esc(stn.code) + ")" : "") + "</b>" +
+          (stn.type ? "<br>" + esc(stn.type) : "");
+        tip.style.display = "block";
+        moveTip(ev);
+      });
+      g.addEventListener("mousemove", moveTip);
+      g.addEventListener("mouseleave", hideTip);
+      plySt.push({el: g, x: stn.x, y: stn.y});
+    });
   });
 
   // resource overlay: one hidden group per resource; hex sizes are set by
@@ -513,6 +538,13 @@
       r.el.setAttribute("transform",
         "translate(" + r.x + "," + r.y + ") scale(" + kHi + ")");
     });
+    // player station markers hold ~5 screen px once past the zoom
+    // threshold
+    var kPly = Math.min(1, 1.7 / sPx).toFixed(3);
+    plySt.forEach(function (r) {
+      r.el.setAttribute("transform",
+        "translate(" + r.x + "," + r.y + ") scale(" + kPly + ")");
+    });
   }
 
   // --- legend state + panel ---
@@ -577,7 +609,11 @@
                 pirates: layers.pirates, player: layers.player};
 
   function applyLayer(name) {
-    layerG[name].style.display = state.layers[name] ? "" : "none";
+    var on = state.layers[name] ? "" : "none";
+    layerG[name].style.display = on;
+    // the station markers live outside layers.player (they must sit
+    // above the hover hexes) but toggle with it
+    if (name === "player") layers.playerStations.style.display = on;
     saveState();
   }
   function applyFaction(name) {
