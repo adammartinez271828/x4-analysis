@@ -171,10 +171,12 @@
     clearGateHighlight();
     gatesByI[i].forEach(function (g) {
       var n = D.sectors[g[0] === i ? g[1] : g[0]];
+      // +2 keeps the ring snug against the hex edge — sub-sector hexes
+      // sit only ~2px apart, so a wider ring would lap onto siblings
       el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5],
                   "class": "glhl-line"}, layers.highlight);
       el("polygon", {points: hexPoints(n.x, n.y,
-                                       (n.big ? C.big : C.small) + 6),
+                                       (n.big ? C.big : C.small) + 2),
                      "class": "glhl-hex"}, layers.highlight);
     });
   }
