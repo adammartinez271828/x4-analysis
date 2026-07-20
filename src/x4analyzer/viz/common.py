@@ -41,6 +41,34 @@ def ensure_lib(files_dir: Path) -> None:
             shutil.copy(src, dst)
 
 
+def fullscreen_button_html(resize_plotly: bool = True) -> str:
+    """The ⛶ fullscreen toggle appended to widget pages. Needs
+    allowfullscreen on the dashboard iframes. resize_plotly adds the
+    fullscreenchange redraw hook plotly figures need (pages that lay
+    themselves out with CSS don't)."""
+    resize = (
+        "document.addEventListener('fullscreenchange',function(){"
+        "var g=document.querySelector('.plotly-graph-div');"
+        "if(g&&window.Plotly){Plotly.Plots.resize(g);}});"
+    ) if resize_plotly else ""
+    return (
+        "<div id='x4fs' title='Fullscreen (Esc to leave)' "
+        "style='position:fixed;bottom:6px;right:10px;z-index:20;"
+        "cursor:pointer;font-size:22px;line-height:1;color:#b0b0b0;"
+        "opacity:0.45;user-select:none'>&#x26F6;</div>"
+        "<script>(function(){"
+        "var b=document.getElementById('x4fs');"
+        "b.onmouseenter=function(){b.style.opacity=1;};"
+        "b.onmouseleave=function(){b.style.opacity=0.45;};"
+        "b.onclick=function(){"
+        "if(document.fullscreenElement){document.exitFullscreen();}"
+        "else{document.documentElement.requestFullscreen()"
+        ".catch(function(){});}};"
+        f"{resize}"
+        "})();</script>"
+    )
+
+
 def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str,
                 extra_html: str = "") -> str:
     """Write a plotly figure as a standalone dark-themed widget page; returns
@@ -59,25 +87,8 @@ def save_widget(fig: go.Figure, files_dir: Path, title: str, guid: str,
                        div_id=None, config={"displaylogo": False})
     # fullscreen zoom: figures are responsive, so fullscreening the widget
     # page redraws the chart at screen size (small sunburst slices become
-    # readable). Needs allowfullscreen on the dashboard iframes.
-    fs_btn = (
-        "<div id='x4fs' title='Fullscreen (Esc to leave)' "
-        "style='position:fixed;bottom:6px;right:10px;z-index:20;"
-        "cursor:pointer;font-size:22px;line-height:1;color:#b0b0b0;"
-        "opacity:0.45;user-select:none'>&#x26F6;</div>"
-        "<script>(function(){"
-        "var b=document.getElementById('x4fs');"
-        "b.onmouseenter=function(){b.style.opacity=1;};"
-        "b.onmouseleave=function(){b.style.opacity=0.45;};"
-        "b.onclick=function(){"
-        "if(document.fullscreenElement){document.exitFullscreen();}"
-        "else{document.documentElement.requestFullscreen()"
-        ".catch(function(){});}};"
-        "document.addEventListener('fullscreenchange',function(){"
-        "var g=document.querySelector('.plotly-graph-div');"
-        "if(g&&window.Plotly){Plotly.Plots.resize(g);}});"
-        "})();</script>"
-    )
+    # readable)
+    fs_btn = fullscreen_button_html(resize_plotly=True)
     html = (
         "<!DOCTYPE html><html><head><meta charset='utf-8'>"
         f"<script src='{_PLOTLY_JS}'></script>"

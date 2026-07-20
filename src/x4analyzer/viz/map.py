@@ -9,16 +9,16 @@ automatically.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 import pandas as pd
-import plotly.graph_objects as go
 
 from ..config import Config
 from ..analysis.frames import Frames
 from ..gamedata.refdata import RefData
-from .common import DARK_BG, save_widget
+from .common import DARK_BG, DARK_FG, fullscreen_button_html
 
 X_DIV = 20_000_000
 Y_DIV = 17_320_000
@@ -45,97 +45,47 @@ _SLOTS = {
 }
 
 
-# Legend interactivity for the resource overlay and faction group, injected
-# into the widget page via save_widget(extra_html=...). Traces are identified
-# by the meta.kind set on them in build_map; __MAX_PX__/__MIN_PX__ are filled
-# from the same constants the Python-side initial sizes use.
-_LEGEND_JS = """
+# The map page: a self-contained SVG renderer (no plotly, no lib/ assets).
+# The client script lives in map_page.js next to this module and is inlined
+# at build time; the payload is injected as window.X4MAP. Tokens are
+# substituted with str.replace (not f-strings) to avoid CSS/JS brace
+# escaping.
+_PAGE = """<!DOCTYPE html><html><head><meta charset='utf-8'>
+<title>Sector map</title>
+<style>
+html,body{height:100%;}
+body{margin:0;background:__BG__;color:#b0b0b0;
+font-family:'Open Sans',verdana,arial,sans-serif;}
+#wrap{display:flex;align-items:flex-start;}
+#map{flex:none;display:block;overflow:visible;}
+.seclabel{font-size:8px;font-weight:bold;fill:rgba(240,240,96,0.63);}
+#ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
+#legend{flex:none;width:__LEGW__px;box-sizing:border-box;
+padding:44px 8px 12px 14px;font-size:13px;user-select:none;}
+.lgroup{margin-bottom:16px;}
+.ltitle{font-weight:bold;margin-bottom:5px;}
+.litem{display:flex;align-items:center;gap:7px;cursor:pointer;
+padding:1.5px 0;white-space:nowrap;}
+.litem.off{opacity:0.45;}
+.litem .sw{flex:none;width:18px;height:14px;display:flex;
+align-items:center;justify-content:center;}
+.lbtn{padding-left:25px;}
+#tip{position:fixed;display:none;max-width:340px;z-index:10;
+background:rgba(24,24,24,0.95);color:__FG__;border:1px solid #666;
+border-radius:3px;padding:6px 9px;font-size:12.5px;line-height:1.4;
+pointer-events:none;}
+</style></head><body>
+<div id='wrap'>
+<svg id='map' xmlns='http://www.w3.org/2000/svg' width='__W__' height='__H__'></svg>
+<div id='legend'></div>
+</div>
+<div id='tip'></div>
+__FSBTN__
+<script>window.X4MAP = __DATA__;</script>
 <script>
-(function () {
-  var MAX_PX = __MAX_PX__, MIN_PX = __MIN_PX__;
-
-  function isShown(t) {
-    return t.visible === true || t.visible === undefined || t.visible === null;
-  }
-  function indicesOf(gd, kind) {
-    var idx = [];
-    gd.data.forEach(function (t, i) {
-      if (t.meta && t.meta.kind === kind) idx.push(i);
-    });
-    return idx;
-  }
-  function visibleFactions(gd) {
-    var names = {};
-    gd.data.forEach(function (t) {
-      if (t.meta && t.meta.kind === "faction" && isShown(t)) {
-        names[t.meta.faction] = true;
-      }
-    });
-    return names;
-  }
-
-  // resize the (single) visible resource trace: normalize to the max over
-  // sectors of visible factions; hidden factions' sectors drop to nothing
-  function renormalize(gd) {
-    var shown = indicesOf(gd, "resource").filter(function (i) {
-      return isShown(gd.data[i]);
-    });
-    if (shown.length !== 1) return;
-    var t = gd.data[shown[0]];
-    var facs = visibleFactions(gd);
-    var maxv = 0;
-    t.meta.raw.forEach(function (v, i) {
-      if (facs[t.meta.faction[i]] && v > maxv) maxv = v;
-    });
-    var sizes = t.meta.raw.map(function (v, i) {
-      if (v <= 0 || maxv <= 0 || !facs[t.meta.faction[i]]) return 0;
-      return Math.max(MIN_PX, v / maxv * MAX_PX);
-    });
-    Plotly.restyle(gd, {"marker.size": [sizes]}, shown);
-  }
-
-  function attach() {
-    var gd = document.querySelector(".plotly-graph-div");
-    if (!gd || !gd.on) { setTimeout(attach, 50); return; }
-    gd.on("plotly_legendclick", function (ev) {
-      var t = gd.data[ev.curveNumber];
-      if (!t.meta || !t.meta.kind) return;  // default toggle for base/overlays
-
-      if (t.meta.kind === "faction-control") {
-        Plotly.restyle(gd,
-            {visible: t.meta.action === "all" ? true : "legendonly"},
-            indicesOf(gd, "faction"))
-          .then(function () { renormalize(gd); });
-        return false;
-      }
-      if (t.meta.kind === "resource") {
-        // single-select: show only the clicked resource, or hide it if it
-        // was already the visible one
-        var wasShown = isShown(t);
-        var idx = indicesOf(gd, "resource");
-        Plotly.restyle(gd,
-            {visible: idx.map(function (i) {
-              return (!wasShown && i === ev.curveNumber) ? true : "legendonly";
-            })}, idx)
-          .then(function () { renormalize(gd); });
-        return false;
-      }
-      if (t.meta.kind === "faction") {
-        // do the toggle ourselves so renormalize runs after it, not before
-        Plotly.restyle(gd, {visible: isShown(t) ? "legendonly" : true},
-                       [ev.curveNumber])
-          .then(function () { renormalize(gd); });
-        return false;
-      }
-    });
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", attach);
-  } else {
-    attach();
-  }
-})();
+__JS__
 </script>
+</body></html>
 """
 
 
@@ -411,162 +361,34 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     }
 
 
+def _write_page(payload: dict, files_dir: Path, guid: str) -> str:
+    """Assemble the self-contained map page from the template, the client
+    script and the payload; returns the dashboard-relative src path."""
+    data = json.dumps(payload, separators=(",", ":")).replace("</", "<\\/")
+    js = Path(__file__).with_name("map_page.js").read_text(encoding="utf-8")
+    html = (
+        _PAGE
+        .replace("__JS__", js)
+        .replace("__DATA__", data)
+        .replace("__FSBTN__", fullscreen_button_html(resize_plotly=False))
+        .replace("__BG__", DARK_BG)
+        .replace("__FG__", DARK_FG)
+        .replace("__LEGW__", str(payload["scene"]["legend_w"]))
+        .replace("__W__", str(round(payload["scene"]["w"])))
+        .replace("__H__", str(round(payload["scene"]["h"])
+                              + 2 * payload["scene"]["pad"]))
+    )
+    name = f"Sector map_{guid}.html"
+    (files_dir / name).write_text(html, encoding="utf-8")
+    return f"files/{name}"
+
+
 def build_map(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
               guid: str) -> tuple[str, int, int]:
     """Returns (widget src, iframe width px, iframe height px) — the page
     size depends on how far DLC content widens the axis ranges."""
     p = _payload(frames, ref, cfg)
-    c = p["const"]
-    sectors = p["sectors"]
-    big, small, border = c["big"], c["small"], c["border"]
-    opacity = c["opacity"]
-    hexsym = "hexagon2-open"
+    src = _write_page(p, files_dir, guid)
+    return (src, round(p["scene"]["w"]) + p["scene"]["legend_w"],
+            round(p["scene"]["h"]) + 2 * p["scene"]["pad"])
 
-    def sizes(recs, b, s):
-        return [b if r["big"] else s for r in recs]
-
-    fig = go.Figure()
-
-    # gate/accelerator connections, drawn first so they sit underneath all
-    # markers. Default off.
-    if p["gates"]:
-        gx: list[float | None] = []
-        gy: list[float | None] = []
-        for xa, ya, xb, yb in p["gates"]:
-            gx += [xa, xb, None]
-            gy += [ya, yb, None]
-        fig.add_scatter(
-            x=gx, y=gy, mode="lines", name="Gates & Accelerators",
-            hoverinfo="skip", legendgroup="Base Map", legendrank=1001,
-            visible="legendonly",
-            line={"color": "rgba(140,170,200,0.55)", "width": 1.5})
-
-    # resource overlay: one hidden trace per resource, markers sized by the
-    # sector's yield normalized to the galaxy max. Added first so the filled
-    # hexes render underneath the base-map linework. The inline JS below
-    # single-selects them from the legend and renormalizes against the max
-    # over visible factions only (meta carries the raw yields for that).
-    sx = [s["x"] for s in sectors]
-    sy = [s["y"] for s in sectors]
-    tips = [s["tip"] for s in sectors]
-    for i, r in enumerate(p["resources"]):
-        maxv = max(r["yields"], default=0.0)
-        fig.add_scatter(
-            x=sx, y=sy, mode="markers", name=r["name"],
-            legendgroup="Resources", legendrank=1002,
-            legendgrouptitle={"text": "Resources",
-                              "font": {"color": "#b0b0b0"}}
-            if i == 0 else None,
-            visible="legendonly", hoverinfo="text", hovertext=tips,
-            marker={"symbol": "hexagon2", "opacity": 0.85,
-                    "line": {"width": 1},
-                    "size": [0.0 if v <= 0 or maxv <= 0 else
-                             max(c["res_min"], v / maxv * c["res_max"])
-                             for v in r["yields"]]},
-            meta={"kind": "resource", "raw": r["yields"],
-                  "faction": [s["owner"] for s in sectors]})
-
-    fig.add_scatter(
-        x=[cl["x"] for cl in p["clusters"]],
-        y=[cl["y"] for cl in p["clusters"]], mode="markers",
-        name="Cluster Outlines", hoverinfo="skip", legendgroup="Base Map",
-        legendgrouptitle={"text": "Base Map", "font": {"color": "#b0b0b0"}},
-        marker={"color": "#B0B0B0", "opacity": opacity, "size": big + border,
-                "symbol": hexsym, "line": {"width": 2}})
-    fig.add_scatter(
-        x=sx, y=sy, mode="markers",
-        name="Sector Outlines", hoverinfo="skip", legendgroup="Base Map",
-        marker={"color": "#F0F0F0", "opacity": opacity,
-                "size": sizes(sectors, big + border, small + border),
-                "symbol": hexsym, "line": {"width": 2}})
-
-    contested = [s for s in sectors if s["contested"] == 1]
-    fig.add_scatter(
-        x=[s["x"] for s in contested], y=[s["y"] for s in contested],
-        mode="markers",
-        name="Contested Sectors", hoverinfo="skip", legendgroup="Overlays",
-        legendgrouptitle={"text": "Overlays", "font": {"color": "#b0b0b0"}},
-        visible="legendonly", legendrank=1001,
-        marker={"color": "#EEEE33", "opacity": opacity,
-                "size": sizes(contested, c["cbig"], c["csmall"]),
-                "symbol": "diamond-x",
-                "line": {"color": "#ffffff", "width": 1}})
-    for overlay, name, colour, symbol in (
-        (p["police"], f"Police Interdictions ({c['hours']:.0f}h)",
-         "#3333EE", "star"),
-        (p["pirates"], f"Pirate Harassments ({c['hours']:.0f}h)",
-         "#EE3333", "star-triangle-down"),
-    ):
-        if not overlay:
-            continue
-        fig.add_scatter(
-            x=[sectors[r["i"]]["x"] for r in overlay],
-            y=[sectors[r["i"]]["y"] for r in overlay],
-            mode="markers", name=name,
-            hoverinfo="skip", legendgroup="Overlays", visible="legendonly",
-            legendrank=1001,
-            marker={"color": colour, "opacity": opacity,
-                    "size": [r["size"] for r in overlay], "symbol": symbol,
-                    "line": {"color": "#ffffff", "width": 1}})
-
-    for f in p["factions"]:
-        sub = [s for s in sectors if s["owner"] == f["name"]]
-        fig.add_scatter(
-            x=[s["x"] for s in sub], y=[s["y"] for s in sub], mode="markers",
-            name=f["name"], hoverinfo="text",
-            hovertext=[s["tip"] for s in sub],
-            legendgroup="Factions", legendrank=999,
-            legendgrouptitle={"text": "Factions", "font": {"color": "#b0b0b0"}},
-            marker={"color": f["colour"], "opacity": opacity,
-                    "size": sizes(sub, big, small), "symbol": hexsym,
-                    "line": {"width": border}},
-            meta={"kind": "faction", "faction": f["name"]})
-
-    # legend-only show-all / hide-all buttons for the faction group, handled
-    # by the inline JS. They need one real (invisible) data point so plotly
-    # emits legendclick for them; visible=True avoids the greyed-out styling.
-    for rank, label, action in ((997, "All factions", "all"),
-                                (998, "No factions", "none")):
-        fig.add_scatter(
-            x=[0], y=[0], mode="markers", name=label, hoverinfo="skip",
-            legendgroup="Factions", legendrank=rank,
-            marker={"size": 0, "opacity": 0},
-            meta={"kind": "faction-control", "action": action})
-
-    fig.add_scatter(
-        x=[lb["x"] for lb in p["labels"]], y=[lb["y"] for lb in p["labels"]],
-        mode="text", name="Sector Names",
-        hoverinfo="skip", legendgroup="Base Map",
-        text=["<b>" + "<br>".join(lb["lines"]) + "</b>"
-              for lb in p["labels"]],
-        textfont={"size": 8, "color": "rgba(240,240,96,0.63)"})
-
-    # px space renders 1:1 (one data unit = one px); the y axis range is
-    # reversed because px space is y-down
-    plot_w, plot_h = round(p["scene"]["w"]), round(p["scene"]["h"])
-    # the legend lives in a dedicated right-hand strip (outside the plot
-    # area) so it never overlaps sectors; edge-row hexes overhang the axis
-    # range by a few px, so markers draw unclipped into a small top/bottom
-    # margin instead of being cut off.
-    legend_w, edge_pad = p["scene"]["legend_w"], p["scene"]["pad"]
-    fig.update_traces(cliponaxis=False)
-    fig.update_layout(
-        width=plot_w + legend_w, height=plot_h + 2 * edge_pad, autosize=False,
-        paper_bgcolor=DARK_BG, plot_bgcolor=DARK_BG,
-        margin={"b": edge_pad, "l": 0, "r": legend_w, "t": edge_pad},
-        legend={"x": 1.0, "y": 0.96, "xanchor": "left", "yanchor": "top",
-                "itemsizing": "constant",
-                "groupclick": "toggleitem",
-                "traceorder": "grouped",
-                "font": {"size": 13, "color": "#b0b0b0"},
-                "bgcolor": "rgba(30,30,30,0)"},
-        xaxis={"range": (0, p["scene"]["w"]), "fixedrange": True,
-               "visible": False},
-        yaxis={"range": (p["scene"]["h"], 0), "fixedrange": True,
-               "visible": False},
-    )
-    src = save_widget(fig, files_dir, "Sector map", guid,
-                      extra_html=_LEGEND_JS
-                      .replace("__MAX_PX__", str(c["res_max"]))
-                      .replace("__MIN_PX__", str(c["res_min"])))
-    return src, plot_w + legend_w, plot_h + 2 * edge_pad
