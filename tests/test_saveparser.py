@@ -35,9 +35,11 @@ FIXTURE = """<?xml version="1.0"?>
           </resourceareas>
           <connections><connection connection="sector">
           <component class="zone" macro="zone001_macro" id="[0x15]" connection="sector">
+          <offset><position x="1000" y="5" z="-2000"/></offset>
           <connections><connection connection="zone">
           <component class="station" macro="station_macro" id="[0x20]" owner="player"
-                     code="STA-001" connection="zone">
+                     code="STA-001" factionheadquarters="1" connection="zone">
+            <offset><position x="500" y="0" z="250"/></offset>
             <control>
               <post id="manager" component="[0x99]"/>
             </control>
@@ -139,6 +141,12 @@ def test_fixture_parse(save_file: Path) -> None:
     assert ship[15] == "[0x20]"
     station = next(c for c in d.components if c[1] == "station")
     assert station[15] == "[0x11]"
+    # sector-local position: the station's own offset summed with its
+    # enclosing zone's offset (y dropped); faction HQ flag captured
+    assert (station[16], station[17]) == (1500.0, -1750.0)
+    assert station[18] == "1"
+    # ships don't get positions
+    assert (ship[16], ship[17]) == (None, None)
     sector = next(c for c in d.components if c[1] == "sector")
     assert sector[7] == "1"  # contested
 

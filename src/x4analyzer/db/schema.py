@@ -16,7 +16,7 @@ must load, never fail. FK comments are documentation only.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "4"
+SCHEMA_VERSION = "5"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -120,6 +120,9 @@ TABLES: dict[str, str] = {
   parent_id     TEXT,
   cluster_id    TEXT, cluster_macro TEXT,
   sector_id     TEXT, sector_macro  TEXT,
+  sx            REAL,             -- sector-local position (stations/plots)
+  sz            REAL,
+  faction_hq    INTEGER,          -- factionheadquarters="1" on the station
   PRIMARY KEY (save_id, id)
 )""",
     "fleet_edge": """CREATE TABLE IF NOT EXISTS fleet_edge (

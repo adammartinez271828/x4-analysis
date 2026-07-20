@@ -93,7 +93,7 @@ def _nearest_host(comp_stack: list) -> str:
     """Nearest trackable ancestor: station, build storage, or ship. Offers
     and cargo of a station plot's build storage attribute to the storage,
     cleanly separating construction demand from station operations."""
-    for pcls, pid, _pm in reversed(comp_stack):
+    for pcls, pid, _pm, _pp in reversed(comp_stack):
         if pcls in ("station", "buildstorage") or _SHIP_RE.match(pcls):
             return pid
     return ""
@@ -104,8 +104,11 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     d = data  # short alias
 
     tag_stack: list[str] = []
-    # ancestry of open <component> elements: (clazz, id, macro)
-    comp_stack: list[tuple[str, str, str]] = []
+    # ancestry of open <component> elements: [clazz, id, macro, offset].
+    # offset is the component's own <offset><position> as (x, z), or None
+    # (<offset default="1"/> = at the parent's origin) — kept so stations
+    # get sector-local coordinates summed over the interposed zones
+    comp_stack: list[list] = []
     # nearest open station/ship component id, for posts/workforce/modules
     object_stack: list[str] = []
     npc_stack: list[list] = []       # open npc records awaiting <skills>
@@ -126,7 +129,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 if tag == "component":
                     clazz = elem.get("class", "")
                     cid = elem.get("id", "")
-                    comp_stack.append((clazz, cid, elem.get("macro", "")))
+                    comp_stack.append([clazz, cid, elem.get("macro", ""),
+                                       None])
                     if clazz == "station" or _SHIP_RE.match(clazz):
                         object_stack.append(cid)
                     elif clazz == "sector":
@@ -156,8 +160,18 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             if progress and n_elems % 5_000_000 == 0:
                 progress(f"  ...{n_elems / 1e6:.0f}M elements")
 
-            if tag == "component":
-                clazz, cid, macro = comp_stack.pop()
+            if tag == "position":
+                # a component's own offset: <component><offset><position/>
+                # ("position" is already popped off tag_stack here)
+                if comp_stack and tag_stack[-2:] == ["component", "offset"]:
+                    try:
+                        comp_stack[-1][3] = (float(elem.get("x", 0) or 0),
+                                             float(elem.get("z", 0) or 0))
+                    except ValueError:
+                        pass
+
+            elif tag == "component":
+                clazz, cid, macro, own_pos = comp_stack.pop()
                 if elem.get("construction") \
                         and elem.get("state") != "construction":
                     # in-progress modules carry state="construction"; their
@@ -175,11 +189,13 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
 
                 if clazz in _UNIVERSE_CLASSES or _SHIP_RE.match(clazz):
                     cluster_id = cluster_macro = sector_id = sector_macro = ""
-                    for pcls, pid, pmacro in comp_stack:
+                    sector_depth = -1
+                    for i, (pcls, pid, pmacro, _pp) in enumerate(comp_stack):
                         if pcls == "cluster":
                             cluster_id, cluster_macro = pid, pmacro
                         elif pcls == "sector":
                             sector_id, sector_macro = pid, pmacro
+                            sector_depth = i
                     if clazz == "cluster":
                         cluster_id, cluster_macro = cid, macro
                     elif clazz == "sector":
@@ -191,17 +207,30 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     # components that never become rows, and a parent id
                     # must resolve within the table
                     parent_id = ""
-                    for pcls, pid, _pm in reversed(comp_stack):
+                    for pcls, pid, _pm, _pp in reversed(comp_stack):
                         if pcls in _UNIVERSE_CLASSES or _SHIP_RE.match(pcls):
                             parent_id = pid
                             break
+                    # sector-local position for stations/build plots: own
+                    # offset plus any zone offsets between sector and here
+                    # (landmarks.py does the same walk for the find cmd)
+                    sx = sz = None
+                    if clazz in ("station", "buildstorage") \
+                            and sector_depth >= 0:
+                        sx = own_pos[0] if own_pos else 0.0
+                        sz = own_pos[1] if own_pos else 0.0
+                        for _c, _i2, _m, p in comp_stack[sector_depth + 1:]:
+                            if p:
+                                sx += p[0]
+                                sz += p[1]
                     d.components.append((
                         cid, clazz, macro, elem.get("name", ""),
                         elem.get("code", ""), elem.get("owner", ""),
                         elem.get("knownto", ""), elem.get("contested", ""),
                         elem.get("connection", ""), elem.get("spawntime", ""),
                         cluster_id, cluster_macro, sector_id, sector_macro,
-                        elem.get("basename", ""), parent_id,
+                        elem.get("basename", ""), parent_id, sx, sz,
+                        elem.get("factionheadquarters", ""),
                     ))
 
             elif tag == "connected":

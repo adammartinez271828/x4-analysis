@@ -156,7 +156,7 @@ def build_frames(save: SaveData, ref: RefData,
                spawntime, cluster_id AS "cluster.id",
                cluster_macro AS "cluster.macro", sector_id AS "sector.id",
                sector_macro AS "sector.macro", basename,
-               parent_id AS "parent.id"
+               parent_id AS "parent.id", sx, sz, faction_hq
         FROM component WHERE save_id = {_CUR} ORDER BY rowid""",
         fill=["macro", "name", "code", "owner", "knownto", "cluster.id",
               "cluster.macro", "sector.id", "sector.macro", "basename",

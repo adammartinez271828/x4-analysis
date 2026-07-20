@@ -191,15 +191,17 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             conn.execute(f"DELETE FROM {table}")
 
         conn.executemany(
-            "INSERT OR REPLACE INTO component VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO component VALUES "
+            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [(save_id, cid, clazz, _low(macro), resolve(name),
               resolve(basename), _s(code), _s(owner), _s(knownto),
               _i(contested), _f(spawntime),
               _s(parent_id), _s(cluster_id), _low(cluster_macro),
-              _s(sector_id), _low(sector_macro))
+              _s(sector_id), _low(sector_macro), sx, sz, _i(faction_hq))
              for (cid, clazz, macro, name, code, owner, knownto, contested,
                   connection, spawntime, cluster_id, cluster_macro, sector_id,
-                  sector_macro, basename, parent_id) in save.components
+                  sector_macro, basename, parent_id, sx, sz, faction_hq)
+             in save.components
              if connection])  # no @connection = not in the universe tree
 
         # fleet hierarchy, resolved once: follower's <connected> conn ref
