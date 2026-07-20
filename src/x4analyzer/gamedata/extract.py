@@ -8,6 +8,7 @@ Outputs into the data directory:
     ships.csv      macro, model, class, race, purpose, hull, mass, cargo,
                    cargo_tags, crew, price, drag_forward, source
     engines.csv    macro, size, type, mk, forward, travel_thrust
+    highways.csv   sector, x1, z1, x2, z2 (local-highway segment endpoints)
     textdb.csv.gz  full page/id/text dump for resolving names in savegames
 """
 
@@ -188,22 +189,46 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 except ValueError:
                     pass
 
-    # sectors with a local (ring) highway: the sector macro carries a
-    # connection ref="zonehighways" (superhighways between sectors are a
-    # different ref and live in gates.csv)
+    # local (ring) highways: the sector macro carries connections
+    # ref="zonehighways" (superhighways between sectors are a different
+    # ref and live in gates.csv). Each one is a segment whose entrypoint/
+    # exitpoint reference ZONES by path; the zones' sector-local offsets
+    # (from the same sector macro) give renderable segment geometry.
     highway_secs: set[str] = set()
+    highway_rows: list[list] = []
     for path in gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
                         r"[^/]*sectors\.xml$"):
         root = _parse(gf, path)
         if root is None:
             continue
+        source = gf.source_of(path)
         for macro_el in root.iter("macro"):
             if macro_el.get("class") != "sector":
                 continue
+            smacro = (macro_el.get("name") or "").lower()
+            zone_pos: dict[str, tuple] = {}
             for conn in macro_el.iter("connection"):
-                if conn.get("ref") == "zonehighways":
-                    highway_secs.add((macro_el.get("name") or "").lower())
-                    break
+                if conn.get("ref") != "zones" or not conn.get("name"):
+                    continue
+                pos = conn.find("offset/position")
+                if pos is not None:
+                    zone_pos[conn.get("name")] = (
+                        float(pos.get("x", 0)), float(pos.get("z", 0)))
+            for conn in macro_el.iter("connection"):
+                if conn.get("ref") != "zonehighways":
+                    continue
+                highway_secs.add(smacro)
+                pts = {}
+                for ep in conn.iter("connection"):
+                    if ep.get("ref") in ("entrypoint", "exitpoint"):
+                        ref = ep.find("macro")
+                        zname = (ref.get("path") or "").split("/")[-1] \
+                            if ref is not None else ""
+                        pts[ep.get("ref")] = zone_pos.get(zname)
+                a, b = pts.get("entrypoint"), pts.get("exitpoint")
+                if a and b:
+                    highway_rows.append(
+                        [smacro, a[0], a[1], b[0], b[1], source])
 
     # sector membership + in-cluster offsets: clusters.xml variants
     sectors: dict[str, list] = {}
@@ -235,7 +260,7 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 sectors[smacro] = [cluster_macro, smacro, x, y, z, name, sun,
                                    int(smacro in highway_secs), source]
 
-    return list(clusters.values()), list(sectors.values())
+    return list(clusters.values()), list(sectors.values()), highway_rows
 
 
 _SECTOR_IN_PATH = re.compile(r"/([A-Za-z0-9_]*_Sector\d+)_connection/",
@@ -593,8 +618,8 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         ware_rows,
     )
 
-    log("Extracting map (clusters, sectors)")
-    cluster_rows, sector_rows = extract_map(gf, tdb)
+    log("Extracting map (clusters, sectors, highways)")
+    cluster_rows, sector_rows, highway_rows = extract_map(gf, tdb)
     _write_csv(
         cfg.data_dir / "clusters.csv",
         ["macro", "x", "y", "z", "name", "description", "source"],
@@ -605,6 +630,11 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         ["cluster", "macro", "x", "y", "z", "name", "sunlight", "highway",
          "source"],
         sector_rows,
+    )
+    _write_csv(
+        cfg.data_dir / "highways.csv",
+        ["sector", "x1", "z1", "x2", "z2", "source"],
+        highway_rows,
     )
 
     log("Extracting gate connections")

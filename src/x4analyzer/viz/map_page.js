@@ -144,7 +144,7 @@
   // gates under resources under outlines under overlays under faction hexes
   // under labels; transparent hover targets on top) ---
   var layers = {};
-  ["gates", "shighways", "resources", "clusters", "contested",
+  ["gates", "shighways", "highways", "resources", "clusters", "contested",
    "police", "pirates", "player", "factions", "highlight", "labels",
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
@@ -219,6 +219,12 @@
     el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5]}, ly);
     el("circle", {cx: g[2], cy: g[3], r: 2}, ly);
     el("circle", {cx: g[4], cy: g[5], r: 2}, ly);
+  });
+
+  // local (ring) highway segments: [si, x1, y1, x2, y2] inside their
+  // sector hex — the 6-14 km/s tracks S/M ships ride
+  (D.hws || []).forEach(function (h) {
+    el("line", {x1: h[1], y1: h[2], x2: h[3], y2: h[4]}, layers.highways);
   });
 
   // hover adjacency from the gate links
@@ -597,7 +603,8 @@
 
   // --- legend state + panel ---
   var state = {
-    layers: {gates: false, shighways: false, clusters: true, labels: true,
+    layers: {gates: false, shighways: false, highways: false,
+             clusters: true, labels: true,
              contested: false, police: false, pirates: false,
              player: false, vaults: false, erlking: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
@@ -652,6 +659,7 @@
   }
 
   var layerG = {gates: layers.gates, shighways: layers.shighways,
+                highways: layers.highways,
                 clusters: layers.clusters, labels: layers.labels,
                 contested: layers.contested, police: layers.police,
                 pirates: layers.pirates, player: layers.player,
@@ -762,6 +770,7 @@
     "font-weight:bold'>Aa</span>"],
    ["gates", "Gates", lineSwatch("rgba(140,170,200,0.8)")],
    ["shighways", "Superhighways", dashSwatch("rgba(110,220,190,0.85)")],
+   ["highways", "Highways", lineSwatch("rgba(232,184,78,0.85)")],
   ].forEach(function (row) {
     litem(gBase, row[1], row[2],
       function () { return state.layers[row[0]]; },

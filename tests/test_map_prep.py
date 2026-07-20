@@ -251,6 +251,21 @@ def test_payload_gate_endpoints_scaled_into_hex():
     assert g[4] == b["x"] and g[5] < b["y"]
 
 
+def test_payload_highway_segments():
+    ref = _ref(highways=pd.DataFrame({
+        "sector": ["sec_a1", "sec_zzz"],   # unknown sector rows drop
+        "x1": [50_000.0, 0.0], "z1": [0.0, 0.0],
+        "x2": [0.0, 1.0], "z2": [50_000.0, 1.0],
+    }))
+    p = _payload(_frames(), ref, _cfg())
+    (h,) = p["hws"]
+    a = next(s for i, s in enumerate(p["sectors"])
+             if s["macro"] == "sec_a1" and h[0] == i)
+    # east of centre -> north of centre, scaled inside the hex
+    assert h[1] > a["x"] and abs(h[2] - a["y"]) < 0.1
+    assert abs(h[3] - a["x"]) < 0.1 and h[4] < a["y"]
+
+
 def test_payload_vaults(payload):
     vs = payload["vaults"]
     assert len(vs) == 3

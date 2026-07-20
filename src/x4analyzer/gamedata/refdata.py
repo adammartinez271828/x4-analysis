@@ -42,6 +42,7 @@ class RefData:
     sectors: pd.DataFrame
     ships: pd.DataFrame
     engines: pd.DataFrame    # macro, size, type, mk, forward, travel_thrust
+    highways: pd.DataFrame   # local-highway segments: sector, x1, z1, x2, z2
     modules: pd.DataFrame    # production modules: macro, ware, method, ...
     recipes: pd.DataFrame    # ware production recipes (long: one row/input)
     modcaps: pd.DataFrame    # module housing/workers/cargo capacities
@@ -116,6 +117,8 @@ def load_refdata(data_dir: Path) -> RefData:
                          "travel_thrust"])
     if not engines.empty:
         engines["macro"] = engines["macro"].str.lower()
+    highways = _optional("highways.csv",
+                         ["sector", "x1", "z1", "x2", "z2", "source"])
 
     # columns added after the first release: an older extract in the user
     # data dir may still override the packaged CSVs, so default them
@@ -147,7 +150,8 @@ def load_refdata(data_dir: Path) -> RefData:
 
     return RefData(
         factions=factions, wares=wares, clusters=clusters, sectors=sectors,
-        ships=ships, engines=engines, modules=modules, recipes=recipes,
+        ships=ships, engines=engines, highways=highways,
+        modules=modules, recipes=recipes,
         modcaps=modcaps, gates=gates, textdb=textdb,
         faction_short=faction_short, faction_name=faction_name,
         faction_colour=faction_colour, ware_name=ware_name,
