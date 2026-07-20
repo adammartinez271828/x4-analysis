@@ -204,16 +204,28 @@ _SECTOR_IN_PATH = re.compile(r"/([A-Za-z0-9_]*_Sector\d+)_connection/",
 
 
 def extract_gates(gf: GameFiles) -> list[list]:
-    """Sector pairs joined by a jump gate or accelerator. galaxy.xml's
-    ref="destination" connections carry both endpoints' zone paths, which
-    embed the sector connection names (Cluster_01_Sector001_connection ->
-    cluster_01_sector001_macro)."""
+    """Sector pairs joined by a jump gate or accelerator.
+
+    Inter-cluster links come from galaxy.xml: its ref="destination"
+    connections carry both endpoints' zone paths, which embed the sector
+    connection names (Cluster_01_Sector001_connection ->
+    cluster_01_sector001_macro). Intra-cluster links (trans-orbital
+    accelerators, e.g. Earth <-> The Moon) are NOT in galaxy.xml: each
+    cluster macro declares them as ref="sechighways" connections whose
+    entrypoint/exitpoint zone paths embed the sector connection names the
+    same way."""
 
     def sector_of(path: str) -> str:
         m = _SECTOR_IN_PATH.search(path or "")
         return f"{m.group(1).lower()}_macro" if m else ""
 
     pairs: dict[tuple[str, str], list] = {}
+
+    def add(a: str, b: str, source: str) -> None:
+        if a and b and a != b:
+            key = tuple(sorted((a, b)))
+            pairs.setdefault(key, [key[0], key[1], source])
+
     for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
         root = _parse(gf, path)
         if root is None:
@@ -225,11 +237,26 @@ def extract_gates(gf: GameFiles) -> list[list]:
             macro_el = conn.find("macro")
             if macro_el is None:
                 continue
-            a = sector_of(conn.get("path"))
-            b = sector_of(macro_el.get("path"))
-            if a and b and a != b:
-                key = tuple(sorted((a, b)))
-                pairs.setdefault(key, [key[0], key[1], source])
+            add(sector_of(conn.get("path")),
+                sector_of(macro_el.get("path")), source)
+
+    for path in gf.glob(
+            r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*clusters\.xml$"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        source = gf.source_of(path)
+        for conn in root.iter("connection"):
+            if conn.get("ref") != "sechighways":
+                continue
+            ends = {"entrypoint": "", "exitpoint": ""}
+            for sub in conn.iter("connection"):
+                if sub.get("ref") in ends:
+                    macro_el = sub.find("macro")
+                    if macro_el is not None:
+                        ends[sub.get("ref")] = sector_of(macro_el.get("path"))
+            add(ends["entrypoint"], ends["exitpoint"], source)
+
     return list(pairs.values())
 
 
