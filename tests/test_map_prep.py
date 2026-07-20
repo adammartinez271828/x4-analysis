@@ -100,20 +100,20 @@ def test_layout_sectors_slots_and_spoilers():
     assert set(hidden["macro"]) == {"sec_a1", "sec_b1"}
 
 
-def _two_sector_cluster(z_top, x_top, z_bot, x_bot):
+def _two_sector_cluster(z_top, x_top, z_bot, x_bot, cluster="cl"):
     """A ref/frames pair with one 2-sector cluster at given offsets."""
     ref = _ref(
-        clusters=pd.DataFrame({"macro": ["cl"], "x": [0.0], "z": [0.0],
+        clusters=pd.DataFrame({"macro": [cluster], "x": [0.0], "z": [0.0],
                                "name": ["Pair"]}),
         sectors=pd.DataFrame({
-            "cluster": ["cl", "cl"], "macro": ["top", "bot"],
+            "cluster": [cluster, cluster], "macro": ["top", "bot"],
             "x": [x_top, x_bot], "z": [z_top, z_bot],
             "name": ["Pair I", "Pair II"],
         }),
         gates=pd.DataFrame(columns=["sector_a", "sector_b"]),
     )
     frames = _frames(sectors=pd.DataFrame({
-        "cluster.macro": ["cl", "cl"], "macro": ["top", "bot"],
+        "cluster.macro": [cluster, cluster], "macro": ["top", "bot"],
         "name": ["Pair I", "Pair II"], "owner": ["argon", "argon"],
         "knownto": ["player", "player"], "contested": [0, 0],
         "ore": [0.0, 0.0],
@@ -135,11 +135,18 @@ def test_layout_handedness():
     out = _layout_sectors(f, r, _cfg())
     assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
 
-    # exactly vertical (Faulty Logic / Savage Spur): no horizontal signal,
-    # in-game these render right-handed, so ties keep the default
+    # exactly vertical (Faulty Logic / Savage Spur): no horizontal signal
+    # anywhere in the game files; unlisted ties keep the right-handed
+    # default
     f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0)
     out = _layout_sectors(f, r, _cfg())
     assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
+
+    # exactly vertical but listed in _TIE_LEFT (Earth/The Moon, Tharka's
+    # Cascade): mirrored per the in-game map
+    f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0, cluster="cluster_104_macro")
+    out = _layout_sectors(f, r, _cfg())
+    assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
 
 
 def test_labels_kinds():
