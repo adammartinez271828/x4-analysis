@@ -893,7 +893,9 @@
 
     h += "<h4>Connections</h4>";
     h += neighbors[i].length
-      ? neighbors[i].map(function (j) {
+      ? neighbors[i].slice().sort(function (a, b) {
+          return D.sectors[a].name.localeCompare(D.sectors[b].name);
+        }).map(function (j) {
           return "<div class='pstat'><span class='plink' data-j='" + j +
             "'>" + esc(D.sectors[j].name) + "</span></div>";
         }).join("")
