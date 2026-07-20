@@ -812,8 +812,11 @@ Speed is the ship's ACTUAL loadout: mounted engines &times; travel
 thrust &divide; hull drag, flown at 80% of travel speed (engine mods and
 spool-up are not modelled). Route length uses real station and gate
 positions along the jump path; S and M ships ride local highways at an
-assumed 10 km/s average in sectors that have them, one way, no docking
-time. A manual cargo-hold value keeps the last picked ship's speed.</li>
+assumed 10 km/s average in sectors that have them, one way, plus the
+flat <b>dock time</b> from the control (docking, cargo transfer and
+undocking at both endpoints — it keeps 15-second same-sector hops from
+posting absurd Cr/h). A manual cargo-hold value keeps the last picked
+ship's speed.</li>
 </ul>
 <p>Lanes reflect the analyzed save: good spreads attract NPC traders and
 may be gone. Faction hostility, ware legality and trade licenses are not
@@ -837,6 +840,11 @@ excluded unless you untick the box.</p>
 <input type='number' id='oppdepth' min='0' step='100' value='0'
        style='width:90px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label for='oppdock' title='flat per-trip overhead: docking,
+cargo transfer and undocking at both endpoints'>Dock time (min):</label>
+<input type='number' id='oppdock' min='0' step='0.5' value='4'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
 exclude player stations</label>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoqt' checked>
@@ -848,9 +856,9 @@ exclude Quettanauts (barter only)</label>
 <th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
 a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
 <th>Depth m&sup3;</th><th>Trip profit</th>
-<th title='trip profit / travel time for the picked ship: real route
+<th title='trip profit / trip time for the picked ship: real route
 length, 80% of loadout travel speed, S/M on local highways at 10 km/s
-average'>Cr/h</th><th>Lane total</th></tr></thead>
+average, plus the flat dock time'>Cr/h</th><th>Lane total</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select> <span id='wareinfo' class='note'></span></p>
@@ -1015,12 +1023,16 @@ function tripProfit(r) {{
   return Math.floor(Math.min(r.du, HOLD / r.vol)) * r.spread;
 }}
 // one-way trip: plain-space legs at 80% of the loadout travel speed,
-// highway-sector legs at an assumed 10 km/s average for S/M
+// highway-sector legs at an assumed 10 km/s average for S/M, plus the
+// flat dock/transfer/undock overhead from the control
+function dockSeconds() {{
+  return (+document.getElementById('oppdock').value || 0) * 60;
+}}
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
   const v = 0.8 * SHIP.speed;
   const hwv = (SHIP.cls === 'S' || SHIP.cls === 'M') ? 10000 : v;
-  return r.kp * 1000 / v + r.kh * 1000 / hwv;
+  return r.kp * 1000 / v + r.kh * 1000 / hwv + dockSeconds();
 }}
 function crPerHour(r) {{
   const t = tripSeconds(r), trip = tripProfit(r);
@@ -1124,7 +1136,9 @@ $('#opps tbody').on('click', 'tr', function() {{
       h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.8"
         + ((SHIP.cls === 'S' || SHIP.cls === 'M') && r.kh
            ? " (highways at 10 km/s)" : "")
-        + " &asymp; <b>" + fmtMin(t) + "</b> one way &rarr; <b>"
+        + (dockSeconds() ? " + " + fmtMin(dockSeconds()) + " docking"
+           : "")
+        + " &asymp; <b>" + fmtMin(t) + "</b> per trip &rarr; <b>"
         + fmt(crPerHour(r)) + " Cr/h</b>.";
   }}
   h += "</div>";
@@ -1135,7 +1149,7 @@ shipSel.appendChild(new Option(
   SHIPS.length ? '— pick one of your trade ships —'
                : '— no player trade ships in this save —', ''));
 SHIPS.forEach((s, i) => shipSel.appendChild(
-  new Option(s.l + ' — ' + s.model + ' (' + s.cls + ', ' + fmt(s.cargo)
+  new Option(s.l + ' (' + s.cls + ', ' + fmt(s.cargo)
     + ' m³' + (s.speed ? ', ' + fmt(s.speed) + ' m/s travel' : '')
     + ')', i)));
 function oppRedraw() {{ opps.rows().invalidate('data').draw(false); }}
@@ -1152,6 +1166,7 @@ document.getElementById('opphold').addEventListener('input', e => {{
 }});
 ['oppjumps', 'oppdepth'].forEach(id =>
   document.getElementById(id).addEventListener('input', () => opps.draw()));
+document.getElementById('oppdock').addEventListener('input', oppRedraw);
 ['oppnoplayer', 'oppnoqt'].forEach(id =>
   document.getElementById(id).addEventListener(
     'change', () => opps.draw()));

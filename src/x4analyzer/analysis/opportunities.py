@@ -263,7 +263,10 @@ def player_trade_ships(frames: Frames, ref: RefData) -> list[dict]:
             mounts.setdefault(str(r["id"]), []).append(
                 (str(r["macro"]), int(r["n"])))
 
-    out: list[dict] = []
+    # ships with identical model/size/hold/speed are interchangeable for
+    # the what-if: roll them into one entry with a count instead of
+    # listing every hull of a same-loadout freighter fleet
+    groups: dict[tuple, dict] = {}
     for _, r in ships.iterrows():
         macro = str(r["macro"]).lower()
         if macro not in ref_ships.index:
@@ -281,10 +284,17 @@ def player_trade_ships(frames: Frames, ref: RefData) -> list[dict]:
             speed = round(thrust / float(drag))
         label = str(r["name"]) or str(m["model"])
         code = str(r["code"] or "")
-        out.append({
-            "l": label + (" (" + code + ")" if code else ""),
-            "model": str(m["model"]), "cls": str(m["class"]),
-            "cargo": float(cargo), "speed": speed,
+        key = (str(m["model"]), str(m["class"]), float(cargo), speed)
+        g = groups.setdefault(key, {
+            "l": (label + (" (" + code + ")" if code else "")
+                  + " — " + key[0]),
+            "model": key[0], "cls": key[1],
+            "cargo": key[2], "speed": speed, "n": 0,
         })
+        g["n"] += 1
+    out = list(groups.values())
+    for g in out:
+        if g["n"] > 1:
+            g["l"] = g["model"] + " ×" + str(g["n"])
     out.sort(key=lambda s: s["l"].lower())
     return out

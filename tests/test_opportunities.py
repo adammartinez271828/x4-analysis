@@ -181,11 +181,25 @@ def test_player_trade_ships_loadout_speed():
         _frames(_offers([]), ship_engines=engines), _ref())
     # 2 engines x 1000 thrust x 10 travel mult / 50 drag; the unknown
     # engine contributes nothing
-    assert s["l"] == "Hauler One (HHH-001)"
-    assert (s["model"], s["cls"], s["cargo"]) == ("Boa", "M", 4900.0)
+    assert s["l"] == "Hauler One (HHH-001) — Boa"
+    assert (s["model"], s["cls"], s["cargo"], s["n"]) \
+        == ("Boa", "M", 4900.0, 1)
     assert s["speed"] == 400
 
 
 def test_player_ship_without_engine_data_has_no_speed():
     (s,) = player_trade_ships(_frames(_offers([])), _ref())
     assert s["speed"] is None
+
+
+def test_identical_ships_roll_up():
+    frames = _frames(_offers([]))
+    twin = frames.universe[frames.universe["id"] == "ship1"].copy()
+    frames.universe = pd.concat(
+        [frames.universe,
+         twin.assign(id="ship2", name="Hauler Two", code="HHH-002"),
+         twin.assign(id="ship3", name="Hauler Three", code="HHH-003")],
+        ignore_index=True)
+    (s,) = player_trade_ships(frames, _ref())
+    # same model/size/hold/speed (all engine-less): one entry, count 3
+    assert s["l"] == "Boa ×3" and s["n"] == 3
