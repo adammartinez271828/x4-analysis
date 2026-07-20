@@ -213,18 +213,51 @@ def extract_gates(gf: GameFiles) -> list[list]:
     accelerators, e.g. Earth <-> The Moon) are NOT in galaxy.xml: each
     cluster macro declares them as ref="sechighways" connections whose
     entrypoint/exitpoint zone paths embed the sector connection names the
-    same way."""
+    same way.
+
+    The endpoint paths also name the gate ZONES, whose sector-local
+    offsets sit in the sector files — each row carries them as
+    ax/az/bx/bz (metres; 0/0 when the zone could not be resolved) so the
+    map can draw connections at their approximate in-sector positions."""
+
+    # zone-connection name -> sector-local (x, z) offset
+    zone_pos: dict[str, tuple[float, float]] = {}
+    for path in gf.glob(
+            r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*sectors\.xml$"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for conn in root.iter("connection"):
+            if conn.get("ref") != "zones":
+                continue
+            name = (conn.get("name") or "").lower()
+            if not name:
+                continue
+            pos = conn.find("offset/position")
+            zone_pos[name] = (
+                (float(pos.get("x") or 0), float(pos.get("z") or 0))
+                if pos is not None else (0.0, 0.0))
 
     def sector_of(path: str) -> str:
         m = _SECTOR_IN_PATH.search(path or "")
         return f"{m.group(1).lower()}_macro" if m else ""
 
+    def zone_of(path: str) -> tuple[float, float]:
+        for seg in (path or "").split("/"):
+            p = zone_pos.get(seg.lower())
+            if p is not None:
+                return p
+        return (0.0, 0.0)
+
     pairs: dict[tuple[str, str], list] = {}
 
-    def add(a: str, b: str, source: str) -> None:
+    def add(a: str, b: str, pa: tuple[float, float],
+            pb: tuple[float, float], source: str) -> None:
         if a and b and a != b:
-            key = tuple(sorted((a, b)))
-            pairs.setdefault(key, [key[0], key[1], source])
+            if b < a:
+                a, b, pa, pb = b, a, pb, pa
+            pairs.setdefault((a, b),
+                             [a, b, pa[0], pa[1], pb[0], pb[1], source])
 
     for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
         root = _parse(gf, path)
@@ -237,8 +270,9 @@ def extract_gates(gf: GameFiles) -> list[list]:
             macro_el = conn.find("macro")
             if macro_el is None:
                 continue
-            add(sector_of(conn.get("path")),
-                sector_of(macro_el.get("path")), source)
+            add(sector_of(conn.get("path")), sector_of(macro_el.get("path")),
+                zone_of(conn.get("path")), zone_of(macro_el.get("path")),
+                source)
 
     for path in gf.glob(
             r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*clusters\.xml$"):
@@ -249,13 +283,16 @@ def extract_gates(gf: GameFiles) -> list[list]:
         for conn in root.iter("connection"):
             if conn.get("ref") != "sechighways":
                 continue
-            ends = {"entrypoint": "", "exitpoint": ""}
+            ends = {"entrypoint": ("", (0.0, 0.0)),
+                    "exitpoint": ("", (0.0, 0.0))}
             for sub in conn.iter("connection"):
                 if sub.get("ref") in ends:
                     macro_el = sub.find("macro")
                     if macro_el is not None:
-                        ends[sub.get("ref")] = sector_of(macro_el.get("path"))
-            add(ends["entrypoint"], ends["exitpoint"], source)
+                        mp = macro_el.get("path")
+                        ends[sub.get("ref")] = (sector_of(mp), zone_of(mp))
+            add(ends["entrypoint"][0], ends["exitpoint"][0],
+                ends["entrypoint"][1], ends["exitpoint"][1], source)
 
     return list(pairs.values())
 
@@ -531,7 +568,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     log("Extracting gate connections")
     _write_csv(
         cfg.data_dir / "gates.csv",
-        ["sector_a", "sector_b", "source"],
+        ["sector_a", "sector_b", "ax", "az", "bx", "bz", "source"],
         extract_gates(gf),
     )
 
