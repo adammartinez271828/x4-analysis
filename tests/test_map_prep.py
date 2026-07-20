@@ -68,11 +68,25 @@ def _frames(**over):
         "faction_hq": [None, None, 1, None],
     })
     empty_events = pd.DataFrame(columns=["time", "sector.name"])
+    datavaults = pd.DataFrame({
+        "id": ["v1", "v2", "v3"],
+        "macro": ["landmarks_vault_01_macro", "landmarks_erlking_vault_02_macro",
+                  "landmarks_vault_03_macro"],
+        "code": ["VLT-001", "ERL-002", "VLT-003"],
+        "knownto": ["player", "", ""],   # "" = undiscovered
+        "sector.macro": ["sec_a1", "sec_b1", "sec_a1"],
+        "sx": [20_000.0, None, 0.0],
+        "sz": [-10_000.0, None, 0.0],
+        "unlocked": [1, 0, 0],
+        "loot": [0, 2, 1],
+        "blueprints": ["", "turret_pir_l_mk1", ""],
+    })
     base = dict(
         sectors=sectors, universe=universe,
         police=empty_events, pirates=empty_events.copy(),
         resource_cols=["ore"], time_now=100_000.0,
         built_modules=pd.DataFrame(columns=["id", "macro"]),
+        datavaults=datavaults,
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -235,6 +249,28 @@ def test_payload_gate_endpoints_scaled_into_hex():
     assert abs(dist - 0.75 * 62 / 2) < 0.1
     # endpoint B: due north of its centre
     assert g[4] == b["x"] and g[5] < b["y"]
+
+
+def test_payload_vaults(payload):
+    vs = payload["vaults"]
+    assert len(vs) == 3
+    v1 = next(v for v in vs if v["code"] == "VLT-001")
+    assert v1["kind"] == "vault" and v1["open"] == 1 and v1["loot"] == 0
+    # offset east/south of the sector centre, scaled inside the hex
+    a = next(s for s in payload["sectors"] if s["macro"] == "sec_a1")
+    assert v1["x"] > a["x"] and v1["y"] > a["y"]
+    assert abs(v1["x"] - a["x"]) < 31 and abs(v1["y"] - a["y"]) < 31
+    v2 = next(v for v in vs if v["code"] == "ERL-002")
+    assert v2["kind"] == "erlking" and v2["open"] == 0
+    assert v2["bp"] == "turret_pir_l_mk1"   # unresolved ids pass through
+    # no recorded offset -> hex centre
+    b = next(s for s in payload["sectors"] if s["macro"] == "sec_b1")
+    assert (v2["x"], v2["y"]) == (b["x"], b["y"])
+
+
+def test_payload_vaults_spoilers_hidden():
+    p = _payload(_frames(), _ref(), _cfg(spoilers_hide=True))
+    assert [v["code"] for v in p["vaults"]] == ["VLT-001"]
 
 
 def test_payload_stations_grouped_and_typed(payload):

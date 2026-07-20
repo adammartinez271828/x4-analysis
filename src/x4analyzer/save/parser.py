@@ -29,6 +29,10 @@ _YIELD_WARE_RE = re.compile(
     r"_(ore|silicon|nividium|ice|hydrogen|helium|methane|rawscrap|scrap)(?:_|$)"
 )
 
+# data vaults, matched on macro: the classes differ (regular vaults are
+# class="datavault", Erlking vaults class="object")
+_VAULT_RE = re.compile(r"^landmarks_(erlking_)?vault_\d+_macro$")
+
 
 @dataclass
 class SaveData:
@@ -81,6 +85,12 @@ class SaveData:
     # (roles: service, marine, passenger, prisoner; captain/engineer are
     # separate npc components tracked via posts)
     people: dict = field(default_factory=dict)
+    # data vaults (regular + Erlking), for the map overlay:
+    # (id, macro, code, knownto, sector_macro, sx, sz, unlocked, loot,
+    #  blueprints_csv). unlocked = <unlock state="unlocked"/> present;
+    # loot = collectable child components still uncollected; blueprints =
+    # blueprint macros still inside (Erlking; empty once collected)
+    datavaults: list = field(default_factory=list)
 
 
 def _open_save(path: Path) -> IO[bytes]:
@@ -116,6 +126,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     build_type_stack: list[str] = []  # type attr of open <build> elements
     build_method_stack: list[str] = []  # method attr of open <build> elements
     sector_macro_stack: list[str] = []
+    # open data-vault components awaiting their loot/unlock children
+    vault_stack: list[list] = []
     in_faction_player = 0
     n_elems = 0
 
@@ -131,6 +143,9 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     cid = elem.get("id", "")
                     comp_stack.append([clazz, cid, elem.get("macro", ""),
                                        None])
+                    if _VAULT_RE.match(elem.get("macro", "").lower()):
+                        # [comp_stack depth, unlocked, loot, blueprints]
+                        vault_stack.append([len(comp_stack), 0, 0, []])
                     if clazz == "station" or _SHIP_RE.match(clazz):
                         object_stack.append(cid)
                     elif clazz == "sector":
@@ -169,6 +184,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                                              float(elem.get("z", 0) or 0))
                     except ValueError:
                         pass
+
+            elif tag == "unlock":
+                # <unlock state="unlocked"/> directly under an open vault
+                if vault_stack and len(comp_stack) == vault_stack[-1][0] \
+                        and elem.get("state") == "unlocked":
+                    vault_stack[-1][1] = 1
 
             elif tag == "component":
                 clazz, cid, macro, own_pos = comp_stack.pop()
@@ -232,6 +253,41 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("basename", ""), parent_id, sx, sz,
                         elem.get("factionheadquarters", ""),
                     ))
+
+                if vault_stack:
+                    v = vault_stack[-1]
+                    if v[0] == len(comp_stack) + 1:
+                        # this component IS the open vault: finalize with
+                        # the sector-local position (same walk as stations)
+                        vault_stack.pop()
+                        vsector = ""
+                        vsector_depth = -1
+                        for i, (pcls, _pid, pmacro, _pp) in \
+                                enumerate(comp_stack):
+                            if pcls == "sector":
+                                vsector, vsector_depth = pmacro, i
+                        vx = own_pos[0] if own_pos else 0.0
+                        vz = own_pos[1] if own_pos else 0.0
+                        if vsector_depth >= 0:
+                            for _c, _i2, _m, p in \
+                                    comp_stack[vsector_depth + 1:]:
+                                if p:
+                                    vx += p[0]
+                                    vz += p[1]
+                        d.datavaults.append((
+                            cid, macro, elem.get("code", ""),
+                            elem.get("knownto", ""), vsector, vx, vz,
+                            v[1], v[2], ",".join(v[3])))
+                    elif v[0] <= len(comp_stack):
+                        # a descendant of the open vault: uncollected loot
+                        # (regular vaults hold collectablewares, Erlking
+                        # ones also a collectableblueprints container)
+                        bp = elem.get("blueprints", "")
+                        if bp or clazz in ("collectablewares",
+                                           "collectableblueprints"):
+                            v[2] += 1
+                            if bp:
+                                v[3].extend(bp.split(","))
 
             elif tag == "connected":
                 parent = elem.getparent()

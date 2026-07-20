@@ -317,6 +317,13 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, _low(sector), ware, amount)
              for sector, ware, amount in save.floating_wares])
 
+        conn.executemany(
+            "INSERT OR REPLACE INTO datavault VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            [(save_id, vid, _low(macro), _s(code), _s(knownto),
+              _low(sector), sx, sz, unlocked, loot, _s(bps))
+             for (vid, macro, code, knownto, sector, sx, sz,
+                  unlocked, loot, bps) in save.datavaults])
+
     return save_id
 
 

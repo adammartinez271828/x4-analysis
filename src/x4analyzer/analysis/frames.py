@@ -71,6 +71,9 @@ class Frames:
         m = self.station_modules
         return m[m["built"] == 1]
     floating_wares: pd.DataFrame = None      # sector.macro, ware, amount
+    # data vaults (regular + Erlking): id, macro, code, knownto,
+    # sector.macro, sx, sz, unlocked, loot, blueprints
+    datavaults: pd.DataFrame = None
 
     resource_cols: list = field(default_factory=list)
     faction_levels: list = field(default_factory=list)
@@ -550,6 +553,12 @@ def build_frames(save: SaveData, ref: RefData,
             SELECT sector_macro AS "sector.macro", ware, amount
             FROM floating_ware WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["sector.macro"]),
+        datavaults=_read(conn, f"""
+            SELECT object_id AS id, macro, code, knownto,
+                   sector_macro AS "sector.macro", sx, sz,
+                   unlocked, loot, blueprints
+            FROM datavault WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["code", "knownto", "sector.macro", "blueprints"]),
         resource_cols=resource_cols, faction_levels=faction_levels,
         time_now=time_now, logged_hours=logged_hours,
         player_faction_name=player_faction_name,

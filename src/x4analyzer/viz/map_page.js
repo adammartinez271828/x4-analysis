@@ -148,6 +148,11 @@
    "police", "pirates", "player", "factions", "highlight", "labels",
    "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
+  // vault overlay markers also sit above the hover layer (hoverable at
+  // every zoom level — spotting unopened vaults galaxy-wide is their
+  // point); one group per toggle
+  layers.vaults = el("g", {id: "ly-vaults"}, svg);
+  layers.erlking = el("g", {id: "ly-erlking"}, svg);
   // player station markers sit above the hover layer so they can take
   // pointer events for their tooltips (zoomed-in only: the zoomed-out
   // CSS hides them — the dashed ring + count badge covers that mode);
@@ -287,7 +292,8 @@
   var playerColour = (D.factions.filter(function (f) {
     return f.name === "Player";
   })[0] || {}).colour || "#00E060";
-  var plySt = [];     // {el, x, y} markers, counter-scaled with zoom
+  var ptMarkers = []; // {el, x, y} point markers (player stations
+  // and vaults), counter-scaled with zoom together
   D.sectors.forEach(function (s) {
     var mine = (D.stations[s.macro] || []).filter(function (st) {
       return st.owner === "Player";
@@ -317,8 +323,46 @@
       });
       g.addEventListener("mousemove", moveTip);
       g.addEventListener("mouseleave", hideTip);
-      plySt.push({el: g, x: stn.x, y: stn.y});
+      ptMarkers.push({el: g, x: stn.x, y: stn.y});
     });
+  });
+
+  // data vault overlays: solid glyph = unopened, hollow dimmed = opened.
+  // Regular vaults are cyan squares, Erlking vaults gold stars; a
+  // transparent hit disc keeps hollow glyphs hoverable
+  var VAULT_STYLE = {
+    vault: {colour: "#19d3f3", layer: "vaults", title: "Data Vault"},
+    erlking: {colour: "#FFD24D", layer: "erlking", title: "Erlking Data Vault"},
+  };
+  function vaultGlyph(g, kind, open) {
+    var st = VAULT_STYLE[kind];
+    var attrs = open
+      ? {fill: "none", stroke: st.colour, "stroke-width": 1, opacity: 0.55}
+      : {fill: st.colour, stroke: "#1e1e1e", "stroke-width": 0.8};
+    if (kind === "erlking") attrs.d = starPath(0, 0, 5.2);
+    else attrs.d = "M-2.3,-2.3 L2.3,-2.3 L2.3,2.3 L-2.3,2.3 Z";
+    el("path", attrs, g);
+  }
+  D.vaults.forEach(function (v) {
+    var st = VAULT_STYLE[v.kind];
+    var g = el("g", {}, layers[st.layer]);
+    el("circle", {r: 4.5, fill: "transparent"}, g);
+    vaultGlyph(g, v.kind, v.open);
+    g.addEventListener("mouseenter", function (ev) {
+      var h = "<b>" + st.title +
+        (v.code ? " (" + esc(v.code) + ")" : "") + "</b><br>" +
+        (v.open ? (v.loot ? "Opened &mdash; loot still inside" : "Opened")
+                : "Unopened");
+      if (v.bp) h += "<br>Blueprint inside: " + esc(v.bp);
+      else if (v.kind === "erlking" && v.open)
+        h += "<br>Blueprint collected";
+      tip.innerHTML = h;
+      tip.style.display = "block";
+      moveTip(ev);
+    });
+    g.addEventListener("mousemove", moveTip);
+    g.addEventListener("mouseleave", hideTip);
+    ptMarkers.push({el: g, x: v.x, y: v.y});
   });
 
   // resource overlay: one hidden group per resource; hex sizes are set by
@@ -538,10 +582,10 @@
       r.el.setAttribute("transform",
         "translate(" + r.x + "," + r.y + ") scale(" + kHi + ")");
     });
-    // player station markers hold ~5 screen px once past the zoom
-    // threshold
+    // point markers (player stations, vaults) hold ~5 screen px once
+    // past the zoom threshold
     var kPly = Math.min(1, 1.7 / sPx).toFixed(3);
-    plySt.forEach(function (r) {
+    ptMarkers.forEach(function (r) {
       r.el.setAttribute("transform",
         "translate(" + r.x + "," + r.y + ") scale(" + kPly + ")");
     });
@@ -551,7 +595,7 @@
   var state = {
     layers: {gates: false, clusters: true, labels: true,
              contested: false, police: false, pirates: false,
-             player: false,
+             player: false, vaults: false, erlking: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
              fac_equipdock: true, fac_trading: true, fac_khaak: true},
     factions: {},
@@ -606,7 +650,8 @@
   var layerG = {gates: layers.gates, clusters: layers.clusters,
                 labels: layers.labels,
                 contested: layers.contested, police: layers.police,
-                pirates: layers.pirates, player: layers.player};
+                pirates: layers.pirates, player: layers.player,
+                vaults: layers.vaults, erlking: layers.erlking};
 
   function applyLayer(name) {
     var on = state.layers[name] ? "" : "none";
@@ -736,6 +781,23 @@
       "<svg width='18' height='14' viewBox='-9 -7 18 14'><polygon points='" +
       hexPoints(0, 0, 12) + "' fill='none' stroke='" + playerColour +
       "' stroke-width='1.5' stroke-dasharray='3,2'/></svg>"]);
+  // vault rows carry an opened/unopened progress count in the label
+  function vaultCount(kind) {
+    var all = D.vaults.filter(function (v) { return v.kind === kind; });
+    var open = all.filter(function (v) { return v.open; }).length;
+    return {n: all.length, open: open};
+  }
+  var vc = vaultCount("vault"), ec = vaultCount("erlking");
+  if (vc.n)
+    overlayRows.push(["vaults",
+      "Data Vaults (" + vc.open + "/" + vc.n + " opened)",
+      "<svg width='18' height='14' viewBox='-9 -7 18 14'>" +
+      "<rect x='-4' y='-4' width='8' height='8' fill='" +
+      VAULT_STYLE.vault.colour + "'/></svg>"]);
+  if (ec.n)
+    overlayRows.push(["erlking",
+      "Erlking Vaults (" + ec.open + "/" + ec.n + " opened)",
+      pathSwatch(starPath, VAULT_STYLE.erlking.colour, 9)]);
   overlayRows.forEach(function (row) {
     litem(gOver, row[1], row[2],
       function () { return state.layers[row[0]]; },

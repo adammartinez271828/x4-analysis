@@ -544,6 +544,34 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             reach[si] = max(reach.get(si, 0.0),
                             (off[0] ** 2 + off[1] ** 2) ** 0.5)
 
+    # data vaults (regular + Erlking) for the vault overlays, spoiler-
+    # filtered like stations. "open" = the vault has been unlocked (the
+    # loot flag lets the tooltip flag unlocked-but-uncollected loot);
+    # blueprint macros are ware ids, resolved like the find command does
+    dv = getattr(frames, "datavaults", None)
+    vault_recs: list[tuple] = []   # (sector idx, record, offset)
+    if dv is not None and len(dv):
+        dv = dv[dv["sector.macro"].isin(index)]
+        if cfg.spoilers_hide:
+            dv = dv[dv["knownto"] == "player"]
+        for _, r in dv.iterrows():
+            off = None
+            if pd.notna(r["sx"]) and pd.notna(r["sz"]):
+                off = (float(r["sx"]), float(r["sz"]))
+            bps = [ref.ware_name.get(b, b)
+                   for b in str(r["blueprints"] or "").split(",") if b]
+            vault_recs.append((index[r["sector.macro"]], {
+                "kind": "erlking" if "erlking" in r["macro"] else "vault",
+                "code": str(r["code"]),
+                "open": int(r["unlocked"] == 1 or r["loot"] == 0),
+                "loot": int(r["loot"]),
+                "bp": ", ".join(bps),
+            }, off))
+    for si, _rec, off in vault_recs:
+        if off:
+            reach[si] = max(reach.get(si, 0.0),
+                            (off[0] ** 2 + off[1] ** 2) ** 0.5)
+
     def in_hex_pt(i: int, p: tuple[float, float]) -> tuple[float, float]:
         s = sectors[i]
         sc = reach.get(i, 0.0)
@@ -566,6 +594,12 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         rec["x"], rec["y"] = in_hex_pt(si, off) if off \
             else (sectors[si]["x"], sectors[si]["y"])
         stations.setdefault(macro, []).append(rec)
+
+    vaults: list[dict] = []
+    for si, rec, off in vault_recs:
+        rec["x"], rec["y"] = in_hex_pt(si, off) if off \
+            else (sectors[si]["x"], sectors[si]["y"])
+        vaults.append(rec)
 
     label_recs = []
     for _, r in labels.iterrows():
@@ -654,6 +688,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "labels": label_recs, "police": overlay_recs(police, "interdictions"),
         "pirates": overlay_recs(pirates, "harassments"),
         "resources": resources, "factions": factions, "stations": stations,
+        "vaults": vaults,
     }
 
 

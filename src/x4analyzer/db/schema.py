@@ -73,6 +73,7 @@ WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",
     "npc", "npc_skill", "post", "people", "cargo", "trade_offer",
     "build_resource", "ship_order", "resource", "floating_ware",
+    "datavault",
 )
 
 REFERENCE_TABLES = (
@@ -218,6 +219,23 @@ TABLES: dict[str, str] = {
   sector_macro TEXT,
   ware         TEXT NOT NULL,
   amount       REAL
+)""",
+    # data vaults (regular landmarks_vault_* + Erlking): unlocked = the
+    # vault has been opened; loot = collectable children still inside;
+    # blueprints = blueprint macros still inside (Erlking, csv)
+    "datavault": """CREATE TABLE IF NOT EXISTS datavault (
+  save_id      INTEGER NOT NULL,
+  object_id    TEXT NOT NULL,
+  macro        TEXT NOT NULL,
+  code         TEXT,
+  knownto      TEXT,
+  sector_macro TEXT,
+  sx           REAL,
+  sz           REAL,
+  unlocked     INTEGER NOT NULL,
+  loot         INTEGER NOT NULL,
+  blueprints   TEXT,
+  PRIMARY KEY (save_id, object_id)
 )""",
     # ---- event history (E) -------------------------------------------------
     # identity columns are resolved at merge time — the only moment the

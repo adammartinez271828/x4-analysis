@@ -62,7 +62,8 @@ EXPECTED_COUNTS = {
     "build_resource": 1,
     "ship_order": 1,
     "resource": 2,
-    "floating_ware": 1,
+    "floating_ware": 2,   # scrap cube + the Erlking vault's loot wares
+    "datavault": 2,
     # event history (merged, not rebuilt)
     "trade_tx": 1,
     "stock_event": 1,
@@ -74,6 +75,20 @@ EXPECTED_COUNTS = {
 def test_snapshot_row_counts(conn):
     for table, expected in EXPECTED_COUNTS.items():
         assert count(conn, table) == expected, table
+
+
+def test_datavault_rows(conn):
+    rows = conn.execute(
+        "SELECT object_id, macro, code, knownto, sector_macro, sx, sz,"
+        " unlocked, loot, blueprints FROM datavault ORDER BY object_id"
+    ).fetchall()
+    assert rows == [
+        ("[0x70]", "landmarks_vault_02_macro", "KBE-495", "player",
+         "cluster_01_sector001_macro", 900.0, -1700.0, 1, 0, None),
+        ("[0x80]", "landmarks_erlking_vault_04_macro", "WYH-699", None,
+         "cluster_01_sector001_macro", 5000.0, -2500.0, 0, 2,
+         "turret_pir_l_battleship_01_laser_01_mk1"),
+    ]
 
 
 def test_save_row(conn):

@@ -82,6 +82,36 @@ FIXTURE = """<?xml version="1.0"?>
               </connection>
             </connections>
           </component>
+          <component class="datavault" macro="landmarks_vault_02_macro"
+                     id="[0x70]" code="KBE-495" owner="ownerless"
+                     knownto="player" connection="space">
+            <offset><position x="-100" y="0" z="300"/></offset>
+            <unlock state="unlocked"/>
+            <connections/>
+          </component>
+          <component class="object" macro="landmarks_erlking_vault_04_macro"
+                     id="[0x80]" code="WYH-699" owner="ownerless"
+                     connection="space">
+            <offset><position x="4000" y="0" z="-500"/></offset>
+            <connections>
+              <connection connection="connection_pickup">
+                <component class="collectablewares" macro="sm_gen_wares_macro"
+                           connection="connection01" id="[0x81]">
+                  <offset default="1"/>
+                  <wares><ware ware="inv_modulartrigger"/></wares>
+                </component>
+              </connection>
+              <connection connection="connection_blueprint">
+                <component class="collectableblueprints"
+                           macro="props_sm_container_xs_erlking_bp_04_macro"
+                           connection="connection01" code="WNG-368"
+                           blueprints="turret_pir_l_battleship_01_laser_01_mk1"
+                           id="[0x82]">
+                  <offset default="1"/>
+                </component>
+              </connection>
+            </connections>
+          </component>
           </connection></connections>
           </component>
           </connection></connections>
@@ -177,6 +207,21 @@ def test_fixture_parse(save_file: Path) -> None:
         in d.build_resources
     assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \
         in d.floating_wares
+
+    # data vaults: matched on macro (classes differ), sector-local
+    # position summed over the zone offset like stations
+    assert len(d.datavaults) == 2
+    plain = next(v for v in d.datavaults if v[0] == "[0x70]")
+    assert plain[1] == "landmarks_vault_02_macro"
+    assert plain[2] == "KBE-495" and plain[3] == "player"
+    assert plain[4] == "cluster_01_sector001_macro"
+    assert (plain[5], plain[6]) == (900.0, -1700.0)
+    assert plain[7] == 1 and plain[8] == 0 and plain[9] == ""  # opened, empty
+    erl = next(v for v in d.datavaults if v[0] == "[0x80]")
+    assert erl[1] == "landmarks_erlking_vault_04_macro"
+    assert (erl[5], erl[6]) == (5000.0, -2500.0)
+    assert erl[7] == 0 and erl[8] == 2  # locked; wares + blueprint inside
+    assert erl[9] == "turret_pir_l_battleship_01_laser_01_mk1"
 
     assert len(d.trades) == 2  # frames layer filters the owner-only entry
     assert d.trades[0]["ware"] == "energycells"
