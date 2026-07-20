@@ -420,14 +420,66 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         x, y = px(float(r["x"]), float(r["y"]))
         clusters.append({"macro": r["macro"], "x": x, "y": y})
 
+    # stations per plotted sector (detail panel + facility overlays).
+    # Spoiler mode also drops undiscovered stations, so no hidden names
+    # reach the page.
+    uni = frames.universe
+    st = uni[uni["class"] == "station"].copy()
+    if cfg.spoilers_hide:
+        st = st[st["knownto"] == "player"]
+    st = st[st["sector.macro"].isin(index)]
+    st["fname"] = st["owner"].map(ref.faction_name).fillna(
+        st["owner"].str.capitalize())
+    st.loc[st["owner"] == "player", "fname"] = "Player"
+
+    # facility flags from BUILT modules only (planned modules don't
+    # count): _ships_ + l/xl -> shipyard, _ships_ without -> wharf,
+    # _equip_ -> equipment dock. A station can be several at once (player
+    # yards); display precedence shipyard > wharf > equipdock > trading.
+    # Trading stations have no telltale module, so they come from the
+    # save's own basename label (stype).
+    bm = frames.built_modules
+    bm = bm[bm["macro"].str.contains("buildmodule", na=False)]
+    ships_bm = bm[bm["macro"].str.contains("_ships_", na=False)]
+    lxl = ships_bm["macro"].str.contains("_l_|_xl_", na=False)
+    shipyards = set(ships_bm[lxl]["id"])
+    wharfs = set(ships_bm[~lxl]["id"])
+    equips = set(bm[bm["macro"].str.contains("_equip_", na=False)]["id"])
+
+    def facility(sid: str, stype) -> str | None:
+        if sid in shipyards:
+            return "shipyard"
+        if sid in wharfs:
+            return "wharf"
+        if sid in equips:
+            return "equipdock"
+        t = str(stype or "").lower()
+        if "trading station" in t or "free port" in t:
+            return "trading"
+        return None
+
+    st_recs: list[tuple] = []   # (sector macro, sector idx, record, offset)
+    for _, r in st.sort_values(["fname", "name"]).iterrows():
+        off = None
+        if "sx" in st.columns and pd.notna(r["sx"]) and pd.notna(r["sz"]):
+            off = (float(r["sx"]), float(r["sz"]))
+        st_recs.append((r["sector.macro"], index[r["sector.macro"]], {
+            "name": str(r["name"]), "code": str(r["code"]),
+            "owner": str(r["fname"]),
+            "type": str(r["stype"]) if pd.notna(r["stype"]) else "",
+            "fac": facility(r["id"], r["stype"]),
+            "hq": bool("faction_hq" in st.columns
+                       and pd.notna(r["faction_hq"])
+                       and r["faction_hq"] == 1),
+        }, off))
+
     # gate/accelerator links as sector-index pairs plus endpoint scene
     # coords (the renderer derives hover adjacency from the indices),
     # between plotted sectors only, so spoiler mode drops links touching
-    # hidden sectors. The endpoint zone offsets (sector-local metres from
-    # gates.csv) are scaled per sector so the farthest endpoint sits at
-    # 75% of the hex half-width — connections attach at their approximate
-    # in-sector positions. Older gates.csv without the endpoint columns
-    # falls back to hex centres.
+    # hidden sectors. Gate endpoints AND station positions share one
+    # per-sector normalization (the farthest point sits at 75% of the hex
+    # half-width) so they occupy a consistent sector space. Older
+    # gates.csv without endpoint columns falls back to hex centres.
     # sub-sector hexes are sized to nearly fill their cluster-hex slots
     # (see _slot_xy); the single-sector 62px matches R
     big, small = 62, 29
@@ -442,8 +494,12 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     for ia, ib, pa, pb in raw_gates:
         reach[ia] = max(reach.get(ia, 0.0), (pa[0]**2 + pa[1]**2) ** 0.5)
         reach[ib] = max(reach.get(ib, 0.0), (pb[0]**2 + pb[1]**2) ** 0.5)
+    for _m, si, _rec, off in st_recs:
+        if off:
+            reach[si] = max(reach.get(si, 0.0),
+                            (off[0] ** 2 + off[1] ** 2) ** 0.5)
 
-    def gate_pt(i: int, p: tuple[float, float]) -> tuple[float, float]:
+    def in_hex_pt(i: int, p: tuple[float, float]) -> tuple[float, float]:
         s = sectors[i]
         sc = reach.get(i, 0.0)
         if sc <= 0:
@@ -452,8 +508,30 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         return (round(s["x"] + p[0] / sc * r_px, 2),
                 round(s["y"] - p[1] / sc * r_px, 2))
 
-    gates = [[ia, ib, *gate_pt(ia, pa), *gate_pt(ib, pb)]
+    gates = [[ia, ib, *in_hex_pt(ia, pa), *in_hex_pt(ib, pb)]
              for ia, ib, pa, pb in raw_gates]
+
+    # finalize station records with in-hex positions (centre when the
+    # snapshot predates position tracking), grouped per sector; plus the
+    # per-cluster facility-kind union for the low-zoom icon rows
+    stations: dict[str, list[dict]] = {}
+    for macro, si, rec, off in st_recs:
+        rec["x"], rec["y"] = in_hex_pt(si, off) if off \
+            else (sectors[si]["x"], sectors[si]["y"])
+        stations.setdefault(macro, []).append(rec)
+
+    sec_cluster = dict(zip(plot_sectors["macro"],
+                           plot_sectors["cluster.macro"]))
+    fac_order = ["hq", "shipyard", "wharf", "equipdock", "trading"]
+    fac_sets: dict[str, set] = {}
+    for macro, _si, rec, _off in st_recs:
+        kinds = fac_sets.setdefault(sec_cluster[macro], set())
+        if rec["fac"]:
+            kinds.add(rec["fac"])
+        if rec["hq"]:
+            kinds.add("hq")
+    facilities = {cl: [k for k in fac_order if k in kinds]
+                  for cl, kinds in fac_sets.items() if kinds}
 
     label_recs = []
     for _, r in labels.iterrows():
@@ -523,24 +601,6 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                       ref.faction_colour.get("player", "#28C76F"))
         factions.append({"name": owner, "colour": colour})
 
-    # stations per plotted sector for the detail panel (and the player
-    # assets overlay). Spoiler mode also drops undiscovered stations, so
-    # no hidden names reach the page.
-    uni = frames.universe
-    st = uni[uni["class"] == "station"].copy()
-    if cfg.spoilers_hide:
-        st = st[st["knownto"] == "player"]
-    st = st[st["sector.macro"].isin(index)]
-    st["fname"] = st["owner"].map(ref.faction_name).fillna(
-        st["owner"].str.capitalize())
-    st.loc[st["owner"] == "player", "fname"] = "Player"
-    stations: dict[str, list[dict]] = {}
-    for _, r in st.sort_values(["fname", "name"]).iterrows():
-        stations.setdefault(r["sector.macro"], []).append({
-            "name": str(r["name"]), "code": str(r["code"]),
-            "owner": str(r["fname"]),
-            "type": str(r["stype"]) if pd.notna(r["stype"]) else "",
-        })
 
     return {
         "scene": {"w": round((xr[1] - xr[0]) / _UPX, 2),
@@ -556,6 +616,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "labels": label_recs, "police": overlay_recs(police, "interdictions"),
         "pirates": overlay_recs(pirates, "harassments"),
         "resources": resources, "factions": factions, "stations": stations,
+        "facilities": facilities,
     }
 
 

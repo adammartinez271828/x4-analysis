@@ -55,6 +55,7 @@ def _frames(**over):
         "ore": [100.0, 0.0, 50.0],
     })
     universe = pd.DataFrame({
+        "id": ["st1", "st2", "st3", "sec"],
         "class": ["station", "station", "station", "sector"],
         "name": ["Trade Post", "Hidden Base", "HQ", "Alpha"],
         "code": ["AAA-111", "BBB-222", "CCC-333", ""],
@@ -62,12 +63,16 @@ def _frames(**over):
         "knownto": ["player", "unknown", "player", "player"],
         "sector.macro": ["sec_a1", "sec_a1", "sec_b1", ""],
         "stype": ["trading", "defence", pd.NA, pd.NA],
+        "sx": [10_000.0, None, None, None],
+        "sz": [5_000.0, None, None, None],
+        "faction_hq": [None, None, 1, None],
     })
     empty_events = pd.DataFrame(columns=["time", "sector.name"])
     base = dict(
         sectors=sectors, universe=universe,
         police=empty_events, pirates=empty_events.copy(),
         resource_cols=["ore"], time_now=100_000.0,
+        built_modules=pd.DataFrame(columns=["id", "macro"]),
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -237,8 +242,40 @@ def test_payload_stations_grouped_and_typed(payload):
     # sorted by (owner, name): Hidden Base before Trade Post
     assert [s["code"] for s in st["sec_a1"]] == ["BBB-222", "AAA-111"]
     assert st["sec_a1"][1]["type"] == "trading"
-    assert st["sec_b1"] == [
-        {"name": "HQ", "code": "CCC-333", "owner": "Player", "type": ""}]
+    (hq,) = st["sec_b1"]
+    assert (hq["name"], hq["code"], hq["owner"]) == ("HQ", "CCC-333", "Player")
+    assert hq["hq"] is True and hq["fac"] is None
+
+
+def test_payload_station_facilities_and_positions():
+    f = _frames()
+    f.built_modules = pd.DataFrame({
+        "id": ["st1", "st1", "st1", "st3"],
+        "macro": ["buildmodule_gen_ships_m_dockarea_01_macro",
+                  "buildmodule_gen_ships_xl_macro",
+                  "buildmodule_gen_equip_l_macro",
+                  "buildmodule_ter_equip_l_macro"],
+    })
+    f.universe.loc[f.universe["id"] == "st2", "stype"] = "Trading Station"
+    p = _payload(f, _ref(), _cfg())
+    by_code = {s["code"]: s for lst in p["stations"].values() for s in lst}
+    # st1 builds S/M + XL ships AND equipment: display precedence shipyard
+    assert by_code["AAA-111"]["fac"] == "shipyard"
+    # st2 has no buildmodules; classified trading via its basename label
+    assert by_code["BBB-222"]["fac"] == "trading"
+    # st3 has only equip buildmodules
+    assert by_code["CCC-333"]["fac"] == "equipdock"
+    # st1 has a position: east (+x) and north (+z -> smaller py) of centre,
+    # inside the hex
+    s1 = by_code["AAA-111"]
+    sec = next(s for s in p["sectors"] if s["macro"] == "sec_a1")
+    assert 0 < s1["x"] - sec["x"] <= 31 and 0 < sec["y"] - s1["y"] <= 31
+    # st2 has no sx/sz: falls back to the hex centre
+    s2 = by_code["BBB-222"]
+    assert (s2["x"], s2["y"]) == (sec["x"], sec["y"])
+    # per-cluster facility union, fixed order, hq included
+    assert p["facilities"]["cluster_a"] == ["shipyard", "trading"]
+    assert p["facilities"]["cluster_b"] == ["hq", "equipdock"]
 
 
 def test_payload_resources_aligned(payload):
