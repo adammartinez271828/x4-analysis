@@ -87,6 +87,17 @@ _CLUSTER_NAMES = {
     "cluster_108_macro": "Saturn",
 }
 
+# zoomed-in cluster-name placement overrides of the encroachment
+# geometry (user preference): these render ABOVE the hex despite a
+# neighbour above / BELOW despite a free top strip
+_NAME_ABOVE = {
+    "cluster_104_macro",   # Earth (Mercury above)
+    "cluster_108_macro",   # Saturn (Jupiter above)
+}
+_NAME_BELOW = {
+    "cluster_19_macro",    # Hewa's Twin I/II
+}
+
 
 # The map page: a self-contained SVG renderer (no plotly, no lib/ assets).
 # The client script lives in map_page.js next to this module and is inlined
@@ -288,6 +299,7 @@ def _labels(plot_sectors: pd.DataFrame, ref: RefData) -> pd.DataFrame:
             "altname": base,
             "kind": "base",
             "big": True,
+            "cluster": cmacro,
         })
     return pd.DataFrame(recs).dropna(subset=["altname"])
 
@@ -459,16 +471,17 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     # name flips below the bottom line instead
     r3_4 = 3 ** 0.5 / 4
     c_half_h = 65 * r3_4
-    for rec in label_recs:
+    for rec, (_, lr) in zip(label_recs, labels.iterrows()):
         if rec["kind"] != "base":
             continue
         strip_bot = rec["y"] - c_half_h
         strip_top = strip_bot - 14
-        rec["flip"] = any(
-            abs(s["x"] - rec["x"]) < (31 if s["big"] else 14.5) + 26
-            and s["y"] - (26.9 if s["big"] else 12.6) < strip_bot
-            and s["y"] + (26.9 if s["big"] else 12.6) > strip_top
-            for s in sectors)
+        rec["flip"] = lr["cluster"] in _NAME_BELOW or (
+            lr["cluster"] not in _NAME_ABOVE and any(
+                abs(s["x"] - rec["x"]) < (31 if s["big"] else 14.5) + 26
+                and s["y"] - (26.9 if s["big"] else 12.6) < strip_bot
+                and s["y"] + (26.9 if s["big"] else 12.6) > strip_top
+                for s in sectors))
 
     cbig, csmall = 44, 20  # contested marker sizes
 
