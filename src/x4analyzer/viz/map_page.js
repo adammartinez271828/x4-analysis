@@ -524,6 +524,8 @@
              fac_equipdock: true, fac_trading: true, fac_khaak: true},
     factions: {},
     resource: null,   // id of the single-selected resource overlay
+    collapsed: {},    // legend group title -> collapsed
+    panelSec: {},     // detail panel section id -> collapsed
   };
   D.factions.forEach(function (f) { state.factions[f.name] = true; });
 
@@ -543,6 +545,16 @@
       if (saved.factions && typeof saved.factions[f.name] === "boolean")
         state.factions[f.name] = saved.factions[f.name];
     });
+    if (saved.collapsed)
+      Object.keys(saved.collapsed).forEach(function (k) {
+        if (typeof saved.collapsed[k] === "boolean")
+          state.collapsed[k] = saved.collapsed[k];
+      });
+    if (saved.panelSec)
+      Object.keys(saved.panelSec).forEach(function (k) {
+        if (typeof saved.panelSec[k] === "boolean")
+          state.panelSec[k] = saved.panelSec[k];
+      });
   } else {
     saved = null;
   }
@@ -551,7 +563,8 @@
       sessionStorage.setItem("x4map", JSON.stringify({
         sw: SC.w, sh: SC.h, nsec: D.sectors.length,
         layers: state.layers, factions: state.factions,
-        resource: state.resource,
+        resource: state.resource, collapsed: state.collapsed,
+        panelSec: state.panelSec,
         cx: view.x + view.w / 2, cy: view.y + view.h / 2,
         z: fitW() / view.w,
       }));
@@ -580,8 +593,23 @@
   function lgroup(title) {
     var g = div("lgroup", legend);
     var t = div("ltitle", g);
-    t.textContent = title;
-    return g;
+    var caret = document.createElement("span");
+    caret.className = "lcaret";
+    t.appendChild(caret);
+    t.appendChild(document.createTextNode(title));
+    var body = div("lbody", g);
+    function apply() {
+      var off = !!state.collapsed[title];
+      g.classList.toggle("collapsed", off);
+      caret.textContent = off ? "▸" : "▾";
+    }
+    t.addEventListener("click", function () {
+      state.collapsed[title] = !state.collapsed[title];
+      apply();
+      saveState();
+    });
+    apply();
+    return body;   // legend items append into the collapsible body
   }
   function litem(group, labelHtml, swatch, isOn, toggle) {
     var it = div("litem", group);
@@ -889,17 +917,26 @@
       h += "<div class='prow'>Pirate harassments (" +
         C.hours.toFixed(0) + "h): " + piratesByI[i] + "</div>";
 
-    h += "<h4>Resources</h4>";
-    h += D.resources.length
+    // collapsible sections, default open, collapse state remembered in
+    // the shared view state (same caret pattern as the legend groups)
+    function sec(id, title, inner) {
+      var off = !!state.panelSec[id];
+      return "<div class='psec" + (off ? " collapsed" : "") +
+        "' data-sec='" + id + "'><h4><span class='lcaret'>" +
+        (off ? "▸" : "▾") + "</span>" + title + "</h4>" +
+        "<div class='psbody'>" + inner + "</div></div>";
+    }
+
+    var resInner = D.resources.length
       ? D.resources.map(function (r) {
           var v = Math.round(r.yields[i]);
           return "<div class='pstat'>" + esc(r.name) + " <small>" +
             (r.id === "sunlight" ? v + "%" : v) + "</small></div>";
         }).join("")
       : "<div class='pstat'><small>None</small></div>";
+    h += sec("resources", "Resources", resInner);
 
-    h += "<h4>Connections</h4>";
-    h += neighbors[i].length
+    var connInner = neighbors[i].length
       ? neighbors[i].slice().sort(function (a, b) {
           return D.sectors[a].name.localeCompare(D.sectors[b].name);
         }).map(function (j) {
@@ -907,37 +944,50 @@
             "'>" + esc(D.sectors[j].name) + "</span></div>";
         }).join("")
       : "<div class='pstat'><small>None known</small></div>";
+    h += sec("connections", "Connections", connInner);
 
     var sts = D.stations[s.macro] || [];
-    h += "<h4>Stations (" + sts.length + ")</h4>";
+    var stInner = "";
     if (sts.length) {
       // grouped by owning faction (the payload is sorted by owner)
       var lastOwner = null;
       sts.forEach(function (st) {
         if (st.owner !== lastOwner) {
-          h += "<div class='pfac'>" + esc(st.owner) + "</div>";
+          stInner += "<div class='pfac'>" + esc(st.owner) + "</div>";
           lastOwner = st.owner;
         }
         var nm = st.name || st.type || "Station";
-        h += "<div class='pstat pind'>" + esc(nm) +
+        stInner += "<div class='pstat pind'>" + esc(nm) +
           (st.code ? " <small>(" + esc(st.code) + ")</small>" : "");
         if (st.name && st.type)
-          h += "<br><small>" + esc(st.type) + "</small>";
+          stInner += "<br><small>" + esc(st.type) + "</small>";
         var fl = {shipyard: "Shipyard", wharf: "Wharf",
                   equipdock: "Equipment Dock",
                   trading: "Trading Station"}[st.fac];
         if (fl)
-          h += "<br><small>" + facBadge(st.fac) + " " + fl + "</small>";
+          stInner += "<br><small>" + facBadge(st.fac) + " " + fl +
+            "</small>";
         if (st.hq)
-          h += "<br><small>" + facBadge("hq") +
+          stInner += "<br><small>" + facBadge("hq") +
             " Faction headquarters</small>";
-        h += "</div>";
+        stInner += "</div>";
       });
     } else {
-      h += "<div class='pstat'><small>None known</small></div>";
+      stInner = "<div class='pstat'><small>None known</small></div>";
     }
+    h += sec("stations", "Stations (" + sts.length + ")", stInner);
 
     panelBody.innerHTML = h;
+    panelBody.querySelectorAll(".psec > h4").forEach(function (hd) {
+      hd.addEventListener("click", function () {
+        var p = hd.parentElement, id = p.dataset.sec;
+        state.panelSec[id] = !state.panelSec[id];
+        p.classList.toggle("collapsed", state.panelSec[id]);
+        hd.querySelector(".lcaret").textContent =
+          state.panelSec[id] ? "▸" : "▾";
+        saveState();
+      });
+    });
     var wasOpen = panel.classList.contains("open");
     panel.classList.add("open");
     if (!wasOpen) reflow();
