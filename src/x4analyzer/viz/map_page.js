@@ -68,29 +68,43 @@
 
   // --- viewBox pan/zoom controller. home = the whole scene plus the edge
   // pad ring, so overhanging edge hexes stay visible (the svg clips at the
-  // viewBox, which is what keeps zoomed content out of the legend);
-  // zoom level 1 = home. ---
+  // viewBox, which is what keeps zoomed content out of the legend). The
+  // svg fills the page, so the viewBox aspect always tracks the element
+  // aspect; zoom level 1 = the whole scene fitted into the element. ---
   var home = {x: -SC.pad, y: -SC.pad,
               w: SC.w + 2 * SC.pad, h: SC.h + 2 * SC.pad};
   var view = {x: home.x, y: home.y, w: home.w, h: home.h};
   var MAX_ZOOM = 10;
 
-  function zoomLevel() { return home.w / view.w; }
+  function elemAspect() {
+    var r = svg.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? r.height / r.width
+                                       : home.h / home.w;
+  }
+  // view width at fit-the-scene (zoom 1) for the current element aspect
+  function fitW() { return Math.max(home.w, home.h / elemAspect()); }
 
   function applyView() {
-    // keep the view inside the scene; at zoom 1 this pins it exactly
-    view.w = Math.min(home.w, Math.max(home.w / MAX_ZOOM, view.w));
-    view.h = view.w * home.h / home.w;
-    view.x = Math.min(home.x + home.w - view.w, Math.max(home.x, view.x));
-    view.y = Math.min(home.y + home.h - view.h, Math.max(home.y, view.y));
+    var ar = elemAspect(), fw = fitW();
+    view.w = Math.min(fw, Math.max(fw / MAX_ZOOM, view.w));
+    view.h = view.w * ar;
+    // clamp each axis inside the scene; when the view is larger than the
+    // scene on an axis (window wider/taller than the map), centre instead
+    view.x = view.w >= home.w
+      ? home.x + (home.w - view.w) / 2
+      : Math.min(home.x + home.w - view.w, Math.max(home.x, view.x));
+    view.y = view.h >= home.h
+      ? home.y + (home.h - view.h) / 2
+      : Math.min(home.y + home.h - view.h, Math.max(home.y, view.y));
     svg.setAttribute("viewBox",
       view.x + " " + view.y + " " + view.w + " " + view.h);
-    var z = zoomLevel();
-    // labels counter-scale (8px at home, capped at 13 screen px when
-    // zoomed in) and the per-sector suffix labels of multi-sector
-    // clusters only appear once zoomed in enough to separate them
-    layers.labels.style.fontSize = Math.min(8, 13 / z).toFixed(2) + "px";
-    layers.labels.classList.toggle("zoomed-out", z < 1.6);
+    // labels counter-scale against the true screen px per scene unit:
+    // ~8 screen px at overview, growing to at most 13 when zoomed in;
+    // suffix labels of multi-sector clusters only appear once zoomed in
+    var sPx = svg.getBoundingClientRect().width / view.w || 1;
+    layers.labels.style.fontSize =
+      Math.min(13 / sPx, Math.max(8, 7.5 / sPx)).toFixed(2) + "px";
+    layers.labels.classList.toggle("zoomed-out", sPx < 1.6);
   }
 
   function sceneXY(ev) {
@@ -101,7 +115,8 @@
 
   // zoom by factor f (>1 = out) keeping scene point (px,py) under the cursor
   function zoomAt(px, py, f) {
-    var w2 = Math.min(home.w, Math.max(home.w / MAX_ZOOM, view.w * f));
+    var fw = fitW();
+    var w2 = Math.min(fw, Math.max(fw / MAX_ZOOM, view.w * f));
     f = w2 / view.w;
     view.x = px - (px - view.x) * f;
     view.y = py - (py - view.y) * f;
@@ -111,7 +126,11 @@
   }
 
   function resetView() {
-    view = {x: home.x, y: home.y, w: home.w, h: home.h};
+    var fw = fitW();
+    view.w = fw;
+    view.h = fw * elemAspect();
+    view.x = home.x + (home.w - view.w) / 2;
+    view.y = home.y + (home.h - view.h) / 2;
     applyView();
   }
 
@@ -462,5 +481,9 @@
   homeBtn.addEventListener("click", resetView);
   document.body.appendChild(homeBtn);
 
-  applyView();
+  // window/iframe resizes (incl. fullscreen) keep the zoom but re-fit the
+  // aspect and clamps
+  window.addEventListener("resize", applyView);
+
+  resetView();
 })();

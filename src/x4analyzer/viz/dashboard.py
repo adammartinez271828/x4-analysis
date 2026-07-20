@@ -99,11 +99,12 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     table = "width:100%;height:512px;"
 
     log("Generating sector map")
-    map_src, map_w, map_h = build_map(frames, ref, cfg, files_dir, guid)
+    map_src, _, _ = build_map(frames, ref, cfg, files_dir, guid)
+    # the map page pans/zooms inside itself, so its iframe just fills the
+    # viewport instead of taking the scene's fixed size
+    map_style = "width:100%;height:calc(100vh - 118px);min-height:600px;"
     tabs: dict[str, list[str]] = {
-        "Map": ["<p>" + _iframe(map_src, f"width:{map_w}px;height:{map_h}px;",
-                                lazy=False)
-                + "</p>"],
+        "Map": [_iframe(map_src, map_style, lazy=False)],
         "Trade": [], "Trade Breakdown": [], "Trade History": [],
         "Station P&L": [], "Market": [], "Audit": [], "Build Advisor": [],
         "Universe": [], "Fleet": [], "Tables": [],

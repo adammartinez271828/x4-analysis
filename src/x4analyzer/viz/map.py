@@ -54,10 +54,11 @@ _PAGE = """<!DOCTYPE html><html><head><meta charset='utf-8'>
 <title>Sector map</title>
 <style>
 html,body{height:100%;}
-body{margin:0;background:__BG__;color:#b0b0b0;
+body{margin:0;background:__BG__;color:#b0b0b0;overflow:hidden;
 font-family:'Open Sans',verdana,arial,sans-serif;}
-#wrap{display:flex;align-items:flex-start;}
-#map{flex:none;display:block;overflow:hidden;cursor:grab;}
+#wrap{display:flex;height:100%;}
+#map{flex:1 1 auto;width:100%;height:100%;display:block;overflow:hidden;
+cursor:grab;}
 #map.dragging{cursor:grabbing;}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
 #ly-labels.zoomed-out .k-suffix{display:none;}
@@ -65,8 +66,8 @@ font-family:'Open Sans',verdana,arial,sans-serif;}
 #x4home{position:fixed;bottom:34px;right:10px;z-index:20;cursor:pointer;
 font-size:22px;line-height:1;color:#b0b0b0;opacity:0.45;user-select:none;}
 #x4home:hover{opacity:1;}
-#legend{flex:none;width:__LEGW__px;box-sizing:border-box;
-padding:44px 8px 12px 14px;font-size:13px;user-select:none;}
+#legend{flex:none;width:__LEGW__px;box-sizing:border-box;height:100%;
+overflow-y:auto;padding:24px 8px 12px 14px;font-size:13px;user-select:none;}
 .lgroup{margin-bottom:16px;}
 .ltitle{font-weight:bold;margin-bottom:5px;}
 .litem{display:flex;align-items:center;gap:7px;cursor:pointer;
@@ -81,7 +82,7 @@ border-radius:3px;padding:6px 9px;font-size:12.5px;line-height:1.4;
 pointer-events:none;}
 </style></head><body>
 <div id='wrap'>
-<svg id='map' xmlns='http://www.w3.org/2000/svg' width='__W__' height='__H__'></svg>
+<svg id='map' xmlns='http://www.w3.org/2000/svg'></svg>
 <div id='legend'></div>
 </div>
 <div id='tip'></div>
@@ -379,12 +380,6 @@ def _write_page(payload: dict, files_dir: Path, guid: str) -> str:
         .replace("__BG__", DARK_BG)
         .replace("__FG__", DARK_FG)
         .replace("__LEGW__", str(payload["scene"]["legend_w"]))
-        # the edge pad rings the whole scene (viewBox starts at -pad) so
-        # edge-row hexes can overhang the axis range unclipped on all sides
-        .replace("__W__", str(round(payload["scene"]["w"])
-                              + 2 * payload["scene"]["pad"]))
-        .replace("__H__", str(round(payload["scene"]["h"])
-                              + 2 * payload["scene"]["pad"]))
     )
     name = f"Sector map_{guid}.html"
     (files_dir / name).write_text(html, encoding="utf-8")
