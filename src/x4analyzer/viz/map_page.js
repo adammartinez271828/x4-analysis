@@ -105,6 +105,7 @@
     layers.labels.style.fontSize =
       Math.min(13 / sPx, Math.max(8, 7.5 / sPx)).toFixed(2) + "px";
     layers.labels.classList.toggle("zoomed-out", sPx < 1.6);
+    saveState();
   }
 
   function sceneXY(ev) {
@@ -333,6 +334,37 @@
   };
   D.factions.forEach(function (f) { state.factions[f.name] = true; });
 
+  // view-state persistence: toggles and the view survive tab switches and
+  // reloads within the session. Ignored when the scene changed (other
+  // save / spoiler mode) since coordinates would no longer match.
+  var saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem("x4map") || "null"); }
+  catch (e) { saved = null; }
+  if (saved && saved.sw === SC.w && saved.sh === SC.h
+      && saved.nsec === D.sectors.length) {
+    Object.keys(state.layers).forEach(function (k) {
+      if (saved.layers && typeof saved.layers[k] === "boolean")
+        state.layers[k] = saved.layers[k];
+    });
+    D.factions.forEach(function (f) {
+      if (saved.factions && typeof saved.factions[f.name] === "boolean")
+        state.factions[f.name] = saved.factions[f.name];
+    });
+  } else {
+    saved = null;
+  }
+  function saveState() {
+    try {
+      sessionStorage.setItem("x4map", JSON.stringify({
+        sw: SC.w, sh: SC.h, nsec: D.sectors.length,
+        layers: state.layers, factions: state.factions,
+        resource: state.resource,
+        cx: view.x + view.w / 2, cy: view.y + view.h / 2,
+        z: fitW() / view.w,
+      }));
+    } catch (e) { /* storage unavailable: persistence is best-effort */ }
+  }
+
   var layerG = {gates: layers.gates, clusters: layers.clusters,
                 sectors: layers.sectors, labels: layers.labels,
                 contested: layers.contested, police: layers.police,
@@ -340,6 +372,7 @@
 
   function applyLayer(name) {
     layerG[name].style.display = state.layers[name] ? "" : "none";
+    saveState();
   }
   function applyFaction(name) {
     var on = state.factions[name];
@@ -347,6 +380,7 @@
     (hoverByFaction[name] || []).forEach(function (p) {
       p.style.display = on ? "" : "none";
     });
+    saveState();
   }
 
   var legend = document.getElementById("legend");
@@ -466,6 +500,7 @@
       resItems[r.id].classList.toggle("off", !sel);
     });
     renormalize();
+    saveState();
   }
   var resItems = {};
   if (D.resources.length) {
@@ -697,4 +732,22 @@
   });
 
   resetView();
+
+  // restore the saved resource selection and view (validated against the
+  // current scene above)
+  if (saved) {
+    if (saved.resource && resourceG[saved.resource]) {
+      state.resource = null;
+      selectResource(saved.resource);
+    }
+    if (saved.z >= 1 && saved.z <= MAX_ZOOM
+        && saved.cx >= home.x && saved.cx <= home.x + home.w
+        && saved.cy >= home.y && saved.cy <= home.y + home.h) {
+      view.w = fitW() / saved.z;
+      view.h = view.w * elemAspect();
+      view.x = saved.cx - view.w / 2;
+      view.y = saved.cy - view.h / 2;
+      applyView();
+    }
+  }
 })();
