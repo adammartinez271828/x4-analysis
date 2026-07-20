@@ -480,10 +480,17 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     extra_factions: dict[str, str] = {}
     # sort by the DISPLAYED label: most NPC factories have an empty name
     # in the save and render their type instead, so the name alone would
-    # collapse to a code sort
+    # collapse to a code sort. Facility stations (yards, trading, HQ)
+    # sort above the plain stations of their faction.
     st["_disp"] = st["name"].replace("", pd.NA).fillna(st["stype"]) \
         .fillna("")
-    for _, r in st.sort_values(["fname", "_disp", "code"],
+    tlow = st["stype"].fillna("").str.lower()
+    attached = (st["id"].isin(shipyards | wharfs | equips)
+                | tlow.str.contains("trading station|free port", regex=True))
+    if "faction_hq" in st.columns:
+        attached |= st["faction_hq"].fillna(0) == 1
+    st["_pri"] = (~attached).astype(int).astype(str)
+    for _, r in st.sort_values(["fname", "_pri", "_disp", "code"],
                                key=lambda s: s.str.lower()).iterrows():
         if r["owner"] != "khaak":
             extra_factions.setdefault(

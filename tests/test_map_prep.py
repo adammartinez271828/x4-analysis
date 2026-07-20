@@ -279,6 +279,17 @@ def test_payload_station_facilities_and_positions():
         "sec_a1": "cluster_a", "sec_b1": "cluster_b", "sec_b2": "cluster_b"}
 
 
+def test_payload_facility_stations_sort_first():
+    f = _frames()
+    f.built_modules = pd.DataFrame({
+        "id": ["st1"], "macro": ["buildmodule_gen_ships_xl_macro"]})
+    p = _payload(f, _ref(), _cfg())
+    # Trade Post (shipyard) outranks Hidden Base (plain) despite the
+    # alphabetical name order within the same faction
+    assert [s["code"] for s in p["stations"]["sec_a1"]] == \
+        ["AAA-111", "BBB-222"]
+
+
 def test_payload_khaak_stations():
     f = _frames()
     f.universe.loc[f.universe["id"] == "st1", "owner"] = "khaak"

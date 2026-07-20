@@ -849,6 +849,13 @@
     setTimeout(function () { p.remove(); }, 2000);
   }
 
+  // mini facility icon for HTML contexts (panel sublines); references
+  // the shared svg defs
+  function facBadge(k) {
+    return "<svg width='11' height='11' viewBox='-6.5 -6.5 13 13' " +
+      "style='vertical-align:-2px'><use href='#ic-" + k + "'/></svg>";
+  }
+
   // --- sector detail panel. It takes layout space next to the map (the
   // svg shrinks and re-fits) instead of overlaying it, so the rightmost
   // map content is never hidden behind it. ---
@@ -916,8 +923,14 @@
           (st.code ? " <small>(" + esc(st.code) + ")</small>" : "");
         if (st.name && st.type)
           h += "<br><small>" + esc(st.type) + "</small>";
+        var fl = {shipyard: "Shipyard", wharf: "Wharf",
+                  equipdock: "Equipment Dock",
+                  trading: "Trading Station"}[st.fac];
+        if (fl)
+          h += "<br><small>" + facBadge(st.fac) + " " + fl + "</small>";
         if (st.hq)
-          h += "<br><small>&#x2691; Faction headquarters</small>";
+          h += "<br><small>" + facBadge("hq") +
+            " Faction headquarters</small>";
         h += "</div>";
       });
     } else {
