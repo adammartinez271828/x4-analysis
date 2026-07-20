@@ -485,5 +485,80 @@
   // aspect and clamps
   window.addEventListener("resize", applyView);
 
+  // --- search / jump-to-sector ---
+  var anim = null, animEnd = null;
+  function animateViewTo(cx, cy, w2) {
+    var c0 = {x: view.x + view.w / 2, y: view.y + view.h / 2, w: view.w};
+    var t0 = performance.now(), dur = 350, done = false;
+    cancelAnimationFrame(anim);
+    clearTimeout(animEnd);
+    function at(u) {
+      u = u * (2 - u);   // ease-out
+      var w = c0.w + (w2 - c0.w) * u;
+      view.w = w;
+      view.h = w * elemAspect();
+      view.x = c0.x + (cx - c0.x) * u - w / 2;
+      view.y = c0.y + (cy - c0.y) * u - view.h / 2;
+      applyView();
+    }
+    function step(t) {
+      var u = Math.min(1, (t - t0) / dur);
+      at(u);
+      if (u < 1) anim = requestAnimationFrame(step);
+      else done = true;
+    }
+    anim = requestAnimationFrame(step);
+    // rAF pauses in hidden/background frames — always land on the target
+    animEnd = setTimeout(function () {
+      if (done) return;
+      cancelAnimationFrame(anim);
+      at(1);
+    }, dur + 80);
+  }
+
+  function pulseSector(i) {
+    var s = D.sectors[i];
+    var p = el("polygon", {
+      points: hexPoints(s.x, s.y, (s.big ? C.big : C.small) + 14),
+      "class": "pulse",
+    }, svg);
+    setTimeout(function () { p.remove(); }, 2000);
+  }
+
+  var searchBox = document.getElementById("search");
+  var searchInfo = document.getElementById("searchinfo");
+  var matches = [], mi = -1;
+  function runSearch() {
+    var q = searchBox.value.trim().toLowerCase();
+    matches = [];
+    mi = -1;
+    if (q)
+      D.sectors.forEach(function (s, i) {
+        if (s.name.toLowerCase().indexOf(q) >= 0) matches.push(i);
+      });
+    searchBox.classList.toggle("nomatch", !!q && !matches.length);
+    searchInfo.textContent = !q ? ""
+      : matches.length ? matches.length + " match" +
+        (matches.length > 1 ? "es" : "")
+      : "no match";
+  }
+  searchBox.addEventListener("input", runSearch);
+  searchBox.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") {
+      searchBox.value = "";
+      runSearch();
+      searchBox.blur();
+      return;
+    }
+    if (ev.key !== "Enter" || !matches.length) return;
+    mi = (mi + 1) % matches.length;   // repeated Enter cycles the matches
+    var i = matches[mi];
+    var s = D.sectors[i];
+    animateViewTo(s.x, s.y, fitW() / 4);
+    pulseSector(i);
+    searchInfo.textContent = s.name +
+      (matches.length > 1 ? " (" + (mi + 1) + "/" + matches.length + ")" : "");
+  });
+
   resetView();
 })();

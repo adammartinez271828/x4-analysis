@@ -66,6 +66,16 @@ cursor:grab;}
 #x4home{position:fixed;bottom:34px;right:10px;z-index:20;cursor:pointer;
 font-size:22px;line-height:1;color:#b0b0b0;opacity:0.45;user-select:none;}
 #x4home:hover{opacity:1;}
+#searchwrap{position:fixed;top:8px;left:8px;z-index:15;display:flex;
+align-items:center;gap:8px;}
+#search{background:rgba(42,42,42,0.92);color:__FG__;border:1px solid #555;
+border-radius:3px;padding:5px 9px;font-size:13px;width:170px;outline:none;}
+#search:focus{border-color:#888;}
+#search.nomatch{border-color:#c0504d;}
+#searchinfo{color:#9a9a9a;font-size:12px;}
+.pulse{fill:none;stroke:#ffe066;stroke-width:4;
+animation:pulse 0.65s ease-out 3;}
+@keyframes pulse{from{stroke-opacity:0.9;}to{stroke-opacity:0;}}
 #legend{flex:none;width:__LEGW__px;box-sizing:border-box;height:100%;
 overflow-y:auto;padding:24px 8px 12px 14px;font-size:13px;user-select:none;}
 .lgroup{margin-bottom:16px;}
@@ -85,6 +95,8 @@ pointer-events:none;}
 <svg id='map' xmlns='http://www.w3.org/2000/svg'></svg>
 <div id='legend'></div>
 </div>
+<div id='searchwrap'><input id='search' type='text' placeholder='Find sector&#8230;'
+autocomplete='off' spellcheck='false'><span id='searchinfo'></span></div>
 <div id='tip'></div>
 __FSBTN__
 <script>window.X4MAP = __DATA__;</script>
