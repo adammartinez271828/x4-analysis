@@ -135,11 +135,11 @@ def test_layout_handedness():
     out = _layout_sectors(f, r, _cfg())
     assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
 
-    # exactly vertical (Faulty Logic / Earth+Moon): no horizontal signal,
-    # leans left-handed like the in-game map
+    # exactly vertical (Faulty Logic / Savage Spur): no horizontal signal,
+    # in-game these render right-handed, so ties keep the default
     f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0)
     out = _layout_sectors(f, r, _cfg())
-    assert slot_dx(out, "top") == 1 and slot_dx(out, "bot") == -1
+    assert slot_dx(out, "top") == -1 and slot_dx(out, "bot") == 1
 
 
 def test_labels_kinds():

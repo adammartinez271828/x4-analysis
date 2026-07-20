@@ -181,13 +181,13 @@ def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
             # vertical axis (Saturn, Hatikvah's Choice, Litany of Fury,
             # Emperor's Pride, Kingdom End). Exactly-vertical pairs carry
             # no horizontal signal (Faulty Logic, Earth/The Moon, Savage
-            # Spur, Tharka's Cascade); the in-game map leans those
-            # left-handed, so ties mirror too.
+            # Spur, Tharka's Cascade); in-game those render right-handed,
+            # so ties keep the default.
             xs = group["_ox"].tolist()
             mean = sum(xs) / len(xs)
             score = sum((x - mean) * dx
                         for x, (dx, _) in zip(xs, slots))
-            if score <= 0:
+            if score < 0:
                 slots = sorted([(-dx, dy) for dx, dy in slots],
                                key=lambda s: (-s[1], s[0]))
 
