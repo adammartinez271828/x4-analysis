@@ -94,18 +94,30 @@ body{margin:0;background:__BG__;color:#b0b0b0;overflow:hidden;
 font-family:'Open Sans',verdana,arial,sans-serif;}
 #wrap{display:flex;height:100%;}
 #map{flex:1 1 auto;width:100%;height:100%;display:block;overflow:hidden;
-cursor:grab;}
+cursor:grab;--sw:1;}
 #map.dragging{cursor:grabbing;}
+/* stroke weights counter-scale with zoom (--sw set by the view
+controller): they grow until ~1.3x their base screen weight, then hold */
+#ly-factions polygon{stroke-width:calc(3px*var(--sw));}
+#ly-clusters polygon{stroke-width:calc(2px*var(--sw));}
+#ly-gates line{stroke-width:calc(1.5px*var(--sw));}
+#ly-gates circle{r:calc(2px*var(--sw));}
+#ly-contested path,#ly-police path,#ly-pirates path{
+stroke-width:calc(1px*var(--sw));}
+#ly-resources polygon{stroke-width:calc(1px*var(--sw));}
+.glhl-line,.glhl-hex{stroke-width:calc(2.5px*var(--sw));}
+#ly-player polygon{stroke-width:calc(2px*var(--sw));}
+.pulse{stroke-width:calc(4px*var(--sw));}
 .seclabel{font-weight:bold;fill:rgba(240,240,96,0.63);}
 #ly-labels.zoomed-out .k-suffix{display:none;}
-#ly-gates line{stroke:rgba(140,170,200,0.55);stroke-width:1.5;}
+#ly-gates line{stroke:rgba(140,170,200,0.55);}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
 #ly-factions g.dim polygon{stroke-opacity:0.15;}
 #ly-highlight *{pointer-events:none;}
 .pbadge{font-size:9px;font-weight:bold;fill:#e8e8e8;}
-.glhl-line{stroke:rgba(150,200,255,0.85);stroke-width:2.5;}
-.glhl-hex{fill:none;stroke:rgba(150,200,255,0.7);stroke-width:2.5;}
+.glhl-line{stroke:rgba(150,200,255,0.85);}
+.glhl-hex{fill:none;stroke:rgba(150,200,255,0.7);}
 #x4home{position:fixed;bottom:34px;right:10px;z-index:20;cursor:pointer;
 font-size:22px;line-height:1;color:#b0b0b0;opacity:0.45;user-select:none;}
 #x4home:hover{opacity:1;}

@@ -105,6 +105,8 @@
     layers.labels.style.fontSize =
       Math.min(13 / sPx, Math.max(8, 7.5 / sPx)).toFixed(2) + "px";
     layers.labels.classList.toggle("zoomed-out", sPx < 1.6);
+    // stroke weights stop growing beyond 1.3x their base screen weight
+    svg.style.setProperty("--sw", Math.min(1, 1.3 / sPx).toFixed(3));
     saveState();
   }
 
