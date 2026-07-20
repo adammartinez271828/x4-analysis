@@ -158,6 +158,23 @@ def test_labels_kinds():
     assert (base["x"], base["y"]) == (40_000_000.0, 17_320_000.0)
 
 
+def test_labels_multi_cluster_without_shared_prefix():
+    # sectors that don't share the cluster base name (Earth/The Moon,
+    # Kingdom End's Towering Wave) still become zoom-gated "suffix"
+    # labels with their full names, and the cluster always gets a base
+    # label
+    f, r = _two_sector_cluster(1e6, 0.0, -1e6, 0.0)
+    r.clusters.loc[0, "name"] = "Sol"
+    r.sectors["name"] = ["Earth", "The Moon"]
+    f.sectors["name"] = ["Earth", "The Moon"]
+    plot = _layout_sectors(f, r, _cfg())
+    labels = _labels(plot, r)
+    kinds = dict(zip(labels["altname"], labels["kind"]))
+    assert kinds["Earth"] == "suffix"
+    assert kinds["The Moon"] == "suffix"
+    assert kinds["Sol"] == "base"
+
+
 def test_resource_levels_quartiles():
     plot = _layout_sectors(_frames(), _ref(), _cfg())
     res = _resource_levels(plot, _frames().sectors, ["ore"])

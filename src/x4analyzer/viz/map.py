@@ -80,6 +80,13 @@ _SWAP_ORDER = {
     "cluster_19_macro",    # Hewa's Twin (II top, I bottom)
 }
 
+# display-name overrides for cluster labels: the game names all three Sol
+# clusters just "Sol", which is useless as a per-cluster label
+_CLUSTER_NAMES = {
+    "cluster_104_macro": "Earth",
+    "cluster_108_macro": "Saturn",
+}
+
 
 # The map page: a self-contained SVG renderer (no plotly, no lib/ assets).
 # The client script lives in map_page.js next to this module and is inlined
@@ -251,10 +258,13 @@ def _layout_sectors(frames: Frames, ref: RefData, cfg: Config) -> pd.DataFrame:
 
 
 def _labels(plot_sectors: pd.DataFrame, ref: RefData) -> pd.DataFrame:
-    """Sector labels: multi-sector clusters get one base-name label at the
-    cluster centre plus per-sector suffix labels (R 840-864). kind tags the
-    label role: "single" (lone sector), "suffix" (per-sector suffix) or
-    "base" (cluster base name)."""
+    """Sector labels. kind tags the visibility group: "single" (lone
+    sector, always shown), "suffix" (per-sector label in a multi-sector
+    cluster, zoomed-in only — the shared base prefix is stripped where the
+    name has one, else the full name is used) or "base" (the cluster name,
+    one per multi-sector cluster: zoomed-out, plus the zoomed-in companion
+    above/below the hex). Multi-sector clusters therefore never show
+    per-sector names at minimum zoom."""
     cluster_names = dict(zip(ref.clusters["macro"], ref.clusters["name"]))
     recs = []
     for cmacro, group in plot_sectors.groupby("cluster.macro"):
@@ -263,28 +273,22 @@ def _labels(plot_sectors: pd.DataFrame, ref: RefData) -> pd.DataFrame:
             recs.append({"x": row["x"], "y": row["y"], "altname": row["name"],
                          "kind": "single", "big": row["sizecat"] == "b"})
             continue
-        base = str(cluster_names.get(cmacro, "")) or \
-            _SUFFIX.sub("", str(group.iloc[0]["name"]))
-        base_used = False
+        base = _CLUSTER_NAMES.get(cmacro) \
+            or str(cluster_names.get(cmacro, "")) \
+            or _SUFFIX.sub("", str(group.iloc[0]["name"]))
         for row in group.itertuples():
             name = str(row.name)
-            big = row.sizecat == "b"
             if name.startswith(base + " ") and len(name) > len(base) + 1:
-                recs.append({"x": row.x, "y": row.y,
-                             "altname": name[len(base) + 1:],
-                             "kind": "suffix", "big": big})
-                base_used = True
-            else:
-                recs.append({"x": row.x, "y": row.y, "altname": name,
-                             "kind": "single", "big": big})
-        if base_used:
-            recs.append({
-                "x": float(group.iloc[0]["cluster.x"]),
-                "y": float(group.iloc[0]["cluster.y"]),
-                "altname": base,
-                "kind": "base",
-                "big": True,
-            })
+                name = name[len(base) + 1:]
+            recs.append({"x": row.x, "y": row.y, "altname": name,
+                         "kind": "suffix", "big": row.sizecat == "b"})
+        recs.append({
+            "x": float(group.iloc[0]["cluster.x"]),
+            "y": float(group.iloc[0]["cluster.y"]),
+            "altname": base,
+            "kind": "base",
+            "big": True,
+        })
     return pd.DataFrame(recs).dropna(subset=["altname"])
 
 
