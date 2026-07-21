@@ -297,23 +297,27 @@ _SPLINE_SAMPLES = 16  # evaluated points per control-point span
 
 
 def _sample_spline(ctrl: list[tuple]) -> list[tuple[float, float]]:
-    """Evaluate the game's highway spline (cubic Hermite: each control
-    point carries a unit tangent and in/out tangent lengths) into a
-    polyline. Straight tracks stay straight; ring arcs get their true
-    curvature instead of chords between control points."""
+    """Evaluate the game's highway spline into a polyline. Each control
+    point carries a unit tangent plus in/out lengths; the lengths run
+    ~chord/3, which identifies them as BEZIER HANDLE lengths (a Hermite
+    derivative would be ~the full chord): each span is the cubic Bezier
+    P0, P0 + T0*outlength, P1 - T1*inlength, P1. Consecutive spans share
+    the joint tangent, so the sampled track is smooth by construction;
+    straight tracks stay straight."""
     out = [(ctrl[0][0], ctrl[0][1])]
     for (x0, z0, tx0, tz0, _il0, ol0), (x1, z1, tx1, tz1, il1, _ol1) \
             in zip(ctrl, ctrl[1:]):
-        m0 = (tx0 * ol0, tz0 * ol0)
-        m1 = (tx1 * il1, tz1 * il1)
+        c1 = (x0 + tx0 * ol0, z0 + tz0 * ol0)
+        c2 = (x1 - tx1 * il1, z1 - tz1 * il1)
         for i in range(1, _SPLINE_SAMPLES + 1):
             t = i / _SPLINE_SAMPLES
-            h00 = 2 * t**3 - 3 * t**2 + 1
-            h10 = t**3 - 2 * t**2 + t
-            h01 = -2 * t**3 + 3 * t**2
-            h11 = t**3 - t**2
-            out.append((h00 * x0 + h10 * m0[0] + h01 * x1 + h11 * m1[0],
-                        h00 * z0 + h10 * m0[1] + h01 * z1 + h11 * m1[1]))
+            u = 1 - t
+            out.append((
+                u**3 * x0 + 3 * u**2 * t * c1[0]
+                + 3 * u * t**2 * c2[0] + t**3 * x1,
+                u**3 * z0 + 3 * u**2 * t * c1[1]
+                + 3 * u * t**2 * c2[1] + t**3 * z1,
+            ))
     return out
 
 
