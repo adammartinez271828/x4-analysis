@@ -32,6 +32,8 @@ FIXTURE = """<?xml version="1.0"?>
           <resourceareas>
             <area yieldid="sphere_large_ore_high_slow" yield="1000" starttime="0"/>
             <area yieldid="sphere_medium_silicon_low" yield="200" starttime="0"/>
+            <area yieldid="sphere_large_ore_high_slow" yield="0" starttime="4000"/>
+            <area yieldid="sphere_large_ore_high_slow" yield="0" starttime="9000"/>
           </resourceareas>
           <connections><connection connection="sector">
           <component class="zone" macro="zone001_macro" id="[0x15]" connection="sector">
@@ -206,9 +208,14 @@ def test_fixture_parse(save_file: Path) -> None:
     assert d.commander_links == [("[0x30]", "[0xC1]")]
     assert d.subordinate_conns == [("[0x20]", "[0xC1]")]
 
+    # per-area rows carry starttime (respawn-eligibility clock); game_time is
+    # 5000.5, so the starttime=4000 area is eligible (empty-but-full) and the
+    # starttime=9000 one is still respawning
     assert d.resources == [
-        ("cluster_01_sector001_macro", "ore", 1000.0, "high", "slow"),
-        ("cluster_01_sector001_macro", "silicon", 200.0, "low", ""),
+        ("cluster_01_sector001_macro", "ore", 1000.0, "high", "slow", 0.0),
+        ("cluster_01_sector001_macro", "silicon", 200.0, "low", "", 0.0),
+        ("cluster_01_sector001_macro", "ore", 0.0, "high", "slow", 4000.0),
+        ("cluster_01_sector001_macro", "ore", 0.0, "high", "slow", 9000.0),
     ]
 
     assert d.people == {("[0x30]", "service"): 2, ("[0x30]", "passenger"): 1}

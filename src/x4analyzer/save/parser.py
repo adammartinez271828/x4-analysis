@@ -66,7 +66,11 @@ class SaveData:
     # equipment in planned module loadouts: (entry_id, equipment_macro)
     module_upgrades: list = field(default_factory=list)
     npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
-    resources: list = field(default_factory=list)      # (sector_macro, ware, yield, level, speed)
+    # (sector_macro, ware, yield, level, speed, starttime); starttime is the
+    # game-time secs at which a depleted area becomes respawn-eligible (0 on
+    # live/never-depleted areas) — an empty area past its starttime reads
+    # yield=0 but is actually full and mineable
+    resources: list = field(default_factory=list)
     cargo: list = field(default_factory=list)          # (object_id, ware, amount)
     # materials missing for builds (<insufficient>/<shortage> under
     # <build><resources>); host is "" for free-floating build storages.
@@ -436,6 +440,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                             sector_macro_stack[-1], m.group(1),
                             float(elem.get("yield", 0) or 0),
                             m.group(2) or "", m.group(3) or "",
+                            float(elem.get("starttime", 0) or 0),
                         ))
 
             elif tag == "log" and "economylog" in tag_stack:

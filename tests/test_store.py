@@ -61,7 +61,7 @@ EXPECTED_COUNTS = {
     "trade_offer": 1,
     "build_resource": 1,
     "ship_order": 1,
-    "resource": 2,
+    "resource": 4,
     "floating_ware": 2,   # scrap cube + the Erlking vault's loot wares
     "datavault": 2,
     "ship_engine": 1,     # 2 identical engines aggregate to one n=2 row
@@ -86,11 +86,15 @@ def test_ship_engine_rows(conn):
 
 def test_resource_rows_carry_replenish_classes(conn):
     rows = conn.execute(
-        "SELECT ware, yield, level, speed FROM resource ORDER BY ware"
+        "SELECT ware, yield, level, speed, starttime FROM resource"
+        " ORDER BY ware, starttime"
     ).fetchall()
-    # the fixture's silicon area has no gatherspeed token -> NULL
-    assert rows == [("ore", 1000.0, "high", "slow"),
-                    ("silicon", 200.0, "low", None)]
+    # the fixture's silicon area has no gatherspeed token -> NULL; the two
+    # empty ore areas carry their respawn-eligibility starttimes
+    assert rows == [("ore", 1000.0, "high", "slow", 0.0),
+                    ("ore", 0.0, "high", "slow", 4000.0),
+                    ("ore", 0.0, "high", "slow", 9000.0),
+                    ("silicon", 200.0, "low", None, 0.0)]
 
 
 def test_datavault_rows(conn):

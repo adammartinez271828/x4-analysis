@@ -17,7 +17,8 @@ must load, never fail. FK comments are documentation only.
 from __future__ import annotations
 
 # v6: resource rows carry the yieldid's level/speed tokens (replenishment)
-SCHEMA_VERSION = "6"
+# v7: resource rows carry per-area starttime (respawn-eligibility clock)
+SCHEMA_VERSION = "7"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -215,7 +216,8 @@ TABLES: dict[str, str] = {
   ware         TEXT NOT NULL,
   yield        REAL,
   level        TEXT,
-  speed        TEXT
+  speed        TEXT,
+  starttime    REAL
 )""",
     "floating_ware": """CREATE TABLE IF NOT EXISTS floating_ware (
   save_id      INTEGER NOT NULL,
