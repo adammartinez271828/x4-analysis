@@ -91,11 +91,29 @@ def test_ion_blaster_clip_cycle():
     s = simulate(ION_BLASTER)
     # no per-shot heat -> the heat block never engages
     assert s["coolrate"] is None and s["t_overheat"] is None
-    assert s["t_cycle"] == pytest.approx(10.0)   # 5 shots @1/s + 5 s reload
+    # cycle = the burst span (4 gaps between 5 shots @1/s) + the 5 s clip
+    # reload; the reported rate is sustained (5/9), not the 1/s intra-clip burst
+    assert s["t_cycle"] == pytest.approx(9.0)    # 4*1 + 5
+    assert s["rate"] == pytest.approx(5.0 / 9.0)
     assert s["shots_cycle"] == pytest.approx(5.0)
     assert s["dmg_s"] == pytest.approx(420.0)    # 84 + 336
-    assert s["cyc_dps_s"] == pytest.approx(210.0)
-    assert s["duty"] == pytest.approx(0.5)
+    assert s["cyc_dps_s"] == pytest.approx(5 * 420 / 9)
+    assert s["duty"] == pytest.approx(4.0 / 9.0)
+
+
+def test_tau_accelerator_reports_sustained_not_burst_rate():
+    # SPL S Tau Accelerator Mk2: clip 6 @ 3/s burst, 4 s reload. Its per-volley
+    # heat (124) is shed by the clip pause, so it never overheats and the clip
+    # cycle governs. The reported rate must be the SUSTAINED figure the
+    # encyclopedia shows (~1.06/s), NOT the 3/s intra-clip burst (bug 2026-07).
+    w = {"reload_rate": 3.0, "ammo_clip": 6.0, "ammo_reload": 4.0,
+         "amount": 4.0, "barrelamount": 1.0, "dmg": 80.0,
+         "heat": 124.0, "overheat": 10000.0, "cooldelay": 3.5,
+         "overheatcooldelay": 2.0, "coolrate": 1800.0, "reenable": 8000.0}
+    s = simulate(w)
+    assert s["t_overheat"] is None                       # never overheats
+    assert s["rate"] == pytest.approx(6 / (5 / 3 + 4))   # ~1.059, not 3.0
+    assert s["t_cycle"] == pytest.approx(5 / 3 + 4)      # (6-1) gaps + reload
 
 
 def test_cooling_mod_has_no_effect_on_clip_weapon():
@@ -104,11 +122,12 @@ def test_cooling_mod_has_no_effect_on_clip_weapon():
 
 def test_reload_mod_never_touches_clip_reload():
     s = simulate(ION_BLASTER, {"reload": 2.0})
-    # burst shrinks from 5 s to 2.5 s; the 5 s clip reload is fixed
-    assert s["rate"] == pytest.approx(2.0)
-    assert s["t_cycle"] == pytest.approx(7.5)
+    # a reload mod halves the intra-burst gap (burst span 4 s -> 2 s), but the
+    # 5 s clip reload is fixed, so the sustained rate rises from 5/9 to 5/7
+    assert s["rate"] == pytest.approx(5.0 / 7.0)
+    assert s["t_cycle"] == pytest.approx(7.0)
     assert s["ss_cool"] == pytest.approx(5.0)
-    assert s["cyc_dps_s"] == pytest.approx(5 * 420 / 7.5)
+    assert s["cyc_dps_s"] == pytest.approx(5 * 420 / 7.0)
 
 
 def test_continuous_weapon_without_heat_or_clip():
@@ -143,9 +162,9 @@ def test_blast_mortar_area_damage():
     assert s["dmg_s"] == pytest.approx(376.0)
     assert s["dmg_h"] == pytest.approx(376.0)
     assert s["t_overheat"] is None
-    assert s["t_cycle"] == pytest.approx(8 * 0.9 + 12)
+    assert s["t_cycle"] == pytest.approx(7 * 0.9 + 12)   # (8-1) gaps + reload
     assert s["shots_cycle"] == pytest.approx(8.0)
-    assert s["cyc_dps_s"] == pytest.approx(8 * 376 / 19.2)
+    assert s["cyc_dps_s"] == pytest.approx(8 * 376 / 18.3)
     # direct-hit and explosion damage stack when both exist
     both = simulate(dict(w, dmg=100.0, area_dmg_shield=50.0))
     assert both["dmg_s"] == pytest.approx(526.0)

@@ -97,6 +97,32 @@ MORTAR_BULLET = b"""<macros>
   </macro>
 </macros>"""
 
+# Paranid Mass Driver: the bullet stores per-shot heat as <heat initial=>
+# with NO value attribute -- the parser must fall back to `initial` or the
+# weapon reads as heatless (bug 2026-07)
+RAILGUN_WEAPON = b"""<macros>
+  <macro name="weapon_par_s_railgun_01_mk1_macro" class="weapon">
+    <properties>
+      <identification name="PAR S Mass Driver Mk1" makerrace="paranid" mk="1" />
+      <bullet class="bullet_par_s_railgun_01_mk1_macro" />
+      <heat overheat="10000" cooldelay="1.5" overheatcooldelay="4"
+            coolrate="900" reenable="1000" />
+    </properties>
+  </macro>
+</macros>"""
+
+RAILGUN_BULLET = b"""<macros>
+  <macro name="bullet_par_s_railgun_01_mk1_macro" class="bullet">
+    <properties>
+      <bullet speed="10000" lifetime="1.4" amount="1" barrelamount="1"
+              chargetime="0.5" />
+      <heat initial="8000" />
+      <reload time="3.8" />
+      <damage value="1122" repair="0" />
+    </properties>
+  </macro>
+</macros>"""
+
 # not a weapon: same file naming, must be skipped by the class filter
 LAUNCHER = b"""<macros>
   <macro name="weapon_arg_s_torpedolauncher_01_mk1_macro" class="missilelauncher">
@@ -160,10 +186,14 @@ def game_dir(tmp_path: Path) -> Path:
         "weapon_arg_s_torpedolauncher_01_mk1_macro.xml": LAUNCHER,
         "assets/props/WeaponSystems/heavy/macros/"
         "weapon_gen_s_cannon_01_mk1_macro.xml": MORTAR_WEAPON,
+        "assets/props/WeaponSystems/heavy/macros/"
+        "weapon_par_s_railgun_01_mk1_macro.xml": RAILGUN_WEAPON,
         "assets/fx/weaponFx/macros/"
         "bullet_arg_s_ion_01_mk2_macro.xml": ION_BULLET,
         "assets/fx/weaponFx/macros/"
         "bullet_gen_s_cannon_01_mk1_macro.xml": MORTAR_BULLET,
+        "assets/fx/weaponFx/macros/"
+        "bullet_par_s_railgun_01_mk1_macro.xml": RAILGUN_BULLET,
         "libraries/equipmentmods.xml": EQUIPMENTMODS,
         "libraries/wares.xml": WARES,
         "t/0001-l044.xml": TFILE,
@@ -191,7 +221,14 @@ def test_extract_weapons(game_dir: Path):
     weapons = {w["macro"]: w for w in extract_weapons(gf, load_textdb(gf))}
     assert set(weapons) == {"weapon_arg_s_ion_01_mk2_macro",
                             "weapon_ter_s_laser_02_mk1_macro",
-                            "weapon_gen_s_cannon_01_mk1_macro"}
+                            "weapon_gen_s_cannon_01_mk1_macro",
+                            "weapon_par_s_railgun_01_mk1_macro"}
+
+    # mass driver: heat comes from the bullet's <heat initial=> (no value),
+    # so the weapon overheats rather than reading as heatless
+    rg = weapons["weapon_par_s_railgun_01_mk1_macro"]
+    assert rg["heat"] == 8000.0 and rg["overheat"] == 10000.0
+    assert rg["chargetime"] == 0.5 and rg["reload_time"] == 3.8
 
     em = weapons["weapon_ter_s_laser_02_mk1_macro"]
     assert em["name"] == "TER S Electromagnetic Gun Mk1"

@@ -80,6 +80,16 @@ def _parse_bullets(gf: GameFiles) -> dict[str, dict]:
             b = props.find("bullet")
             dmg = props.find("damage")
             area = props.find("areadamage")
+            # heat per shot: most bullets carry <heat value=>, but the Paranid
+            # railguns/mass drivers store it as <heat initial=> with no value
+            # (13 beams/bursts carry both; there value is the per-shot/-second
+            # heat and initial is a first-activation spike we ignore). Falling
+            # back to initial is what makes mass drivers overheat (bug fix
+            # 2026-07 — see docs/weapon-heat-and-rate-bug-2026-07.md).
+            heat_el = props.find("heat")
+            heat = _f(heat_el, "value")
+            if heat is None:
+                heat = _f(heat_el, "initial", 0.0)
             bullets[name] = {
                 "speed": _f(b, "speed"),
                 "lifetime": _f(b, "lifetime"),
@@ -88,7 +98,7 @@ def _parse_bullets(gf: GameFiles) -> dict[str, dict]:
                 "amount": _f(b, "amount", 1.0),
                 "barrelamount": _f(b, "barrelamount", 1.0),
                 "forcecooldown": _f(b, "forcecooldownaftershot", 0.0),
-                "heat": _f(props.find("heat"), "value", 0.0),
+                "heat": heat,
                 "reload_rate": _f(props.find("reload"), "rate"),
                 "reload_time": _f(props.find("reload"), "time"),
                 "ammo_clip": _f(props.find("ammunition"), "value"),

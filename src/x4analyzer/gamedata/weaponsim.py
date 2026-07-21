@@ -209,10 +209,21 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
         return out
     rate = 1.0 / interval if interval > 0 else None
 
-    # sustained volley rate including the FIXED clip reload (never modded)
-    eff_rate = clip / (clip * interval + clip_reload) if clip else rate
-    # with no intra-burst interval the sustained rate is the only fire rate
-    out["rate"] = rate if rate is not None else eff_rate
+    # Sustained volley rate. A clip of N shots spans (N-1) intra-burst gaps
+    # from the first shot to the last, THEN the FIXED clip reload (never
+    # modded). The in-game encyclopedia rate-of-fire is this sustained figure,
+    # NOT the intra-clip burst rate (1/interval) -- e.g. the S Tau Accelerator
+    # reads 3/s burst but ~1.06/s sustained. (Bug fix 2026-07, see
+    # docs/weapon-heat-and-rate-bug-2026-07.md.)
+    if clip:
+        clip_cycle = max(clip - 1.0, 0.0) * interval + clip_reload
+        eff_rate = clip / clip_cycle if clip_cycle > 0 else rate
+    else:
+        clip_cycle = None
+        eff_rate = rate
+    # display the sustained rate on every weapon (== the plain rate when there
+    # is no clip)
+    out["rate"] = eff_rate
 
     heat = weapon.get("heat") or 0.0
     overheat = weapon.get("overheat") or 0.0
@@ -252,15 +263,17 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
                    ss_dps_s=dmg_s * eff_rate * duty,
                    ss_dps_h=dmg_h * eff_rate * duty)
     elif clip:
-        # pure clip weapon (e.g. ARG S Ion Blaster): cycle = empty the clip
-        # + fixed clip reload; overheat stats never apply
-        cycle = clip * interval + clip_reload
-        duty = clip * interval / cycle if cycle > 0 else 0.0
+        # pure clip weapon (e.g. ARG S Ion Blaster): cycle = the burst span
+        # ((clip-1) intra-burst gaps) + the fixed clip reload; overheat stats
+        # never apply
+        cycle = clip_cycle or 0.0
+        burst_span = max(clip - 1.0, 0.0) * interval
+        duty = burst_span / cycle if cycle > 0 else 0.0
         out.update(t_cycle=cycle, shots_cycle=clip,
                    cyc_dmg_s=clip * dmg_s, cyc_dmg_h=clip * dmg_h,
                    cyc_dps_s=clip * dmg_s / cycle,
                    cyc_dps_h=clip * dmg_h / cycle,
-                   ss_fire=clip * interval, ss_cool=clip_reload, duty=duty,
+                   ss_fire=burst_span, ss_cool=clip_reload, duty=duty,
                    ss_dps_s=clip * dmg_s / cycle,
                    ss_dps_h=clip * dmg_h / cycle)
     else:
