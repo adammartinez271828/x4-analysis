@@ -457,6 +457,36 @@ def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
     assert sorted(frames.global_trades["time"]) == [5000.0, 5100.0]
 
 
+def test_resource_areas_status_and_mineable(save_data, ref, conn):
+    import dataclasses
+
+    from x4analyzer.analysis.frames import build_frames
+
+    # inject reference capacities/respawndelays for the fixture's classes
+    ry = dataclasses.replace(ref, region_yields={
+        ("high", "ore"): (5000.0, 20.0),
+        ("low", "silicon"): (3000.0, 40.0),
+    })
+    frames = build_frames(save_data, ry, conn)
+
+    ore = frames.resource_areas["cluster_01_sector001_macro"]["ore"]
+    # game_time 5000.5: live 1000; empty@starttime=4000 is past -> full at
+    # capacity; empty@starttime=9000 still respawning (eta ~ (9000-5000.5)/60)
+    assert [(a["status"], a["now"], a["cap"]) for a in ore] == [
+        ("live", 1000, 5000),
+        ("full", 5000, 5000),
+        ("respawning", 0, 5000),
+    ]
+    assert ore[2]["eta_min"] == 67
+
+    # left gauge / headline: mineable-now sums live + eligible-empty capacity
+    row = frames.sectors.set_index("macro").loc["cluster_01_sector001_macro"]
+    assert row["ore"] == 6000.0            # 1000 + 5000 + 0
+    # right gauge: Σ cap/respawndelay * 60 over ALL three ore areas, no
+    # gatherspeed factor (3 * 5000/20 * 60)
+    assert row["rep.ore"] == pytest.approx(45000.0)
+
+
 def test_stock_missing_level_is_zero(conn):
     # the game omits default attrs: no v = empty stock, not unknown
     conn.execute("DELETE FROM stock_event")
@@ -540,7 +570,10 @@ def test_build_frames_from_db(cfg, save_data, ref, conn):
     assert list(frames.ships["crew.have"]) == [2]
     assert list(frames.orders["default"]) == [True]
     assert list(frames.trade_offers["price"]) == [1.0]
-    assert list(frames.sectors["ore"]) == [1000.0]
+    # mineable-now: live 1000 + the eligible-empty area at its class capacity
+    # (high/ore = 1,000,000; reads yield=0 in the save but is respawned & full)
+    # + 0 for the area still on its respawn cooldown
+    assert list(frames.sectors["ore"]) == [1001000.0]
 
     gt = frames.global_trades
     assert list(gt["ware"]) == ["ice"] and "dv_neg" in gt.columns

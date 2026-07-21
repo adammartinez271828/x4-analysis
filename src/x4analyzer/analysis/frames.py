@@ -79,6 +79,10 @@ class Frames:
 
     resource_cols: list = field(default_factory=list)
     faction_levels: list = field(default_factory=list)
+    # per-area resource status for the map detail panel, keyed
+    # sector.macro -> ware -> [ {status, cap, now, eta_min} ], one record per
+    # area (status in live|full|respawning|never|unknown)
+    resource_areas: dict = field(default_factory=dict)
     time_now: float = 0.0
     logged_hours: float = 0.0
     player_faction_name: str = "Player"
@@ -182,33 +186,80 @@ def build_frames(save: SaveData, ref: RefData,
                                          ).fillna(0).astype(int)
 
     resource_cols: list[str] = []
+    resource_areas: dict = {}
     res = _read(conn, f"""
-        SELECT sector_macro AS macro, ware, yield, level, speed
+        SELECT sector_macro AS macro, ware, yield, level, speed, starttime
         FROM resource WHERE save_id = {_CUR} ORDER BY rowid""")
     if not res.empty:
-        pivot = res.pivot_table(index="macro", columns="ware", values="yield",
-                                aggfunc="sum", fill_value=0.0).reset_index()
+        # Per-area status from the confirmed respawn model
+        # (docs/resource-depletion-model.md). An area's stored yield reads 0
+        # once depleted and only "materializes" back to full when a miner
+        # mines it, but availability itself is timer-driven: an empty area is
+        # already respawned & full once past its starttime (respawn-eligibility
+        # clock). So mineable-now = live yield, OR full capacity for an
+        # eligible-empty area, OR 0 while still on the respawn cooldown. The
+        # replenishment CEILING is Σ capacity/respawndelay (per hour) — the
+        # rate if every area were held depleted; gatherspeed is an EXTRACTION
+        # term, not a respawn term, so it is deliberately absent here.
+        now_t = float(save.game_time)
+
+        def _classify(ware, level, yld, start):
+            cap, delay = ref.region_yields.get(
+                (str(level), str(ware)), (0.0, 0.0))
+            if yld > 0:
+                status, mineable = "live", yld
+            elif not cap:                       # no reference entry
+                status, mineable = "unknown", 0.0
+            elif delay < 0:                     # -1 = never respawns
+                status, mineable = "never", 0.0
+            elif start == 0 or start <= now_t:  # respawned & full (reads 0)
+                status, mineable = "full", cap
+            else:
+                status, mineable = "respawning", 0.0
+            rate = cap / delay * 60.0 if delay and delay > 0 else 0.0
+            eta = (start - now_t) / 60.0 if status == "respawning" else None
+            return status, float(mineable), float(cap), rate, eta
+
+        # (status, mineable, cap, rate, eta) per area, aligned with res rows.
+        # Only the pure-float mineable/rate go back into res (for pivots);
+        # status/cap/eta feed the breakdown directly from cls to avoid pandas
+        # coercing the None etas to NaN
+        cls = [_classify(w, lv, y, st) for w, lv, y, st in zip(
+            res["ware"], res["level"], res["yield"], res["starttime"])]
+        res["mineable"] = [c[1] for c in cls]
+        res["rate"] = [c[3] for c in cls]
+
+        # left gauge / panel headline: mineable-now (the encyclopedia number)
+        pivot = res.pivot_table(index="macro", columns="ware",
+                                values="mineable", aggfunc="sum",
+                                fill_value=0.0).reset_index()
         resource_cols = [c for c in pivot.columns if c != "macro"]
         sectors = sectors.merge(pivot, on="macro", how="left")
         sectors[resource_cols] = sectors[resource_cols].fillna(0.0)
-        # replenishment rate per area from the yieldid classes: the level's
-        # max yield / respawndelay, scaled by the gatherspeed factor
-        # (abstract units — only relative magnitudes are meaningful). Zero
-        # when the reference CSVs predate the replenishment extract
-        def _rate(ware, level, speed):
-            ymax, delay = ref.region_yields.get(
-                (str(level), str(ware)), (0.0, 0.0))
-            if not delay:
-                return 0.0
-            return ymax / delay * ref.gatherspeeds.get(str(speed), 1.0)
-        res["rate"] = [_rate(w, lv, sp) for w, lv, sp in
-                       zip(res["ware"], res["level"], res["speed"])]
+
+        # right gauge: theoretical max replenishment rate (units/h). Zero when
+        # the reference CSVs predate the extract, so the gauge simply doesn't
+        # draw
         rep = res.pivot_table(index="macro", columns="ware", values="rate",
                               aggfunc="sum", fill_value=0.0).reset_index()
         rep.columns = ["macro"] + [f"rep.{c}" for c in rep.columns[1:]]
         sectors = sectors.merge(rep, on="macro", how="left")
         rep_cols = [c for c in sectors.columns if c.startswith("rep.")]
         sectors[rep_cols] = sectors[rep_cols].fillna(0.0)
+
+        # per-area breakdown for the detail dropdown, one record per area,
+        # sorted by status priority then capacity desc
+        _order = {"live": 0, "full": 1, "respawning": 2, "never": 3,
+                  "unknown": 4}
+        for macro, ware, (status, now_v, cap_v, _rate, eta_v) in zip(
+                res["macro"], res["ware"], cls):
+            rec = {"status": status, "cap": round(cap_v), "now": round(now_v),
+                   "eta_min": None if eta_v is None else round(eta_v)}
+            resource_areas.setdefault(macro, {}).setdefault(ware, []).append(rec)
+        for ware_map in resource_areas.values():
+            for recs in ware_map.values():
+                recs.sort(key=lambda r: (_order.get(r["status"], 9),
+                                         -r["cap"]))
 
     # ---- player-owned objects (R 417-420) ---------------------------------
     log("Preparing player owned objects -> playerowned")
@@ -586,6 +637,7 @@ def build_frames(save: SaveData, ref: RefData,
             SELECT object_id AS id, macro, n
             FROM ship_engine WHERE save_id = {_CUR} ORDER BY rowid"""),
         resource_cols=resource_cols, faction_levels=faction_levels,
+        resource_areas=resource_areas,
         time_now=time_now, logged_hours=logged_hours,
         player_faction_name=player_faction_name,
     )
