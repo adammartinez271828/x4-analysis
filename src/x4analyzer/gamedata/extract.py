@@ -207,10 +207,13 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
         for m in root.iter("macro"):
             if m.get("class") != "highway" or not m.get("name"):
                 continue
-            pts = [(float(sp.get("x", 0)), float(sp.get("z", 0)))
-                   for sp in m.iter("splineposition")]
-            if len(pts) >= 2:
-                splines[m.get("name").lower()] = pts
+            ctrl = [(float(sp.get("x", 0)), float(sp.get("z", 0)),
+                     float(sp.get("tx", 0)), float(sp.get("tz", 0)),
+                     float(sp.get("inlength", 0)),
+                     float(sp.get("outlength", 0)))
+                    for sp in m.iter("splineposition")]
+            if len(ctrl) >= 2:
+                splines[m.get("name").lower()] = _sample_spline(ctrl)
 
     highway_secs: set[str] = set()
     highway_rows: list[list] = []
@@ -288,6 +291,30 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                                    int(smacro in highway_secs), source]
 
     return list(clusters.values()), list(sectors.values()), highway_rows
+
+
+_SPLINE_SAMPLES = 8   # evaluated points per control-point span
+
+
+def _sample_spline(ctrl: list[tuple]) -> list[tuple[float, float]]:
+    """Evaluate the game's highway spline (cubic Hermite: each control
+    point carries a unit tangent and in/out tangent lengths) into a
+    polyline. Straight tracks stay straight; ring arcs get their true
+    curvature instead of chords between control points."""
+    out = [(ctrl[0][0], ctrl[0][1])]
+    for (x0, z0, tx0, tz0, _il0, ol0), (x1, z1, tx1, tz1, il1, _ol1) \
+            in zip(ctrl, ctrl[1:]):
+        m0 = (tx0 * ol0, tz0 * ol0)
+        m1 = (tx1 * il1, tz1 * il1)
+        for i in range(1, _SPLINE_SAMPLES + 1):
+            t = i / _SPLINE_SAMPLES
+            h00 = 2 * t**3 - 3 * t**2 + 1
+            h10 = t**3 - 2 * t**2 + t
+            h01 = -2 * t**3 + 3 * t**2
+            h11 = t**3 - t**2
+            out.append((h00 * x0 + h10 * m0[0] + h01 * x1 + h11 * m1[0],
+                        h00 * z0 + h10 * m0[1] + h01 * z1 + h11 * m1[1]))
+    return out
 
 
 _SECTOR_IN_PATH = re.compile(r"/([A-Za-z0-9_]*_Sector\d+)_connection/",
