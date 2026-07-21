@@ -122,7 +122,8 @@ controller): they grow until ~1.3x their base screen weight, then hold */
 stroke-linecap:round;stroke-linejoin:round;}
 #ly-contested path,#ly-police path,#ly-pirates path{
 stroke-width:calc(1px*var(--sw));}
-#ly-resources polygon{stroke-width:calc(1px*var(--sw));}
+#ly-resources path{stroke-width:calc(4px*var(--sw));
+stroke-linecap:round;stroke-linejoin:round;}
 .glhl-line,.glhl-hex{stroke-width:calc(2.5px*var(--sw));}
 #ly-player polygon{stroke-width:calc(2px*var(--sw));}
 .pulse{stroke-width:calc(4px*var(--sw));}
@@ -714,10 +715,9 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                   "h": round((yr[1] - yr[0]) / _UPY, 2),
                   "pad": 12, "legend_w": 220},
         # marker sizing for the 1536x864 reference density (R makeMap
-        # defaults); res_max/res_min bound the resource overlay hex sizes
+        # defaults)
         "const": {"big": big, "small": small, "border": 3,
-                  "cbig": cbig, "csmall": csmall,
-                  "res_max": 56, "res_min": 4, "opacity": 0.6,
+                  "cbig": cbig, "csmall": csmall, "opacity": 0.6,
                   "hours": cfg.overlay_hours},
         "sectors": sectors, "clusters": clusters, "gates": gates,
         "labels": label_recs, "police": overlay_recs(police, "interdictions"),

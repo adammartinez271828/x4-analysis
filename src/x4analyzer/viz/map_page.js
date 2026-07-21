@@ -378,10 +378,15 @@
     ptMarkers.push({el: g, x: v.x, y: v.y});
   });
 
-  // resource overlay: one hidden group per resource; hex sizes are set by
-  // renormalize() (yield normalized to the max over visible factions'
-  // sectors — a direct port of the old plotly legend JS)
-  var resourceG = {};   // resource id -> {g, polys, yields, colour}
+  // resource overlay: one hidden group per resource; each sector with a
+  // non-zero yield gets a gauge traced up the LEFT edges of its hex.
+  // The covered fraction is the sector's percentile rank among the
+  // visible factions' NON-ZERO sectors (zero-yield sectors don't count),
+  // so the median sector fills exactly the bottom-left edge, the 25th
+  // percentile half of it, the 75th reaches halfway up the upper-left
+  // edge. Length encodes rank; the whole-hex tint that washed out busy
+  // sectors is gone
+  var resourceG = {};   // resource id -> {g, paths, yields, colour}
   var resColourIdx = 0;
   D.resources.forEach(function (r) {
     // sunlight gets a fixed sun-yellow; the save resources keep their
@@ -390,32 +395,49 @@
       : COLORWAY[(++resColourIdx) % COLORWAY.length];
     var g = el("g", {"data-resource": r.id}, layers.resources);
     g.style.display = "none";
-    var polys = D.sectors.map(function (s) {
-      return el("polygon", {fill: colour, "fill-opacity": 0.85,
-                            stroke: "#444444", "stroke-width": 1,
-                            "stroke-opacity": 0.85}, g);
+    var paths = D.sectors.map(function () {
+      return el("path", {fill: "none", stroke: colour,
+                         "stroke-opacity": 0.95}, g);
     });
-    resourceG[r.id] = {g: g, polys: polys, yields: r.yields,
+    resourceG[r.id] = {g: g, paths: paths, yields: r.yields,
                        colour: colour};
   });
 
   function renormalize() {
     if (!state.resource) return;
     var res = resourceG[state.resource];
-    var maxv = 0;
+    var vals = [];
     res.yields.forEach(function (v, i) {
-      if (state.factions[D.sectors[i].owner] && v > maxv) maxv = v;
+      if (v > 0 && state.factions[D.sectors[i].owner]) vals.push(v);
     });
-    res.polys.forEach(function (poly, i) {
+    vals.sort(function (a, b) { return a - b; });
+    res.paths.forEach(function (path, i) {
       var v = res.yields[i];
-      if (v <= 0 || maxv <= 0 || !state.factions[D.sectors[i].owner]) {
-        poly.style.display = "none";
+      if (v <= 0 || !vals.length || !state.factions[D.sectors[i].owner]) {
+        path.style.display = "none";
         return;
       }
-      poly.style.display = "";
-      var sz = Math.max(C.res_min, v / maxv * C.res_max);
+      path.style.display = "";
+      // mid-rank percentile (ties share their average rank)
+      var lo = 0, eq = 0;
+      vals.forEach(function (x) { if (x < v) lo++; else if (x === v) eq++; });
+      var p = (lo + eq / 2) / vals.length;
+      // left-edge chain of the sector hex (y-down): bottom-left vertex
+      // -> left corner -> top-left vertex, inset clear of the faction
+      // border stroke drawn above this layer
       var s = D.sectors[i];
-      poly.setAttribute("points", hexPoints(s.x, s.y, sz));
+      var sz = (s.big ? C.big : C.small) - 2 * C.border;
+      var hn = sz / 2, hi = sz / 4, ha = sz * R3_4;
+      var B = [s.x - hi, s.y + ha], L = [s.x - hn, s.y],
+          T = [s.x - hi, s.y - ha];
+      function lerp(u, w, t) {
+        return (u[0] + (w[0] - u[0]) * t).toFixed(1) + ","
+             + (u[1] + (w[1] - u[1]) * t).toFixed(1);
+      }
+      var d = "M" + lerp(B, B, 0);
+      d += p <= 0.5 ? "L" + lerp(B, L, p * 2)
+                    : "L" + lerp(L, L, 0) + "L" + lerp(L, T, p * 2 - 1);
+      path.setAttribute("d", d);
     });
   }
 
