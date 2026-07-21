@@ -353,7 +353,7 @@
       : {fill: st.colour, stroke: "#1e1e1e", "stroke-width": 0.8};
     // the hollow outline straddles the path (+~0.5 outward) and reads
     // larger than a fill, so the solid glyph needs a real size margin
-    attrs.d = starPath(0, 0, open ? 4.5 : 6.5);
+    attrs.d = starPath(0, 0, open ? 4 : 7);
     el("path", attrs, g);
   }
   D.vaults.forEach(function (v) {
