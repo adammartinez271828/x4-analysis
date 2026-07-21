@@ -510,11 +510,14 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
 
 **What follows from the rule**
 
-- **No miner → no respawn.** Unmined sectors, idle fields, and slowly-collected
-  scrap (never fully depleted) all stay frozen. Even eligible-and-empty areas
-  in busy sectors sit at 0 until a miner touches that specific spot — the
-  Asteroid Belt has two ore areas dead 16 h+ while 11 neighbours cycle,
-  because the miner AI never paths to those two positions.
+- **No miner → the stored `yield` stays 0** (but the ore *did* respawn on the
+  timer and is mineable — the encyclopedia shows it). Two distinct cases:
+  areas that **never deplete** (unmined sectors, slowly-collected scrap) hold
+  their stored value and never enter the cycle; areas **mined to 0** respawn on
+  schedule but their stored value only **materializes when a miner mines them**.
+  The Asteroid Belt has two ore areas *storing* 0 for 16 h+ while 11 neighbours
+  cycle — the miner AI never paths to those two spots, so their value never
+  materializes, though a miner sent there would find full ore.
 - **Respawn works with no player present** — NPC miners trigger it (Saturn 2
   silicon respawned while the player only remote-scouted).
 - **Confirmed by experiment**: an area 1 h past `starttime`, empty, respawned
