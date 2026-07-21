@@ -118,8 +118,8 @@ controller): they grow until ~1.3x their base screen weight, then hold */
 #ly-gates circle{r:calc(2px*var(--sw));}
 #ly-shighways line{stroke-width:calc(1.5px*var(--sw));}
 #ly-shighways circle{r:calc(2px*var(--sw));}
-#ly-highways line{stroke-width:calc(1.5px*var(--sw));
-stroke-linecap:round;}
+#ly-highways polyline{stroke-width:calc(1.5px*var(--sw));
+stroke-linecap:round;stroke-linejoin:round;}
 #ly-contested path,#ly-police path,#ly-pirates path{
 stroke-width:calc(1px*var(--sw));}
 #ly-resources polygon{stroke-width:calc(1px*var(--sw));}
@@ -146,7 +146,7 @@ stroke-width:calc(1px*var(--sw));}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-shighways line{stroke:rgba(110,220,190,0.6);stroke-dasharray:4,3;}
 #ly-shighways circle{fill:rgba(110,220,190,0.85);}
-#ly-highways line{stroke:rgba(232,184,78,0.75);}
+#ly-highways polyline{stroke:rgba(232,184,78,0.75);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
 #ly-factions g.dim polygon{stroke-opacity:0.15;}
 #ly-highlight *{pointer-events:none;}
@@ -579,19 +579,28 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             reach[si] = max(reach.get(si, 0.0),
                             (off[0] ** 2 + off[1] ** 2) ** 0.5)
 
-    # local (ring) highway segments, drawn inside their sector hex; the
-    # endpoints join the shared per-sector normalization so the ring
-    # keeps its true shape relative to gates and stations
+    # local (ring) highway tracks — the extracted splinetube polylines —
+    # drawn inside their sector hex; every point joins the shared
+    # per-sector normalization so the curve keeps its true shape
+    # relative to gates and stations
     hw = getattr(ref, "highways", None)
-    hw_raw: list[tuple] = []
+    hw_raw: list[tuple] = []   # (sector idx, [(x, z), ...])
     if hw is not None and len(hw):
         for r in hw.itertuples(index=False):
-            if r.sector in index:
-                hw_raw.append((index[r.sector],
-                               (float(r.x1), float(r.z1)),
-                               (float(r.x2), float(r.z2))))
-        for si, p1, p2 in hw_raw:
-            for p in (p1, p2):
+            if r.sector not in index:
+                continue
+            pts = []
+            for tok in str(r.points).split(";"):
+                xz = tok.split()
+                if len(xz) == 2:
+                    try:
+                        pts.append((float(xz[0]), float(xz[1])))
+                    except ValueError:
+                        pass
+            if len(pts) >= 2:
+                hw_raw.append((index[r.sector], pts))
+        for si, pts in hw_raw:
+            for p in pts:
                 reach[si] = max(reach.get(si, 0.0),
                                 (p[0] ** 2 + p[1] ** 2) ** 0.5)
 
@@ -624,8 +633,8 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             else (sectors[si]["x"], sectors[si]["y"])
         vaults.append(rec)
 
-    hws = [[si, *in_hex_pt(si, p1), *in_hex_pt(si, p2)]
-           for si, p1, p2 in hw_raw]
+    hws = [[si] + [c for p in pts for c in in_hex_pt(si, p)]
+           for si, pts in hw_raw]
 
     label_recs = []
     for _, r in labels.iterrows():

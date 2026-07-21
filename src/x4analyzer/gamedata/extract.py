@@ -8,7 +8,7 @@ Outputs into the data directory:
     ships.csv      macro, model, class, race, purpose, hull, mass, cargo,
                    cargo_tags, crew, price, drag_forward, source
     engines.csv    macro, size, type, mk, forward, travel_thrust
-    highways.csv   sector, x1, z1, x2, z2 (local-highway segment endpoints)
+    highways.csv   sector, points (local-highway spline "x z;x z;..." track)
     textdb.csv.gz  full page/id/text dump for resolving names in savegames
 """
 
@@ -191,9 +191,27 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
 
     # local (ring) highways: the sector macro carries connections
     # ref="zonehighways" (superhighways between sectors are a different
-    # ref and live in gates.csv). Each one is a segment whose entrypoint/
-    # exitpoint reference ZONES by path; the zones' sector-local offsets
-    # (from the same sector macro) give renderable segment geometry.
+    # ref and live in gates.csv). The macro they reference is defined in
+    # zonehighways.xml with a splinetube boundary — the actual curved
+    # track — in the macro's local frame; the connection's offset places
+    # it in the sector (no rotations occur in any game/DLC file). Points
+    # are packed as "x z;x z;..." per row. Fallback when a mod's macro
+    # has no spline: the entrypoint/exitpoint ZONE positions from the
+    # same sector macro give a straight two-point segment.
+    splines: dict[str, list] = {}
+    for path in gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
+                        r"[^/]*zonehighways\.xml$"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for m in root.iter("macro"):
+            if m.get("class") != "highway" or not m.get("name"):
+                continue
+            pts = [(float(sp.get("x", 0)), float(sp.get("z", 0)))
+                   for sp in m.iter("splineposition")]
+            if len(pts) >= 2:
+                splines[m.get("name").lower()] = pts
+
     highway_secs: set[str] = set()
     highway_rows: list[list] = []
     for path in gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
@@ -218,17 +236,26 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
                 if conn.get("ref") != "zonehighways":
                     continue
                 highway_secs.add(smacro)
-                pts = {}
-                for ep in conn.iter("connection"):
-                    if ep.get("ref") in ("entrypoint", "exitpoint"):
-                        ref = ep.find("macro")
-                        zname = (ref.get("path") or "").split("/")[-1] \
-                            if ref is not None else ""
-                        pts[ep.get("ref")] = zone_pos.get(zname)
-                a, b = pts.get("entrypoint"), pts.get("exitpoint")
-                if a and b:
-                    highway_rows.append(
-                        [smacro, a[0], a[1], b[0], b[1], source])
+                pos = conn.find("offset/position")
+                ox = float(pos.get("x", 0)) if pos is not None else 0.0
+                oz = float(pos.get("z", 0)) if pos is not None else 0.0
+                ref_el = conn.find("macro")
+                hmacro = (ref_el.get("ref") or "").lower() \
+                    if ref_el is not None else ""
+                pts = [(ox + x, oz + z) for x, z in splines.get(hmacro, ())]
+                if not pts:
+                    ep = {}
+                    for c in conn.iter("connection"):
+                        if c.get("ref") in ("entrypoint", "exitpoint"):
+                            r2 = c.find("macro")
+                            zname = (r2.get("path") or "").split("/")[-1] \
+                                if r2 is not None else ""
+                            ep[c.get("ref")] = zone_pos.get(zname)
+                    if ep.get("entrypoint") and ep.get("exitpoint"):
+                        pts = [ep["entrypoint"], ep["exitpoint"]]
+                if pts:
+                    highway_rows.append([smacro, ";".join(
+                        f"{x:.1f} {z:.1f}" for x, z in pts), source])
 
     # sector membership + in-cluster offsets: clusters.xml variants
     sectors: dict[str, list] = {}
@@ -633,7 +660,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     )
     _write_csv(
         cfg.data_dir / "highways.csv",
-        ["sector", "x1", "z1", "x2", "z2", "source"],
+        ["sector", "points", "source"],
         highway_rows,
     )
 

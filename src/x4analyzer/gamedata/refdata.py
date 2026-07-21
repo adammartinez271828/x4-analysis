@@ -42,7 +42,7 @@ class RefData:
     sectors: pd.DataFrame
     ships: pd.DataFrame
     engines: pd.DataFrame    # macro, size, type, mk, forward, travel_thrust
-    highways: pd.DataFrame   # local-highway segments: sector, x1, z1, x2, z2
+    highways: pd.DataFrame   # local-highway tracks: sector, points "x z;..."
     modules: pd.DataFrame    # production modules: macro, ware, method, ...
     recipes: pd.DataFrame    # ware production recipes (long: one row/input)
     modcaps: pd.DataFrame    # module housing/workers/cargo capacities
@@ -117,8 +117,14 @@ def load_refdata(data_dir: Path) -> RefData:
                          "travel_thrust"])
     if not engines.empty:
         engines["macro"] = engines["macro"].str.lower()
-    highways = _optional("highways.csv",
-                         ["sector", "x1", "z1", "x2", "z2", "source"])
+    highways = _optional("highways.csv", ["sector", "points", "source"])
+    if "points" not in highways.columns and {"x1", "z1", "x2", "z2"} \
+            <= set(highways.columns):
+        # pre-spline extract in the user data dir: endpoint pairs
+        highways["points"] = (
+            highways["x1"].astype(str) + " " + highways["z1"].astype(str)
+            + ";" + highways["x2"].astype(str) + " "
+            + highways["z2"].astype(str))
 
     # columns added after the first release: an older extract in the user
     # data dir may still override the packaged CSVs, so default them

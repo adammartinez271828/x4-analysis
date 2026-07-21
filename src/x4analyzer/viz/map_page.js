@@ -221,10 +221,11 @@
     el("circle", {cx: g[4], cy: g[5], r: 2}, ly);
   });
 
-  // local (ring) highway segments: [si, x1, y1, x2, y2] inside their
-  // sector hex — the 6-14 km/s tracks S/M ships ride
+  // local (ring) highway tracks: [si, x1, y1, x2, y2, ...] polylines of
+  // the game's splinetube points — the 6-14 km/s tracks S/M ships ride
   (D.hws || []).forEach(function (h) {
-    el("line", {x1: h[1], y1: h[2], x2: h[3], y2: h[4]}, layers.highways);
+    el("polyline", {points: h.slice(1).join(" "), fill: "none"},
+       layers.highways);
   });
 
   // hover adjacency from the gate links
