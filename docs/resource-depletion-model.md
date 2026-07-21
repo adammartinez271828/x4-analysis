@@ -255,14 +255,16 @@ Pious Mists XI — **two** empty medium nividium areas (5,000 cap each), yet the
 encyclopedia showed **5,000, not 10,000**: only the **eligible** area was
 counted at full; the not-yet-eligible one contributed **0**.
 
-So the figure is effectively **"how much a miner could pull right now"** —
-live resource plus eligible areas that respawn on contact — and it is accurate
-for exactly that. The catch: an eligible-empty area displays as *full* while
-the save stores it at **0**, so you cannot tell a genuinely-full area from an
-eligible-empty one from the UI alone; only the live `<area>` yields do. It is
-also why a mining ship confidently flies to a "full-looking" eligible field
-and succeeds — the respawn fires on its arrival (this is exactly what the
-Pious Mists XI Drill did).
+So the figure is exactly **"how much a miner could pull right now"** — live
+resource plus eligible areas that respawn on contact — and it is **accurate**,
+not a fudge. A genuinely-full area and an eligible-empty area are functionally
+identical: both yield the full capacity when mined, which is why a mining ship
+flies to either with equal confidence and succeeds (the eligible one respawns
+on arrival — exactly what the Pious Mists XI Drill did). The distinction
+matters only to **our** save-reading: an eligible-empty area is stored at
+`yield`=0, so summing raw yields **understates** what's actually mineable. To
+reproduce the game's honest "mineable now" figure, a tool must add each
+empty-but-eligible area at its **full capacity**, not count it as 0.
 
 ## Rates and "extraction" — what the numbers do and don't mean
 
@@ -477,8 +479,10 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
   yields of partial areas + empty-but-eligible areas at full capacity (they
   respawn on contact); not-yet-eligible empty areas count 0. Pious Mists XI's
   two empty nividium areas showed **5,000, not 10,000** — only the eligible
-  one counted. So an eligible-empty area reads as full though the save stores
-  0; only the `<area>` yields tell them apart.
+  one counted. It's accurate: a full area and an eligible-empty area both mine
+  out full. The implication runs the *other* way — summing raw save `yield`s
+  **understates** mineability, so a "mineable now" tool must add
+  empty-but-eligible areas at full capacity.
 - **Only the per-(sector, ware) total is trackable across saves** — area ids
   remap and areas relocate on respawn, so individual areas can't be followed.
 
