@@ -45,23 +45,74 @@ per-**sector** in `mapdefaults.xml` under `<properties><resourceareas>`,
 referencing `regionyields.xml`. So an area's respawn "random location" is
 scoped to its own sector's field, not the galaxy. **[DOC]**
 
-### Save files — the `<area>` element
+### Save files — the `<resourceareas>` block
 
-Each live area appears as:
+At runtime the areas live in a flat `<resourceareas>` block **directly under
+the sector component** (not a separate region object). **[OBS]** A live solid
+area is richer than the game-file template — it carries a position and links
+to the physical asteroids:
 
+```xml
+<component class="sector" macro="cluster_500_sector002_macro">
+  …
+  <resourceareas>
+    <area id="[0x301a0]" yieldid="sphere_medium_nividium_verylow_veryfast"
+          yield="381" starttime="0">
+      <offset><position x="-30000" y="-10000" z="-130000"/></offset>
+      <fields>
+        <field region="[0x2ebaa]" macro="env_ast_niv_l_01_macro" weight="3076"/>
+        <field region="[0x2ebb2]" macro="env_ast_niv_l_01_macro" weight="279485"/>
+        …
+      </fields>
+    </area>
+    …
+  </resourceareas>
 ```
-<area id="[0x7685]" yieldid="sphere_large_ore_high_slow" yield="53658" starttime="0">
-```
 
-- `yieldid` = `sphere_<size>_<ware>_<level>_<gatherspeed>`, e.g.
+Attributes / children (all **[OBS]**):
+
+- `yieldid` = `sphere_<boundary>_<ware>_<level>_<gatherspeed>`, e.g.
   `sphere_large_ore_high_slow` → boundary `large`, ware `ore`, level `high`,
-  gatherspeed `slow`. The size/level/speed are optional trailing tokens. **[OBS]**
-- `yield` = the area's **current** pool (depletes with mining). **[OBS]**
-- `id` is a **runtime** id that remaps on every load — not a stable
-  identity. **[OBS]**
-- Save areas carry **no `respawndelay` attribute** (0 occurrences in the
-  save); the delay is resolved purely from the `yieldid`'s level via
-  `regionyields.xml`. **[OBS]**
+  gatherspeed `slow`. Parse by structure, not a regex over the middle: the
+  **boundary** token `medium` collides with the **level** token `medium`.
+- `yield` = the area's **current** pool (depletes with mining). **Absent
+  entirely when the area is depleted** — not `yield="0"`.
+- `starttime` = `0` while the area holds resource; once depleted it becomes
+  the **scheduled respawn time** (game-time seconds). See "starttime" below.
+- `<offset><position>` = the area's real 3D location in the sector (metres).
+  Present on **every** area, including depleted ones.
+- `id` is a **runtime** id that remaps on every load — not a stable identity.
+- No `respawndelay` attribute exists on save areas; the delay is resolved
+  from the `yieldid`'s level via `regionyields.xml`.
+
+**Gases vs solids differ structurally.** **[OBS]**
+
+- **Gases** (helium, hydrogen, methane): position + yield only, **no
+  `<fields>`** — they are gas clouds, no rocks to reference.
+- **Solids** (ore, silicon, ice, nividium): a `<fields>` list linking the
+  abstract deposit to the physical asteroid environment macros that render
+  and get mined — `env_ast_ore_*`, `env_ast_crystal_*` (silicon is mined
+  from *crystal* asteroids), `env_ast_ice_*`, `env_ast_niv_*`. Each `<field>`
+  carries a `region="[0x…]"` (runtime id of the physical asteroid-field
+  region) and a `weight`.
+
+Two structural facts: **areas share physical regions** (one `region` id such
+as `[0x2ebb2]` appears in the `<fields>` of ore, silicon, ice *and* nividium
+areas — the `<area>` layer is accounting, the `region`/`macro` layer is the
+rocks), and **depletion is representational, not structural** — a mined-out
+area keeps its `<offset>` and `<fields>`, just drops `yield` and gains a
+`starttime`.
+
+### `starttime` = the scheduled respawn time (not the depletion time)
+
+Confirmed by the strongest available test: **every** depleted area whose
+`starttime` is in the *future* is empty (42/42, across all wares), and no
+depleted area has `starttime=0`. A depletion timestamp could never be in the
+future, so `starttime` is the **game-time at which this depleted area is
+scheduled to respawn**. **[OBS]** (An earlier draft read it as the depletion
+time; that was wrong, and any "overdue" arithmetic built on `now −
+respawndelay` with it is void. The correct "past-due" test is simply
+`starttime < game_time`.)
 
 ## Life cycle of an area
 
@@ -71,22 +122,28 @@ Each live area appears as:
 3. A partially-mined area **does not refill**. **[INF — strongly implied by
    XSD wording ("after it was depleted") and by the smooth multi-hour
    declines with no partial recovery we observed].**
-4. On full depletion, a `respawndelay`-minute cooldown begins. **[DOC]**
-5. After the cooldown, a fresh **full** area respawns at a random spot in
-   the sector. **[DOC + OBS]** — directly observed: a Saturn 2
-   `large_silicon_high_average` area went from **0 → 998,453** (99.8% of its
-   1 M cap) in one interval, while unmined areas nearby stayed byte-identical
-   and a second depleted area (still mid-cooldown) stayed at 0.
+4. On full depletion the area drops its `yield` and is stamped with a
+   `starttime` = **now + `respawndelay` minutes**, the scheduled respawn
+   time. It keeps its position and `<fields>`. **[OBS]**
+5. When that scheduled time arrives *and the region is being processed*, a
+   fresh **full** area respawns at a random spot in the sector. **[DOC +
+   OBS]** — directly observed: a Saturn 2 `large_silicon_high_average` area
+   went from **0 → 998,453** (99.8% of its 1 M cap) in one interval, while
+   unmined areas nearby stayed byte-identical and another depleted area
+   (not yet due) stayed at 0. The "*being processed*" qualifier is the open
+   part — see the attention/backlog section.
 6. `respawndelay = -1` disables respawn entirely. **[DOC]**
 
 ## What this predicts, and what we observed
 
 ### Unmined sectors are frozen — confirmed
 
-No mining → nothing depletes → no respawn timer → the field never changes.
-**[OBS]** The Unknown System (no miners, one construction site) held its ore
-pools byte-identical across 11 saves spanning 4.6 game-hours, sitting at
-32–70% of capacity the whole time (so not "frozen because full").
+No mining → nothing depletes → no respawn is ever scheduled → the field never
+changes. **[OBS]** The Unknown System (no miners, one construction site) held
+its ore pools byte-identical across 11 saves spanning 4.6 game-hours, sitting
+at 32–70% of capacity the whole time (so not "frozen because full"). This is
+about *mining*, not attention (below): with nothing depleting the areas,
+there is simply nothing to respawn.
 
 ### Hard-mined ore fields show discrete respawn jumps — observed
 
@@ -126,6 +183,38 @@ depleted is **[UNVERIFIED]** — we have zero observations of the triggering
 condition. Its other source, combat debris from destroyed ships, is a
 separate mechanic and was minor in this playthrough (one +799 event in the
 HQ combat sector). **[OBS]**
+
+### Respawn happens at low attention, but execution looks rate-limited
+
+X4 simulates every sector continuously at **low attention**; **high
+attention** (full detail) applies only within ~100 km of the player.
+Depletion and respawn *both* happen at low attention: NPC fleets deplete
+distant sectors, and Saturn 2's silicon respawned while the player was
+**never** present there (only remote scouts). **[OBS, user-confirmed]** So
+"only changes while the player is near" is wrong — proximity is not required.
+
+But respawns do **not** all fire on schedule. At game-time 18.52h the save
+holds 187 scheduled respawns: **42 pending** (respawn time in the future,
+all empty) and **145 overdue** (scheduled time already passed, still empty).
+Crucially, **135 of the 145 overdue are in actively-mined sectors** — the
+backlog is not "no activity." Saturn 2 fired its silicon respawn yet still
+carries 4 overdue (hydrogen); Matrix #598 carries 14 overdue ore, Matrix #9
+seven, Emperor's Pride VI two. Sectors clear *some* due respawns while others
+in the same sector stay overdue. **[OBS]**
+
+That is the signature of **rate-limited / periodic execution**: each respawn
+is *scheduled* cleanly (`starttime` = depletion + `respawndelay`, and the
+pending times are arbitrarily spaced — no throttle in the scheduling), but
+the engine *executes* due respawns at a limited rate, leaving a persistent
+backlog that is largest where depletion is fastest. **[INF — strong].** No
+explicit throttle exists in the game files (`regionyields.xsd` documents only
+`respawndelay`); the limiting is engine-side. The unknown is the execution
+budget (per region? per tick? universe-wide?) and firing order.
+
+This **supersedes** two earlier guesses in this investigation, both now
+falsified: that respawn needs high attention (Saturn 2 respawned with no
+player near), and that it needs active mining (active sectors carry the bulk
+of the backlog).
 
 ## Rates and "extraction" — what the numbers do and don't mean
 
@@ -178,6 +267,15 @@ they are estimates, not direct measurements.)
 5. **Quantitative respawn cadence vs `respawndelay`** — the minutes reading
    is confirmed qualitatively (hours-apart jumps), but we have not matched
    a specific event to a specific area's delay.
+6. **What is the respawn-execution budget?** Execution is rate-limited (145
+   overdue scheduled respawns, 135 of them in actively-mined sectors), but
+   whether the limit is per-region, per-tick, or universe-wide — and the
+   firing order — is unknown.
+7. **Do overdue respawns ever fire without the player, or only when he
+   visits?** Avarice V stayed empty ~8 min after the player entered (far
+   too short to conclude). The idle-field temporal test (leave a mined-out
+   field, save hours later) would settle whether overdue respawns clear on
+   their own.
 
 ## Appendix A — a complete ore-field definition, end to end
 
@@ -241,18 +339,37 @@ at full capacity — a few big slow-to-respawn fields plus many small fast ones.
 
 ### Step 5 — how it looks live in a save
 
-At runtime each of those 12 areas is instantiated as an `<area>` with a
-current `yield` (its remaining pool) and a remapped runtime id, e.g.:
+At runtime the sector's areas live in a flat `<resourceareas>` block under the
+sector component. Each is an `<area>` with a remapped runtime id, a current
+`yield`, a 3D `<offset><position>`, and — for solids — a `<fields>` list
+linking to the physical asteroid macros that render and get mined:
 
 ```xml
-<area id="[0x7685]" yieldid="sphere_large_ore_high_slow" yield="53658" starttime="0"/>
+<area id="[0x3018d]" yieldid="sphere_large_ore_high_slow" yield="53658" starttime="0">
+  <offset><position x="-50000" y="-10000" z="-270000"/></offset>
+  <fields>
+    <field region="[0x2ebb2]" macro="env_ast_ore_xl_01_macro" weight="1190732"/>
+    …
+  </fields>
+</area>
 ```
 
-Here a `large/high/slow` area (1 M capacity) is nearly mined out at 53,658 —
-one of the four; when it hits zero it will respawn full, 120 minutes later,
-at a random spot inside the same sector. The save stores **only** the current
-`yield` and the `yieldid`; capacity, respawndelay, radius and gather factor
-are all resolved back through `regionyields.xml`.
+Here a `large/high/slow` area (1 M capacity) is nearly mined out at 53,658.
+The save stores per area only the current `yield`, the `yieldid`, the
+position, and the asteroid-field links; capacity, respawndelay, radius and
+gather factor are all resolved back through `regionyields.xml`.
+
+When it hits zero the `yield` attribute **disappears** and `starttime` is set
+to the scheduled respawn time (depletion + 120 min). The `<offset>` and
+`<fields>` stay — depletion is representational, not structural. It then
+respawns full at a random spot in the sector, subject to the engine's
+rate-limited respawn execution (see the low-attention/rate-limit section).
+
+Gases (helium/hydrogen/methane) have **no `<fields>`** — just position and
+yield — because there are no rocks; silicon's fields point at `env_ast_crystal_*`
+(crystal asteroids), ice at `env_ast_ice_*`, nividium at `env_ast_niv_*`.
+One physical `region` id is shared across the ore/silicon/ice/nividium areas
+that coexist in the same field.
 
 ## Appendix B — one-pager
 
@@ -263,14 +380,22 @@ only *after* it has been mined to exactly **0**.
 **Life cycle of one area**
 
 ```
-full ──mining──► partial ──mining──► EMPTY(0) ──wait respawndelay min──► respawns FULL
-                    │                                                    (random spot,
-                    └── sits here forever if mining stops ───────────────  same sector)
+full ──mining──► partial ──mining──► EMPTY(0) ──schedule respawn at now+delay──► respawns FULL
+                    │                            (delay = respawndelay minutes)   (random spot,
+                    └── sits here forever if mining stops ─────────────────────    same sector,
+                                                       execution is rate-limited)  full capacity)
 ```
+
+On depletion the area drops its `yield` and stores `starttime` = the scheduled
+respawn time; execution of due respawns is **rate-limited** by the engine, so
+a backlog builds (145 overdue vs 42 pending in the studied save).
 
 **A "field" is a bag of independent areas.** A sector's ore is ~12
 separate asteroid areas of mixed size/level/speed, each with its own pool,
-depletion, and respawn timer. Nothing is per-sector; everything is per-area.
+position, depletion, and respawn schedule. Nothing is per-sector; everything
+is per-area. In the save each is an `<area>` with `yieldid`, `yield` (absent
+when empty), `starttime`, an `<offset><position>`, and — for solids only — a
+`<fields>` list linking to the physical asteroid macros (gases have none).
 
 **The numbers** (`regionyields.xml`, per area):
 
@@ -296,6 +421,10 @@ Gatherspeed scales *mining* rate: veryslow ×0.2 · slow ×0.5 · average ×1.0
   respawning full.
 - **Respawn = fresh full area at a random in-sector location.** Observed:
   0 → 998,453 / 1,000,000 in one interval.
+- **Respawn works at low attention** (no player needed): a field respawned
+  while the player only remote-scouted the sector. But **execution is
+  rate-limited** — due respawns pile up even in busy sectors (Saturn 2 fired
+  its silicon but kept 4 other respawns overdue).
 - **Only the per-(sector, ware) total is trackable across saves** — area
   ids remap *and* areas relocate on respawn, so individual fields can't be
   followed.
