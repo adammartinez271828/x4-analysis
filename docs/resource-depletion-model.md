@@ -1,23 +1,27 @@
 # How X4 resource depletion & respawn works (current understanding)
 
 Reference for the resource-extraction feature work. Assembled 2026-07-21
-from the game files (`libraries/regionyields.xml` + its `.xsd`) and an
-empirical study of 13 saves from one playthrough (game-hours 0.16 → 18.39).
-Each claim below is tagged by confidence:
+from the game files (`libraries/regionyields.xml` + its `.xsd`), an
+empirical study of 13 saves, and a **live in-game experiment** (Pious Mists XI,
+below) that settled the respawn trigger. Each claim is tagged by confidence:
 
 - **[DOC]** — stated in the game's own XSD documentation (authoritative).
 - **[OBS]** — directly observed in save data (with the evidence).
+- **[EXP]** — established by a controlled in-game experiment.
 - **[INF]** — inferred/consistent-with, but not independently verified.
 
 ## The mechanic in one paragraph
 
 A resource area holds a pool of one ware up to a fixed capacity. Mining
 draws that pool down. **Partial areas do not refill** — there is no gradual
-regeneration. Only when an area is fully **depleted** does a timer start;
-`respawndelay` **minutes** later the area **respawns, full, at a random
-location within the same sector**. So the entire "replenishment" of a
-sector is a series of discrete, whole-area respawn events, each triggered
-by a prior depletion. No depletion → no respawn.
+regeneration. When an area is fully **depleted**, `respawndelay` **minutes**
+later it becomes *eligible* to respawn — but it does **not** respawn on a
+timer. The respawn fires only when a **miner actually mines that area**: on
+mining contact, an eligible depleted area respawns full, and the miner
+extracts from it. Until a miner touches it, an eligible area sits at zero
+indefinitely. So a sector's "replenishment" is a series of discrete,
+whole-area respawns, each **triggered by a miner making contact** with a
+depleted-but-eligible area. No mining → no depletion *and* no respawn.
 
 ## Source data
 
@@ -103,16 +107,18 @@ rocks), and **depletion is representational, not structural** — a mined-out
 area keeps its `<offset>` and `<fields>`, just drops `yield` and gains a
 `starttime`.
 
-### `starttime` = the scheduled respawn time (not the depletion time)
+### `starttime` = the respawn-*eligibility* time (not the depletion time, not when it fires)
 
 Confirmed by the strongest available test: **every** depleted area whose
 `starttime` is in the *future* is empty (42/42, across all wares), and no
 depleted area has `starttime=0`. A depletion timestamp could never be in the
-future, so `starttime` is the **game-time at which this depleted area is
-scheduled to respawn**. **[OBS]** (An earlier draft read it as the depletion
-time; that was wrong, and any "overdue" arithmetic built on `now −
-respawndelay` with it is void. The correct "past-due" test is simply
-`starttime < game_time`.)
+future, so `starttime` is the game-time at which this depleted area becomes
+**eligible** to respawn (= depletion + `respawndelay`). **[OBS]** But
+`starttime` is *not* when the respawn happens — an eligible area sits at zero
+until a miner mines it (see the trigger section). An earlier draft read it as
+the depletion time; that was wrong, and any "overdue" arithmetic built on
+`now − respawndelay` with it is void. "Past-due / eligible" is simply
+`starttime < game_time`; "not yet eligible" is `starttime > game_time`.
 
 ## Life cycle of an area
 
@@ -123,15 +129,15 @@ respawndelay` with it is void. The correct "past-due" test is simply
    XSD wording ("after it was depleted") and by the smooth multi-hour
    declines with no partial recovery we observed].**
 4. On full depletion the area drops its `yield` and is stamped with a
-   `starttime` = **now + `respawndelay` minutes**, the scheduled respawn
+   `starttime` = **now + `respawndelay` minutes**, its respawn-eligibility
    time. It keeps its position and `<fields>`. **[OBS]**
-5. When that scheduled time arrives *and the region is being processed*, a
-   fresh **full** area respawns at a random spot in the sector. **[DOC +
-   OBS]** — directly observed: a Saturn 2 `large_silicon_high_average` area
-   went from **0 → 998,453** (99.8% of its 1 M cap) in one interval, while
-   unmined areas nearby stayed byte-identical and another depleted area
-   (not yet due) stayed at 0. The "*being processed*" qualifier is the open
-   part — see the attention/backlog section.
+5. After `starttime` the area is *eligible* but stays at zero. It **respawns
+   only when a miner mines it**: on mining contact, an eligible area respawns
+   **full** and the miner immediately extracts from it. **[EXP]** — the Pious
+   Mists XI experiment (below) caught exactly this: an area 1 h past `starttime`
+   sat empty until a Drill reached it, then respawned to its full 5,000 cap
+   with the miner pulling 980 out of it in the same instant. Saturn 2's
+   `0 → 998,453` silicon respawn is the same event from the NPC-miner side.
 6. `respawndelay = -1` disables respawn entirely. **[DOC]**
 
 ## What this predicts, and what we observed
@@ -184,37 +190,66 @@ condition. Its other source, combat debris from destroyed ships, is a
 separate mechanic and was minor in this playthrough (one +799 event in the
 HQ combat sector). **[OBS]**
 
-### Respawn happens at low attention, but execution looks rate-limited
+### The respawn trigger is a miner mining the area — CONFIRMED by experiment
 
-X4 simulates every sector continuously at **low attention**; **high
-attention** (full detail) applies only within ~100 km of the player.
-Depletion and respawn *both* happen at low attention: NPC fleets deplete
-distant sectors, and Saturn 2's silicon respawned while the player was
-**never** present there (only remote scouts). **[OBS, user-confirmed]** So
-"only changes while the player is near" is wrong — proximity is not required.
+An eligible depleted area (`starttime < now`) does **not** respawn on a
+timer, at any attention level. It respawns the moment a **miner mines that
+specific area**. This was settled by a controlled in-game experiment.
 
-But respawns do **not** all fire on schedule. At game-time 18.52h the save
-holds 187 scheduled respawns: **42 pending** (respawn time in the future,
-all empty) and **145 overdue** (scheduled time already passed, still empty).
-Crucially, **135 of the 145 overdue are in actively-mined sectors** — the
-backlog is not "no activity." Saturn 2 fired its silicon respawn yet still
-carries 4 overdue (hydrogen); Matrix #598 carries 14 overdue ore, Matrix #9
-seven, Emperor's Pride VI two. Sectors clear *some* due respawns while others
-in the same sector stay overdue. **[OBS]**
+**The Pious Mists XI experiment** **[EXP]**
 
-That is the signature of **rate-limited / periodic execution**: each respawn
-is *scheduled* cleanly (`starttime` = depletion + `respawndelay`, and the
-pending times are arbitrarily spaced — no throttle in the scheduling), but
-the engine *executes* due respawns at a limited rate, leaving a persistent
-backlog that is largest where depletion is fastest. **[INF — strong].** No
-explicit throttle exists in the game files (`regionyields.xsd` documents only
-`respawndelay`); the limiting is engine-side. The unknown is the execution
-budget (per region? per tick? universe-wide?) and firing order.
+- **Baseline** (save_008, 18.55h): the sector's two nividium areas both at
+  **0** (empty). One area at (30, 70) km was **eligible** — 0.9 h past its
+  `starttime`, but still empty; the other at (70, −50) km was **not yet
+  eligible** (`starttime` ~0.5 h in the future). Encyclopedia showed 5,000
+  (the fully-depleted fallback — see the encyclopedia note).
+- **Action**: sent a player Drill on local automine for nividium; it flew in
+  (attracted by the encyclopedia's potential value) and began mining. The
+  overdue area stayed at 0 for the whole flight — presence alone did nothing.
+- **Result** (save_009, 18.76h): the **eligible** area (30, 70) had respawned
+  to a live **4,020**, and the Drill's hold contained **980** nividium.
+  4,020 + 980 = **5,000** = the medium nividium capacity: it respawned full
+  the instant the miner made contact, and the miner immediately pulled 980
+  out. The **not-yet-eligible** area (70, −50) stayed at 0 (correct — not
+  eligible, and the miner wasn't on it).
 
-This **supersedes** two earlier guesses in this investigation, both now
-falsified: that respawn needs high attention (Saturn 2 respawned with no
-player near), and that it needs active mining (active sectors carry the bulk
-of the backlog).
+So a respawn needs two things: the area past its `starttime` (eligible) **and**
+a miner making mining contact. Attention/presence is irrelevant except insofar
+as it lets a miner reach the area. This is a **lazy, on-mining-contact**
+mechanic, evaluated per area.
+
+**This resolves the whole "why aren't they respawning" backlog.** At 18.52h
+there were 145 eligible-but-empty areas — not stuck, not rate-limited, just
+**untouched by a miner** since becoming eligible. Every earlier hypothesis in
+this investigation was wrong and is superseded:
+
+- ~~needs high attention~~ — Saturn 2 respawned with no player near (its NPC
+  miners did it); Third Redemption stayed empty *with* the player in-sector.
+- ~~needs a background timer / low-attention tick~~ — an area sat 1 h+ past
+  eligibility, empty, until a miner touched it.
+- ~~rate-limited execution~~ — the "backlog" is areas no miner has mined; it
+  clears one area at a time, on contact, not by a throttled queue.
+
+It also explains the two **permanently-dead** areas in the heavily-mined
+Asteroid Belt (same fixed positions, frozen 16 h across 5 saves while 11
+neighbours cycled): the miner AI simply never paths to those two physical
+spots, so nothing ever makes contact and they never respawn. Idle fields
+(Avarice, Third Redemption nividium) sit empty forever for the same reason —
+no miner works them.
+
+### Aside: the encyclopedia shows LIVE yield, with a fully-depleted fallback
+
+The in-game map/encyclopedia resource figures are the **live** per-sector
+yields, not the template capacities — verified against Third Redemption
+(save_008): ore 116k, ice 155k, methane 259k all matched the summed live
+`yield` to the digit. **[OBS]** The **exception**: a resource that is
+**fully** mined out (live sum 0) displays its **nominal capacity** instead of
+0 (nividium showed 5,000 while the field was at true 0). So the UI reflects
+real depletion — except it cannot distinguish "full" from "bone dry" for a
+resource at exactly zero, which is precisely the case where the live `<area>`
+yields in the save are the only ground truth. This is also why a mining ship
+will fly to a "full-looking" but actually-empty field: its AI trusts the
+same potential figure.
 
 ## Rates and "extraction" — what the numbers do and don't mean
 
@@ -228,6 +263,13 @@ of the backlog).
   respawndelay) is enormous — far above any real mining fleet. In every
   sector studied the binding limit on sustainable extraction was the
   **mining fleet**, not respawn. **[INF from OBS].**
+- Because respawn is **on-mining-contact**, a field only *produces while a
+  miner is actively on it*. A single continuously-mined area cycles at its
+  own ceiling (mine to 0 → wait `respawndelay` → miner contact respawns it
+  full → repeat = `cap / respawndelay`). A field's realized output is the sum
+  over just the areas miners actually touch — which is why big fields never
+  cycle all their areas (miners work a subset) and idle fields produce zero
+  regardless of what they "contain." **[EXP-derived].**
 - Realized replenishment is only visible as **respawn events**, and
   concurrent mining masks much of it, so any measured rate from save
   history is a **lower bound** on true sustainable extraction — except in
@@ -251,31 +293,24 @@ they are estimates, not direct measurements.)
 
 ## Open questions (unverified)
 
-1. ~~Does a respawn restore full capacity?~~ **RESOLVED — yes.** A depleted
-   Saturn 2 `large_silicon_high_average` area respawned at 998,453 / 1,000,000
-   (99.8%) in one interval. Respawn brings a fresh, essentially full area;
-   partially-mined areas nearby did not change. (The earlier "+485k per huge
-   area" reading was a misattribution — the jump was one *large* area
-   respawning full, not the *huge* areas partially refilling.)
-2. **What exactly does gatherspeed scale** — mining extraction rate,
+1. ~~Does a respawn restore full capacity?~~ **RESOLVED — yes.** Saturn 2
+   silicon 0 → 998,453 (99.8%); Pious Mists XI nividium respawned to its
+   full 5,000 cap on miner contact. Respawn brings a fresh full area.
+2. ~~Why do eligible areas not respawn — rate limit? attention?~~ **RESOLVED
+   — respawn fires on a miner mining the area** (Pious Mists XI experiment).
+   Not a timer, not attention, not a throttle. The "overdue backlog" is just
+   areas no miner has touched since becoming eligible.
+3. **What exactly does gatherspeed scale** — mining extraction rate,
    respawn amount, or both? Assumed extraction rate only. **[INF]**
-3. **Does depletion require exactly 0**, or drop below some threshold, to
-   arm the respawn timer? **[unknown]**
-4. **Does scrap respawn at all when depleted?** Never observed depleted.
-   Would be settled by deliberately mining one scrap field to zero and
-   analyzing two saves across the respawndelay window.
-5. **Quantitative respawn cadence vs `respawndelay`** — the minutes reading
-   is confirmed qualitatively (hours-apart jumps), but we have not matched
-   a specific event to a specific area's delay.
-6. **What is the respawn-execution budget?** Execution is rate-limited (145
-   overdue scheduled respawns, 135 of them in actively-mined sectors), but
-   whether the limit is per-region, per-tick, or universe-wide — and the
-   firing order — is unknown.
-7. **Do overdue respawns ever fire without the player, or only when he
-   visits?** Avarice V stayed empty ~8 min after the player entered (far
-   too short to conclude). The idle-field temporal test (leave a mined-out
-   field, save hours later) would settle whether overdue respawns clear on
-   their own.
+4. **Does depletion require exactly 0**, or drop below some threshold, to
+   arm the respawn eligibility timer? **[unknown]**
+5. **Does scrap respawn at all when depleted?** Never observed depleted.
+   Would be settled by deliberately mining one scrap field to zero and then
+   sending a miner back to it.
+6. **What decides which areas a miner AI touches?** This now governs which
+   areas ever respawn (the Asteroid Belt's two permanently-dead areas are
+   spots the AI never paths to). The selection logic is engine-side and
+   unquantified.
 
 ## Appendix A — a complete ore-field definition, end to end
 
@@ -360,10 +395,10 @@ position, and the asteroid-field links; capacity, respawndelay, radius and
 gather factor are all resolved back through `regionyields.xml`.
 
 When it hits zero the `yield` attribute **disappears** and `starttime` is set
-to the scheduled respawn time (depletion + 120 min). The `<offset>` and
-`<fields>` stay — depletion is representational, not structural. It then
-respawns full at a random spot in the sector, subject to the engine's
-rate-limited respawn execution (see the low-attention/rate-limit section).
+to the respawn-eligibility time (depletion + 120 min). The `<offset>` and
+`<fields>` stay — depletion is representational, not structural. After that
+time it is *eligible* but stays empty until a **miner mines it**, at which
+point it respawns full (see the respawn-trigger section).
 
 Gases (helium/hydrogen/methane) have **no `<fields>`** — just position and
 yield — because there are no rocks; silicon's fields point at `env_ast_crystal_*`
@@ -373,33 +408,35 @@ that coexist in the same field.
 
 ## Appendix B — one-pager
 
-**The rule:** resources deplete continuously under mining but never refill
-gradually. An area only comes back by **respawning whole and full** — and
-only *after* it has been mined to exactly **0**.
+**The rule:** resources deplete under mining and never refill gradually. A
+depleted area comes back only by **respawning whole and full** — and it does
+so **only when a miner mines it**, once it's past its `respawndelay`. No timer,
+no background regen. Untouched empty areas stay at zero forever.
 
 **Life cycle of one area**
 
 ```
-full ──mining──► partial ──mining──► EMPTY(0) ──schedule respawn at now+delay──► respawns FULL
-                    │                            (delay = respawndelay minutes)   (random spot,
-                    └── sits here forever if mining stops ─────────────────────    same sector,
-                                                       execution is rate-limited)  full capacity)
+full ──mining──► partial ──mining──► EMPTY(0) ──wait respawndelay min──► ELIGIBLE (still empty)
+                    │                            (starttime = now+delay)          │
+                    └── never refills on its own ────────────────────────────►    │ miner mines it
+                                                                                   ▼
+                                                                          respawns FULL, miner
+                                                                          extracts in the same instant
 ```
 
-On depletion the area drops its `yield` and stores `starttime` = the scheduled
-respawn time; execution of due respawns is **rate-limited** by the engine, so
-a backlog builds (145 overdue vs 42 pending in the studied save).
+Two conditions to respawn: **(1)** past `starttime` (= depletion + respawndelay),
+and **(2)** a **miner makes mining contact**. Miss either and it stays at 0.
+In the save an empty area has no `yield` attribute and a `starttime`; it keeps
+its `<offset><position>` and `<fields>`.
 
-**A "field" is a bag of independent areas.** A sector's ore is ~12
-separate asteroid areas of mixed size/level/speed, each with its own pool,
-position, depletion, and respawn schedule. Nothing is per-sector; everything
-is per-area. In the save each is an `<area>` with `yieldid`, `yield` (absent
-when empty), `starttime`, an `<offset><position>`, and — for solids only — a
-`<fields>` list linking to the physical asteroid macros (gases have none).
+**A "field" is a bag of independent areas.** A sector's ore is ~12 separate
+asteroid areas of mixed size/level/speed, each with its own pool, position,
+and respawn state. Everything is per-area, and respawn is evaluated per-area
+on contact — so a field only produces from the areas miners actually touch.
 
-**The numbers** (`regionyields.xml`, per area):
+**The numbers** (`regionyields.xml`, per area; ore/silicon/ice share these):
 
-| level | capacity (ore) | respawndelay |
+| level | capacity | respawndelay |
 |---|---:|---:|
 | verylow | 5,000 | 20 min |
 | low | 50,000 | 40 min |
@@ -407,45 +444,45 @@ when empty), `starttime`, an `<offset><position>`, and — for solids only — a
 | high | 1,000,000 | 120 min |
 | veryhigh | 2,000,000 | 180 min |
 
-Gatherspeed scales *mining* rate: veryslow ×0.2 · slow ×0.5 · average ×1.0
-· fast ×2.0 · veryfast ×5.0. `respawndelay = -1` means never respawns.
+(Nividium is far smaller: 500 → 50,000 cap, 90 → 480 min delay.) Gatherspeed
+scales *mining* rate: veryslow ×0.2 · slow ×0.5 · average ×1.0 · fast ×2.0 ·
+veryfast ×5.0. `respawndelay = -1` = never respawns.
 
 **What follows from the rule**
 
-- **Unmined sector → frozen forever.** No depletion, no respawn trigger.
-- **Slowly-mined resource (e.g. scrap) → looks frozen too.** Areas never
-  hit 0, so they never respawn. (Not because scrap *can't* — we've just
-  never seen one depleted.)
-- **Hard-mined field → smooth decline + discrete full-area pop-ups.** The
-  decline is partial areas draining; the jumps are depleted areas
-  respawning full.
-- **Respawn = fresh full area at a random in-sector location.** Observed:
-  0 → 998,453 / 1,000,000 in one interval.
-- **Respawn works at low attention** (no player needed): a field respawned
-  while the player only remote-scouted the sector. But **execution is
-  rate-limited** — due respawns pile up even in busy sectors (Saturn 2 fired
-  its silicon but kept 4 other respawns overdue).
-- **Only the per-(sector, ware) total is trackable across saves** — area
-  ids remap *and* areas relocate on respawn, so individual fields can't be
-  followed.
+- **No miner → no respawn.** Unmined sectors, idle fields, and slowly-collected
+  scrap (never fully depleted) all stay frozen. Even eligible-and-empty areas
+  in busy sectors sit at 0 until a miner touches that specific spot — the
+  Asteroid Belt has two ore areas dead 16 h+ while 11 neighbours cycle,
+  because the miner AI never paths to those two positions.
+- **Respawn works with no player present** — NPC miners trigger it (Saturn 2
+  silicon respawned while the player only remote-scouted).
+- **Confirmed by experiment**: an area 1 h past `starttime`, empty, respawned
+  to its full 5,000 the instant a player Drill mined it — which took 980 in the
+  same moment (4,020 left). Presence alone did nothing until mining contact.
+- **The encyclopedia shows LIVE yields** (ore 116k, ice 155k matched the save
+  to the digit) — **except** a fully-mined-out resource shows its capacity
+  instead of 0, so you can't tell "full" from "empty" for a resource at zero.
+- **Only the per-(sector, ware) total is trackable across saves** — area ids
+  remap and areas relocate on respawn, so individual areas can't be followed.
 
 **Consequences for measuring "extraction"**
 
-- `cap ÷ respawndelay` is **not** a rate (respawndelay is a post-depletion
-  cooldown in minutes, not a rate denominator).
-- Real replenishment is only visible as respawn events; concurrent mining
-  hides most of it, so any save-history measurement is a **lower bound**.
-- In practice the ceiling on sustainable extraction is the **mining
-  fleet**, not respawn throughput.
+- `cap ÷ respawndelay` is **not** a live rate; it's the ceiling a *single
+  continuously-mined* area could sustain (mine→wait→contact-respawn→repeat).
+- A field's real output = sum over only the areas miners contact; big fields
+  never cycle all areas, idle fields produce nothing regardless of contents.
+- The binding limit on sustainable extraction is the **mining fleet** (which
+  areas it touches and how fast), never respawn throughput.
 
-**Still unknown:** whether scrap respawns (never seen one depleted); exactly
-what "depleted" threshold arms the timer; whether gatherspeed touches
-respawn as well as mining.
+**Still unknown:** whether scrap respawns (never seen one depleted); the exact
+"depleted" threshold; whether gatherspeed touches respawn amount too; and what
+decides which areas the miner AI paths to (now the thing that gates respawn).
 
 ## One-line summary
 
-Resources deplete continuously under mining but only **respawn as whole
-fresh areas after full depletion**, `respawndelay` **minutes** later, at a
-random spot in the same sector — so replenishment is bursty and
-depletion-gated, untouched fields never change, and the only reliably
-trackable quantity is the per-sector-ware total across saves.
+Resources deplete under mining and never refill gradually; a depleted area
+respawns **whole and full only when a miner mines it**, once past its
+`respawndelay` — so replenishment is contact-driven and per-area, untouched
+fields stay at zero indefinitely, and a sector produces only from the areas
+miners actually work.
