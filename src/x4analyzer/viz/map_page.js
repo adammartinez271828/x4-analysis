@@ -1089,25 +1089,31 @@
     if (r >= 1e3) return t(r / 1e3) + "k/h";
     return t(r) + "/h";
   }
-  function fieldRow(a) {
+  // a field renders as a table row so numerators and denominators each
+  // right-align into their own column (commas line up down the list)
+  function fieldCells(a) {
     function n(x) { return Math.round(x).toLocaleString("en-US"); }
-    var cap = n(a.cap), num = "", st = "";
+    var nowStr = "", capStr = "", st = "";
     if (a.status === "respawning") {
-      num = "0 / " + cap; st = "respawns in " + fmtEta(a.eta_min);
+      nowStr = "0"; capStr = n(a.cap); st = "respawns in " + fmtEta(a.eta_min);
     } else if (a.status === "never") {
-      num = "0 / " + cap; st = "no respawn";
+      nowStr = "0"; capStr = n(a.cap); st = "no respawn";
     } else if (a.status === "unknown") {
       st = "capacity unknown";
     } else {                        // live or full: just the numbers
-      num = n(a.now) + " / " + cap;
+      nowStr = n(a.now); capStr = n(a.cap);
     }
-    var parts = [];
-    if (num) parts.push("<span class='fnum'>" + num + "</span>");
-    if (a.speed) parts.push("<span class='fsp'>" +
+    var meta = [];
+    if (a.speed) meta.push("<span class='fsp'>" +
       esc(a.speed.replace(/^very/, "very ")) + "</span>");
-    if (st) parts.push("<span class='fst'>" + st + "</span>");
-    return "<div class='pfrow pf-" + a.status + "'>" +
-      parts.join(" &middot; ") + "</div>";
+    if (st) meta.push("<span class='fst'>" + st + "</span>");
+    var metaHtml = meta.length
+      ? (nowStr ? "&middot; " : "") + meta.join(" &middot; ") : "";
+    return "<tr class='pf-" + a.status + "'>" +
+      "<td class='num'>" + nowStr + "</td>" +
+      "<td class='fsl'>" + (nowStr ? "/" : "") + "</td>" +
+      "<td class='den'>" + capStr + "</td>" +
+      "<td class='fmeta'>" + metaHtml + "</td></tr>";
   }
   function resEntry(macro, r, i, head) {
     var ws = D.area_status && D.area_status[macro];
@@ -1118,7 +1124,8 @@
     var hdr = rate > 0 ? "<div class='pfhdr'>max replenishment <b>&asymp; " +
       fmtRate(rate) + "</b></div>" : "";
     return "<details class='pfields'><summary><span>" + head +
-      "</span></summary>" + hdr + fields.map(fieldRow).join("") + "</details>";
+      "</span></summary>" + hdr + "<table class='pftab'>" +
+      fields.map(fieldCells).join("") + "</table></details>";
   }
 
   function openPanel(i) {

@@ -200,10 +200,13 @@ font-size:11px;}
 .pfields>summary small{color:#9a9a9a;}
 .pfhdr{margin:1px 0 3px 14px;color:#9a9a9a;font-size:11.5px;}
 .pfhdr b{color:#c8a86a;font-weight:normal;}
-.pfrow{margin:1px 0 1px 14px;color:#b8b8b8;font-size:11.5px;
+.pftab{border-collapse:collapse;margin:1px 0 2px 14px;font-size:11.5px;}
+.pftab td{padding:0;line-height:1.55;}
+.pftab .num,.pftab .den{text-align:right;color:#d8d8d8;white-space:nowrap;
 font-variant-numeric:tabular-nums;}
-.pfrow .fnum{color:#d8d8d8;}
-.pfrow .fsp{color:#8a9a8a;}
+.pftab .fsl{padding:0 5px;color:#7a7a7a;}
+.pftab .fmeta{padding-left:8px;color:#b8b8b8;white-space:nowrap;}
+.pftab .fsp{color:#8a9a8a;}
 .pf-respawning .fst{color:#c8a86a;}
 .pf-never .fst,.pf-unknown .fst{color:#8a8a8a;}
 .pfac{margin:9px 0 3px 0;color:#b0b0b0;font-weight:bold;font-size:12.5px;}
