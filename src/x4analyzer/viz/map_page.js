@@ -338,7 +338,8 @@
     });
   });
 
-  // data vault overlays: solid glyph = unopened, hollow dimmed = opened.
+  // data vault overlays: large bright hollow star = unopened (the ones
+  // worth spotting galaxy-wide), small dimmed solid star = opened.
   // Regular vaults are cyan stars, Erlking vaults gold stars; a
   // transparent hit disc keeps hollow glyphs hoverable
   var VAULT_STYLE = {
@@ -348,15 +349,16 @@
   function vaultGlyph(g, kind, open) {
     var st = VAULT_STYLE[kind];
     var attrs = open
-      ? {fill: "none", stroke: st.colour, "stroke-width": 1, opacity: 0.55}
-      : {fill: st.colour, stroke: "#1e1e1e", "stroke-width": 0.8};
-    attrs.d = starPath(0, 0, 5.2);
+      ? {fill: st.colour, stroke: "#1e1e1e", "stroke-width": 0.6,
+         opacity: 0.45}
+      : {fill: "none", stroke: st.colour, "stroke-width": 1.5};
+    attrs.d = starPath(0, 0, open ? 4 : 7);
     el("path", attrs, g);
   }
   D.vaults.forEach(function (v) {
     var st = VAULT_STYLE[v.kind];
     var g = el("g", {}, layers[st.layer]);
-    el("circle", {r: 4.5, fill: "transparent"}, g);
+    el("circle", {r: 5.5, fill: "transparent"}, g);
     vaultGlyph(g, v.kind, v.open);
     g.addEventListener("mouseenter", function (ev) {
       var h = "<b>" + st.title +
@@ -780,6 +782,12 @@
       pathFn(0, 0, size) + "' fill='" + fill +
       "' stroke='#ffffff' stroke-width='0.8'/></svg>";
   }
+  // matches the unopened-vault glyph (hollow, coloured outline)
+  function hollowSwatch(pathFn, colour, size) {
+    return "<svg width='18' height='14' viewBox='-9 -7 18 14'><path d='" +
+      pathFn(0, 0, size) + "' fill='none' stroke='" + colour +
+      "' stroke-width='1.5'/></svg>";
+  }
   var hoursTxt = " (" + C.hours.toFixed(0) + "h)";
   var gOver = lgroup("Overlays");
   var overlayRows = [["contested", "Contested Sectors",
@@ -805,11 +813,11 @@
   if (vc.n)
     overlayRows.push(["vaults",
       "Data Vaults (" + vc.open + "/" + vc.n + " opened)",
-      pathSwatch(starPath, VAULT_STYLE.vault.colour, 9)]);
+      hollowSwatch(starPath, VAULT_STYLE.vault.colour, 9)]);
   if (ec.n)
     overlayRows.push(["erlking",
       "Erlking Vaults (" + ec.open + "/" + ec.n + " opened)",
-      pathSwatch(starPath, VAULT_STYLE.erlking.colour, 9)]);
+      hollowSwatch(starPath, VAULT_STYLE.erlking.colour, 9)]);
   overlayRows.forEach(function (row) {
     litem(gOver, row[1], row[2],
       function () { return state.layers[row[0]]; },
