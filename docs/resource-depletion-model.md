@@ -557,7 +557,8 @@ and the exact miner-AI area-selection logic.
 ## One-line summary
 
 Resources deplete under mining and never refill gradually; a depleted area
-respawns **whole and full only when a miner mines it**, once past its
-`respawndelay` — so replenishment is contact-driven and per-area, untouched
-fields stay at zero indefinitely, and a sector produces only from the areas
-miners actually work.
+**respawns whole and full once past its `respawndelay`** (the ore is back and
+mineable), but the save's stored `yield` **reads 0 until a miner mines that
+area and materializes it** — so availability is timer-driven while the stored
+value is contact-driven and per-area: a save shows 0 for any respawned area no
+miner has touched, and a sector only *produces* from the areas miners work.
