@@ -9,20 +9,23 @@ The rules below were validated in-game (sessions of 2026-07) — keep them:
   fired 5 shots in ~10.4 s bare and ~8.7 s under reload x1.2 — the old
   literal-multiply rule mis-predicted a slowdown.) Damage and coolrate
   multiply directly; chargetime multiplies a duration (optimal = MIN).
-- Heat weapons: each volley adds the bullet's `<heat value>`, and the
-  weapon COOLS BETWEEN SHOTS once `cooldelay` has elapsed since the last
-  one: net heat per shot = heat - coolrate * max(0, interval - cooldelay).
-  Weapons whose net is <= 0 never overheat. (Validated 2026-07 on the
-  S Plasma Cannon Mk1: 2600 heat, 1000/s coolrate, 1.8 s cooldelay ->
-  net 1800/shot, sits at 9800/10000 after five bare shots without
-  overheating, but overheats on the fifth shot under a +20% fire-rate
-  mod because the shorter gap cools less.) Fast weapons whose interval
-  never exceeds cooldelay reduce to the old no-cooling-while-firing
-  model — reference numbers (TER S Electromagnetic Gun Mk1, interval
-  0.71 s < cooldelay 1.0 s): 10000/350 = 28.57 volleys per heat bar,
-  10000/(350*1.4) = 20.41 s cold time-to-overheat. At `overheat` the
-  weapon goes offline for `overheatcooldelay`, then cools at `coolrate`
-  and re-enables once heat reaches `reenable`.
+- Heat weapons: the heat cycle is simulated DISCRETELY, shot by shot. A
+  bullet adds its `<heat value>` per shot; a `<heat initial>` is an
+  instantaneous spike at the onset of a firing cycle (and it IS the per-shot
+  heat for a charge weapon like the Paranid mass driver that has only
+  `initial` and no `value`). Between shots the weapon cools once `cooldelay`
+  has elapsed, so a slow weapon can shed most of a shot's heat before the
+  next — weapons whose heat plateaus below `overheat` never overheat.
+  Validated in-game 2026-07: the mass driver (initial 8000, no value) fires
+  exactly TWO shots before overheating (8000 -> cool -> 8000 again crosses
+  10000); the S Plasma Cannon Mk1 sits at 9800/10000 after five bare shots
+  and overheats on the sixth (the +20% fire-rate mod moves that to the
+  fifth). The old continuous net-rate model amortised a big per-shot spike
+  into a trickle and badly overstated the time-to-overheat for such slow
+  weapons. Fast weapons (TER S Electromagnetic Gun Mk1, interval 0.71 s <
+  cooldelay 1.0 s, no between-shot cooling) reach 10000/350 = ~29 shots per
+  bar / ~20 s cold. At `overheat` the weapon goes offline for
+  `overheatcooldelay`, then cools at `coolrate` and re-enables at `reenable`.
 - Clip weapons (`<ammunition value reload>`): the clip reload time is
   FIXED — reload mods only scale the shot interval inside the burst.
   The weapon also cools during the clip-reload pause (after cooldelay),
@@ -30,14 +33,18 @@ The rules below were validated in-game (sessions of 2026-07) — keep them:
 - Beam weapons (hitscan, projectile speed = c): rendered as many sub-shots
   packed into a live window; `dmg_s` is the per-second intensity and the beam
   is live for `lifetime` of each `reload_time` cycle. Peak DPS = dmg_s x
-  reload; sustained = peak x structural duty (lifetime / reload_time) x any
-  heat duty. Verified in-game 2026-07: ARG M Beam Turret, dmg_s 168, lifetime
-  3, reload_time 7 -> encyclopedia Weapon Output 168 x 3/7 = 72 MW. (The old
-  model treated the beam as one 168-damage shot per 7 s = 24 MW, understating
-  beams ~3x.) Reload is rate-semantic: it shortens the gap between sub-shots,
-  so it RAISES the per-second intensity (peak and sustained both scale x
-  reload -- S Beam Emitter burst 110 -> 134 under reload x1.225), but does NOT
-  change the on/off cycle, so structural duty is reload-independent.
+  reload; sustained = peak x duty. Verified in-game 2026-07: ARG M Beam
+  Turret, dmg_s 168, lifetime 3, reload_time 7 -> encyclopedia Weapon Output
+  168 x 3/7 = 72 MW (structural duty when heatless). Reload is rate-semantic:
+  it shortens the gap between sub-shots, so it RAISES the per-second intensity
+  (peak and sustained both scale x reload -- S Beam Emitter burst 110 -> 134
+  under reload x1.225), but does NOT change the on/off cycle. The heat cycle
+  is simulated per activation: each adds the `<heat initial>` spike, then
+  `<heat value>` per second while live, cooling in the off gaps. If the beam
+  overheats within a single activation it fires continuously to the overheat
+  (structural gaps don't apply), so its duty is purely heat-limited — e.g.
+  the M Scalar Aperture (initial 2000, value 1333/s, lifetime 4) sustains one
+  full 4 s beam to ~73% then a shortened ~0.5 s beam before overheating.
 - Charge weapons: shot interval = reload time + charge time (a simplified
   model); stats that need heat stay None when there is none.
 - Damage vs shields = value + shield attr, vs hull = value + hull attr,
@@ -48,10 +55,10 @@ The rules below were validated in-game (sessions of 2026-07) — keep them:
   the clip reload the entire firing cycle; reload mods have no field to
   multiply, so they do nothing.
 
-The continuous-rate model treats every shot as occupying 1/rate seconds
-and heat as accruing at the net rate (matching both the 20.41 s EM Gun
-figure and the plasma-cannon shot counts) rather than simulating
-discrete shot ticks.
+The heat cycle is simulated as discrete shot/activation ticks (see
+_bullet_heat_cycle and the beam block), which is required to model both
+slow high-per-shot weapons (mass drivers) and the beam onset spike; the
+non-heat firing rate stays a closed-form sustained figure.
 """
 
 from __future__ import annotations
@@ -121,6 +128,41 @@ def mod_multipliers(mod: dict, weapon: dict) -> dict[str, float]:
     return mults
 
 
+def _bullet_heat_cycle(per_shot: float, onset: float, overheat: float,
+                       coolrate: float, cooldelay: float, interval: float,
+                       clip: float, clip_reload: float,
+                       start: float) -> tuple[int | None, float]:
+    """Discretely fire shots from `start` heat until the weapon overheats.
+    `onset` is a one-time spike added at the first shot of the firing cycle
+    (the `<heat initial>` of a weapon that also has an ongoing per-shot
+    `value`). Cooling happens in each gap once `cooldelay` has elapsed; a clip
+    reload replaces the gap after every `clip` shots. Returns (n_shots, t_fire)
+    — the shot that tips it over and the time from the first shot to that shot
+    ((n-1) gaps) — or (None, 0.0) if the heat plateaus below `overheat`."""
+    heat = start + onset
+    n = 0
+    t = 0.0
+    max_heat = -1.0
+    since_max = 0
+    clip_n = int(clip) if clip else 0
+    while n < 5000:
+        heat += per_shot
+        n += 1
+        if heat >= overheat:
+            return n, t
+        if heat > max_heat + 1e-9:      # still climbing -> keep going
+            max_heat, since_max = heat, 0
+        else:                           # peak stalled a full clip -> never
+            since_max += 1
+            if since_max > max(clip_n, 1) + 1:
+                return None, 0.0
+        gap = clip_reload if (clip_n and clip_reload > 0 and n % clip_n == 0) \
+            else interval
+        heat = max(0.0, heat - coolrate * max(0.0, gap - cooldelay))
+        t += gap
+    return None, 0.0
+
+
 def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
     """Firing-cycle stats for a weapon with mod multipliers applied.
     Returns {key: float | None} over STAT_KEYS; None = not applicable
@@ -155,47 +197,67 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
     out: dict[str, float | None] = {k: None for k in STAT_KEYS}
     out["dmg_s"], out["dmg_h"] = dmg_s, dmg_h
 
+    # heat sources: `value` accrues per shot (bullet) / per second (beam);
+    # `initial` is an INSTANTANEOUS spike at the onset of each firing cycle /
+    # beam re-activation. A weapon with only `initial` (Paranid mass drivers)
+    # deposits it on every discrete shot. (Model corrected 2026-07 — see
+    # docs/weapon-heat-and-rate-bug-2026-07.md.)
+    value_heat = weapon.get("heat") or 0.0
+    init_heat = weapon.get("heat_initial") or 0.0
+    overheat = weapon.get("overheat") or 0.0
+    coolrate = (weapon.get("coolrate") or 0.0) * mc
+    cooldelay = weapon.get("cooldelay") or 0.0
+    ohcd = weapon.get("overheatcooldelay") or 0.0
+    reenable = weapon.get("reenable") or 0.0
+
     if is_beam(weapon):
-        # A beam is rendered as many sub-shots packed into its live window;
-        # `dmg_s` is the resulting per-second intensity and the beam is live
-        # for `lifetime` of every `reload_time` cycle. A reload mod shortens
-        # the gap between sub-shots, so it RAISES the peak intensity (and thus
-        # sustained) but does NOT change the on/off cycle -- structural duty is
-        # reload-independent. Verified in-game 2026-07: S Beam Emitter burst
-        # 110 -> 134 under a reload x1.225 mod (peak scales), and ARG M Beam
-        # Turret encyclopedia Weapon Output = 168 x lifetime 3 / reload_time
-        # 7 = 72 MW (structural duty). Peak = dmg_s x reload; sustained =
-        # peak x structural duty x heat duty.
+        # A beam is many sub-shots packed into its live window; `dmg_s` is the
+        # per-second intensity, live for `lifetime` of each `reload_time`
+        # cycle. Reload packs in more sub-shots -> higher peak intensity AND
+        # heat rate (both scale x mr). Each activation adds the `initial` spike
+        # instantly, then `value` per second; cooling happens in the off gap.
         life = weapon.get("lifetime") or 0.0
         rt = weapon.get("reload_time") or 0.0
         struct_duty = min(1.0, life / rt) if rt > 0 else 1.0
         out["rate"] = mr  # peak = dmg_s x mr (reload packs in more sub-shots)
-        heat = weapon.get("heat") or 0.0
-        overheat = weapon.get("overheat") or 0.0
-        coolrate = (weapon.get("coolrate") or 0.0) * mc
-        heat_duty = 1.0
-        if heat > 0 and overheat > 0 and coolrate > 0:
-            # A live beam does not cool while firing; `heat` is the heat it
-            # accrues per second at base intensity, so a reload mod (which
-            # packs in more sub-shots) raises the heat rate x mr -> a
-            # heat-limited beam's sustained scales SUB-linearly with reload,
-            # like every other heat weapon (the in-game *display* over-credits
-            # reload here, as the S Pulse Laser overheat count showed for
-            # bullets). The exact beam heat rate is not yet in-game validated;
-            # this reproduces the prior bare sustained for the emitters.
-            out["coolrate"] = coolrate
-            ohcd = weapon.get("overheatcooldelay") or 0.0
-            reenable = weapon.get("reenable") or 0.0
-            band = max(overheat - reenable, 0.0)
-            ss_fire = band / (heat * mr) if mr > 0 else band / heat
-            ss_cool = ohcd + (band / coolrate if coolrate > 0 else 0.0)
-            heat_duty = (ss_fire / (ss_fire + ss_cool)
-                         if ss_fire + ss_cool > 0 else 0.0)
-            out.update(ss_fire=ss_fire, ss_cool=ss_cool)
-        duty = struct_duty * heat_duty
         peak_s, peak_h = dmg_s * mr, dmg_h * mr
-        out.update(duty=duty, ss_dps_s=peak_s * struct_duty * heat_duty,
-                   ss_dps_h=peak_h * struct_duty * heat_duty)
+        heat_rate = value_heat * mr
+        duty = struct_duty
+        if value_heat > 0 and overheat > 0 and coolrate > 0:
+            out["coolrate"] = coolrate
+            gap = max(rt - life, 0.0)
+
+            def beam_cycle(start: float) -> tuple[float | None, int]:
+                heat = start
+                fire = 0.0
+                for a in range(5000):
+                    heat += init_heat
+                    to_over = (overheat - heat) / heat_rate \
+                        if heat_rate > 0 else 1e18
+                    live = min(life, max(to_over, 0.0))
+                    fire += live
+                    heat += heat_rate * live
+                    if heat >= overheat:
+                        return fire, a + 1
+                    heat = max(0.0, heat - coolrate * max(0.0, gap - cooldelay))
+                return None, 0
+
+            ss_fire, _ = beam_cycle(reenable)
+            if ss_fire is not None:
+                ss_cool = ohcd + max(overheat - reenable, 0.0) / coolrate
+                heat_duty = ss_fire / (ss_fire + ss_cool) \
+                    if ss_fire + ss_cool > 0 else 0.0
+                # if it overheats within one activation it fires continuously
+                # to the overheat (no lifetime gaps), so structural duty does
+                # not additionally apply
+                duty = heat_duty if ss_fire <= life else struct_duty * heat_duty
+                out.update(ss_fire=ss_fire, ss_cool=ss_cool)
+                cold_fire, n_act = beam_cycle(0.0)
+                if cold_fire is not None:
+                    t_cool = ohcd + overheat / coolrate
+                    out.update(t_overheat=cold_fire, t_cooldown=t_cool,
+                               t_cycle=cold_fire + t_cool, shots_cycle=n_act)
+        out.update(duty=duty, ss_dps_s=peak_s * duty, ss_dps_h=peak_h * duty)
         return out
 
     clip = weapon.get("ammo_clip") or 0.0
@@ -219,55 +281,52 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
         clip_cycle = max(clip - 1.0, 0.0) * interval + clip_reload
         eff_rate = clip / clip_cycle if clip_cycle > 0 else rate
     else:
-        clip_cycle = None
         eff_rate = rate
     # display the sustained rate on every weapon (== the plain rate when there
     # is no clip)
     out["rate"] = eff_rate
 
-    heat = weapon.get("heat") or 0.0
-    overheat = weapon.get("overheat") or 0.0
-    coolrate = (weapon.get("coolrate") or 0.0) * mc
-    net_heat = 0.0
-    if heat > 0 and overheat > 0 and coolrate > 0:
+    # per-shot heat: the ongoing `value`, or the `initial` spike on every shot
+    # for a discrete charge weapon that has no `value` (mass drivers)
+    per_shot = value_heat if value_heat > 0 else init_heat
+    onset = init_heat if value_heat > 0 else 0.0
+
+    overheats = False
+    if per_shot > 0 and overheat > 0 and coolrate > 0:
         out["coolrate"] = coolrate
-        # the weapon cools between shots once cooldelay has elapsed; slow
-        # weapons therefore accrue less than <heat> per shot and may never
-        # overheat at all (verified in-game 2026-07, S Plasma Cannon Mk1)
-        cd = weapon.get("cooldelay") or 0.0
-        cooled_shot = coolrate * max(0.0, (interval or 0.0) - cd)
-        if clip and clip_reload > 0:
-            cooled_shot += coolrate * max(0.0, clip_reload - cd) / clip
-        net_heat = heat - cooled_shot
-    if net_heat > 0 and eff_rate:
-        ohcd = weapon.get("overheatcooldelay") or 0.0
-        reenable = weapon.get("reenable") or 0.0
-        heat_rate = net_heat * eff_rate
+        # cold cycle: fire from 0 until overheat, discretely (the continuous
+        # net-rate model badly overstated the time for slow, high-per-shot
+        # weapons like the mass driver: 2 shots / ~4.3 s, not ~1.7 / ~7 s)
+        n_cold, fire_cold = _bullet_heat_cycle(
+            per_shot, onset, overheat, coolrate, cooldelay,
+            interval or 0.0, clip, clip_reload, 0.0)
+        if n_cold is not None:
+            overheats = True
+            t_cool = ohcd + overheat / coolrate
+            out.update(t_overheat=fire_cold, t_cooldown=t_cool,
+                       t_cycle=fire_cold + t_cool, shots_cycle=n_cold,
+                       cyc_dmg_s=n_cold * dmg_s, cyc_dmg_h=n_cold * dmg_h,
+                       cyc_dps_s=n_cold * dmg_s / (fire_cold + t_cool),
+                       cyc_dps_h=n_cold * dmg_h / (fire_cold + t_cool))
+            # steady state: fire from reenable to overheat, cool back
+            n_ss, fire_ss = _bullet_heat_cycle(
+                per_shot, onset, overheat, coolrate, cooldelay,
+                interval or 0.0, clip, clip_reload, reenable)
+            ss_cool = ohcd + max(overheat - reenable, 0.0) / coolrate
+            span = fire_ss + ss_cool
+            duty = fire_ss / span if span > 0 else 0.0
+            out.update(ss_fire=fire_ss, ss_cool=ss_cool, duty=duty,
+                       ss_dps_s=(n_ss or 0) * dmg_s / span if span else 0.0,
+                       ss_dps_h=(n_ss or 0) * dmg_h / span if span else 0.0)
+    if overheats:
+        return out
 
-        # cold cycle: 0 -> overheat -> fully cooled
-        t_over = overheat / heat_rate
-        t_cool = ohcd + overheat / coolrate
-        shots = overheat / net_heat
-        out.update(t_overheat=t_over, t_cooldown=t_cool,
-                   t_cycle=t_over + t_cool, shots_cycle=shots,
-                   cyc_dmg_s=shots * dmg_s, cyc_dmg_h=shots * dmg_h,
-                   cyc_dps_s=shots * dmg_s / (t_over + t_cool),
-                   cyc_dps_h=shots * dmg_h / (t_over + t_cool))
-
-        # steady state: fire reenable -> overheat, cool back to reenable
-        band = max(overheat - reenable, 0.0)
-        ss_fire = band / heat_rate
-        ss_cool = ohcd + band / coolrate
-        duty = ss_fire / (ss_fire + ss_cool) if ss_fire + ss_cool > 0 else 0.0
-        out.update(ss_fire=ss_fire, ss_cool=ss_cool, duty=duty,
-                   ss_dps_s=dmg_s * eff_rate * duty,
-                   ss_dps_h=dmg_h * eff_rate * duty)
-    elif clip:
+    if clip:
         # pure clip weapon (e.g. ARG S Ion Blaster): cycle = the burst span
         # ((clip-1) intra-burst gaps) + the fixed clip reload; overheat stats
         # never apply
-        cycle = clip_cycle or 0.0
         burst_span = max(clip - 1.0, 0.0) * interval
+        cycle = burst_span + clip_reload
         duty = burst_span / cycle if cycle > 0 else 0.0
         out.update(t_cycle=cycle, shots_cycle=clip,
                    cyc_dmg_s=clip * dmg_s, cyc_dmg_h=clip * dmg_h,

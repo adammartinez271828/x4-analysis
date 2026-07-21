@@ -1,15 +1,17 @@
 """Cycle/DPS math for the weapon-mod comparison (gamedata dashboard).
 
 The reference numbers were validated in-game: TER S Electromagnetic Gun Mk1
-fires 28.57 shots per 10000-heat bar and overheats from cold in 20.41 s
-(its 0.71 s interval never exceeds its 1.0 s cooldelay, so it never cools
-while firing); with an optimal-roll vanilla Slasher it fires at 2.8
-shots/s and overheats in ~10.2 s. S Plasma Cannon Mk1 (2026-07) validated
-the slow-weapon physics: reload mods DIVIDE its stored 2.6 s reload time,
-and it cools between shots once cooldelay elapses (five bare shots sit
-just under the 10000 heat bar; +20% fire rate overheats it). ARG S Ion
-Blaster clip reload is fixed (cooling mods do nothing, reload mods only
-speed up the burst).
+fires ~29 shots per 10000-heat bar and overheats from cold in ~20 s (its
+0.71 s interval never exceeds its 1.0 s cooldelay, so it never cools while
+firing); with an optimal-roll vanilla Slasher it fires at 2.8 shots/s and
+overheats in ~10 s. S Plasma Cannon Mk1 (2026-07) validated the slow-weapon
+physics: reload mods DIVIDE its stored 2.6 s reload time, and it cools
+between shots once cooldelay elapses (five bare shots sit just under the
+10000 heat bar, the sixth overheats; +20% fire rate moves that to the
+fifth). ARG S Ion Blaster clip reload is fixed (cooling mods do nothing,
+reload mods only speed up the burst). The heat cycle is simulated discretely
+(see weaponsim._bullet_heat_cycle) so slow high-per-shot weapons like the
+mass driver come out right (2 shots, not a continuous-rate ~1.7).
 """
 
 import pytest
@@ -45,14 +47,15 @@ SLASHER = {
 
 def test_em_gun_bare_matches_ingame():
     s = simulate(EM_GUN)
-    assert s["shots_cycle"] == pytest.approx(28.57, abs=0.01)
-    assert s["t_overheat"] == pytest.approx(20.41, abs=0.01)
+    # discrete cold cycle: the 29th shot (350*29 = 10150) tips it over, 28 gaps
+    assert s["shots_cycle"] == 29
+    assert s["t_overheat"] == pytest.approx(28 / 1.4)   # ~20.0 s
     assert s["rate"] == pytest.approx(1.4)
     assert s["dmg_s"] == pytest.approx(110.0)   # value + shield bonus
     assert s["dmg_h"] == pytest.approx(180.0)   # value + hull bonus
     assert s["t_cooldown"] == pytest.approx(1.0 + 10000 / 2000)
-    # steady state: fire 8000->10000, cool back after the offline delay
-    assert s["ss_fire"] == pytest.approx(2000 / (350 * 1.4))
+    # steady state: from reenable 8000 the 6th shot (10100) overheats -> 5 gaps
+    assert s["ss_fire"] == pytest.approx(5 / 1.4)
     assert s["ss_cool"] == pytest.approx(1.0 + 2000 / 2000)
 
 
@@ -63,11 +66,11 @@ def test_em_gun_slasher_optimal_matches_ingame():
     assert mults == {"damage": 1.503, "cooling": 0.74, "reload": 2.0}
     s = simulate(EM_GUN, mults)
     assert s["rate"] == pytest.approx(2.8)
-    assert s["t_overheat"] == pytest.approx(10.2, abs=0.01)
+    assert s["t_overheat"] == pytest.approx(28 / 2.8)   # ~10.0 s (twice as fast)
     assert s["dmg_s"] == pytest.approx(110 * 1.503)
     assert s["coolrate"] == pytest.approx(2000 * 0.74)
-    # heat per shot is unchanged: same shots per bar, reached twice as fast
-    assert s["shots_cycle"] == pytest.approx(28.57, abs=0.01)
+    # heat per shot is unchanged: same 29 shots per bar, reached twice as fast
+    assert s["shots_cycle"] == 29
 
 
 def test_reload_mod_is_rate_semantic_on_both_storage_forms():
@@ -99,6 +102,43 @@ def test_ion_blaster_clip_cycle():
     assert s["dmg_s"] == pytest.approx(420.0)    # 84 + 336
     assert s["cyc_dps_s"] == pytest.approx(5 * 420 / 9)
     assert s["duty"] == pytest.approx(4.0 / 9.0)
+
+
+def test_mass_driver_initial_heat_two_shots():
+    # PAR Mass Driver: <heat initial=8000> only (no value), a slow charge
+    # weapon. Each discrete shot deposits the 8000 spike, so it fires exactly
+    # two shots before overheating (validated in-game 2026-07) -- the old
+    # continuous model gave ~1.7 shots / ~7 s.
+    w = {"heat": 0.0, "heat_initial": 8000.0, "overheat": 10000.0,
+         "cooldelay": 2.0, "overheatcooldelay": 4.0, "coolrate": 870.0,
+         "reenable": 1000.0, "reload_time": 3.8, "chargetime": 0.5,
+         "amount": 1.0, "barrelamount": 1.0, "dmg": 1122.0}
+    s = simulate(w)
+    assert s["shots_cycle"] == 2                    # shot 1 -> 8000, shot 2 over
+    assert s["t_overheat"] == pytest.approx(4.3)    # 2nd shot at one interval
+    assert s["t_cooldown"] is not None              # real cooldown, not heatless
+
+
+# M Scalar Aperture beam: instant spike 2000 + 1333/s value, live 4 s of a 5 s
+# cycle. Projectile speed = c marks it a beam.
+SCALAR_APERTURE = {
+    "speed": 299792500.0, "lifetime": 4.0, "reload_time": 5.0,
+    "heat": 1333.0, "heat_initial": 2000.0, "overheat": 10000.0,
+    "reenable": 5000.0, "coolrate": 850.0, "cooldelay": 1.0,
+    "overheatcooldelay": 2.0, "amount": 1.0, "barrelamount": 1.0,
+    "dmg": 130.0, "dmg_hull": 390.0,
+}
+
+
+def test_scalar_aperture_beam_initial_spike():
+    # validated in-game 2026-07: hold the trigger and it fires one full 4 s
+    # beam to ~73% (2000 spike + 1333*4 = 7332), then a shortened ~0.5 s beam
+    # before overheating -> two activations
+    s = simulate(SCALAR_APERTURE)
+    assert s["shots_cycle"] == 2                     # two beam activations
+    assert s["t_overheat"] == pytest.approx(4.5, abs=0.02)
+    # steady re-activation from reenable 5000: +2000 spike then climb to 10000
+    assert s["ss_fire"] == pytest.approx((10000 - 5000 - 2000) / 1333, abs=0.01)
 
 
 def test_tau_accelerator_reports_sustained_not_burst_rate():
@@ -195,7 +235,7 @@ def test_multi_projectile_volley():
          "barrelamount": 1.0, "dmg": 25.0}
     s = simulate(w)
     assert s["dmg_s"] == pytest.approx(100.0)
-    assert s["shots_cycle"] == pytest.approx(10000 / 124)
+    assert s["shots_cycle"] == 81           # 124*81 = 10044 crosses the bar
 
 
 def test_plasma_cannon_between_shot_cooling_matches_ingame():
@@ -209,14 +249,14 @@ def test_plasma_cannon_between_shot_cooling_matches_ingame():
          "dmg": 491.0}
     s = simulate(w)
     assert s["rate"] == pytest.approx(1 / 2.6)
-    assert s["shots_cycle"] == pytest.approx(10000 / 1800)
+    # net 1800/shot: after 5 shots heat sits at 9800, the 6th overheats
+    assert s["shots_cycle"] == 6
 
     f = simulate(w, {"reload": 1.2})
     assert f["rate"] == pytest.approx(1.2 / 2.6)
-    net = 2600 - 1000 * (2.6 / 1.2 - 1.8)
-    assert f["shots_cycle"] == pytest.approx(10000 / net)
-    # the mod pushes it over the edge within a 5-shot burst
-    assert f["shots_cycle"] < 5 <= s["shots_cycle"]
+    # the shorter gap cools less, so it overheats one shot sooner (on the 5th)
+    assert f["shots_cycle"] == 5
+    assert f["shots_cycle"] < s["shots_cycle"]
 
 
 # ARG M Beam Turret Mk1: hitscan beam (speed = c), heatless. Its <damage> is

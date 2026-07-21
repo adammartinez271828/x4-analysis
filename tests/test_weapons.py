@@ -225,9 +225,11 @@ def test_extract_weapons(game_dir: Path):
                             "weapon_par_s_railgun_01_mk1_macro"}
 
     # mass driver: heat comes from the bullet's <heat initial=> (no value),
-    # so the weapon overheats rather than reading as heatless
+    # kept separate from value so the sim applies it per discrete shot and the
+    # weapon overheats rather than reading as heatless
     rg = weapons["weapon_par_s_railgun_01_mk1_macro"]
-    assert rg["heat"] == 8000.0 and rg["overheat"] == 10000.0
+    assert rg["heat"] == 0.0 and rg["heat_initial"] == 8000.0
+    assert rg["overheat"] == 10000.0
     assert rg["chargetime"] == 0.5 and rg["reload_time"] == 3.8
 
     em = weapons["weapon_ter_s_laser_02_mk1_macro"]
