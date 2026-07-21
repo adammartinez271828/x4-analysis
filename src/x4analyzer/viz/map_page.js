@@ -759,19 +759,14 @@
       });
   });
 
-  function dashSwatch(colour) {
-    return "<svg width='18' height='14'><line x1='1' y1='7' x2='17' y2='7'" +
-      " stroke='" + colour + "' stroke-width='2'" +
-      " stroke-dasharray='3,2'/></svg>";
-  }
   var gBase = lgroup("Base Map");
   [["clusters", "Cluster Outlines", hexSwatch("#B0B0B0")],
    ["labels", "Sector Names",
     "<span style='color:rgba(240,240,96,0.8);font-size:11px;" +
     "font-weight:bold'>Aa</span>"],
-   ["gates", "Gates", lineSwatch("rgba(140,170,200,0.8)")],
-   ["shighways", "Superhighways", dashSwatch("rgba(110,220,190,0.85)")],
-   ["highways", "Highways", lineSwatch("rgba(232,184,78,0.85)")],
+   ["gates", "Gates &amp; Accelerators", lineSwatch("rgba(140,170,200,0.8)")],
+   ["shighways", "Superhighways", lineSwatch("rgba(110,220,190,0.85)")],
+   ["highways", "Highways", lineSwatch("rgba(255,138,60,0.9)")],
   ].forEach(function (row) {
     litem(gBase, row[1], row[2],
       function () { return state.layers[row[0]]; },

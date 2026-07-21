@@ -809,8 +809,8 @@ open-market arbitrage.</li>
 <li>Pick one of <b>your trade ships</b> to see the profit of one full
 trip (min(hold, depth) &times; spread), the trip time and <b>Cr/h</b>.
 Speed is the ship's ACTUAL loadout: mounted engines &times; travel
-thrust &divide; hull drag, flown at 80% of travel speed (engine mods and
-spool-up are not modelled). Route length uses real station and gate
+thrust &divide; hull drag, flown at 90% of travel speed — the factor
+validated against logged trader runs (engine mods are not modelled). Route length uses real station and gate
 positions along the jump path; S and M ships ride local highways at an
 assumed 10 km/s average in sectors that have them, one way, plus the
 flat <b>dock time</b> for the ship's size class (docking, cargo
@@ -865,7 +865,7 @@ exclude Quettanauts (barter only)</label>
 a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
 <th>Depth m&sup3;</th><th>Trip profit</th>
 <th title='trip profit / trip time for the picked ship: real route
-length, 80% of loadout travel speed, S/M on local highways at 10 km/s
+length, 90% of loadout travel speed, S/M on local highways at 10 km/s
 average, plus the flat dock time'>Cr/h</th><th>Lane total</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
@@ -1030,7 +1030,8 @@ function tripProfit(r) {{
   if (!HOLD) return null;
   return Math.floor(Math.min(r.du, HOLD / r.vol)) * r.spread;
 }}
-// one-way trip: plain-space legs at 80% of the loadout travel speed,
+// one-way trip: plain-space legs at 90% of the loadout travel speed
+// (validated against logged trader runs with true gate geometry),
 // highway-sector legs at an assumed 10 km/s average for S/M, plus the
 // flat dock/transfer/undock overhead from the control. S/M ships take
 // the highway-favouring route (kps/khs) when it differs from the
@@ -1047,7 +1048,7 @@ function dockSeconds() {{
 }}
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
-  const v = 0.8 * SHIP.speed;
+  const v = 0.9 * SHIP.speed;
   const hwv = isSM() ? 10000 : v;
   const km = routeKm(r);
   return km[0] * 1000 / v + km[1] * 1000 / hwv + dockSeconds();
@@ -1154,7 +1155,7 @@ $('#opps tbody').on('click', 'tr', function() {{
          ? " (highway-favouring S/M route)" : "") + ".";
     const t = tripSeconds(r);
     if (t !== null)
-      h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.8"
+      h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.9"
         + ((SHIP.cls === 'S' || SHIP.cls === 'M') && r.kh
            ? " (highways at 10 km/s)" : "")
         + (dockSeconds() ? " + " + fmtMin(dockSeconds()) + " docking"
