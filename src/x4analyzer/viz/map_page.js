@@ -378,15 +378,16 @@
     ptMarkers.push({el: g, x: v.x, y: v.y});
   });
 
-  // resource overlay: one hidden group per resource; each sector with a
-  // non-zero yield gets a gauge traced up the LEFT edges of its hex, and
-  // (when the reference data carries replenishment) a second gauge up
-  // the RIGHT edges for the replenish rate. The covered fraction is the
-  // sector's percentile rank among ALL non-zero sectors regardless of
-  // faction selection (zero sectors don't count), so the median sector
-  // fills exactly the bottom edge of its side, the 25th percentile half
-  // of it, the 75th reaches halfway up the top edge. Length encodes
-  // rank; the whole-hex tint that washed out busy sectors is gone
+  // resource overlay: one hidden group per resource; the LEFT-edge gauge
+  // encodes mineable-NOW (live yields + respawned-but-full "overdue" areas),
+  // and (when the reference data carries replenishment) a RIGHT-edge gauge
+  // encodes the max REPLENISHMENT rate (Sigma capacity/respawndelay). So a
+  // short-left/tall-right sector is empty-but-replenishing, tall-left/short-
+  // right is full-but-slow. The covered fraction is the sector's percentile
+  // rank among ALL non-zero sectors regardless of faction selection (zero
+  // sectors don't count), so the median sector fills exactly the bottom edge
+  // of its side, the 25th percentile half of it, the 75th reaches halfway up
+  // the top edge. Length encodes rank; the whole-hex tint is gone
   var resourceG = {};   // id -> {g, paths, rpaths, yields, rep, colour}
   var resColourIdx = 0;
   D.resources.forEach(function (r) {
@@ -1064,6 +1065,44 @@
     setTimeout(applyView, 350);
   }
 
+  // per-area resource field list for the detail panel (collapsed dropdown).
+  // Each area shows now/cap and its state; an "overdue" area is respawned and
+  // full, so it renders at capacity even though the save stores yield=0.
+  function fmtEta(m) {
+    if (m == null) return "";
+    if (m >= 60) {
+      var hh = Math.floor(m / 60), mm = m % 60;
+      return mm ? "~" + hh + "h " + mm + "m" : "~" + hh + "h";
+    }
+    return "~" + m + "m";
+  }
+  function fieldRow(a) {
+    function n(x) { return Math.round(x).toLocaleString("en-US"); }
+    var cap = n(a.cap), body = "", st;
+    if (a.status === "live") {
+      body = n(a.now) + " / " + cap; st = "live";
+    } else if (a.status === "full") {
+      body = cap + " / " + cap; st = "full (respawned)";
+    } else if (a.status === "respawning") {
+      body = "0 / " + cap; st = "respawns in " + fmtEta(a.eta_min);
+    } else if (a.status === "never") {
+      body = "0 / " + cap; st = "depleted (no respawn)";
+    } else {
+      st = "capacity unknown";
+    }
+    return "<div class='pfrow pf-" + a.status + "'>" +
+      (body ? "<span class='fnum'>" + body + "</span> &middot; " : "") +
+      "<span class='fst'>" + st + "</span></div>";
+  }
+  function resFields(macro, wareId) {
+    var ws = D.area_status && D.area_status[macro];
+    var fields = ws && ws[wareId];
+    if (!fields || !fields.length) return "";
+    var label = fields.length + (fields.length === 1 ? " field" : " fields");
+    return "<details class='pfields'><summary>" + label + "</summary>" +
+      fields.map(fieldRow).join("") + "</details>";
+  }
+
   function openPanel(i) {
     var s = D.sectors[i];
     var h = "<span id='panelclose' title='Close (Esc)'>&#x2715;</span>" +
@@ -1087,18 +1126,16 @@
         "<div class='psbody'>" + inner + "</div></div>";
     }
 
+    var macro = D.sectors[i].macro;
     var resInner = D.resources.length
       ? D.resources.map(function (r) {
+          // headline number is mineable-now (live yields + respawned-full
+          // "overdue" areas) — the encyclopedia figure
           var v = Math.round(r.yields[i]);
-          var row = "<div class='pstat'>" + esc(r.name) + " <small>" +
-            (r.id === "sunlight" ? v + "%" : v.toLocaleString("en-US"));
-          if (r.rep && r.rep[i] > 0)
-            row += " &middot; <span title='replenishment rate: percentile"
-              + " among sectors holding this resource (P50 = median)'>"
-              + "replenish P"
-              + Math.round(pctile(r.rep[i], nonzero(r.rep)) * 100)
-              + "</span>";
-          return row + "</small></div>";
+          var head = "<div class='pstat'>" + esc(r.name) + " <small>" +
+            (r.id === "sunlight" ? v + "%" : v.toLocaleString("en-US")) +
+            "</small></div>";
+          return head + (r.id === "sunlight" ? "" : resFields(macro, r.id));
         }).join("")
       : "<div class='pstat'><small>None</small></div>";
     h += sec("resources", "Resources", resInner);

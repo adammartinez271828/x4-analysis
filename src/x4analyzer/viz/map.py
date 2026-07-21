@@ -188,6 +188,20 @@ font-size:18px;color:#9a9a9a;}
 .plink:hover{text-decoration:underline;}
 .pstat{margin:3px 0;color:#c8c8c8;}
 .pstat small{color:#9a9a9a;}
+.pfields{margin:1px 0 5px 0;}
+.pfields summary{cursor:pointer;color:#9a9a9a;font-size:11.5px;
+list-style:none;outline:none;}
+.pfields summary::-webkit-details-marker{display:none;}
+.pfields summary::before{content:"\\25B8 ";color:#7a7a7a;}
+.pfields[open] summary::before{content:"\\25BE ";}
+.pfields summary:hover{color:#c8c8c8;}
+.pfrow{margin:1px 0 1px 14px;color:#b8b8b8;font-size:11.5px;
+font-variant-numeric:tabular-nums;}
+.pfrow .fnum{color:#d8d8d8;}
+.pf-full .fst{color:#5fb98f;}
+.pf-live .fst{color:#8ab8e8;}
+.pf-respawning .fst{color:#c8a86a;}
+.pf-never .fst,.pf-unknown .fst{color:#8a8a8a;}
 .pfac{margin:9px 0 3px 0;color:#b0b0b0;font-weight:bold;font-size:12.5px;}
 .pind{margin-left:12px;}
 #legend{flex:none;width:__LEGW__px;box-sizing:border-box;height:100%;
@@ -698,15 +712,22 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                 "id": col, "name": ref.ware_name.get(col, col),
                 "yields": [float(v) for v in res_raw[col].fillna(0.0)],
             }
-            # replenishment rates (abstract units; the client renders
-            # percentile ranks). Omitted when the reference CSVs predate
-            # the replenishment extract, so the right gauge simply
-            # doesn't draw
+            # max replenishment rate, units/h (Sigma capacity/respawndelay;
+            # the client renders percentile ranks). Omitted when the reference
+            # CSVs predate the replenishment extract, so the right gauge
+            # simply doesn't draw
             rc = f"rep.{col}"
             if rc in res_raw.columns and res_raw[rc].fillna(0.0).gt(0).any():
                 rec["rep"] = [round(float(v), 2)
                               for v in res_raw[rc].fillna(0.0)]
             resources.append(rec)
+
+    # per-area status for the detail panel dropdown, keyed by sector macro
+    # (only plotted sectors reach the payload, so this is already spoiler-safe).
+    # macro -> ware -> [ {status, cap, now, eta_min} ]
+    plotted = {s["macro"] for s in sectors}
+    area_status = {m: waremap for m, waremap in
+                   (frames.resource_areas or {}).items() if m in plotted}
 
     # the player is always a faction (sector ownership arrives later in a
     # playthrough; the legend entry and colour must exist from the start),
@@ -734,7 +755,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "labels": label_recs, "police": overlay_recs(police, "interdictions"),
         "pirates": overlay_recs(pirates, "harassments"),
         "resources": resources, "factions": factions, "stations": stations,
-        "vaults": vaults, "hws": hws,
+        "vaults": vaults, "hws": hws, "area_status": area_status,
     }
 
 

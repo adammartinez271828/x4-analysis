@@ -85,6 +85,7 @@ def _frames(**over):
         sectors=sectors, universe=universe,
         police=empty_events, pirates=empty_events.copy(),
         resource_cols=["ore"], time_now=100_000.0,
+        resource_areas={},
         built_modules=pd.DataFrame(columns=["id", "macro"]),
         datavaults=datavaults,
     )
@@ -282,6 +283,22 @@ def test_payload_vaults(payload):
     # no recorded offset -> hex centre
     b = next(s for s in payload["sectors"] if s["macro"] == "sec_b1")
     assert (v2["x"], v2["y"]) == (b["x"], b["y"])
+
+
+def test_payload_area_status_spoiler_filtered():
+    areas = {
+        "sec_a1": {"ore": [
+            {"status": "full", "cap": 5000, "now": 5000, "eta_min": None}]},
+        "sec_b2": {"ore": [
+            {"status": "live", "cap": 100, "now": 50, "eta_min": None}]},
+    }
+    p = _payload(_frames(resource_areas=areas), _ref(), _cfg())
+    assert p["area_status"]["sec_a1"]["ore"][0]["status"] == "full"
+    # spoiler mode drops undiscovered sectors from the payload, so their
+    # per-area status never reaches the page
+    hidden = _payload(_frames(resource_areas=areas), _ref(),
+                      _cfg(spoilers_hide=True))
+    assert "sec_b2" not in hidden["area_status"]
 
 
 def test_payload_vaults_spoilers_hidden():
