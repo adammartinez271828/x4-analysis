@@ -73,8 +73,10 @@ Each live area appears as:
    declines with no partial recovery we observed].**
 4. On full depletion, a `respawndelay`-minute cooldown begins. **[DOC]**
 5. After the cooldown, a fresh **full** area respawns at a random spot in
-   the sector. **[DOC]** (That the respawn restores *full* capacity is
-   **[INF]** — see open questions.)
+   the sector. **[DOC + OBS]** — directly observed: a Saturn 2
+   `large_silicon_high_average` area went from **0 → 998,453** (99.8% of its
+   1 M cap) in one interval, while unmined areas nearby stayed byte-identical
+   and a second depleted area (still mid-cooldown) stayed at 0.
 6. `respawndelay = -1` disables respawn entirely. **[DOC]**
 
 ## What this predicts, and what we observed
@@ -160,9 +162,12 @@ they are estimates, not direct measurements.)
 
 ## Open questions (unverified)
 
-1. **Does a respawn restore full capacity?** Saturn 2's huge silicon areas
-   gained ~485k against a 2M cap in one event — consistent with either a
-   partial respawn or an area that wasn't fully depleted. Unresolved.
+1. ~~Does a respawn restore full capacity?~~ **RESOLVED — yes.** A depleted
+   Saturn 2 `large_silicon_high_average` area respawned at 998,453 / 1,000,000
+   (99.8%) in one interval. Respawn brings a fresh, essentially full area;
+   partially-mined areas nearby did not change. (The earlier "+485k per huge
+   area" reading was a misattribution — the jump was one *large* area
+   respawning full, not the *huge* areas partially refilling.)
 2. **What exactly does gatherspeed scale** — mining extraction rate,
    respawn amount, or both? Assumed extraction rate only. **[INF]**
 3. **Does depletion require exactly 0**, or drop below some threshold, to
