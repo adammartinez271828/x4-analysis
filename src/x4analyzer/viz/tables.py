@@ -48,7 +48,15 @@ table.dataTable.no-footer{{border-bottom:1px solid #555;}}
 </style>
 </head><body>
 {table_html.replace('<thead>', f'<caption>{title}</caption><thead>', 1)}
-<script>$(function() {{ $('#tbl').DataTable({{order: [], pageLength: 10}}); }});
+<script>
+$(function() {{
+  const t = $('#tbl').DataTable({{order: [], pageLength: 10}});
+  // size the dashboard iframe to the content (page length changes too)
+  const post = () =>
+    parent.postMessage({{x4h: document.body.scrollHeight + 8}}, '*');
+  t.on('draw', post);
+  post();
+}});
 </script></body></html>"""
     name = f"{title}_{guid}.html"
     (files_dir / name).write_text(html, encoding="utf-8")
