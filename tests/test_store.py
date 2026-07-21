@@ -471,11 +471,13 @@ def test_resource_areas_status_and_mineable(save_data, ref, conn):
 
     ore = frames.resource_areas["cluster_01_sector001_macro"]["ore"]
     # game_time 5000.5: live 1000; empty@starttime=4000 is past -> full at
-    # capacity; empty@starttime=9000 still respawning (eta ~ (9000-5000.5)/60)
-    assert [(a["status"], a["now"], a["cap"]) for a in ore] == [
-        ("live", 1000, 5000),
-        ("full", 5000, 5000),
-        ("respawning", 0, 5000),
+    # capacity; empty@starttime=9000 still respawning (eta ~ (9000-5000.5)/60).
+    # Sorted by current available volume desc, so full (5000) leads, then live
+    # (1000), then respawning (0); each carries its gatherspeed token
+    assert [(a["status"], a["now"], a["cap"], a["speed"]) for a in ore] == [
+        ("full", 5000, 5000, "slow"),
+        ("live", 1000, 5000, "slow"),
+        ("respawning", 0, 5000, "slow"),
     ]
     assert ore[2]["eta_min"] == 67
 

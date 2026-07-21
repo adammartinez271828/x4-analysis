@@ -1065,9 +1065,12 @@
     setTimeout(applyView, 350);
   }
 
-  // per-area resource field list for the detail panel (collapsed dropdown).
-  // Each area shows now/cap and its state; an "overdue" area is respawned and
-  // full, so it renders at capacity even though the save stores yield=0.
+  // per-area resource field list for the detail panel (collapsed dropdown;
+  // caret to the right of the resource headline). Available areas (live and
+  // respawned-full "overdue" ones, functionally identical) just show now/cap;
+  // only empty areas carry a state — a respawn ETA, or "no respawn" for the
+  // rare respawndelay=-1 field. The dropdown header shows the sector-ware's
+  // max theoretical replenishment rate (Sigma cap/respawndelay).
   function fmtEta(m) {
     if (m == null) return "";
     if (m >= 60) {
@@ -1076,31 +1079,46 @@
     }
     return "~" + m + "m";
   }
+  function fmtRate(v) {
+    if (v <= 0) return "0/h";
+    // round to 3 significant figures, then apply a k/M suffix
+    var d = Math.ceil(Math.log10(v)), mag = Math.pow(10, 3 - d);
+    var r = Math.round(v * mag) / mag;
+    function t(x) { return parseFloat(x.toFixed(2)).toString(); }
+    if (r >= 1e6) return t(r / 1e6) + "M/h";
+    if (r >= 1e3) return t(r / 1e3) + "k/h";
+    return t(r) + "/h";
+  }
   function fieldRow(a) {
     function n(x) { return Math.round(x).toLocaleString("en-US"); }
-    var cap = n(a.cap), body = "", st;
-    if (a.status === "live") {
-      body = n(a.now) + " / " + cap; st = "live";
-    } else if (a.status === "full") {
-      body = cap + " / " + cap; st = "full (respawned)";
-    } else if (a.status === "respawning") {
-      body = "0 / " + cap; st = "respawns in " + fmtEta(a.eta_min);
+    var cap = n(a.cap), num = "", st = "";
+    if (a.status === "respawning") {
+      num = "0 / " + cap; st = "respawns in " + fmtEta(a.eta_min);
     } else if (a.status === "never") {
-      body = "0 / " + cap; st = "depleted (no respawn)";
-    } else {
+      num = "0 / " + cap; st = "no respawn";
+    } else if (a.status === "unknown") {
       st = "capacity unknown";
+    } else {                        // live or full: just the numbers
+      num = n(a.now) + " / " + cap;
     }
+    var parts = [];
+    if (num) parts.push("<span class='fnum'>" + num + "</span>");
+    if (a.speed) parts.push("<span class='fsp'>" +
+      esc(a.speed.replace(/^very/, "very ")) + "</span>");
+    if (st) parts.push("<span class='fst'>" + st + "</span>");
     return "<div class='pfrow pf-" + a.status + "'>" +
-      (body ? "<span class='fnum'>" + body + "</span> &middot; " : "") +
-      "<span class='fst'>" + st + "</span></div>";
+      parts.join(" &middot; ") + "</div>";
   }
-  function resFields(macro, wareId) {
+  function resEntry(macro, r, i, head) {
     var ws = D.area_status && D.area_status[macro];
-    var fields = ws && ws[wareId];
-    if (!fields || !fields.length) return "";
-    var label = fields.length + (fields.length === 1 ? " field" : " fields");
-    return "<details class='pfields'><summary>" + label + "</summary>" +
-      fields.map(fieldRow).join("") + "</details>";
+    var fields = r.id === "sunlight" ? null : (ws && ws[r.id]);
+    if (!fields || !fields.length)
+      return "<div class='pstat'>" + head + "</div>";
+    var rate = r.rep ? r.rep[i] : 0;
+    var hdr = rate > 0 ? "<div class='pfhdr'>max replenishment <b>&asymp; " +
+      fmtRate(rate) + "</b></div>" : "";
+    return "<details class='pfields'><summary><span>" + head +
+      "</span></summary>" + hdr + fields.map(fieldRow).join("") + "</details>";
   }
 
   function openPanel(i) {
@@ -1132,10 +1150,10 @@
           // headline number is mineable-now (live yields + respawned-full
           // "overdue" areas) — the encyclopedia figure
           var v = Math.round(r.yields[i]);
-          var head = "<div class='pstat'>" + esc(r.name) + " <small>" +
+          var head = esc(r.name) + " <small>" +
             (r.id === "sunlight" ? v + "%" : v.toLocaleString("en-US")) +
-            "</small></div>";
-          return head + (r.id === "sunlight" ? "" : resFields(macro, r.id));
+            "</small>";
+          return resEntry(macro, r, i, head);
         }).join("")
       : "<div class='pstat'><small>None</small></div>";
     h += sec("resources", "Resources", resInner);

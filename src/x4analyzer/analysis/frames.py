@@ -248,18 +248,17 @@ def build_frames(save: SaveData, ref: RefData,
         sectors[rep_cols] = sectors[rep_cols].fillna(0.0)
 
         # per-area breakdown for the detail dropdown, one record per area,
-        # sorted by status priority then capacity desc
-        _order = {"live": 0, "full": 1, "respawning": 2, "never": 3,
-                  "unknown": 4}
-        for macro, ware, (status, now_v, cap_v, _rate, eta_v) in zip(
-                res["macro"], res["ware"], cls):
+        # carrying the yieldid's gatherspeed token
+        for macro, ware, speed, (status, now_v, cap_v, _rate, eta_v) in zip(
+                res["macro"], res["ware"], res["speed"], cls):
             rec = {"status": status, "cap": round(cap_v), "now": round(now_v),
+                   "speed": "" if pd.isna(speed) else str(speed),
                    "eta_min": None if eta_v is None else round(eta_v)}
             resource_areas.setdefault(macro, {}).setdefault(ware, []).append(rec)
+        # most-available fields first (current mineable volume, then capacity)
         for ware_map in resource_areas.values():
             for recs in ware_map.values():
-                recs.sort(key=lambda r: (_order.get(r["status"], 9),
-                                         -r["cap"]))
+                recs.sort(key=lambda r: (-r["now"], -r["cap"]))
 
     # ---- player-owned objects (R 417-420) ---------------------------------
     log("Preparing player owned objects -> playerowned")
