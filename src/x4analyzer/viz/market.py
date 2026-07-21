@@ -688,11 +688,12 @@ def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                  ("bo", "so", "stations", "svolume", "st_f") if k in d}
         if moved:
             odetail[w] = moved
-    ware_order = [r["ware"] for r in summary if r["ware"] in odetail]
-    ware_order += sorted(w for w in odetail if w not in set(ware_order))
-
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
     ware_names.update({w: ref.ware_name.get(w, w) for w in odetail})
+    # both ware dropdowns on the opportunities page: every offer-active
+    # ware, sorted by display name — a ware with offers but no
+    # profitable lane must still be findable (empty table = the answer)
+    ware_order = sorted(odetail, key=lambda w: str(ware_names[w]).lower())
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["constr_h"], r["balance"],
         r["stock"], r["cover"], r["buy"], r["build"], r["constr_flag"],
@@ -1336,10 +1337,8 @@ $('#opps tbody').on('click', 'tr', function() {{
 }});
 const wareSel = document.getElementById('oppware');
 wareSel.appendChild(new Option('\u2014 all wares \u2014', ''));
-const seenW = new Map();
-OPPS.forEach(r => seenW.set(r.w, r.wn));
-[...seenW.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  .forEach(([w, n]) => wareSel.appendChild(new Option(n, w)));
+WORDER.forEach(w =>
+  wareSel.appendChild(new Option(WNAMES[w] || w, w)));
 wareSel.addEventListener('change', () => opps.draw());
 const shipSel = document.getElementById('oppship');
 shipSel.appendChild(new Option(
