@@ -39,6 +39,39 @@ _DT_CSS = "lib/datatables.min.css"
 _DT_JS = "lib/datatables.min.js"
 _JQ_JS = "lib/jquery.min.js"
 
+# dark chrome shared by the Market overview and Trade opportunities pages
+_PAGE_CSS = f"""
+body{{font-family:sans-serif;margin:8px;background:{DARK_BG};color:{DARK_FG};}}
+label{{color:{DARK_MUTED};margin-right:6px;}}
+select{{background:#2a2a2a;color:{DARK_FG};border:1px solid #555;
+        padding:4px 8px;font-size:14px;}}
+.note{{color:{DARK_MUTED};font-size:12px;}}
+details.note{{margin:6px 0 10px 0;}}
+details.note summary{{cursor:pointer;color:{DARK_MUTED};font-size:13px;
+  user-select:none;}}
+details.note summary:hover{{color:{DARK_FG};}}
+.notebody{{background:#252525;border:1px solid #3a3a3a;border-radius:6px;
+  padding:10px 16px;margin-top:6px;max-width:1000px;line-height:1.5;}}
+.notebody ul{{margin:4px 0 10px 0;padding-left:20px;}}
+.notebody li{{margin-bottom:4px;}}
+.notebody b{{color:{DARK_FG};}}
+.notehead{{color:{DARK_FG};font-weight:bold;margin:8px 0 2px 0;}}
+.pos{{color:#4ecf71;}} .neg{{color:#ff6b6b;}} .warn{{color:#e8b84e;}}
+table.dataTable, table.dataTable th, table.dataTable td{{color:{DARK_FG};}}
+table.dataTable.display tbody tr{{background:{DARK_BG};}}
+table.dataTable.display tbody tr.odd{{background:#252525;}}
+table.dataTable.display tbody tr:hover{{background:#333;cursor:pointer;}}
+table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
+.dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_paginate,
+.dataTables_wrapper .dataTables_paginate .paginate_button{{color:{DARK_FG} !important;}}
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover{{
+  color:#fff !important;background:#3a3a3a;border-color:#555;}}
+.dataTables_wrapper input, .dataTables_wrapper select{{
+  background:#2a2a2a;color:{DARK_FG};border:1px solid #555;}}
+"""
+
 COVER_LOW_H = 3.0     # global cover below this many hours is flagged red
 UNDERSTOCK_PCT = 0.25  # station stock below this share of its target level
 WORKUNIT = "workunit_busy"
@@ -307,11 +340,12 @@ def actual_flows(frames: Frames, ref: RefData) -> tuple[dict, dict]:
 
 
 def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
-                 guid: str) -> str | None:
+                 guid: str) -> tuple[str | None, str | None]:
+    """Returns (market overview src, trade opportunities src)."""
     rates = _station_rates(frames, ref)
     gt = frames.global_trades
     if rates.empty and gt.empty:
-        return None
+        return None, None
     log("-> Market overview")
     time_now = frames.time_now
     uni = frames.universe.set_index("id")
@@ -645,7 +679,20 @@ def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     opps = build_opportunities(frames, ref, cfg)
     presets = player_trade_ships(frames, ref)
 
+    # the actionable per-ware views (offer books for "buy here / sell
+    # here", top trading stations) move OUT of the market detail payload
+    # and onto the Trade > Opportunities page
+    odetail: dict[str, dict] = {}
+    for w, d in detail.items():
+        moved = {k: d.pop(k) for k in
+                 ("bo", "so", "stations", "svolume", "st_f") if k in d}
+        if moved:
+            odetail[w] = moved
+    ware_order = [r["ware"] for r in summary if r["ware"] in odetail]
+    ware_order += sorted(w for w in odetail if w not in set(ware_order))
+
     ware_names = {w: ref.ware_name.get(w, w) for w in detail}
+    ware_names.update({w: ref.ware_name.get(w, w) for w in odetail})
     table_rows = json.dumps([[
         r["name"], r["prod"], r["cons"], r["constr_h"], r["balance"],
         r["stock"], r["cover"], r["buy"], r["build"], r["constr_flag"],
@@ -659,37 +706,7 @@ def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 <script src='lib/plotly.min.js'></script>
 <link rel='stylesheet' href='{_DT_CSS}'>
 <script src='{_JQ_JS}'></script><script src='{_DT_JS}'></script>
-<style>
-body{{font-family:sans-serif;margin:8px;background:{DARK_BG};color:{DARK_FG};}}
-label{{color:{DARK_MUTED};margin-right:6px;}}
-select{{background:#2a2a2a;color:{DARK_FG};border:1px solid #555;
-        padding:4px 8px;font-size:14px;}}
-.note{{color:{DARK_MUTED};font-size:12px;}}
-details.note{{margin:6px 0 10px 0;}}
-details.note summary{{cursor:pointer;color:{DARK_MUTED};font-size:13px;
-  user-select:none;}}
-details.note summary:hover{{color:{DARK_FG};}}
-.notebody{{background:#252525;border:1px solid #3a3a3a;border-radius:6px;
-  padding:10px 16px;margin-top:6px;max-width:1000px;line-height:1.5;}}
-.notebody ul{{margin:4px 0 10px 0;padding-left:20px;}}
-.notebody li{{margin-bottom:4px;}}
-.notebody b{{color:{DARK_FG};}}
-.notehead{{color:{DARK_FG};font-weight:bold;margin:8px 0 2px 0;}}
-.pos{{color:#4ecf71;}} .neg{{color:#ff6b6b;}} .warn{{color:#e8b84e;}}
-table.dataTable, table.dataTable th, table.dataTable td{{color:{DARK_FG};}}
-table.dataTable.display tbody tr{{background:{DARK_BG};}}
-table.dataTable.display tbody tr.odd{{background:#252525;}}
-table.dataTable.display tbody tr:hover{{background:#333;cursor:pointer;}}
-table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
-.dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_filter,
-.dataTables_wrapper .dataTables_info, .dataTables_wrapper .dataTables_paginate,
-.dataTables_wrapper .dataTables_paginate .paginate_button{{color:{DARK_FG} !important;}}
-.dataTables_wrapper .dataTables_paginate .paginate_button.current,
-.dataTables_wrapper .dataTables_paginate .paginate_button:hover{{
-  color:#fff !important;background:#3a3a3a;border-color:#555;}}
-.dataTables_wrapper input, .dataTables_wrapper select{{
-  background:#2a2a2a;color:{DARK_FG};border:1px solid #555;}}
-</style></head><body>
+<style>{_PAGE_CSS}</style></head><body>
 <h3 style='margin:4px 0'>Global ware production, consumption &amp; stock</h3>
 <details class='note'>
 <summary>How these numbers are computed &amp; caveats</summary>
@@ -782,119 +799,20 @@ estimated <b>actual</b> flows instead of theoretical capacity
 <th>Fill %</th><th>Satisfy (h)</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
-<h3 style='margin:4px 0'>Trade opportunities</h3>
-<details class='note'>
-<summary>What these lanes mean &amp; caveats</summary>
-<div class='notebody'>
-<p>Every open <b>sell offer</b> paired with every open <b>buy offer</b> of
-the same ware (up to the {_OPP_TOP_N} cheapest asks &times; {_OPP_TOP_N}
-highest bids per ware; the {_OPP_MAX_PAIRS} best lanes per ware are kept).
-Metrics normalize the spread the way a hauler earns it:</p>
-<ul>
-<li><b>Profit/m&sup3;</b> — spread &divide; ware volume: what one trip
-earns per unit of cargo hold. A dense cheap ware can beat a bulky
-expensive one whose per-unit profit looks larger.</li>
-<li><b>Cr/m&sup3;&middot;jump</b> — the above &divide; gate jumps between
-the two sectors (same-sector lanes count as one jump). A coarse proxy for
-time: highways and sector size are not modelled.</li>
-<li><b>Depth</b> — min(units offered, units wanted). Quoted prices are one
-point on the game's price curve and move against you as you trade, so
-per-trip and lane totals are capped by depth (and your hold) rather than
-extrapolated.</li>
-<li><b>Player stations</b> — an own station as the <b>origin</b> counts
-its goods at 0 Cr (the full bid is empire profit; the row shows the
-station's list price for reference). Own stations as buyers earn the
-empire nothing and are not listed. "Exclude player stations" shows pure
-open-market arbitrage.</li>
-<li>Pick one of <b>your trade ships</b> to see the profit of one full
-trip (min(hold, depth) &times; spread), the trip time and <b>Cr/h</b>.
-Speed is the ship's ACTUAL loadout: mounted engines &times; travel
-thrust &divide; hull drag, flown at 90% of travel speed — the factor
-validated against logged trader runs (engine mods are not modelled). Route length uses real station and gate
-positions along the jump path; S and M ships ride local highways at an
-assumed 10 km/s average in sectors that have them, one way, plus the
-flat <b>dock time</b> for the ship's size class (docking, cargo
-transfer and undocking at both endpoints; L/XL default higher — pier
-queues and long approaches — and the overhead keeps 15-second
-same-sector hops from posting absurd Cr/h). A manual cargo-hold value
-keeps the last picked ship's speed.</li>
-</ul>
-<p>Lanes reflect the analyzed save: good spreads attract NPC traders and
-may be gone. Faction hostility, ware legality and trade licenses are not
-modelled — check the factions column before dispatching. Construction
-sites appear as buyers (tagged); Xenon are excluded throughout;
-Quettanauts barter instead of trading credits, so their lanes are
-excluded unless you untick the box.</p>
-</div>
-</details>
-<p>
-<label for='oppship'>Ship:</label><select id='oppship'></select>
-&nbsp;<label for='opphold'>Cargo hold m&sup3;:</label>
-<input type='number' id='opphold' min='0' step='100' value=''
-       style='width:90px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppjumps'>Max jumps:</label>
-<input type='number' id='oppjumps' min='0' value='5'
-       style='width:60px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppdepth'>Min depth m&sup3;:</label>
-<input type='number' id='oppdepth' min='0' step='100' value='0'
-       style='width:90px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppdock' title='flat per-trip overhead: docking,
-cargo transfer (~15&ndash;30 s for an M once docked) and undocking at
-both endpoints'>Dock time S/M:</label>
-<input type='number' id='oppdock' min='0' step='0.5' value='2'
-       style='width:60px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;<label for='oppdockl' title='L/XL ships queue for piers and fly
-long docking approaches, and goods transfer takes ~60 s once docked,
-so their per-trip overhead is higher'>L/XL (min):</label>
-<input type='number' id='oppdockl' min='0' step='0.5' value='5'
-       style='width:60px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
-exclude player stations</label>
-&nbsp;&nbsp;<label><input type='checkbox' id='oppnoqt' checked>
-exclude Quettanauts (barter only)</label>
-</p>
-<table id='opps' class='display nowrap' style='width:100%'>
-<thead><tr><th>Ware</th><th>From</th><th>To</th>
-<th>Ask</th><th>Bid</th><th>Profit/u</th><th>Profit/m&sup3;</th>
-<th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
-a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
-<th>Depth m&sup3;</th><th>Trip profit</th>
-<th title='trip profit / trip time for the picked ship: real route
-length, 90% of loadout travel speed, S/M on local highways at 10 km/s
-average, plus the flat dock time'>Cr/h</th><th>Lane total</th></tr></thead>
-</table>
-<hr style='border-color:#444;margin:18px 0'>
 <p><label for='ware'>Ware detail:</label><select id='ware'></select> <span id='wareinfo' class='note'></span></p>
 <div id='volume' style='height:320px'></div>
-<p><label for='minvol'>Min offer volume:</label>
-<input type='range' id='minvol' min='0' max='100' value='0'
-       style='width:280px;vertical-align:middle'>
-<span id='minvol_lbl'>0 units</span></p>
-<div style='display:flex'>
-  <div id='topbuyers' style='height:400px;width:50%'></div>
-  <div id='topsellers' style='height:400px;width:50%'></div>
-</div>
 <div style='display:flex'>
   <div id='byfaction' style='height:360px;width:50%'></div>
-  <div id='bystation' style='height:360px;width:50%'></div>
+  <div id='byfacdemand' style='height:360px;width:50%'></div>
 </div>
 <div style='display:flex'>
-  <div id='bysector' style='height:320px;width:50%'></div>
-  <div id='byfacdemand' style='height:320px;width:50%'></div>
+  <div id='bysector' style='height:320px;width:60%'></div>
 </div>
 <script>
 const ROWS = {table_rows};
-const OPPS = {json.dumps(opps, separators=(",", ":"))};
-const SHIPS = {json.dumps(presets, separators=(",", ":"))};
 const DETAIL = {json.dumps(detail, separators=(",", ":"))};
 const WNAMES = {json.dumps(ware_names, separators=(",", ":"))};
 const BUILD_WARES = new Set({json.dumps(build_wares, separators=(",", ":"))});
-const OLABELS = {json.dumps(olabels, separators=(",", ":"))};
 const TRANSPORT = {json.dumps({r['ware']: transport.get(r['ware'], '') for r in summary}, separators=(',', ':'))};
 const WVOL = {json.dumps({r['ware']: r['vol'] for r in summary}, separators=(',', ':'))};
 const FCOLOURS = {json.dumps({s_: ref.colour_of_short(s_) for s_ in sorted(ref.faction_short.values())}, separators=(',', ':'))};
@@ -1023,6 +941,223 @@ $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
 document.getElementById('buildonly').addEventListener(
   'change', () => table.draw());
 
+document.getElementById('actual').addEventListener('change', e => {{
+  ACT = e.target.checked;
+  const th = $('#market thead th');
+  th.eq(1).text(ACT ? '~Prod/h (act)' : 'Prod/h');
+  th.eq(2).text(ACT ? '~Cons/h (act)' : 'Cons/h');
+  th.eq(4).text(ACT ? '~Balance/h (act)' : 'Balance/h');
+  th.eq(6).text(ACT ? '~Cover (h, act)' : 'Cover (h)');
+  table.rows().invalidate('data').draw(false);
+}});
+
+function render() {{
+  const w = sel.value, d = DETAIL[w] || {{}}, name = WNAMES[w] || w;
+  document.getElementById('wareinfo').textContent =
+    (WVOL[w] || '?') + ' m\u00b3/unit \u00b7 ' + (TRANSPORT[w] || '?');
+  const vol_traces = [
+    {{type:'scatter', mode:'lines', x:d.hours || [], y:d.volume || [],
+      line:{{color:'#4e9fd1', width:2}}, name:'Deliveries'}},
+  ];
+  if (d.cons > 0 && (d.hours || []).length) {{
+    vol_traces.push({{type:'scatter', mode:'lines',
+      x:[Math.min(...d.hours), 0], y:[d.cons, d.cons],
+      name:'Consumption capacity/h',
+      line:{{color:'#ff6b6b', dash:'dash'}}}});
+  }}
+  if ((d.sk_h || []).length > 1) {{
+    vol_traces.push({{type:'scatter', mode:'lines', x:d.sk_h, y:d.sk_v,
+      name:'~Galaxy stock (right axis)', yaxis:'y2',
+      line:{{color:'#c9a44e', width:2}}}});
+  }}
+  Plotly.react('volume', vol_traces, Object.assign({{}}, LAYOUT(), {{
+    title:{{text:name + ' — traded volume per hour, stock trend', font:{{size:15}}}},
+    xaxis:{{title:'Hours until Now', gridcolor:'#3a3a3a'}},
+    yaxis:{{title:'Units', gridcolor:'#3a3a3a'}},
+    yaxis2:{{title:'Stock (units)', overlaying:'y', side:'right',
+      showgrid:false, rangemode:'tozero'}},
+    legend:{{orientation:'h', y:1.12}},
+  }}), CFG);
+
+  const cf = d.cfactions || [], traces = [];
+  if (cf.length) {{
+    traces.push({{type:'bar', name:'Production/h', x:cf,
+      y:d.cprod, marker:{{color:'#4ecf71'}}}});
+    traces.push({{type:'bar', name:'Consumption/h', x:cf,
+      y:d.ccons.map(v => -v), marker:{{color:'#ff6b6b'}}}});
+  }}
+  if (d.delf && d.delf.length) {{
+    // minable wares: who actually receives the mined supply
+    traces.push({{type:'bar', name:'Deliveries/h (est. production)',
+      x:d.delf, y:d.delv, marker:{{color:'#4e9fd1'}}}});
+  }}
+  Plotly.react('byfaction', traces, Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Capacity by faction (units/h)', font:{{size:15}}}},
+    barmode:'relative', legend:{{orientation:'h', y:1.15}},
+  }}), CFG);
+
+  const secCols = (d.sec_f || []).map(f => FCOLOURS[f] || '#b06ad1');
+  Plotly.react('bysector', [
+    {{type:'bar', name:'Buy offers', x:d.sec_l || [], y:d.sec_buy || [],
+      marker:{{color:secCols}}}},
+    {{type:'bar', name:'Construction', x:d.sec_l || [], y:d.sec_build || [],
+      marker:{{color:secCols.map(faded)}}}},
+  ], Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Unmet demand by sector (buy + build, units)', font:{{size:15}}}},
+    barmode:'stack', legend:{{orientation:'h', y:1.18}},
+    margin:{{t:40,l:60,r:20,b:90}},
+  }}), CFG);
+
+  const facCols = (d.bf_l || []).map(f => FCOLOURS[f] || '#808080');
+  Plotly.react('byfacdemand', [
+    {{type:'bar', name:'Buy offers', x:d.bf_l || [], y:d.bf_buy || [],
+      marker:{{color:facCols}}}},
+    {{type:'bar', name:'Construction', x:d.bf_l || [], y:d.bf_build || [],
+      marker:{{color:facCols.map(faded)}}}},
+  ], Object.assign({{}}, LAYOUT(), {{
+    title:{{text:'Unmet demand by faction (buy + build, units)', font:{{size:15}}}},
+    barmode:'stack', legend:{{orientation:'h', y:1.18}},
+    margin:{{t:40,l:60,r:20,b:60}},
+  }}), CFG);
+}}
+sel.addEventListener('change', render);
+if (ROWS.length) {{ sel.value = ROWS[0][19]; render(); }}
+</script>
+<script>
+(function() {{
+  function post() {{
+    parent.postMessage({{x4h: document.body.scrollHeight + 24}}, '*');
+  }}
+  new ResizeObserver(post).observe(document.body);
+  window.addEventListener('load', function() {{ setTimeout(post, 400); }});
+}})();
+</script></body></html>"""
+
+    # ---- Trade > Opportunities page (lanes + where to buy/sell +
+    # top trading stations — the actionable views; the market page keeps
+    # the economy diagnostics) ----
+    opp_html = f"""<!DOCTYPE html><html><head><meta charset='utf-8'>
+<script src='lib/plotly.min.js'></script>
+<link rel='stylesheet' href='{_DT_CSS}'>
+<script src='{_JQ_JS}'></script><script src='{_DT_JS}'></script>
+<style>{_PAGE_CSS}</style></head><body>
+<h3 style='margin:4px 0'>Trade opportunities</h3>
+<details class='note'>
+<summary>What these lanes mean &amp; caveats</summary>
+<div class='notebody'>
+<p>Every open <b>sell offer</b> paired with every open <b>buy offer</b> of
+the same ware (up to the {_OPP_TOP_N} cheapest asks &times; {_OPP_TOP_N}
+highest bids per ware; the {_OPP_MAX_PAIRS} best lanes per ware are kept).
+Metrics normalize the spread the way a hauler earns it:</p>
+<ul>
+<li><b>Profit/m&sup3;</b> — spread &divide; ware volume: what one trip
+earns per unit of cargo hold. A dense cheap ware can beat a bulky
+expensive one whose per-unit profit looks larger.</li>
+<li><b>Cr/m&sup3;&middot;jump</b> — the above &divide; gate jumps between
+the two sectors (same-sector lanes count as one jump). A coarse proxy for
+time: highways and sector size are not modelled.</li>
+<li><b>Depth</b> — min(units offered, units wanted). Quoted prices are one
+point on the game's price curve and move against you as you trade, so
+per-trip and lane totals are capped by depth (and your hold) rather than
+extrapolated.</li>
+<li><b>Player stations</b> — an own station as the <b>origin</b> counts
+its goods at 0 Cr (the full bid is empire profit; the row shows the
+station's list price for reference). Own stations as buyers earn the
+empire nothing and are not listed. "Exclude player stations" shows pure
+open-market arbitrage.</li>
+<li>Pick one of <b>your trade ships</b> to see the profit of one full
+trip (min(hold, depth) &times; spread), the trip time and <b>Cr/h</b>.
+Speed is the ship's ACTUAL loadout: mounted engines &times; travel
+thrust &divide; hull drag, flown at 90% of travel speed — the factor
+validated against logged trader runs (engine mods are not modelled). Route length uses real station and gate
+positions along the jump path; S and M ships ride local highways at an
+assumed 10 km/s average in sectors that have them, one way, plus the
+flat <b>dock time</b> for the ship's size class (docking, cargo
+transfer and undocking at both endpoints; L/XL default higher — pier
+queues and long approaches — and the overhead keeps 15-second
+same-sector hops from posting absurd Cr/h). A manual cargo-hold value
+keeps the last picked ship's speed.</li>
+</ul>
+<p>Lanes reflect the analyzed save: good spreads attract NPC traders and
+may be gone. Faction hostility, ware legality and trade licenses are not
+modelled — check the factions column before dispatching. Construction
+sites appear as buyers (tagged); Xenon are excluded throughout;
+Quettanauts barter instead of trading credits, so their lanes are
+excluded unless you untick the box.</p>
+</div>
+</details>
+<p>
+<label for='oppship'>Ship:</label><select id='oppship'></select>
+&nbsp;<label for='opphold'>Cargo hold m&sup3;:</label>
+<input type='number' id='opphold' min='0' step='100' value=''
+       style='width:90px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label for='oppjumps'>Max jumps:</label>
+<input type='number' id='oppjumps' min='0' value='5'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label for='oppdepth'>Min depth m&sup3;:</label>
+<input type='number' id='oppdepth' min='0' step='100' value='0'
+       style='width:90px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label for='oppdock' title='flat per-trip overhead: docking,
+cargo transfer (~15&ndash;30 s for an M once docked) and undocking at
+both endpoints'>Dock time S/M:</label>
+<input type='number' id='oppdock' min='0' step='0.5' value='2'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;<label for='oppdockl' title='L/XL ships queue for piers and fly
+long docking approaches, and goods transfer takes ~60 s once docked,
+so their per-trip overhead is higher'>L/XL (min):</label>
+<input type='number' id='oppdockl' min='0' step='0.5' value='5'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
+exclude player stations</label>
+&nbsp;&nbsp;<label><input type='checkbox' id='oppnoqt' checked>
+exclude Quettanauts (barter only)</label>
+</p>
+<table id='opps' class='display nowrap' style='width:100%'>
+<thead><tr><th>Ware</th><th>From</th><th>To</th>
+<th>Ask</th><th>Bid</th><th>Profit/u</th><th>Profit/m&sup3;</th>
+<th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
+a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
+<th>Depth m&sup3;</th><th>Trip profit</th>
+<th title='trip profit / trip time for the picked ship: real route
+length, 90% of loadout travel speed, S/M on local highways at 10 km/s
+average, plus the flat dock time'>Cr/h</th><th>Lane total</th></tr></thead>
+</table>
+<hr style='border-color:#444;margin:18px 0'>
+<h3 style='margin:4px 0'>Where to buy &amp; sell</h3>
+<p><label for='ware'>Ware:</label><select id='ware'></select>
+&nbsp;&nbsp;<label for='minvol'>Min offer volume:</label>
+<input type='range' id='minvol' min='0' max='100' value='0'
+       style='width:280px;vertical-align:middle'>
+<span id='minvol_lbl'>0 units</span></p>
+<div style='display:flex'>
+  <div id='topbuyers' style='height:400px;width:50%'></div>
+  <div id='topsellers' style='height:400px;width:50%'></div>
+</div>
+<div style='display:flex'>
+  <div id='bystation' style='height:360px;width:60%'></div>
+</div>
+<script>
+const OPPS = {json.dumps(opps, separators=(",", ":"))};
+const SHIPS = {json.dumps(presets, separators=(",", ":"))};
+const OLABELS = {json.dumps(olabels, separators=(",", ":"))};
+const ODETAIL = {json.dumps(odetail, separators=(",", ":"))};
+const WNAMES = {json.dumps({w: ware_names[w] for w in ware_order},
+                           separators=(",", ":"))};
+const WORDER = {json.dumps(ware_order, separators=(",", ":"))};
+const WVOL = {json.dumps({w: vol_map.get(w, 0) for w in ware_order},
+                         separators=(",", ":"))};
+const FCOLOURS = {json.dumps({s_: ref.colour_of_short(s_) for s_ in sorted(ref.faction_short.values())}, separators=(',', ':'))};
+const LAYOUT = () => ({{
+  paper_bgcolor:'{DARK_BG}', plot_bgcolor:'{DARK_PLOT}',
+  font:{{color:'{DARK_FG}'}}, margin:{{t:40,l:60,r:20,b:40}},
+}});
+const CFG = {{displaylogo:false}};
+function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 // ---- trade opportunities ----
 let HOLD = 0;     // cargo hold m³ for the per-trip what-if (0 = unset)
 let SHIP = null;  // picked player ship: cls/cargo/speed (speed in m/s)
@@ -1063,8 +1198,11 @@ function fmtMin(sec) {{
                      : Math.round(sec / 60) + ' min';
 }}
 function endLabel(e) {{
+  // unnamed stations' labels already embed the faction code — don't
+  // show it twice next to the coloured prefix
+  const l = e.l.startsWith(e.f + ' ') ? e.l.slice(e.f.length + 1) : e.l;
   let h = "<span style='color:" + ((FCOLOURS[e.f]) || '#4ecf71')
-    + "'>" + e.f + "</span> " + e.l + ", " + e.sec;
+    + "'>" + e.f + "</span> " + l + ", " + e.sec;
   if (e.p) h += " <span class='pos' title='own station: goods counted at"
     + " 0 Cr; list price shown in the Ask column tooltip'>own</span>";
   if (e.c) h += " <span class='warn' title='construction site'>site</span>";
@@ -1193,74 +1331,15 @@ document.getElementById('opphold').addEventListener('input', e => {{
 ['oppnoplayer', 'oppnoqt'].forEach(id =>
   document.getElementById(id).addEventListener(
     'change', () => opps.draw()));
-document.getElementById('actual').addEventListener('change', e => {{
-  ACT = e.target.checked;
-  const th = $('#market thead th');
-  th.eq(1).text(ACT ? '~Prod/h (act)' : 'Prod/h');
-  th.eq(2).text(ACT ? '~Cons/h (act)' : 'Cons/h');
-  th.eq(4).text(ACT ? '~Balance/h (act)' : 'Balance/h');
-  th.eq(6).text(ACT ? '~Cover (h, act)' : 'Cover (h)');
-  table.rows().invalidate('data').draw(false);
+
+// ---- where to buy / sell + top trading stations for a chosen ware ----
+const sel = document.getElementById('ware');
+WORDER.forEach(w => {{
+  const o = document.createElement('option');
+  o.value = w; o.textContent = WNAMES[w] || w; sel.appendChild(o);
 }});
-
-function render() {{
-  const w = sel.value, d = DETAIL[w] || {{}}, name = WNAMES[w] || w;
-  document.getElementById('wareinfo').textContent =
-    (WVOL[w] || '?') + ' m\u00b3/unit \u00b7 ' + (TRANSPORT[w] || '?');
-  const vol_traces = [
-    {{type:'scatter', mode:'lines', x:d.hours || [], y:d.volume || [],
-      line:{{color:'#4e9fd1', width:2}}, name:'Deliveries'}},
-  ];
-  if (d.cons > 0 && (d.hours || []).length) {{
-    vol_traces.push({{type:'scatter', mode:'lines',
-      x:[Math.min(...d.hours), 0], y:[d.cons, d.cons],
-      name:'Consumption capacity/h',
-      line:{{color:'#ff6b6b', dash:'dash'}}}});
-  }}
-  if ((d.sk_h || []).length > 1) {{
-    vol_traces.push({{type:'scatter', mode:'lines', x:d.sk_h, y:d.sk_v,
-      name:'~Galaxy stock (right axis)', yaxis:'y2',
-      line:{{color:'#c9a44e', width:2}}}});
-  }}
-  Plotly.react('volume', vol_traces, Object.assign({{}}, LAYOUT(), {{
-    title:{{text:name + ' — traded volume per hour, stock trend', font:{{size:15}}}},
-    xaxis:{{title:'Hours until Now', gridcolor:'#3a3a3a'}},
-    yaxis:{{title:'Units', gridcolor:'#3a3a3a'}},
-    yaxis2:{{title:'Stock (units)', overlaying:'y', side:'right',
-      showgrid:false, rangemode:'tozero'}},
-    legend:{{orientation:'h', y:1.12}},
-  }}), CFG);
-
-  const cf = d.cfactions || [], traces = [];
-  if (cf.length) {{
-    traces.push({{type:'bar', name:'Production/h', x:cf,
-      y:d.cprod, marker:{{color:'#4ecf71'}}}});
-    traces.push({{type:'bar', name:'Consumption/h', x:cf,
-      y:d.ccons.map(v => -v), marker:{{color:'#ff6b6b'}}}});
-  }}
-  if (d.delf && d.delf.length) {{
-    // minable wares: who actually receives the mined supply
-    traces.push({{type:'bar', name:'Deliveries/h (est. production)',
-      x:d.delf, y:d.delv, marker:{{color:'#4e9fd1'}}}});
-  }}
-  Plotly.react('byfaction', traces, Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Capacity by faction (units/h)', font:{{size:15}}}},
-    barmode:'relative', legend:{{orientation:'h', y:1.15}},
-  }}), CFG);
-
-  const st = (d.stations || []).slice().reverse();
-  Plotly.react('bystation', [
-    {{type:'bar', orientation:'h', y:st,
-      x:(d.svolume || []).slice().reverse(),
-      marker:{{color:(d.st_f || []).map(f => FCOLOURS[f] || '#c9a44e')
-        .slice().reverse()}},
-      name:'Traded volume'}},
-  ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Top trading stations (units)', font:{{size:15}}}},
-    margin:{{t:40,l:260,r:20,b:40}},
-  }}), CFG);
-
-  // min-volume slider: cubic curve scaled to the ware's largest offer
+function renderWare() {{
+  const w = sel.value, d = ODETAIL[w] || {{}};
   const pos = +document.getElementById('minvol').value;
   const maxA = Math.max(1, ...(d.bo || []).map(o => o[2]),
                         ...(d.so || []).map(o => o[2]));
@@ -1273,8 +1352,8 @@ function render() {{
       {{type:'bar', orientation:'h',
         y:top.map(o => OLABELS[o[0]]).reverse(),
         x:top.map(o => o[1] * o[2]).reverse(),
-        text:top.map(o => fmt(o[1]) + ' Cr × ' + fmt(o[2]) + ' = '
-          + fmt(o[2] * (WVOL[w] || 0)) + ' m³').reverse(),
+        text:top.map(o => fmt(o[1]) + ' Cr \u00d7 ' + fmt(o[2]) + ' = '
+          + fmt(o[2] * (WVOL[w] || 0)) + ' m\u00b3').reverse(),
         textposition:'auto',
         marker:{{color:top.map(o => FCOLOURS[o[3]] || colour).reverse()}},
         name:'Open offers'}},
@@ -1284,38 +1363,31 @@ function render() {{
     }}), CFG);
   }};
   offerChart('topbuyers', d.bo, '#4ecf71',
-    'Sell here — best open buy offers ≥ ' + fmt(minv)
+    'Sell here \u2014 best open buy offers \u2265 ' + fmt(minv)
     + ' units (bar = Cr on the table)');
   offerChart('topsellers', d.so, '#c9a44e',
-    'Buy here — cheapest open sell offers ≥ ' + fmt(minv) + ' units');
-
-  const secCols = (d.sec_f || []).map(f => FCOLOURS[f] || '#b06ad1');
-  Plotly.react('bysector', [
-    {{type:'bar', name:'Buy offers', x:d.sec_l || [], y:d.sec_buy || [],
-      marker:{{color:secCols}}}},
-    {{type:'bar', name:'Construction', x:d.sec_l || [], y:d.sec_build || [],
-      marker:{{color:secCols.map(faded)}}}},
+    'Buy here \u2014 cheapest open sell offers \u2265 ' + fmt(minv)
+    + ' units');
+  const st = (d.stations || []).slice().reverse();
+  Plotly.react('bystation', [
+    {{type:'bar', orientation:'h', y:st,
+      x:(d.svolume || []).slice().reverse(),
+      marker:{{color:(d.st_f || []).map(f => FCOLOURS[f] || '#c9a44e')
+        .slice().reverse()}},
+      name:'Traded volume'}},
   ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Unmet demand by sector (buy + build, units)', font:{{size:15}}}},
-    barmode:'stack', legend:{{orientation:'h', y:1.18}},
-    margin:{{t:40,l:60,r:20,b:90}},
-  }}), CFG);
-
-  const facCols = (d.bf_l || []).map(f => FCOLOURS[f] || '#808080');
-  Plotly.react('byfacdemand', [
-    {{type:'bar', name:'Buy offers', x:d.bf_l || [], y:d.bf_buy || [],
-      marker:{{color:facCols}}}},
-    {{type:'bar', name:'Construction', x:d.bf_l || [], y:d.bf_build || [],
-      marker:{{color:facCols.map(faded)}}}},
-  ], Object.assign({{}}, LAYOUT(), {{
-    title:{{text:'Unmet demand by faction (buy + build, units)', font:{{size:15}}}},
-    barmode:'stack', legend:{{orientation:'h', y:1.18}},
-    margin:{{t:40,l:60,r:20,b:60}},
+    title:{{text:'Top trading stations (units)', font:{{size:15}}}},
+    margin:{{t:40,l:260,r:20,b:40}},
   }}), CFG);
 }}
-sel.addEventListener('change', render);
-document.getElementById('minvol').addEventListener('input', render);
-if (ROWS.length) {{ sel.value = ROWS[0][19]; render(); }}
+sel.addEventListener('change', renderWare);
+document.getElementById('minvol').addEventListener('input', renderWare);
+// expanding a lane also jumps the charts to that ware
+$('#opps tbody').on('click', 'tr', function() {{
+  const r = opps.row(this).data();
+  if (r && ODETAIL[r.w]) {{ sel.value = r.w; renderWare(); }}
+}});
+if (WORDER.length) renderWare();
 </script>
 <script>
 (function() {{
@@ -1326,7 +1398,9 @@ if (ROWS.length) {{ sel.value = ROWS[0][19]; render(); }}
   window.addEventListener('load', function() {{ setTimeout(post, 400); }});
 }})();
 </script></body></html>"""
+    opp_name = f"Trade Opportunities_{guid}.html"
+    (files_dir / opp_name).write_text(opp_html, encoding="utf-8")
 
     name = f"Market_{guid}.html"
     (files_dir / name).write_text(html, encoding="utf-8")
-    return f"files/{name}"
+    return f"files/{name}", f"files/{opp_name}"

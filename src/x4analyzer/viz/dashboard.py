@@ -174,7 +174,7 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     tabs: dict[str, dict[str, list[str]]] = {
         "Map": {"": [_iframe(map_src, map_style, lazy=False)]},
         "Trade": {"Charts": [], "Breakdown": [], "History": [],
-                  "Earnings": []},
+                  "Earnings": [], "Opportunities": []},
         "Empire": {"Audit": [], "Station P&L": [], "Fleet": []},
         "Market": {"Overview": [], "Build Advisor": []},
         "Universe": {"Overview": [], "Contested": []},
@@ -214,11 +214,15 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
             + "</p>")
 
     log("Generating market overview")
-    market = build_market(frames, ref, cfg, files_dir, guid)
+    market, opportunities = build_market(frames, ref, cfg, files_dir, guid)
     if market:
         tabs["Market"]["Overview"].append(
             "<p>" + _iframe(market, "width:100%;height:1600px;", lazy=True)
             + "</p>")
+    if opportunities:
+        tabs["Trade"]["Opportunities"].append(
+            "<p>" + _iframe(opportunities, "width:100%;height:1600px;",
+                            lazy=True) + "</p>")
 
     log("Generating sunburst plots")
     for src in build_sunbursts(frames, ref, cfg, files_dir, guid):
