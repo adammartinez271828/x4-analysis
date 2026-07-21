@@ -70,6 +70,13 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
   color:#fff !important;background:#3a3a3a;border-color:#555;}}
 .dataTables_wrapper input, .dataTables_wrapper select{{
   background:#2a2a2a;color:{DARK_FG};border:1px solid #555;}}
+.oppcards{{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;
+  margin:8px 0;}}
+.oppcard{{border:1px solid #3a3a3a;border-radius:6px;padding:8px 14px;
+  background:#232323;}}
+.oppcard h4{{margin:0 0 6px 0;font-size:11px;letter-spacing:0.5px;
+  text-transform:uppercase;color:#9a9a9a;}}
+.oppcard .oprow{{margin:5px 0;}}
 """
 
 COVER_LOW_H = 3.0     # global cover below this many hours is flagged red
@@ -1078,6 +1085,11 @@ transfer and undocking at both endpoints; L/XL default higher — pier
 queues and long approaches — and the overhead keeps 15-second
 same-sector hops from posting absurd Cr/h). A manual cargo-hold value
 keeps the last picked ship's speed.</li>
+<li><b>Sell player reserve stock</b> — treats your stations as
+willing to export their entire cargo stock of each ware they list
+for sale (the game only offers the manager's surplus, so a station
+holding plenty can still show 0 exportable units and hide the
+lane).</li>
 </ul>
 <p>Lanes reflect the analyzed save: good spreads attract NPC traders and
 may be gone. Faction hostility, ware legality and trade licenses are not
@@ -1087,26 +1099,37 @@ Quettanauts barter instead of trading credits, so their lanes are
 excluded unless you untick the box.</p>
 </div>
 </details>
-<p>
-<label for='oppware'>Ware:</label><select id='oppware' style='max-width:200px'></select>
-&nbsp;&nbsp;<label for='oppship'>Ship:</label><select id='oppship'></select>
-&nbsp;<label for='opphold'>Cargo hold m&sup3;:</label>
-<input type='number' id='opphold' min='0' step='100' value=''
-       style='width:90px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppjumps'>Max jumps:</label>
+<div class='oppcards'>
+<div class='oppcard'><h4>Filter lanes</h4>
+<div class='oprow'><label for='oppware'>Ware:</label>
+<select id='oppware' style='max-width:220px'></select></div>
+<div class='oprow'><label for='oppjumps'>Max jumps:</label>
 <input type='number' id='oppjumps' min='0' value='20'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppdepth' title='hide lanes whose
+       border:1px solid #555;padding:4px'></div>
+<div class='oprow'><label for='oppdepth' title='hide lanes whose
 depth-capped total profit at quoted prices is below this'>Min lane
 total:</label>
 <input type='range' id='oppdepth' min='0' max='100' value='0'
-       style='width:160px;vertical-align:middle'>
-<span id='oppdepth_lbl' class='note'>0 Cr</span>
-&nbsp;&nbsp;<span style='color:#9a9a9a' title='flat per-trip overhead:
-docking, cargo transfer and undocking at both endpoints'>Dock time
-(min):</span>
+       style='width:150px;vertical-align:middle'>
+<span id='oppdepth_lbl' class='note'>0 Cr</span></div>
+<div class='oprow'><label><input type='checkbox' id='oppnoplayer'>
+exclude player stations</label></div>
+<div class='oprow'><label><input type='checkbox' id='oppnoqt' checked>
+exclude Quettanauts (barter only)</label></div>
+</div>
+<div class='oppcard'><h4>Your ship</h4>
+<div class='oprow'><label for='oppship'>Ship:</label>
+<select id='oppship' style='max-width:330px'></select></div>
+<div class='oprow'><label for='opphold'>Cargo hold m&sup3;:</label>
+<input type='number' id='opphold' min='0' step='100' value=''
+       style='width:90px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'></div>
+</div>
+<div class='oppcard'><h4>Model assumptions</h4>
+<div class='oprow'><span style='color:#9a9a9a' title='flat per-trip
+overhead: docking, cargo transfer and undocking at both
+endpoints'>Dock time (min):</span>
 &nbsp;<label for='oppdock' title='~15&ndash;30 s cargo transfer once an
 M is docked'>S/M</label>
 <input type='number' id='oppdock' min='0' step='0.5' value='2'
@@ -1117,17 +1140,19 @@ long docking approaches, and goods transfer takes ~60 s once docked,
 so their per-trip overhead is higher'>L/XL</label>
 <input type='number' id='oppdockl' min='0' step='0.5' value='5'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label title='S/M ships ride local ring highways at an
-assumed 10 km/s average; untick for saves without highways (auto-set
-from whether this save contains any)'><input type='checkbox'
+       border:1px solid #555;padding:4px'></div>
+<div class='oprow'><label title='S/M ships ride local ring highways at
+an assumed 10 km/s average; untick for saves without highways
+(auto-set from whether this save contains any)'><input type='checkbox'
 id='opphw' {"checked" if frames.has_highways else ""}>
-use highways</label>
-&nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
-exclude player stations</label>
-&nbsp;&nbsp;<label><input type='checkbox' id='oppnoqt' checked>
-exclude Quettanauts (barter only)</label>
-</p>
+use highways</label></div>
+<div class='oprow'><label title='treat your stations as willing to
+export their ENTIRE cargo stock of each ware they sell, not just the
+manager&apos;s listed surplus — reveals lanes the game currently
+shows with zero exportable units'><input type='checkbox'
+id='oppreserve'> sell player reserve stock</label></div>
+</div>
+</div>
 <table id='opps' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>From</th><th>To</th>
 <th>Ask</th><th>Bid</th><th>Profit/u</th><th>Profit/m&sup3;</th>
@@ -1175,9 +1200,23 @@ function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 // ---- trade opportunities ----
 let HOLD = 0;     // cargo hold m³ for the per-trip what-if (0 = unset)
 let SHIP = null;  // picked player ship: cls/cargo/speed (speed in m/s)
+// reserve-stock mode swaps in the rdu/rdm3/rtotal depths (player
+// sellers offering their whole cargo stock) and reveals ro lanes
+function reserveOn() {{
+  return document.getElementById('oppreserve').checked;
+}}
+function depthUnits(r) {{
+  return (reserveOn() && r.rdu !== undefined) ? r.rdu : r.du;
+}}
+function depthM3(r) {{
+  return (reserveOn() && r.rdm3 !== undefined) ? r.rdm3 : r.dm3;
+}}
+function totalOf(r) {{
+  return (reserveOn() && r.rtotal !== undefined) ? r.rtotal : r.total;
+}}
 function tripProfit(r) {{
   if (!HOLD) return null;
-  return Math.floor(Math.min(r.du, HOLD / r.vol)) * r.spread;
+  return Math.floor(Math.min(depthUnits(r), HOLD / r.vol)) * r.spread;
 }}
 // one-way trip: plain-space legs at 90% of the loadout travel speed
 // (validated against logged trader runs with true gate geometry),
@@ -1226,7 +1265,7 @@ function endLabel(e) {{
   return h;
 }}
 // min-lane-total slider: cubic curve up to the largest lane total
-const MAXTOTAL = Math.max(1, ...OPPS.map(r => r.total));
+const MAXTOTAL = Math.max(1, ...OPPS.map(r => Math.max(r.total, r.rtotal || 0)));
 function oppMinCr() {{
   const pos = +document.getElementById('oppdepth').value;
   return Math.round(MAXTOTAL * Math.pow(pos / 100, 3));
@@ -1249,7 +1288,8 @@ const opps = $('#opps').DataTable({{
     {{data: 'pm3'}},
     {{data: 'j'}},
     {{data: 'rate'}},
-    {{data: 'dm3', render: oppNum}},
+    {{data: null, render: (d, t, r) => t === 'display'
+        ? fmt(depthM3(r)) : depthM3(r)}},
     {{data: null, render: (d, t, r) => {{
       const v = tripProfit(r);
       if (t === 'display') return v === null
@@ -1274,22 +1314,24 @@ const opps = $('#opps').DataTable({{
           + "'>" + fmt(v) + "</span>";
       return v === null ? -1 : v;
     }}}},
-    {{data: 'total', render: (d, t) => t === 'display'
-        ? fmt(d) + ' Cr' : d}},
+    {{data: null, render: (d, t, r) => t === 'display'
+        ? fmt(totalOf(r)) + ' Cr' : totalOf(r)}},
   ],
 }});
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (settings.nTable.id !== 'opps') return true;
   const wf = document.getElementById('oppware').value;
   if (wf && rowData.w !== wf) return false;
+  if (!reserveOn() && rowData.ro) return false;
   if (rowData.j > +document.getElementById('oppjumps').value) return false;
-  if (rowData.total < oppMinCr()) return false;
+  if (totalOf(rowData) < oppMinCr()) return false;
   if (document.getElementById('oppnoplayer').checked
       && (rowData.s.p || rowData.b.p)) return false;
   if (document.getElementById('oppnoqt').checked
       && (rowData.s.qt || rowData.b.qt)) return false;
   return true;
 }});
+opps.draw();   // the filter registers after the first draw: re-apply
 // expandable arithmetic: the numbers must be auditable against the
 // in-game trade menu, never an opaque score
 $('#opps tbody').on('click', 'tr', function() {{
@@ -1311,9 +1353,12 @@ $('#opps tbody').on('click', 'tr', function() {{
     + (Math.max(1, r.j) === 1 ? "" : "s")
     + (r.j === 0 ? " (same sector)" : "")
     + " = <b>" + r.rate + " Cr/m&sup3;&middot;jump</b>."
-    + " Depth min(" + fmt(r.s.amt) + ", " + fmt(r.b.amt) + ") = "
-    + fmt(r.du) + " u = " + fmt(r.dm3) + " m&sup3; &rarr; lane total <b>"
-    + fmt(r.total) + " Cr</b> at quoted prices"
+    + " Depth min(" + ((reserveOn() && r.s.res !== undefined)
+       ? fmt(r.s.res) + " incl. reserve stock" : fmt(r.s.amt))
+    + ", " + fmt(r.b.amt) + ") = "
+    + fmt(depthUnits(r)) + " u = " + fmt(depthM3(r))
+    + " m&sup3; &rarr; lane total <b>"
+    + fmt(totalOf(r)) + " Cr</b> at quoted prices"
     + (trip === null ? "." : ("; one " + fmt(HOLD)
        + " m&sup3; trip nets <b>" + fmt(trip) + " Cr</b>."));
   if (r.kp !== null) {{
@@ -1370,6 +1415,7 @@ document.getElementById('oppdepth').addEventListener('input', () => {{
 ['oppdock', 'oppdockl'].forEach(id =>
   document.getElementById(id).addEventListener('input', oppRedraw));
 document.getElementById('opphw').addEventListener('change', oppRedraw);
+document.getElementById('oppreserve').addEventListener('change', oppRedraw);
 ['oppnoplayer', 'oppnoqt'].forEach(id =>
   document.getElementById(id).addEventListener(
     'change', () => opps.draw()));

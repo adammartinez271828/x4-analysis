@@ -187,7 +187,9 @@ def build_opportunities(frames: Frames, ref: RefData,
     if cfg.spoilers_hide:
         endpoints = endpoints[endpoints["knownto"] == "player"]
 
-    off = off[off["id"].isin(endpoints.index) & (off["amount"] > 0)].copy()
+    # zero-amount rows survive to here: a player SELL offer with no
+    # exported surplus can still source a lane in reserve-stock mode
+    off = off[off["id"].isin(endpoints.index)].copy()
     if off.empty:
         return []
 
@@ -220,9 +222,27 @@ def build_opportunities(frames: Frames, ref: RefData,
     # zero-priced NPC offers are junk rows, not free goods
     sells = off[(off["side"] == "sell") & (off["bs"] == 0)
                 & ((off["price"] > 0) | (off["player"] == 1))].copy()
-    buys = off[(off["side"] == "buy") & (off["price"] > 0)].copy()
+    buys = off[(off["side"] == "buy") & (off["price"] > 0)
+               & (off["amount"] > 0)].copy()
     sells["eff"] = sells["price"].where(sells["player"] == 0, 0.0)
     buys["eff"] = buys["price"].where(buys["player"] == 0, 0.0)
+
+    # reserve-stock mode: a player station's exportable amount is its
+    # whole cargo stock of the ware, not just the manager's surplus
+    cargo = getattr(frames, "station_cargo", None)
+    stock: dict[tuple, float] = {}
+    if cargo is not None and len(cargo):
+        for c in cargo.itertuples(index=False):
+            key = (str(c.id), str(c.ware))
+            stock[key] = stock.get(key, 0.0) + float(c.amount)
+    sells["reserve"] = sells["amount"]
+    pmask = sells["player"] == 1
+    sells.loc[pmask, "reserve"] = [
+        max(float(a), stock.get((str(i), str(w)), 0.0))
+        for i, w, a in zip(sells.loc[pmask, "id"],
+                           sells.loc[pmask, "ware"],
+                           sells.loc[pmask, "amount"])]
+    sells = sells[(sells["amount"] > 0) | (sells["reserve"] > 0)]
     if sells.empty or buys.empty:
         return []
 
@@ -273,6 +293,9 @@ def build_opportunities(frames: Frames, ref: RefData,
                                        str(b["sector"]), (b["sx"], b["sz"]),
                                        sm=True)
                 du = min(float(s["amount"]), float(b["amount"]))
+                du_r = min(float(s["reserve"]), float(b["amount"]))
+                if du <= 0 and du_r <= 0:
+                    continue
                 pairs.append({
                     "w": ware,
                     "wn": ref.ware_name.get(ware, ware),
@@ -299,7 +322,15 @@ def build_opportunities(frames: Frames, ref: RefData,
                     "du": du,
                     "dm3": round(du * vol, 1),
                     "total": round(du * spread, 0),
+                    # reserve-stock depths (player sellers only, when
+                    # they differ); ro = lane exists ONLY in that mode
+                    **({"rdu": du_r, "rdm3": round(du_r * vol, 1),
+                        "rtotal": round(du_r * spread, 0)}
+                       if du_r != du else {}),
+                    **({"ro": 1} if du <= 0 else {}),
                 })
+                if du_r != du:
+                    pairs[-1]["s"]["res"] = round(float(s["reserve"]))
         pairs.sort(key=lambda p: p["rate"], reverse=True)
         rows.extend(pairs[:MAX_PAIRS])
     rows.sort(key=lambda p: p["rate"], reverse=True)

@@ -144,6 +144,21 @@ def test_player_seller_is_pure_profit_and_player_buyer_drops():
     assert rows[0]["s"]["price"] == 171.0    # the save's price, for the UI
 
 
+def test_player_reserve_stock_lane():
+    frames = _frames(_offers([
+        ("sell_pla", "sell", "silicon", 0.0, 171.0),     # no surplus listed
+        ("buy_npc", "buy", "silicon", 300.0, 460.0),
+    ]))
+    frames.station_cargo = pd.DataFrame({
+        "id": ["sell_pla"], "ware": ["silicon"], "amount": [1200.0]})
+    (r,) = build_opportunities(frames, _ref(), _cfg())
+    # normal mode: no exportable units -> reserve-only lane, depth 0
+    assert r["ro"] == 1 and r["du"] == 0.0 and r["total"] == 0
+    # reserve mode: full stock capped by the buyer's 300 wanted
+    assert r["rdu"] == 300.0 and r["rtotal"] == 300 * 460
+    assert r["s"]["res"] == 1200
+
+
 def test_exclusions_flags_and_construction_buyer():
     rows = build_opportunities(_frames(_offers([
         ("sell_xen", "sell", "silicon", 500.0, 1.0),     # xenon: out
