@@ -306,13 +306,48 @@ def extract_gates(gf: GameFiles) -> list[list]:
     entrypoint/exitpoint zone paths embed the sector connection names the
     same way.
 
-    The endpoint paths also name the gate ZONES, whose sector-local
-    offsets sit in the sector files — each row carries them as
+    The endpoint paths also name the gate ZONES: their sector-local
+    offsets sit in the sector files, and the gate OBJECT's own offset
+    within the zone in the zones files — zones span tens of km, so the
+    zone centre alone can be 40 km off the spot the in-game map (and the
+    highway tracks) use. Each row carries the summed position as
     ax/az/bx/bz (metres; 0/0 when the zone could not be resolved) so the
-    map can draw connections at their approximate in-sector positions."""
+    map can draw connections where the gates actually sit."""
 
-    # zone-connection name -> sector-local (x, z) offset
-    zone_pos: dict[str, tuple[float, float]] = {}
+    # zone MACRO name -> {gate connection name -> (x, z) offset within
+    # the zone; "" -> first found}. A single zone can host TWO gates
+    # tens of km apart (Pontifex's Claim), so endpoints must match the
+    # gate connection named in the galaxy/sechighway path. Jump gates
+    # and accelerator props both hang off ref="gates" connections; be
+    # liberal and also match props_gates_* macros.
+    gate_off: dict[str, dict[str, tuple[float, float]]] = {}
+    for path in gf.glob(
+            r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*zones\.xml$"):
+        root = _parse(gf, path)
+        if root is None:
+            continue
+        for m in root.iter("macro"):
+            zname = (m.get("name") or "").lower()
+            if m.get("class") != "zone" or not zname:
+                continue
+            for conn in m.iter("connection"):
+                ref_el = conn.find("macro")
+                prop = (ref_el.get("ref") or "").lower() \
+                    if ref_el is not None else ""
+                if conn.get("ref") != "gates" \
+                        and not prop.startswith("props_gates"):
+                    continue
+                pos = conn.find("offset/position")
+                if pos is None:
+                    continue
+                off = (float(pos.get("x") or 0), float(pos.get("z") or 0))
+                d = gate_off.setdefault(zname, {})
+                d.setdefault("", off)
+                if conn.get("name"):
+                    d[conn.get("name").lower()] = off
+
+    # zone-connection name -> (zone x, zone z, zone macro name)
+    zone_pos: dict[str, tuple] = {}
     for path in gf.glob(
             r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*sectors\.xml$"):
         root = _parse(gf, path)
@@ -325,19 +360,36 @@ def extract_gates(gf: GameFiles) -> list[list]:
             if not name:
                 continue
             pos = conn.find("offset/position")
-            zone_pos[name] = (
-                (float(pos.get("x") or 0), float(pos.get("z") or 0))
-                if pos is not None else (0.0, 0.0))
+            zx, zz = ((float(pos.get("x") or 0), float(pos.get("z") or 0))
+                      if pos is not None else (0.0, 0.0))
+            ref_el = conn.find("macro")
+            zmacro = (ref_el.get("ref") or "").lower() \
+                if ref_el is not None else ""
+            zone_pos[name] = (zx, zz, zmacro)
 
     def sector_of(path: str) -> str:
         m = _SECTOR_IN_PATH.search(path or "")
         return f"{m.group(1).lower()}_macro" if m else ""
 
-    def zone_of(path: str) -> tuple[float, float]:
-        for seg in (path or "").split("/"):
-            p = zone_pos.get(seg.lower())
-            if p is not None:
-                return p
+    def zone_of(path: str, gate_name: str = "") -> tuple[float, float]:
+        """Gate position: zone offset + the named gate's offset inside
+        the zone (path segments after the zone usually name the gate
+        connection; `gate_name` is the sechighways fallback)."""
+        segs = [s.lower() for s in (path or "").split("/")]
+        for i, seg in enumerate(segs):
+            zp = zone_pos.get(seg)
+            if zp is None:
+                continue
+            zx, zz, zmacro = zp
+            gates = gate_off.get(zmacro, {})
+            g = None
+            for cand in segs[i + 1:] + [gate_name.lower()]:
+                if cand and cand in gates:
+                    g = gates[cand]
+                    break
+            if g is None:
+                g = gates.get("", (0.0, 0.0))
+            return (zx + g[0], zz + g[1])
         return (0.0, 0.0)
 
     pairs: dict[tuple[str, str], list] = {}
@@ -381,7 +433,9 @@ def extract_gates(gf: GameFiles) -> list[list]:
                     macro_el = sub.find("macro")
                     if macro_el is not None:
                         mp = macro_el.get("path")
-                        ends[sub.get("ref")] = (sector_of(mp), zone_of(mp))
+                        ends[sub.get("ref")] = (
+                            sector_of(mp),
+                            zone_of(mp, macro_el.get("connection") or ""))
             add(ends["entrypoint"][0], ends["exitpoint"][0],
                 ends["entrypoint"][1], ends["exitpoint"][1], source)
 
