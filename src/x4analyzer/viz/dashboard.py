@@ -147,7 +147,7 @@ def _categorize_sunburst(src: str) -> tuple[str, str]:
     if ("resource" in name or "station modules" in name
             or "hull mass" in name or "ships per faction" in name):
         return ("Universe", "Overview")
-    return ("Trade", "Breakdown")
+    return ("Trade", "Starburst Charts")
 
 
 def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
@@ -173,8 +173,8 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     # the galaxy economy, Universe = galaxy stats.
     tabs: dict[str, dict[str, list[str]]] = {
         "Map": {"": [_iframe(map_src, map_style, lazy=False)]},
-        "Trade": {"Charts": [], "Breakdown": [], "History": [],
-                  "Earnings": [], "Opportunities": []},
+        "Trade": {"Opportunities": [], "Earnings": [], "History": [],
+                  "Charts": [], "Starburst Charts": []},
         "Empire": {"Audit": [], "Station P&L": [], "Fleet": []},
         "Market": {"Overview": [], "Build Advisor": []},
         "Universe": {"Overview": [], "Contested": []},
