@@ -179,7 +179,7 @@ they are estimates, not direct measurements.)
    is confirmed qualitatively (hours-apart jumps), but we have not matched
    a specific event to a specific area's delay.
 
-## Appendix — a complete ore-field definition, end to end
+## Appendix A — a complete ore-field definition, end to end
 
 The full definition of a sector's ore is spread across three files that
 reference each other. Worked example: **Cluster_01_Sector001** (the ore
@@ -253,6 +253,65 @@ one of the four; when it hits zero it will respawn full, 120 minutes later,
 at a random spot inside the same sector. The save stores **only** the current
 `yield` and the `yieldid`; capacity, respawndelay, radius and gather factor
 are all resolved back through `regionyields.xml`.
+
+## Appendix B — one-pager
+
+**The rule:** resources deplete continuously under mining but never refill
+gradually. An area only comes back by **respawning whole and full** — and
+only *after* it has been mined to exactly **0**.
+
+**Life cycle of one area**
+
+```
+full ──mining──► partial ──mining──► EMPTY(0) ──wait respawndelay min──► respawns FULL
+                    │                                                    (random spot,
+                    └── sits here forever if mining stops ───────────────  same sector)
+```
+
+**A "field" is a bag of independent areas.** A sector's ore is ~12
+separate asteroid areas of mixed size/level/speed, each with its own pool,
+depletion, and respawn timer. Nothing is per-sector; everything is per-area.
+
+**The numbers** (`regionyields.xml`, per area):
+
+| level | capacity (ore) | respawndelay |
+|---|---:|---:|
+| verylow | 5,000 | 20 min |
+| low | 50,000 | 40 min |
+| medium | 200,000 | 60 min |
+| high | 1,000,000 | 120 min |
+| veryhigh | 2,000,000 | 180 min |
+
+Gatherspeed scales *mining* rate: veryslow ×0.2 · slow ×0.5 · average ×1.0
+· fast ×2.0 · veryfast ×5.0. `respawndelay = -1` means never respawns.
+
+**What follows from the rule**
+
+- **Unmined sector → frozen forever.** No depletion, no respawn trigger.
+- **Slowly-mined resource (e.g. scrap) → looks frozen too.** Areas never
+  hit 0, so they never respawn. (Not because scrap *can't* — we've just
+  never seen one depleted.)
+- **Hard-mined field → smooth decline + discrete full-area pop-ups.** The
+  decline is partial areas draining; the jumps are depleted areas
+  respawning full.
+- **Respawn = fresh full area at a random in-sector location.** Observed:
+  0 → 998,453 / 1,000,000 in one interval.
+- **Only the per-(sector, ware) total is trackable across saves** — area
+  ids remap *and* areas relocate on respawn, so individual fields can't be
+  followed.
+
+**Consequences for measuring "extraction"**
+
+- `cap ÷ respawndelay` is **not** a rate (respawndelay is a post-depletion
+  cooldown in minutes, not a rate denominator).
+- Real replenishment is only visible as respawn events; concurrent mining
+  hides most of it, so any save-history measurement is a **lower bound**.
+- In practice the ceiling on sustainable extraction is the **mining
+  fleet**, not respawn throughput.
+
+**Still unknown:** whether scrap respawns (never seen one depleted); exactly
+what "depleted" threshold arms the timer; whether gatherspeed touches
+respawn as well as mining.
 
 ## One-line summary
 
