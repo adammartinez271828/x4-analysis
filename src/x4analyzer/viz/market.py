@@ -1061,9 +1061,9 @@ Metrics normalize the spread the way a hauler earns it:</p>
 <li><b>Profit/m&sup3;</b> — spread &divide; ware volume: what one trip
 earns per unit of cargo hold. A dense cheap ware can beat a bulky
 expensive one whose per-unit profit looks larger.</li>
-<li><b>Cr/m&sup3;&middot;jump</b> — the above &divide; gate jumps between
-the two sectors (same-sector lanes count as one jump). A coarse proxy for
-time: highways and sector size are not modelled.</li>
+<li><b>Distance</b> — one-way route length in km, measured through
+the actual station and gate positions along the jump path (S/M ships
+may take a highway-favouring route when highways are enabled).</li>
 <li><b>Depth</b> — min(units offered, units wanted). Quoted prices are one
 point on the game's price curve and move against you as you trade, so
 per-trip and lane totals are capped by depth (and your hold) rather than
@@ -1156,15 +1156,16 @@ id='oppreserve'> sell player reserve stock</label></div>
 <table id='opps' class='display nowrap' style='width:100%'>
 <thead><tr><th>Ware</th><th>From</th><th>To</th>
 <th>Ask</th><th>Bid</th><th>Profit/u</th><th>Profit/m&sup3;</th>
-<th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
-a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
-<th>Depth m&sup3;</th><th>Trip profit</th>
+<th>Jumps</th>
+<th title='one-way route length in km through the actual station and
+gate positions (S/M ships may take a highway-favouring route)'>Distance
+km</th><th>Trip profit</th>
 <th title='estimated one-way trip time for the picked ship: real route
 length at 90% of loadout travel speed (S/M on highways at 10 km/s when
 enabled) plus the flat dock time'>Time</th>
 <th title='trip profit / trip time for the picked ship: real route
 length, 90% of loadout travel speed, S/M on local highways at 10 km/s
-average, plus the flat dock time'>Cr/h</th><th>Lane total</th></tr></thead>
+average, plus the flat dock time'>Cr/h</th><th>Depth m&sup3;</th><th>Lane total</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <h3 style='margin:4px 0'>Where to buy &amp; sell</h3>
@@ -1273,7 +1274,7 @@ function oppMinCr() {{
 const oppNum = (d, t) => t === 'display' ? fmt(d) : d;
 const opps = $('#opps').DataTable({{
   data: OPPS,
-  order: [[12, 'desc']], pageLength: 15,
+  order: [[11, 'desc']], pageLength: 15,
   columns: [
     {{data: 'wn'}},
     {{data: null, render: (d, t, r) => t === 'display' ? endLabel(r.s)
@@ -1287,9 +1288,11 @@ const opps = $('#opps').DataTable({{
     {{data: 'spread', render: oppNum}},
     {{data: 'pm3'}},
     {{data: 'j'}},
-    {{data: 'rate'}},
-    {{data: null, render: (d, t, r) => t === 'display'
-        ? fmt(depthM3(r)) : depthM3(r)}},
+    {{data: null, render: (d, t, r) => {{
+      if (r.kp === null) return t === 'display' ? '&mdash;' : 1e12;
+      const km = routeKm(r);
+      return t === 'display' ? fmt(km[0] + km[1]) : km[0] + km[1];
+    }}}},
     {{data: null, render: (d, t, r) => {{
       const v = tripProfit(r);
       if (t === 'display') return v === null
@@ -1314,6 +1317,8 @@ const opps = $('#opps').DataTable({{
           + "'>" + fmt(v) + "</span>";
       return v === null ? -1 : v;
     }}}},
+    {{data: null, render: (d, t, r) => t === 'display'
+        ? fmt(depthM3(r)) : depthM3(r)}},
     {{data: null, render: (d, t, r) => t === 'display'
         ? fmt(totalOf(r)) + ' Cr' : totalOf(r)}},
   ],
@@ -1349,10 +1354,7 @@ $('#opps tbody').on('click', 'tr', function() {{
     + " (" + fmt(r.b.amt) + " u wanted).<br>"
     + "Spread " + fmt(r.spread) + " Cr/u &divide; " + r.vol
     + " m&sup3;/u = <b>" + r.pm3 + " Cr/m&sup3;</b>"
-    + " &divide; " + Math.max(1, r.j) + " jump"
-    + (Math.max(1, r.j) === 1 ? "" : "s")
-    + (r.j === 0 ? " (same sector)" : "")
-    + " = <b>" + r.rate + " Cr/m&sup3;&middot;jump</b>."
+    + (r.j === 0 ? " (same sector)" : "") + "."
     + " Depth min(" + ((reserveOn() && r.s.res !== undefined)
        ? fmt(r.s.res) + " incl. reserve stock" : fmt(r.s.amt))
     + ", " + fmt(r.b.amt) + ") = "
