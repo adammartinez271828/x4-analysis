@@ -339,7 +339,7 @@
   });
 
   // data vault overlays: solid glyph = unopened, hollow dimmed = opened.
-  // Regular vaults are cyan squares, Erlking vaults gold stars; a
+  // Regular vaults are cyan stars, Erlking vaults gold stars; a
   // transparent hit disc keeps hollow glyphs hoverable
   var VAULT_STYLE = {
     vault: {colour: "#19d3f3", layer: "vaults", title: "Data Vault"},
@@ -350,8 +350,7 @@
     var attrs = open
       ? {fill: "none", stroke: st.colour, "stroke-width": 1, opacity: 0.55}
       : {fill: st.colour, stroke: "#1e1e1e", "stroke-width": 0.8};
-    if (kind === "erlking") attrs.d = starPath(0, 0, 5.2);
-    else attrs.d = "M-2.3,-2.3 L2.3,-2.3 L2.3,2.3 L-2.3,2.3 Z";
+    attrs.d = starPath(0, 0, 5.2);
     el("path", attrs, g);
   }
   D.vaults.forEach(function (v) {
@@ -604,12 +603,12 @@
 
   // --- legend state + panel ---
   var state = {
-    layers: {gates: false, shighways: false, highways: false,
+    layers: {gates: true, shighways: true, highways: true,
              clusters: true, labels: true,
              contested: false, police: false, pirates: false,
              player: false, vaults: false, erlking: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
-             fac_equipdock: true, fac_trading: true, fac_khaak: true},
+             fac_equipdock: true, fac_trading: true, fac_khaak: false},
     factions: {},
     resource: null,   // id of the single-selected resource overlay
     collapsed: {},    // legend group title -> collapsed
@@ -806,9 +805,7 @@
   if (vc.n)
     overlayRows.push(["vaults",
       "Data Vaults (" + vc.open + "/" + vc.n + " opened)",
-      "<svg width='18' height='14' viewBox='-9 -7 18 14'>" +
-      "<rect x='-4' y='-4' width='8' height='8' fill='" +
-      VAULT_STYLE.vault.colour + "'/></svg>"]);
+      pathSwatch(starPath, VAULT_STYLE.vault.colour, 9)]);
   if (ec.n)
     overlayRows.push(["erlking",
       "Erlking Vaults (" + ec.open + "/" + ec.n + " opened)",
