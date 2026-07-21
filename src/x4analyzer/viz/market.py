@@ -1108,8 +1108,8 @@ excluded unless you untick the box.</p>
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'></div>
 <div class='oprow'><label for='oppdepth' title='hide lanes whose
-depth-capped total profit at quoted prices is below this'>Min lane
-total:</label>
+depth-capped total profit at quoted prices is below this'>Min depth
+Cr:</label>
 <input type='range' id='oppdepth' min='0' max='100' value='0'
        style='width:150px;vertical-align:middle'>
 <span id='oppdepth_lbl' class='note'>0 Cr</span></div>
@@ -1141,6 +1141,14 @@ so their per-trip overhead is higher'>L/XL</label>
 <input type='number' id='oppdockl' min='0' step='0.5' value='5'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'></div>
+<div class='oprow'><label for='oppcruise' title='fraction of the
+loadout travel-drive top speed a ship actually averages over a leg
+(spool-up, gate transits, deceleration at the endpoint; 0.9 validated
+against logged trader runs)'>Travel drive ratio:</label>
+<input type='number' id='oppcruise' min='0.1' max='1' step='0.05'
+       value='0.9'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'></div>
 <div class='oprow'><label title='S/M ships ride local ring highways at
 an assumed 10 km/s average; untick for saves without highways
 (auto-set from whether this save contains any)'><input type='checkbox'
@@ -1161,11 +1169,13 @@ id='oppreserve'> sell player reserve stock</label></div>
 gate positions (S/M ships may take a highway-favouring route)'>Distance
 km</th><th>Trip profit</th>
 <th title='estimated one-way trip time for the picked ship: real route
-length at 90% of loadout travel speed (S/M on highways at 10 km/s when
-enabled) plus the flat dock time'>Time</th>
+length at the travel drive ratio &times; loadout travel speed (S/M on
+highways at 10 km/s when enabled) plus the flat dock time'>Time</th>
 <th title='trip profit / trip time for the picked ship: real route
-length, 90% of loadout travel speed, S/M on local highways at 10 km/s
-average, plus the flat dock time'>Cr/h</th><th>Depth m&sup3;</th><th>Lane total</th></tr></thead>
+length at the travel drive ratio &times; loadout travel speed, S/M on
+local highways at 10 km/s average, plus the flat dock time'>Cr/h</th><th>Depth m&sup3;</th>
+<th title='depth-capped total profit of the whole lane at quoted
+prices'>Depth Cr</th></tr></thead>
 </table>
 <hr style='border-color:#444;margin:18px 0'>
 <h3 style='margin:4px 0'>Where to buy &amp; sell</h3>
@@ -1219,12 +1229,16 @@ function tripProfit(r) {{
   if (!HOLD) return null;
   return Math.floor(Math.min(depthUnits(r), HOLD / r.vol)) * r.spread;
 }}
-// one-way trip: plain-space legs at 90% of the loadout travel speed
-// (validated against logged trader runs with true gate geometry),
-// highway-sector legs at an assumed 10 km/s average for S/M, plus the
-// flat dock/transfer/undock overhead from the control. S/M ships take
-// the highway-favouring route (kps/khs) when it differs from the
-// km-shortest one
+// one-way trip: plain-space legs at the travel-drive-ratio fraction
+// of the loadout travel speed (0.9 default, validated against logged
+// trader runs with true gate geometry), highway-sector legs at an
+// assumed 10 km/s average for S/M, plus the flat dock/transfer/undock
+// overhead from the control. S/M ships take the highway-favouring
+// route (kps/khs) when it differs from the km-shortest one
+function cruise() {{
+  const v = +document.getElementById('oppcruise').value;
+  return (v > 0 && v <= 1) ? v : 0.9;
+}}
 function isSM() {{ return SHIP && (SHIP.cls === 'S' || SHIP.cls === 'M'); }}
 function useHW() {{ return document.getElementById('opphw').checked; }}
 function routeKm(r) {{
@@ -1238,7 +1252,7 @@ function dockSeconds() {{
 }}
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
-  const v = 0.9 * SHIP.speed;
+  const v = cruise() * SHIP.speed;
   const hwv = (isSM() && useHW()) ? 10000 : v;
   const km = routeKm(r);
   return km[0] * 1000 / v + km[1] * 1000 / hwv + dockSeconds();
@@ -1359,7 +1373,7 @@ $('#opps tbody').on('click', 'tr', function() {{
        ? fmt(r.s.res) + " incl. reserve stock" : fmt(r.s.amt))
     + ", " + fmt(r.b.amt) + ") = "
     + fmt(depthUnits(r)) + " u = " + fmt(depthM3(r))
-    + " m&sup3; &rarr; lane total <b>"
+    + " m&sup3; &rarr; lane depth <b>"
     + fmt(totalOf(r)) + " Cr</b> at quoted prices"
     + (trip === null ? "." : ("; one " + fmt(HOLD)
        + " m&sup3; trip nets <b>" + fmt(trip) + " Cr</b>."));
@@ -1371,7 +1385,7 @@ $('#opps tbody').on('click', 'tr', function() {{
          ? " (highway-favouring S/M route)" : "") + ".";
     const t = tripSeconds(r);
     if (t !== null)
-      h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.9"
+      h += " At " + fmt(SHIP.speed) + " m/s travel &times;" + cruise()
         + (isSM() && useHW() && km[1]
            ? " (highways at 10 km/s)" : "")
         + (dockSeconds() ? " + " + fmtMin(dockSeconds()) + " docking"
@@ -1414,7 +1428,7 @@ document.getElementById('oppdepth').addEventListener('input', () => {{
     fmt(oppMinCr()) + ' Cr';
   opps.draw();
 }});
-['oppdock', 'oppdockl'].forEach(id =>
+['oppdock', 'oppdockl', 'oppcruise'].forEach(id =>
   document.getElementById(id).addEventListener('input', oppRedraw));
 document.getElementById('opphw').addEventListener('change', oppRedraw);
 document.getElementById('oppreserve').addEventListener('change', oppRedraw);
