@@ -14,14 +14,17 @@ below) that settled the respawn trigger. Each claim is tagged by confidence:
 
 A resource area holds a pool of one ware up to a fixed capacity. Mining
 draws that pool down. **Partial areas do not refill** — there is no gradual
-regeneration. When an area is fully **depleted**, `respawndelay` **minutes**
-later it becomes *eligible* to respawn — but it does **not** respawn on a
-timer. The respawn fires only when a **miner actually mines that area**: on
-mining contact, an eligible depleted area respawns full, and the miner
-extracts from it. Until a miner touches it, an eligible area sits at zero
-indefinitely. So a sector's "replenishment" is a series of discrete,
-whole-area respawns, each **triggered by a miner making contact** with a
-depleted-but-eligible area. No mining → no depletion *and* no respawn.
+regeneration. When an area is fully **depleted**, it **respawns full**
+`respawndelay` **minutes** later — the ore is genuinely back and mineable at
+that point (the encyclopedia renders it at capacity). The subtlety is purely
+in the **stored representation**: the save's `yield` field lazily keeps
+reading **0** until a miner **actually mines the area**, at which point the
+stored value materializes to reflect the ore that was already there and the
+miner extracts from it. So a respawned-but-untouched area **is** full — the
+field value just doesn't show it until touched. A sector's "replenishment" is
+thus a series of discrete, whole-area respawns whose *stored* values catch up
+on a miner's mining contact. No mining → no depletion, so the area never
+enters this cycle at all.
 
 ## Source data
 
@@ -125,19 +128,25 @@ the depletion time; that was wrong, and any "overdue" arithmetic built on
 1. Area sits at some current `yield` ≤ capacity. **[DOC/OBS]**
 2. Miners extract; gatherspeed `factor` scales extraction speed. Current
    `yield` falls. **[DOC]** (gatherspeed's exact effect on rate is [INF].)
-3. A partially-mined area **does not refill**. **[INF — strongly implied by
-   XSD wording ("after it was depleted") and by the smooth multi-hour
-   declines with no partial recovery we observed].**
+3. A partially-mined area **does not refill** — no gradual regeneration.
+   **[OBS]** Directly observed: Saturn 2's two mined-down `huge_silicon` areas
+   stayed byte-identical while a depleted neighbour materialized full, and the
+   partial nividium areas at Avarice / Third Redemption (381, 402) held fixed
+   values across 4+ saves. (The XSD's "after it was **depleted**" wording
+   independently implies it: a pool only comes back via whole-area respawn on
+   *full* depletion, never partially.)
 4. On full depletion the area drops its `yield` and is stamped with a
    `starttime` = **now + `respawndelay` minutes**, its respawn-eligibility
    time. It keeps its position and `<fields>`. **[OBS]**
-5. After `starttime` the area is *eligible* but stays at zero. It **respawns
-   only when a miner mines it**: on mining contact, an eligible area respawns
-   **full** and the miner immediately extracts from it. **[EXP]** — the Pious
+5. Past `starttime` the area is **respawned** — the ore is back, full, and
+   mineable (the encyclopedia shows it at capacity). But its *stored* `yield`
+   lazily stays at 0 until a miner **actually mines it**, at which point the
+   value materializes to full and the miner extracts. **[EXP]** — the Pious
    Mists XI experiment (below) caught exactly this: an area 1 h past `starttime`
-   sat empty until a Drill reached it, then respawned to its full 5,000 cap
-   with the miner pulling 980 out of it in the same instant. Saturn 2's
-   `0 → 998,453` silicon respawn is the same event from the NPC-miner side.
+   read 0 in the save until a Drill reached it, then materialized to its full
+   5,000 cap with the miner pulling 980 out in the same instant. Saturn 2's
+   `0 → 998,453` silicon materialization is the same event from the NPC-miner
+   side.
 6. `respawndelay = -1` disables respawn entirely. **[DOC]**
 
 ## What this predicts, and what we observed
@@ -190,52 +199,56 @@ condition. Its other source, combat debris from destroyed ships, is a
 separate mechanic and was minor in this playthrough (one +799 event in the
 HQ combat sector). **[OBS]**
 
-### The respawn trigger is a miner mining the area — CONFIRMED by experiment
+### The stored yield materializes when a miner mines the area — CONFIRMED by experiment
 
-An eligible depleted area (`starttime < now`) does **not** respawn on a
-timer, at any attention level. It respawns the moment a **miner mines that
-specific area**. This was settled by a controlled in-game experiment.
+Past its `starttime` the area's ore is back and mineable (the encyclopedia
+shows it at capacity), but the **stored `yield` stays 0** until a **miner
+mines that specific area** — at which point the value materializes to full
+and the miner extracts. It never materializes on a timer, at any attention
+level. This was settled by a controlled in-game experiment.
 
 **The Pious Mists XI experiment** **[EXP]**
 
-- **Baseline** (save_008, 18.55h): the sector's two nividium areas both at
-  **0** (empty). One area at (30, 70) km was **eligible** — 0.9 h past its
-  `starttime`, but still empty; the other at (70, −50) km was **not yet
-  eligible** (`starttime` ~0.5 h in the future). Encyclopedia showed 5,000
-  (the fully-depleted fallback — see the encyclopedia note).
+- **Baseline** (save_008, 18.55h): the sector's two nividium areas both stored
+  **0**. One at (30, 70) km was **eligible** — 0.9 h past its `starttime`; the
+  other at (70, −50) km was **not yet eligible** (`starttime` ~0.5 h ahead).
+  The encyclopedia showed **5,000** — i.e. only the eligible area's capacity
+  (see the encyclopedia note), signalling the ore *was* there to be mined.
 - **Action**: sent a player Drill on local automine for nividium; it flew in
-  (attracted by the encyclopedia's potential value) and began mining. The
-  overdue area stayed at 0 for the whole flight — presence alone did nothing.
-- **Result** (save_009, 18.76h): the **eligible** area (30, 70) had respawned
-  to a live **4,020**, and the Drill's hold contained **980** nividium.
-  4,020 + 980 = **5,000** = the medium nividium capacity: it respawned full
-  the instant the miner made contact, and the miner immediately pulled 980
-  out. The **not-yet-eligible** area (70, −50) stayed at 0 (correct — not
-  eligible, and the miner wasn't on it).
+  (the encyclopedia's live "mineable now" figure sent it there) and began
+  mining. The eligible area's stored value stayed 0 for the whole flight —
+  presence alone materialized nothing.
+- **Result** (save_009, 18.76h): the **eligible** area (30, 70) now stored a
+  live **4,020**, and the Drill's hold held **980** nividium. 4,020 + 980 =
+  **5,000** = the medium nividium capacity: it materialized to full the instant
+  the miner made contact, and the miner immediately pulled 980 out. The
+  **not-yet-eligible** area (70, −50) stayed at 0 (correct — not yet respawned,
+  and the miner wasn't on it).
 
-So a respawn needs two things: the area past its `starttime` (eligible) **and**
-a miner making mining contact. Attention/presence is irrelevant except insofar
-as it lets a miner reach the area. This is a **lazy, on-mining-contact**
-mechanic, evaluated per area.
+So the stored value materializes on two conditions: the area past its
+`starttime` (respawned/available) **and** a miner making mining contact.
+Attention/presence is irrelevant except insofar as it lets a miner reach the
+area. This is a **lazy, on-mining-contact** materialization, per area.
 
-**This resolves the whole "why aren't they respawning" backlog.** At 18.52h
-there were 145 eligible-but-empty areas — not stuck, not rate-limited, just
-**untouched by a miner** since becoming eligible. Every earlier hypothesis in
-this investigation was wrong and is superseded:
+**This resolves the whole "why do saves show empty fields" backlog.** At
+18.52h there were 145 eligible areas storing 0 — not stuck, not rate-limited;
+their ore was available, the *stored* value just hadn't been materialized
+because no miner had mined them since eligibility. Every earlier hypothesis
+in this investigation was wrong and is superseded:
 
-- ~~needs high attention~~ — Saturn 2 respawned with no player near (its NPC
-  miners did it); Third Redemption stayed empty *with* the player in-sector.
+- ~~needs high attention~~ — Saturn 2 materialized with no player near (its NPC
+  miners did it); Third Redemption stayed at 0 *with* the player in-sector.
 - ~~needs a background timer / low-attention tick~~ — an area sat 1 h+ past
-  eligibility, empty, until a miner touched it.
+  eligibility storing 0 until a miner touched it.
 - ~~rate-limited execution~~ — the "backlog" is areas no miner has mined; it
   clears one area at a time, on contact, not by a throttled queue.
 
-It also explains the two **permanently-dead** areas in the heavily-mined
-Asteroid Belt (same fixed positions, frozen 16 h across 5 saves while 11
+It also explains the two **permanently-0** areas in the heavily-mined Asteroid
+Belt (same fixed positions, stored 0 across 5 saves for 16 h while 11
 neighbours cycled): the miner AI simply never paths to those two physical
-spots, so nothing ever makes contact and they never respawn. Idle fields
-(Avarice, Third Redemption nividium) sit empty forever for the same reason —
-no miner works them.
+spots, so nothing ever makes contact and their stored value never materializes.
+Idle fields (Avarice, Third Redemption nividium) store 0 indefinitely for the
+same reason — no miner works them.
 
 ### Aside: the encyclopedia is a live rendering of what's mineable NOW
 
@@ -424,25 +437,27 @@ that coexist in the same field.
 ## Appendix B — one-pager
 
 **The rule:** resources deplete under mining and never refill gradually. A
-depleted area comes back only by **respawning whole and full** — and it does
-so **only when a miner mines it**, once it's past its `respawndelay`. No timer,
-no background regen. Untouched empty areas stay at zero forever.
+depleted area **respawns whole and full** `respawndelay` minutes later — the
+ore is genuinely back and mineable then (the encyclopedia shows it). But the
+save's *stored* `yield` lazily reads **0** until a miner actually mines the
+area, which materializes the value. So a respawned area **is** full; the field
+value just doesn't show it until touched.
 
 **Life cycle of one area**
 
 ```
-full ──mining──► partial ──mining──► EMPTY(0) ──wait respawndelay min──► ELIGIBLE (still empty)
-                    │                            (starttime = now+delay)          │
-                    └── never refills on its own ────────────────────────────►    │ miner mines it
-                                                                                   ▼
-                                                                          respawns FULL, miner
-                                                                          extracts in the same instant
+full ──mining──► partial ──mining──► EMPTY(0) ──wait respawndelay──► RESPAWNED (ore is back & full)
+                    │                          (starttime=now+delay)     but stored yield still reads 0
+                    └── never refills on its own ──────────────────────────────►      │ miner mines it
+                                                                                       ▼
+                                                                            stored value materializes to
+                                                                            FULL; miner extracts at once
 ```
 
-Two conditions to respawn: **(1)** past `starttime` (= depletion + respawndelay),
-and **(2)** a **miner makes mining contact**. Miss either and it stays at 0.
-In the save an empty area has no `yield` attribute and a `starttime`; it keeps
-its `<offset><position>` and `<fields>`.
+The respawn (availability) happens on the `respawndelay` timer; only the
+**stored `yield`** waits for a miner's contact to catch up. In the save a
+respawned-but-untouched area has no `yield` attribute and a past `starttime`;
+it keeps its `<offset><position>` and `<fields>`.
 
 **A "field" is a bag of independent areas.** A sector's ore is ~12 separate
 asteroid areas of mixed size/level/speed, each with its own pool, position,
