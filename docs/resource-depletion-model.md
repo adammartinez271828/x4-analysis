@@ -49,8 +49,15 @@ The XSD documents the two key attributes verbatim:
 
 `region_definitions.xml` carries a 9.00 note: resource areas are now defined
 per-**sector** in `mapdefaults.xml` under `<properties><resourceareas>`,
-referencing `regionyields.xml`. So an area's respawn "random location" is
-scoped to its own sector's field, not the galaxy. **[DOC]**
+referencing `regionyields.xml`. **[DOC]**
+
+**Caveat — "at a random location" is not what we observe.** Across every
+tracked case an `<area>` keeps its `<offset><position>` through depletion
+*and* respawn: it materializes full at its own fixed spot, it does not move
+(see the trackability note below). The XSD's "random location" most plausibly
+refers to where the physical asteroid rocks spawn *within* the area's boundary
+sphere, not the area record relocating — but at the `<area>` level respawn is
+**in place**. **[OBS overrides the literal DOC wording here.]**
 
 ### Save files — the `<resourceareas>` block
 
@@ -177,11 +184,20 @@ The respawn cadence — sparse, large jumps hours apart — is itself evidence
 that `respawndelay` is **minutes, not seconds**: second-scale delays would
 make fields refill almost continuously, which is not what we see. **[OBS]**
 
-### Aggregate-per-sector is the only trackable unit — established
+### Individual areas ARE trackable across saves — by position
 
-Because areas both remap ids **and** respawn at new locations, individual
-fields cannot be followed across saves. Only the **(sector, ware) total**
-is stable enough to track. **[INF from DOC + OBS.]**
+The area `id` (`[0x…]`) is a runtime id and remaps on every load, so it is
+**not** a stable key. But the area's `<offset><position>` **is** stable — it
+persists unchanged through mining, full depletion, and respawn — so an
+individual area can be followed across saves by **(position, yieldid)**.
+**[OBS]** We did this repeatedly: the Asteroid Belt's two permanently-0 ore
+areas held km(−250, −50) and (−130, 230) across 5 saves; Avarice's and Third
+Redemption's nividium areas held their spots; and the Pious Mists XI area
+materialized to full **in place** at (30, 70). Areas do not relocate on
+respawn (this corrects an earlier note that claimed only the (sector, ware)
+total was trackable — that was written before we started tracking by position
+and is superseded). The per-(sector, ware) aggregate is still convenient for
+sector-level trends, but it is a *choice*, not a limitation.
 
 ### Scrap looks frozen for the same reason as unmined sectors — reframed
 
@@ -498,8 +514,11 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
   out full. The implication runs the *other* way — summing raw save `yield`s
   **understates** mineability, so a "mineable now" tool must add
   empty-but-eligible areas at full capacity.
-- **Only the per-(sector, ware) total is trackable across saves** — area ids
-  remap and areas relocate on respawn, so individual areas can't be followed.
+- **Individual areas are trackable across saves by position** — the `<area>`
+  `id` remaps on load, but the `<offset><position>` is stable through
+  depletion and respawn (areas materialize **in place**, they don't relocate).
+  Track by (position, yieldid); the per-(sector, ware) total is a convenience,
+  not the only option.
 
 **Consequences for measuring "extraction"**
 
