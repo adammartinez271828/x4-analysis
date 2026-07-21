@@ -346,15 +346,29 @@ they are estimates, not direct measurements.)
    areas no miner has touched since becoming eligible.
 3. **What exactly does gatherspeed scale** — mining extraction rate,
    respawn amount, or both? Assumed extraction rate only. **[INF]**
-4. **Does depletion require exactly 0**, or drop below some threshold, to
-   arm the respawn eligibility timer? **[unknown]**
-5. **Does scrap respawn at all when depleted?** Never observed depleted.
-   Would be settled by deliberately mining one scrap field to zero and then
-   sending a miner back to it.
-6. **What decides which areas a miner AI touches?** This now governs which
-   areas ever respawn (the Asteroid Belt's two permanently-dead areas are
-   spots the AI never paths to). The selection logic is engine-side and
-   unquantified.
+4. ~~Does depletion require exactly 0 to arm the timer?~~ **~Yes — arms at
+   true empty.** **[INF, strongly supported]** Across all 3,306 areas in the
+   save, **zero** nonzero-yield areas carry a *future* (actively counting-down)
+   `starttime`; every active eligibility timer is on an **empty** area. The 204
+   nonzero areas with a *past* `starttime` are stale leftovers (armed at a
+   prior full depletion, re-materialized by mining, timer uncleared). A
+   nonzero threshold would leave areas mid-countdown *with* resource — none
+   exist. So the timer arms only when the area hits 0.
+5. **Does scrap respawn when depleted?** Never observed depleted, but **[INF —
+   probably yes]**: `rawscrap`/`rawkhaakscrap` carry the same `respawndelay`
+   values and identical `<area>`/`<fields>` structure as other solids, and
+   nothing distinguishes them mechanically. No reason to expect different
+   behaviour; only never triggered (scrap is collected too slowly to fully
+   deplete an area). Would be *confirmed* by mining one scrap field to zero
+   and sending a miner back.
+6. **What decides which areas a miner AI touches?** This governs which areas
+   ever respawn. **Not gatherspeed** **[OBS]**: the Asteroid Belt's two
+   permanently-0 areas are `medium/fast` and `high/average` — *better* than
+   the two `veryhigh/slow` areas that cycle fine there. Both dead areas sit at
+   the sector's spatial **periphery** (km(−250, −50) far −x edge; (−130, 230)
+   isolated corner), so the driver looks like **position / pathing** (proximity
+   to stations and the miners' working cluster), not field quality. The exact
+   selection logic is engine-side and unquantified.
 
 ## Appendix A — a complete ore-field definition, end to end
 
@@ -529,9 +543,13 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
 - The binding limit on sustainable extraction is the **mining fleet** (which
   areas it touches and how fast), never respawn throughput.
 
-**Still unknown:** whether scrap respawns (never seen one depleted); the exact
-"depleted" threshold; whether gatherspeed touches respawn amount too; and what
-decides which areas the miner AI paths to (now the thing that gates respawn).
+**Mostly settled:** the timer arms at true empty (no nonzero area ever shows an
+active countdown); scrap almost certainly respawns like everything else (same
+delays/structure, just never depleted); and which areas respawn is gated by
+**which areas a miner paths to** — driven by position, *not* gatherspeed (the
+Asteroid Belt's two dead areas are `fast`/`average`, better than the `slow`
+ones that cycle). **Still open:** whether gatherspeed touches respawn *amount*,
+and the exact miner-AI area-selection logic.
 
 ## One-line summary
 
