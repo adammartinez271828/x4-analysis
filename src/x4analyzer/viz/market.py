@@ -1076,20 +1076,36 @@ open-market arbitrage.</li>
 <li>Pick one of <b>your trade ships</b> to see the profit of one full
 trip (min(hold, depth) &times; spread), the trip time and <b>Cr/h</b>.
 Speed is the ship's ACTUAL loadout: mounted engines &times; travel
-thrust &divide; hull drag, flown at 90% of travel speed — the factor
-validated against logged trader runs (engine mods are not modelled). Route length uses real station and gate
-positions along the jump path; S and M ships ride local highways at an
-assumed 10 km/s average in sectors that have them, one way, plus the
-flat <b>dock time</b> for the ship's size class (docking, cargo
-transfer and undocking at both endpoints; L/XL default higher — pier
-queues and long approaches — and the overhead keeps 15-second
-same-sector hops from posting absurd Cr/h). A manual cargo-hold value
-keeps the last picked ship's speed.</li>
+thrust &divide; hull drag — the in-game encyclopedia formula (engine
+mods are not modelled). Time = one-way route &divide; cruise speed +
+dock time, per the assumptions below. Cargo hold and travel speed are
+shown for the picked ship.</li>
+</ul>
+<p><b>Model assumptions</b> — the knobs behind Time and Cr/h:</p>
+<ul>
+<li><b>Dock time</b> — flat per-trip overhead: docking approach, cargo
+transfer and undocking at both endpoints combined. S/M default 2 min
+(the transfer itself is ~15&ndash;30 s once docked); L/XL default
+5 min because big ships queue for piers, fly long mandatory approach
+paths and transfer for ~60 s. This flat cost is what keeps a
+15-second same-sector hop from posting absurd Cr/h.</li>
+<li><b>Travel drive ratio</b> — the fraction of the loadout's travel
+top speed a ship actually averages over a leg; spool-up, gate
+transits, evasion and endpoint deceleration eat the rest. The 0.9
+default was fitted against logged runs of real traders (a Pelican
+Sentinel's repeat run matched within seconds). Lower it if your
+traders detour around hostiles a lot.</li>
+<li><b>Use highways</b> + <b>at km/s</b> — S and M ships (never L/XL)
+ride local ring highways where a sector has them: the route switches
+to a highway-favouring path and highway-sector legs move at the set
+average speed. Rings run ~6&ndash;14 km/s depending on the sector;
+10 is a middle-of-the-road default. The checkbox is preset from
+whether this save contains ring highways at all.</li>
 <li><b>Sell player reserve stock</b> — treats your stations as
 willing to export their entire cargo stock of each ware they list
 for sale (the game only offers the manager's surplus, so a station
 holding plenty can still show 0 exportable units and hide the
-lane).</li>
+lane). Reserve-only lanes are hidden until this is ticked.</li>
 </ul>
 <p>Lanes reflect the analyzed save: good spreads attract NPC traders and
 may be gone. Faction hostility, ware legality and trade licenses are not
@@ -1121,10 +1137,12 @@ exclude Quettanauts (barter only)</label></div>
 <div class='oppcard'><h4>Your ship</h4>
 <div class='oprow'><label for='oppship'>Ship:</label>
 <select id='oppship' style='max-width:330px'></select></div>
-<div class='oprow'><label for='opphold'>Cargo hold m&sup3;:</label>
-<input type='number' id='opphold' min='0' step='100' value=''
-       style='width:90px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'></div>
+<div class='oprow'><span style='color:#9a9a9a'>Cargo hold:</span>
+<span id='opphold'>&mdash;</span></div>
+<div class='oprow'><span style='color:#9a9a9a' title='loadout travel
+speed: mounted engines &times; travel thrust &divide; hull drag;
+effective cruise applies the travel drive ratio'>Travel speed:</span>
+<span id='oppspeed'>&mdash;</span></div>
 </div>
 <div class='oppcard'><h4>Model assumptions</h4>
 <div class='oprow'><span style='color:#9a9a9a' title='flat per-trip
@@ -1149,11 +1167,16 @@ against logged trader runs)'>Travel drive ratio:</label>
        value='0.9'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'></div>
-<div class='oprow'><label title='S/M ships ride local ring highways at
-an assumed 10 km/s average; untick for saves without highways
-(auto-set from whether this save contains any)'><input type='checkbox'
+<div class='oprow'><label title='S/M ships ride local ring highways;
+untick for saves without highways (auto-set from whether this save
+contains any)'><input type='checkbox'
 id='opphw' {"checked" if frames.has_highways else ""}>
-use highways</label></div>
+use highways</label>
+&nbsp;<label for='opphwv' title='average speed on local ring highways
+(they run ~6&ndash;14 km/s depending on the sector)'>at km/s:</label>
+<input type='number' id='opphwv' min='1' max='20' step='1' value='10'
+       style='width:60px;background:#2a2a2a;color:{DARK_FG};
+       border:1px solid #555;padding:4px'></div>
 <div class='oprow'><label title='treat your stations as willing to
 export their ENTIRE cargo stock of each ware they sell, not just the
 manager&apos;s listed surplus — reveals lanes the game currently
@@ -1170,10 +1193,12 @@ gate positions (S/M ships may take a highway-favouring route)'>Distance
 km</th><th>Trip profit</th>
 <th title='estimated one-way trip time for the picked ship: real route
 length at the travel drive ratio &times; loadout travel speed (S/M on
-highways at 10 km/s when enabled) plus the flat dock time'>Time</th>
+highways at the set highway speed when enabled) plus the flat dock
+time'>Time</th>
 <th title='trip profit / trip time for the picked ship: real route
 length at the travel drive ratio &times; loadout travel speed, S/M on
-local highways at 10 km/s average, plus the flat dock time'>Cr/h</th><th>Depth m&sup3;</th>
+local highways at the set highway speed, plus the flat dock
+time'>Cr/h</th><th>Depth m&sup3;</th>
 <th title='depth-capped total profit of the whole lane at quoted
 prices'>Depth Cr</th></tr></thead>
 </table>
@@ -1209,7 +1234,7 @@ const LAYOUT = () => ({{
 const CFG = {{displaylogo:false}};
 function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 // ---- trade opportunities ----
-let HOLD = 0;     // cargo hold m³ for the per-trip what-if (0 = unset)
+let HOLD = 0;     // picked ship's cargo hold m³ (0 = no ship picked)
 let SHIP = null;  // picked player ship: cls/cargo/speed (speed in m/s)
 // reserve-stock mode swaps in the rdu/rdm3/rtotal depths (player
 // sellers offering their whole cargo stock) and reveals ro lanes
@@ -1231,16 +1256,20 @@ function tripProfit(r) {{
 }}
 // one-way trip: plain-space legs at the travel-drive-ratio fraction
 // of the loadout travel speed (0.9 default, validated against logged
-// trader runs with true gate geometry), highway-sector legs at an
-// assumed 10 km/s average for S/M, plus the flat dock/transfer/undock
-// overhead from the control. S/M ships take the highway-favouring
-// route (kps/khs) when it differs from the km-shortest one
+// trader runs with true gate geometry), highway-sector legs at the
+// set average highway speed for S/M, plus the flat dock/transfer/
+// undock overhead from the control. S/M ships take the highway-
+// favouring route (kps/khs) when it differs from the km-shortest one
 function cruise() {{
   const v = +document.getElementById('oppcruise').value;
   return (v > 0 && v <= 1) ? v : 0.9;
 }}
 function isSM() {{ return SHIP && (SHIP.cls === 'S' || SHIP.cls === 'M'); }}
 function useHW() {{ return document.getElementById('opphw').checked; }}
+function hwSpeed() {{  // m/s
+  const v = +document.getElementById('opphwv').value;
+  return (v > 0 ? v : 10) * 1000;
+}}
 function routeKm(r) {{
   if (isSM() && useHW() && r.kps !== undefined) return [r.kps, r.khs];
   return [r.kp, r.kh];
@@ -1253,7 +1282,7 @@ function dockSeconds() {{
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
   const v = cruise() * SHIP.speed;
-  const hwv = (isSM() && useHW()) ? 10000 : v;
+  const hwv = (isSM() && useHW()) ? hwSpeed() : v;
   const km = routeKm(r);
   return km[0] * 1000 / v + km[1] * 1000 / hwv + dockSeconds();
 }}
@@ -1387,7 +1416,7 @@ $('#opps tbody').on('click', 'tr', function() {{
     if (t !== null)
       h += " At " + fmt(SHIP.speed) + " m/s travel &times;" + cruise()
         + (isSM() && useHW() && km[1]
-           ? " (highways at 10 km/s)" : "")
+           ? " (highways at " + (hwSpeed() / 1000) + " km/s)" : "")
         + (dockSeconds() ? " + " + fmtMin(dockSeconds()) + " docking"
            : "")
         + " &asymp; <b>" + fmtMin(t) + "</b> per trip &rarr; <b>"
@@ -1410,17 +1439,24 @@ SHIPS.forEach((s, i) => shipSel.appendChild(
     + ' m³' + (s.speed ? ', ' + fmt(s.speed) + ' m/s travel' : '')
     + ')', i)));
 function oppRedraw() {{ opps.rows().invalidate('data').draw(false); }}
+// hold and speed are read-only functions of the picked ship
+function updShipInfo() {{
+  document.getElementById('opphold').innerHTML =
+    SHIP ? fmt(SHIP.cargo) + ' m&sup3;' : '&mdash;';
+  document.getElementById('oppspeed').innerHTML =
+    SHIP && SHIP.speed
+      ? fmt(SHIP.speed) + ' m/s (&asymp;' + fmt(cruise() * SHIP.speed)
+        + ' m/s effective)'
+      : '&mdash;';
+}}
 shipSel.addEventListener('change', () => {{
   SHIP = SHIPS[+shipSel.value] || null;
-  document.getElementById('opphold').value = SHIP ? SHIP.cargo : '';
   HOLD = SHIP ? SHIP.cargo : 0;
+  updShipInfo();
   oppRedraw();
 }});
-// a manual hold tweak keeps the picked ship's speed/class
-document.getElementById('opphold').addEventListener('input', e => {{
-  HOLD = +e.target.value || 0;
-  oppRedraw();
-}});
+document.getElementById('oppcruise')
+  .addEventListener('input', updShipInfo);
 document.getElementById('oppjumps').addEventListener(
   'input', () => opps.draw());
 document.getElementById('oppdepth').addEventListener('input', () => {{
@@ -1428,7 +1464,7 @@ document.getElementById('oppdepth').addEventListener('input', () => {{
     fmt(oppMinCr()) + ' Cr';
   opps.draw();
 }});
-['oppdock', 'oppdockl', 'oppcruise'].forEach(id =>
+['oppdock', 'oppdockl', 'oppcruise', 'opphwv'].forEach(id =>
   document.getElementById(id).addEventListener('input', oppRedraw));
 document.getElementById('opphw').addEventListener('change', oppRedraw);
 document.getElementById('oppreserve').addEventListener('change', oppRedraw);
