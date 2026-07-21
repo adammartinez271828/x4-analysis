@@ -237,19 +237,32 @@ spots, so nothing ever makes contact and they never respawn. Idle fields
 (Avarice, Third Redemption nividium) sit empty forever for the same reason —
 no miner works them.
 
-### Aside: the encyclopedia shows LIVE yield, with a fully-depleted fallback
+### Aside: the encyclopedia is a live rendering of what's mineable NOW
 
-The in-game map/encyclopedia resource figures are the **live** per-sector
-yields, not the template capacities — verified against Third Redemption
-(save_008): ore 116k, ice 155k, methane 259k all matched the summed live
-`yield` to the digit. **[OBS]** The **exception**: a resource that is
-**fully** mined out (live sum 0) displays its **nominal capacity** instead of
-0 (nividium showed 5,000 while the field was at true 0). So the UI reflects
-real depletion — except it cannot distinguish "full" from "bone dry" for a
-resource at exactly zero, which is precisely the case where the live `<area>`
-yields in the save are the only ground truth. This is also why a mining ship
-will fly to a "full-looking" but actually-empty field: its AI trusts the
-same potential figure.
+The map/encyclopedia resource figures are not template capacities and not the
+raw stored yields — they are a **live rendering of what is actually mineable
+in the sector right now**, computed **per area**:
+
+- a partially-mined area contributes its **live `yield`**;
+- an **empty area past its respawn timer (eligible)** contributes its **full
+  capacity** — because it *will* respawn to that the moment a miner touches it;
+- an **empty area not yet eligible** contributes **0**.
+
+**[OBS]** Verified: Third Redemption's ore 116k / ice 155k / methane 259k
+matched the summed live yields to the digit (all partial areas), and its
+overdue nividium showed 500 (one eligible-empty area at cap). The clincher is
+Pious Mists XI — **two** empty medium nividium areas (5,000 cap each), yet the
+encyclopedia showed **5,000, not 10,000**: only the **eligible** area was
+counted at full; the not-yet-eligible one contributed **0**.
+
+So the figure is effectively **"how much a miner could pull right now"** —
+live resource plus eligible areas that respawn on contact — and it is accurate
+for exactly that. The catch: an eligible-empty area displays as *full* while
+the save stores it at **0**, so you cannot tell a genuinely-full area from an
+eligible-empty one from the UI alone; only the live `<area>` yields do. It is
+also why a mining ship confidently flies to a "full-looking" eligible field
+and succeeds — the respawn fires on its arrival (this is exactly what the
+Pious Mists XI Drill did).
 
 ## Rates and "extraction" — what the numbers do and don't mean
 
@@ -460,9 +473,12 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
 - **Confirmed by experiment**: an area 1 h past `starttime`, empty, respawned
   to its full 5,000 the instant a player Drill mined it — which took 980 in the
   same moment (4,020 left). Presence alone did nothing until mining contact.
-- **The encyclopedia shows LIVE yields** (ore 116k, ice 155k matched the save
-  to the digit) — **except** a fully-mined-out resource shows its capacity
-  instead of 0, so you can't tell "full" from "empty" for a resource at zero.
+- **The encyclopedia is a live rendering of what's *mineable now*** — live
+  yields of partial areas + empty-but-eligible areas at full capacity (they
+  respawn on contact); not-yet-eligible empty areas count 0. Pious Mists XI's
+  two empty nividium areas showed **5,000, not 10,000** — only the eligible
+  one counted. So an eligible-empty area reads as full though the save stores
+  0; only the `<area>` yields tell them apart.
 - **Only the per-(sector, ware) total is trackable across saves** — area ids
   remap and areas relocate on respawn, so individual areas can't be followed.
 
