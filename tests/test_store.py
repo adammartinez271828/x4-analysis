@@ -84,6 +84,15 @@ def test_ship_engine_rows(conn):
     assert rows == [("[0x30]", "engine_arg_s_travel_01_mk3_macro", 2)]
 
 
+def test_resource_rows_carry_replenish_classes(conn):
+    rows = conn.execute(
+        "SELECT ware, yield, level, speed FROM resource ORDER BY ware"
+    ).fetchall()
+    # the fixture's silicon area has no gatherspeed token -> NULL
+    assert rows == [("ore", 1000.0, "high", "slow"),
+                    ("silicon", 200.0, "low", None)]
+
+
 def test_datavault_rows(conn):
     rows = conn.execute(
         "SELECT object_id, macro, code, knownto, sector_macro, sx, sz,"

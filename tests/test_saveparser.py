@@ -207,8 +207,8 @@ def test_fixture_parse(save_file: Path) -> None:
     assert d.subordinate_conns == [("[0x20]", "[0xC1]")]
 
     assert d.resources == [
-        ("cluster_01_sector001_macro", "ore", 1000.0),
-        ("cluster_01_sector001_macro", "silicon", 200.0),
+        ("cluster_01_sector001_macro", "ore", 1000.0, "high", "slow"),
+        ("cluster_01_sector001_macro", "silicon", 200.0, "low", ""),
     ]
 
     assert d.people == {("[0x30]", "service"): 2, ("[0x30]", "passenger"): 1}

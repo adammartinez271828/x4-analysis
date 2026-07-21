@@ -691,6 +691,23 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
     return list(rows.values())
 
 
+def extract_regionyields(gf: GameFiles) -> tuple[list[list], list[list]]:
+    """libraries/regionyields.xml: quantifies the replenishment encoded in
+    a save resource area's yieldid suffix ("…_<level>_<gatherspeed>").
+    Returns (yield rows: level, ware, max yield, respawndelay;
+    gatherspeed rows: id, factor, rating)."""
+    root = etree.fromstring(gf.read_bytes("libraries/regionyields.xml"))
+    yrows = []
+    for y in root.findall(".//yields/yield"):
+        level = y.get("id", "")
+        for w in y.findall("ware"):
+            yrows.append([level, w.get("id", ""), w.get("yield", "0"),
+                          w.get("respawndelay", "0")])
+    srows = [[s.get("id", ""), s.get("factor", "1"), s.get("rating", "0")]
+             for s in root.findall(".//gatherspeeds/gatherspeed")]
+    return yrows, srows
+
+
 def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     game_dir = cfg.resolve_game_dir()
     extensions = None
@@ -795,6 +812,19 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
           e.get("mk") or "", e.get("forward") or 0,
           (e.get("travel") or {}).get("thrust", 0) or 0]
          for e in extract_engines(gf)],
+    )
+
+    log("Extracting region yields (resource replenishment)")
+    yrows, srows = extract_regionyields(gf)
+    _write_csv(
+        cfg.data_dir / "regionyields.csv",
+        ["level", "ware", "yield", "respawndelay"],
+        yrows,
+    )
+    _write_csv(
+        cfg.data_dir / "gatherspeeds.csv",
+        ["id", "factor", "rating"],
+        srows,
     )
 
     log("Done.")

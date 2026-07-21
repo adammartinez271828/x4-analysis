@@ -23,10 +23,12 @@ from lxml import etree
 _UNIVERSE_CLASSES = ("cluster", "sector", "station", "buildstorage")
 _SHIP_RE = re.compile(r"^ship_")
 
-# ware name embedded in a v9 resource-area yieldid, e.g.
-# "sphere_large_ore_high_slow" -> "ore"
+# ware name + yield level + gatherspeed embedded in a v9 resource-area
+# yieldid: "sphere_large_ore_high_slow" -> ("ore", "high", "slow"); both
+# suffix tokens are optional ("sphere_medium_silicon_low" has no speed)
 _YIELD_WARE_RE = re.compile(
-    r"_(ore|silicon|nividium|ice|hydrogen|helium|methane|rawscrap|scrap)(?:_|$)"
+    r"_(ore|silicon|nividium|ice|hydrogen|helium|methane"
+    r"|rawkhaakscrap|rawscrap|scrap)(?:_([a-z]+))?(?:_([a-z]+))?$"
 )
 
 # data vaults, matched on macro: the classes differ (regular vaults are
@@ -64,7 +66,7 @@ class SaveData:
     # equipment in planned module loadouts: (entry_id, equipment_macro)
     module_upgrades: list = field(default_factory=list)
     npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
-    resources: list = field(default_factory=list)      # (sector_macro, ware, yield)
+    resources: list = field(default_factory=list)      # (sector_macro, ware, yield, level, speed)
     cargo: list = field(default_factory=list)          # (object_id, ware, amount)
     # materials missing for builds (<insufficient>/<shortage> under
     # <build><resources>); host is "" for free-floating build storages.
@@ -433,6 +435,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         d.resources.append((
                             sector_macro_stack[-1], m.group(1),
                             float(elem.get("yield", 0) or 0),
+                            m.group(2) or "", m.group(3) or "",
                         ))
 
             elif tag == "log" and "economylog" in tag_stack:

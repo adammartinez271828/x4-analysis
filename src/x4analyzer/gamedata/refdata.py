@@ -49,6 +49,12 @@ class RefData:
     gates: pd.DataFrame      # sector pairs joined by a gate/accelerator
     textdb: TextDB
 
+    # resource replenishment (regionyields.xml): (level, ware) -> (max
+    # yield, respawndelay); gatherspeed id -> factor. Empty when the CSVs
+    # predate the replenishment extract
+    region_yields: dict
+    gatherspeeds: dict
+
     # owner id -> short code / display name / colour
     faction_short: dict
     faction_name: dict
@@ -133,6 +139,16 @@ def load_refdata(data_dir: Path) -> RefData:
     if "drag_forward" not in ships.columns:
         ships["drag_forward"] = pd.NA
 
+    ry = _optional("regionyields.csv",
+                   ["level", "ware", "yield", "respawndelay"])
+    region_yields = {
+        (str(r["level"]), str(r["ware"])): (float(r["yield"]),
+                                            float(r["respawndelay"]))
+        for _, r in ry.iterrows()}
+    gs = _optional("gatherspeeds.csv", ["id", "factor", "rating"])
+    gatherspeeds = {str(r["id"]): float(r["factor"])
+                    for _, r in gs.iterrows()}
+
     faction_short: dict[str, str] = {}
     faction_name: dict[str, str] = {}
     faction_colour: dict[str, str] = {}
@@ -159,6 +175,7 @@ def load_refdata(data_dir: Path) -> RefData:
         ships=ships, engines=engines, highways=highways,
         modules=modules, recipes=recipes,
         modcaps=modcaps, gates=gates, textdb=textdb,
+        region_yields=region_yields, gatherspeeds=gatherspeeds,
         faction_short=faction_short, faction_name=faction_name,
         faction_colour=faction_colour, ware_name=ware_name,
         economy_wares=economy_wares,

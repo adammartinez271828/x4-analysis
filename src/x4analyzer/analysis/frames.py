@@ -183,14 +183,32 @@ def build_frames(save: SaveData, ref: RefData,
 
     resource_cols: list[str] = []
     res = _read(conn, f"""
-        SELECT sector_macro AS macro, ware, yield FROM resource
-        WHERE save_id = {_CUR} ORDER BY rowid""")
+        SELECT sector_macro AS macro, ware, yield, level, speed
+        FROM resource WHERE save_id = {_CUR} ORDER BY rowid""")
     if not res.empty:
         pivot = res.pivot_table(index="macro", columns="ware", values="yield",
                                 aggfunc="sum", fill_value=0.0).reset_index()
         resource_cols = [c for c in pivot.columns if c != "macro"]
         sectors = sectors.merge(pivot, on="macro", how="left")
         sectors[resource_cols] = sectors[resource_cols].fillna(0.0)
+        # replenishment rate per area from the yieldid classes: the level's
+        # max yield / respawndelay, scaled by the gatherspeed factor
+        # (abstract units — only relative magnitudes are meaningful). Zero
+        # when the reference CSVs predate the replenishment extract
+        def _rate(ware, level, speed):
+            ymax, delay = ref.region_yields.get(
+                (str(level), str(ware)), (0.0, 0.0))
+            if not delay:
+                return 0.0
+            return ymax / delay * ref.gatherspeeds.get(str(speed), 1.0)
+        res["rate"] = [_rate(w, lv, sp) for w, lv, sp in
+                       zip(res["ware"], res["level"], res["speed"])]
+        rep = res.pivot_table(index="macro", columns="ware", values="rate",
+                              aggfunc="sum", fill_value=0.0).reset_index()
+        rep.columns = ["macro"] + [f"rep.{c}" for c in rep.columns[1:]]
+        sectors = sectors.merge(rep, on="macro", how="left")
+        rep_cols = [c for c in sectors.columns if c.startswith("rep.")]
+        sectors[rep_cols] = sectors[rep_cols].fillna(0.0)
 
     # ---- player-owned objects (R 417-420) ---------------------------------
     log("Preparing player owned objects -> playerowned")

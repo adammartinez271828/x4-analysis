@@ -356,6 +356,16 @@ def test_payload_resources_aligned(payload):
     by_macro = dict(zip((s["macro"] for s in payload["sectors"]),
                         ore["yields"]))
     assert by_macro == {"sec_a1": 100.0, "sec_b1": 0.0, "sec_b2": 50.0}
+    assert "rep" not in ore   # frames carried no replenishment columns
+
+
+def test_payload_replenish_aligned():
+    frames = _frames()
+    frames.sectors["rep.ore"] = [4166.67, 0.0, 833.33]
+    p = _payload(frames, _ref(), _cfg())
+    (ore,) = p["resources"]
+    by_macro = dict(zip((s["macro"] for s in p["sectors"]), ore["rep"]))
+    assert by_macro == {"sec_a1": 4166.67, "sec_b1": 0.0, "sec_b2": 833.33}
 
 
 def test_payload_sunlight_first_and_player_faction():

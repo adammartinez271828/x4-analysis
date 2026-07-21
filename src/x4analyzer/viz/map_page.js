@@ -379,14 +379,15 @@
   });
 
   // resource overlay: one hidden group per resource; each sector with a
-  // non-zero yield gets a gauge traced up the LEFT edges of its hex.
-  // The covered fraction is the sector's percentile rank among the
-  // visible factions' NON-ZERO sectors (zero-yield sectors don't count),
-  // so the median sector fills exactly the bottom-left edge, the 25th
-  // percentile half of it, the 75th reaches halfway up the upper-left
-  // edge. Length encodes rank; the whole-hex tint that washed out busy
-  // sectors is gone
-  var resourceG = {};   // resource id -> {g, paths, yields, colour}
+  // non-zero yield gets a gauge traced up the LEFT edges of its hex, and
+  // (when the reference data carries replenishment) a second gauge up
+  // the RIGHT edges for the replenish rate. The covered fraction is the
+  // sector's percentile rank among ALL non-zero sectors regardless of
+  // faction selection (zero sectors don't count), so the median sector
+  // fills exactly the bottom edge of its side, the 25th percentile half
+  // of it, the 75th reaches halfway up the top edge. Length encodes
+  // rank; the whole-hex tint that washed out busy sectors is gone
+  var resourceG = {};   // id -> {g, paths, rpaths, yields, rep, colour}
   var resColourIdx = 0;
   D.resources.forEach(function (r) {
     // sunlight gets a fixed sun-yellow; the save resources keep their
@@ -399,45 +400,69 @@
       return el("path", {fill: "none", stroke: colour,
                          "stroke-opacity": 0.95}, g);
     });
-    resourceG[r.id] = {g: g, paths: paths, yields: r.yields,
-                       colour: colour};
+    var rpaths = r.rep ? D.sectors.map(function () {
+      return el("path", {fill: "none", stroke: colour,
+                         "stroke-opacity": 0.95,
+                         "stroke-dasharray": "3,2"}, g);
+    }) : null;
+    resourceG[r.id] = {g: g, paths: paths, rpaths: rpaths,
+                       yields: r.yields, rep: r.rep, colour: colour};
   });
+
+  // mid-rank percentile of v among sorted non-zero values (ties share
+  // their average rank); vals must be sorted ascending
+  function pctile(v, vals) {
+    var lo = 0, eq = 0;
+    vals.forEach(function (x) { if (x < v) lo++; else if (x === v) eq++; });
+    return (lo + eq / 2) / vals.length;
+  }
+  function nonzero(arr) {
+    var vals = arr.filter(function (v) { return v > 0; });
+    vals.sort(function (a, b) { return a - b; });
+    return vals;
+  }
+
+  // gauge path up one side of sector i's hex: fraction p of the two
+  // edges from the bottom vertex over the side corner to the top vertex
+  // (y-down; side -1 = left, +1 = right), inset clear of the faction
+  // border stroke drawn above this layer
+  function edgeGauge(i, p, side) {
+    var s = D.sectors[i];
+    var sz = (s.big ? C.big : C.small) - 2 * C.border;
+    var hn = sz / 2, hi = sz / 4, ha = sz * R3_4;
+    var B = [s.x + side * hi, s.y + ha], M = [s.x + side * hn, s.y],
+        T = [s.x + side * hi, s.y - ha];
+    function lerp(u, w, t) {
+      return (u[0] + (w[0] - u[0]) * t).toFixed(1) + ","
+           + (u[1] + (w[1] - u[1]) * t).toFixed(1);
+    }
+    var d = "M" + lerp(B, B, 0);
+    d += p <= 0.5 ? "L" + lerp(B, M, p * 2)
+                  : "L" + lerp(M, M, 0) + "L" + lerp(M, T, p * 2 - 1);
+    return d;
+  }
 
   function renormalize() {
     if (!state.resource) return;
     var res = resourceG[state.resource];
-    var vals = [];
-    res.yields.forEach(function (v, i) {
-      if (v > 0 && state.factions[D.sectors[i].owner]) vals.push(v);
-    });
-    vals.sort(function (a, b) { return a - b; });
+    var vals = nonzero(res.yields);
+    var rvals = res.rep ? nonzero(res.rep) : [];
     res.paths.forEach(function (path, i) {
       var v = res.yields[i];
-      if (v <= 0 || !vals.length || !state.factions[D.sectors[i].owner]) {
+      if (v <= 0 || !vals.length) {
         path.style.display = "none";
-        return;
+      } else {
+        path.style.display = "";
+        path.setAttribute("d", edgeGauge(i, pctile(v, vals), -1));
       }
-      path.style.display = "";
-      // mid-rank percentile (ties share their average rank)
-      var lo = 0, eq = 0;
-      vals.forEach(function (x) { if (x < v) lo++; else if (x === v) eq++; });
-      var p = (lo + eq / 2) / vals.length;
-      // left-edge chain of the sector hex (y-down): bottom-left vertex
-      // -> left corner -> top-left vertex, inset clear of the faction
-      // border stroke drawn above this layer
-      var s = D.sectors[i];
-      var sz = (s.big ? C.big : C.small) - 2 * C.border;
-      var hn = sz / 2, hi = sz / 4, ha = sz * R3_4;
-      var B = [s.x - hi, s.y + ha], L = [s.x - hn, s.y],
-          T = [s.x - hi, s.y - ha];
-      function lerp(u, w, t) {
-        return (u[0] + (w[0] - u[0]) * t).toFixed(1) + ","
-             + (u[1] + (w[1] - u[1]) * t).toFixed(1);
+      if (!res.rpaths) return;
+      var rv = res.rep[i];
+      if (rv <= 0 || !rvals.length) {
+        res.rpaths[i].style.display = "none";
+      } else {
+        res.rpaths[i].style.display = "";
+        res.rpaths[i].setAttribute("d", edgeGauge(i, pctile(rv, rvals), 1));
       }
-      var d = "M" + lerp(B, B, 0);
-      d += p <= 0.5 ? "L" + lerp(B, L, p * 2)
-                    : "L" + lerp(L, L, 0) + "L" + lerp(L, T, p * 2 - 1);
-      path.setAttribute("d", d);
     });
   }
 
@@ -1065,8 +1090,15 @@
     var resInner = D.resources.length
       ? D.resources.map(function (r) {
           var v = Math.round(r.yields[i]);
-          return "<div class='pstat'>" + esc(r.name) + " <small>" +
-            (r.id === "sunlight" ? v + "%" : v) + "</small></div>";
+          var row = "<div class='pstat'>" + esc(r.name) + " <small>" +
+            (r.id === "sunlight" ? v + "%" : v.toLocaleString("en-US"));
+          if (r.rep && r.rep[i] > 0)
+            row += " &middot; <span title='replenishment rate: percentile"
+              + " among sectors holding this resource (P50 = median)'>"
+              + "replenish P"
+              + Math.round(pctile(r.rep[i], nonzero(r.rep)) * 100)
+              + "</span>";
+          return row + "</small></div>";
         }).join("")
       : "<div class='pstat'><small>None</small></div>";
     h += sec("resources", "Resources", resInner);

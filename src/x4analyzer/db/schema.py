@@ -16,7 +16,8 @@ must load, never fail. FK comments are documentation only.
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "5"
+# v6: resource rows carry the yieldid's level/speed tokens (replenishment)
+SCHEMA_VERSION = "6"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -212,7 +213,9 @@ TABLES: dict[str, str] = {
   save_id      INTEGER NOT NULL,
   sector_macro TEXT NOT NULL,
   ware         TEXT NOT NULL,
-  yield        REAL
+  yield        REAL,
+  level        TEXT,
+  speed        TEXT
 )""",
     "floating_ware": """CREATE TABLE IF NOT EXISTS floating_ware (
   save_id      INTEGER NOT NULL,

@@ -688,14 +688,25 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
                        for s in sectors],
         })
     if frames.resource_cols:
+        rep_cols = [f"rep.{c}" for c in frames.resource_cols
+                    if f"rep.{c}" in frames.sectors.columns]
         res_raw = plot_sectors.merge(
-            frames.sectors[["macro"] + frames.resource_cols],
+            frames.sectors[["macro"] + frames.resource_cols + rep_cols],
             on="macro", how="left")
         for col in frames.resource_cols:
-            resources.append({
+            rec = {
                 "id": col, "name": ref.ware_name.get(col, col),
                 "yields": [float(v) for v in res_raw[col].fillna(0.0)],
-            })
+            }
+            # replenishment rates (abstract units; the client renders
+            # percentile ranks). Omitted when the reference CSVs predate
+            # the replenishment extract, so the right gauge simply
+            # doesn't draw
+            rc = f"rep.{col}"
+            if rc in res_raw.columns and res_raw[rc].fillna(0.0).gt(0).any():
+                rec["rep"] = [round(float(v), 2)
+                              for v in res_raw[rc].fillna(0.0)]
+            resources.append(rec)
 
     # the player is always a faction (sector ownership arrives later in a
     # playthrough; the legend entry and colour must exist from the start),

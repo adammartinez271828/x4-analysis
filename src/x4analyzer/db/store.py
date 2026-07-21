@@ -308,9 +308,9 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for oid, order, is_default, state in save.orders])
 
         conn.executemany(
-            "INSERT INTO resource VALUES (?,?,?,?)",
-            [(save_id, _low(sector), ware, yld)
-             for sector, ware, yld in save.resources])
+            "INSERT INTO resource VALUES (?,?,?,?,?,?)",
+            [(save_id, _low(sector), ware, yld, _s(level), _s(speed))
+             for sector, ware, yld, level, speed in save.resources])
 
         conn.executemany(
             "INSERT INTO floating_ware VALUES (?,?,?,?)",
