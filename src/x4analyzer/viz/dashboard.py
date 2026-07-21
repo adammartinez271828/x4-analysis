@@ -1,13 +1,17 @@
 """Assembles the dashboard HTML.
 
-Widgets are standalone files under output/files/ shown in iframes, organised
-into tabs (Map / Trade / Trade Breakdown / Universe / Fleet / Tables).
-Iframes in inactive tabs carry only a data-src and are loaded the first time
-their tab is opened, so the initial page load stays light.
+Widgets are standalone files under output/files/ shown in iframes,
+organised into five question-shaped top-level tabs with sub-tab pills
+(Map; Trade: how's my trading; Empire: what needs my attention; Market:
+galaxy economy & opportunities; Universe: galaxy stats). Iframes carry
+only a data-src until their sub-tab is first opened, so the initial page
+load stays light. The active view persists in sessionStorage and in the
+URL hash (#trade/history), so views are bookmarkable.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..cli import log
@@ -39,8 +43,17 @@ nav button{{background:#2a2a2a;color:{DARK_MUTED};border:1px solid #444;
 nav button:hover{{color:{DARK_FG};background:#333;}}
 nav button.active{{background:{DARK_BG};color:{DARK_FG};font-weight:bold;
   border-bottom:1px solid {DARK_BG};margin-bottom:-1px;}}
-section{{display:none;padding:12px 16px;}}
+section{{display:none;padding:0 16px 12px 16px;}}
 section.active{{display:block;}}
+.subnav{{display:flex;gap:8px;padding:10px 0;}}
+.subnav button{{background:none;color:{DARK_MUTED};border:1px solid #444;
+  border-radius:14px;padding:4px 14px;font-size:13px;cursor:pointer;}}
+.subnav button:hover{{color:{DARK_FG};border-color:#666;}}
+.subnav button.active{{background:#3a3a3a;color:{DARK_FG};font-weight:bold;
+  border-color:#777;}}
+.subpane{{display:none;padding-top:8px;}}
+.subpane.active{{display:block;}}
+section.nosub .subpane{{padding-top:12px;}}
 """
 
 _JS = """
@@ -53,20 +66,66 @@ window.addEventListener('message', e => {
   });
 });
 
-function showTab(id) {
-  document.querySelectorAll('nav button').forEach(
-    b => b.classList.toggle('active', b.dataset.tab === id));
-  document.querySelectorAll('section').forEach(s => {
-    const on = s.id === id;
-    s.classList.toggle('active', on);
-    if (on) s.querySelectorAll('iframe[data-src]').forEach(f => {
-      f.src = f.dataset.src; f.removeAttribute('data-src');
-    });
+// view state: chosen sub-tab per tab survives reloads (sessionStorage) and
+// the active view is addressable as #tab/sub for bookmarking
+let state = {};
+try { state = JSON.parse(sessionStorage.getItem('x4tabs') || '{}'); }
+catch (e) { state = {}; }
+
+function loadPane(pane) {
+  pane.querySelectorAll('iframe[data-src]').forEach(f => {
+    f.src = f.dataset.src; f.removeAttribute('data-src');
   });
 }
+
+function showSub(section, subId, remember) {
+  let target = null;
+  section.querySelectorAll('.subpane').forEach(p => {
+    if (p.dataset.sub === subId) target = p;
+  });
+  if (!target) target = section.querySelector('.subpane');
+  section.querySelectorAll('.subnav button').forEach(
+    b => b.classList.toggle('active', b.dataset.sub === target.dataset.sub));
+  section.querySelectorAll('.subpane').forEach(
+    p => p.classList.toggle('active', p === target));
+  loadPane(target);
+  if (remember) {
+    state[section.dataset.tab] = target.dataset.sub;
+    try { sessionStorage.setItem('x4tabs', JSON.stringify(state)); }
+    catch (e) { /* best-effort */ }
+  }
+  history.replaceState(null, '',
+    '#' + section.dataset.tab +
+    (target.dataset.sub ? '/' + target.dataset.sub : ''));
+}
+
+function showTab(tabId, subId) {
+  let target = null;
+  document.querySelectorAll('section').forEach(s => {
+    if (s.dataset.tab === tabId) target = s;
+  });
+  if (!target) target = document.querySelector('section');
+  document.querySelectorAll('nav button').forEach(
+    b => b.classList.toggle('active', b.dataset.tab === target.dataset.tab));
+  document.querySelectorAll('section').forEach(
+    s => s.classList.toggle('active', s === target));
+  showSub(target, subId || state[target.dataset.tab] || '', !!subId);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('nav button').forEach(
     b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  document.querySelectorAll('section').forEach(s => {
+    s.querySelectorAll('.subnav button').forEach(
+      b => b.addEventListener('click', () => showSub(s, b.dataset.sub, true)));
+  });
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash) {
+    const [t, sub] = hash.split('/');
+    showTab(t, sub);
+  } else {
+    showTab(document.querySelector('section').dataset.tab);
+  }
 });
 """
 
@@ -77,14 +136,18 @@ def _iframe(src: str, style: str, lazy: bool) -> str:
             'allowfullscreen allow="fullscreen"></iframe>')
 
 
-def _categorize_sunburst(src: str) -> str:
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _categorize_sunburst(src: str) -> tuple[str, str]:
     name = src.lower()
     if "fleet composition" in name:
-        return "Fleet"
+        return ("Empire", "Fleet")
     if ("resource" in name or "station modules" in name
             or "hull mass" in name or "ships per faction" in name):
-        return "Universe"
-    return "Trade Breakdown"
+        return ("Universe", "Overview")
+    return ("Trade", "Breakdown")
 
 
 def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
@@ -103,61 +166,76 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     # the map page pans/zooms inside itself, so its iframe just fills the
     # viewport instead of taking the scene's fixed size
     map_style = "width:100%;height:calc(100vh - 118px);min-height:600px;"
-    tabs: dict[str, list[str]] = {
-        "Map": [_iframe(map_src, map_style, lazy=False)],
-        "Trade": [], "Trade Breakdown": [], "Trade History": [],
-        "Station P&L": [], "Market": [], "Audit": [], "Build Advisor": [],
-        "Universe": [], "Fleet": [], "Tables": [],
+
+    # tab -> sub-tab -> widget html. "" = no sub-nav (single-view tab).
+    # Grouped by the question being asked, not the chart type: Trade =
+    # my trading business, Empire = what needs my attention, Market =
+    # the galaxy economy, Universe = galaxy stats.
+    tabs: dict[str, dict[str, list[str]]] = {
+        "Map": {"": [_iframe(map_src, map_style, lazy=False)]},
+        "Trade": {"Charts": [], "Breakdown": [], "History": [],
+                  "Earnings": []},
+        "Empire": {"Audit": [], "Station P&L": [], "Fleet": []},
+        "Market": {"Overview": [], "Build Advisor": []},
+        "Universe": {"Overview": [], "Contested": []},
     }
 
     log("Generating time-series charts")
     for src in build_charts(frames, ref, files_dir, guid):
-        tabs["Trade"].append("<p>" + _iframe(src, wide, lazy=True) + "</p>")
+        tabs["Trade"]["Charts"].append(
+            "<p>" + _iframe(src, wide, lazy=True) + "</p>")
 
     log("Generating trade history browser")
     history = build_trade_history(frames, files_dir, guid)
     if history:
-        tabs["Trade History"].append(
+        tabs["Trade"]["History"].append(
             "<p>" + _iframe(history, "width:100%;height:1400px;", lazy=True)
             + "</p>")
 
     log("Generating station P&L")
     pnl = build_pnl(frames, ref, cfg, files_dir, guid)
     if pnl:
-        tabs["Station P&L"].append(
+        tabs["Empire"]["Station P&L"].append(
             "<p>" + _iframe(pnl, "width:100%;height:1300px;", lazy=True)
             + "</p>")
 
     log("Generating empire audit")
     audit = build_audit(frames, ref, cfg, files_dir, guid)
     if audit:
-        tabs["Audit"].append(
+        tabs["Empire"]["Audit"].append(
             "<p>" + _iframe(audit, "width:100%;height:1600px;", lazy=True)
             + "</p>")
 
     log("Generating build advisor")
     advisor = build_advisor(frames, ref, cfg, files_dir, guid)
     if advisor:
-        tabs["Build Advisor"].append(
+        tabs["Market"]["Build Advisor"].append(
             "<p>" + _iframe(advisor, "width:100%;height:1600px;", lazy=True)
             + "</p>")
 
     log("Generating market overview")
     market = build_market(frames, ref, cfg, files_dir, guid)
     if market:
-        tabs["Market"].append(
+        tabs["Market"]["Overview"].append(
             "<p>" + _iframe(market, "width:100%;height:1600px;", lazy=True)
             + "</p>")
 
     log("Generating sunburst plots")
     for src in build_sunbursts(frames, ref, cfg, files_dir, guid):
-        tabs[_categorize_sunburst(src)].append(_iframe(src, half, lazy=True))
+        tab, sub = _categorize_sunburst(src)
+        tabs[tab][sub].append(_iframe(src, half, lazy=True))
 
     log("Generating tables")
     for src in build_tables(frames, ref, cfg, files_dir, guid):
-        tabs["Tables"].append("<p>" + _iframe(src, table, lazy=True) + "</p>")
+        tab, sub = (("Universe", "Contested") if "contested" in src.lower()
+                    else ("Trade", "Earnings"))
+        tabs[tab][sub].append(
+            "<p>" + _iframe(src, table, lazy=True) + "</p>")
 
-    tabs = {name: content for name, content in tabs.items() if content}
+    # drop empty sub-tabs, then empty tabs (fresh saves lack e.g. history)
+    tabs = {name: {sub: c for sub, c in subs.items() if c}
+            for name, subs in tabs.items()}
+    tabs = {name: subs for name, subs in tabs.items() if subs}
 
     parts = ["<!DOCTYPE html><html><head><meta charset='utf-8'>",
              f"<title>X4 Analysis - {frames.player_faction_name}</title>",
@@ -169,12 +247,27 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
              "</header><nav>"]
     for i, name in enumerate(tabs):
         active = " class='active'" if i == 0 else ""
-        parts.append(f"<button{active} data-tab='tab{i}'>{name}</button>")
+        parts.append(
+            f"<button{active} data-tab='{_slug(name)}'>{name}</button>")
     parts.append("</nav>")
-    for i, (name, content) in enumerate(tabs.items()):
-        active = " class='active'" if i == 0 else ""
-        parts.append(f"<section id='tab{i}'{active}>")
-        parts.extend(content)
+    for i, (name, subs) in enumerate(tabs.items()):
+        active = " active" if i == 0 else ""
+        nosub = " nosub" if len(subs) == 1 else ""
+        parts.append(f"<section class='tab{active}{nosub}' "
+                     f"data-tab='{_slug(name)}'>")
+        if len(subs) > 1:
+            parts.append("<div class='subnav'>")
+            for j, sub in enumerate(subs):
+                sactive = " class='active'" if j == 0 else ""
+                parts.append(f"<button{sactive} data-sub='{_slug(sub)}'>"
+                             f"{sub}</button>")
+            parts.append("</div>")
+        for j, (sub, content) in enumerate(subs.items()):
+            sactive = " active" if j == 0 else ""
+            parts.append(f"<div class='subpane{sactive}' "
+                         f"data-sub='{_slug(sub)}'>")
+            parts.extend(content)
+            parts.append("</div>")
         parts.append("</section>")
     parts.append("</body></html>")
 
