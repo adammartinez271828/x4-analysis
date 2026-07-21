@@ -94,6 +94,9 @@ class SaveData:
     # equipped engines: (ship_id, engine_macro) per engine component (all
     # ships; the store keeps player ships only — speed-from-loadout)
     ship_engines: list = field(default_factory=list)
+    # False when the save was started with local (ring) highways
+    # disabled: such saves contain no class="highway" components
+    has_highways: bool = False
 
 
 def _open_save(path: Path) -> IO[bytes]:
@@ -146,6 +149,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     cid = elem.get("id", "")
                     comp_stack.append([clazz, cid, elem.get("macro", ""),
                                        None])
+                    if clazz == "highway":
+                        d.has_highways = True
                     if _VAULT_RE.match(elem.get("macro", "").lower()):
                         # [comp_stack depth, unlocked, loot, blueprints]
                         vault_stack.append([len(comp_stack), 0, 0, []])

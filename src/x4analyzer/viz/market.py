@@ -1087,31 +1087,41 @@ excluded unless you untick the box.</p>
 </div>
 </details>
 <p>
-<label for='oppship'>Ship:</label><select id='oppship'></select>
+<label for='oppware'>Ware:</label><select id='oppware' style='max-width:200px'></select>
+&nbsp;&nbsp;<label for='oppship'>Ship:</label><select id='oppship'></select>
 &nbsp;<label for='opphold'>Cargo hold m&sup3;:</label>
 <input type='number' id='opphold' min='0' step='100' value=''
        style='width:90px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;&nbsp;<label for='oppjumps'>Max jumps:</label>
-<input type='number' id='oppjumps' min='0' value='5'
+<input type='number' id='oppjumps' min='0' value='20'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppdepth'>Min depth m&sup3;:</label>
-<input type='number' id='oppdepth' min='0' step='100' value='0'
-       style='width:90px;background:#2a2a2a;color:{DARK_FG};
-       border:1px solid #555;padding:4px'>
-&nbsp;&nbsp;<label for='oppdock' title='flat per-trip overhead: docking,
-cargo transfer (~15&ndash;30 s for an M once docked) and undocking at
-both endpoints'>Dock time S/M:</label>
+&nbsp;&nbsp;<label for='oppdepth' title='hide lanes whose
+depth-capped total profit at quoted prices is below this'>Min lane
+total:</label>
+<input type='range' id='oppdepth' min='0' max='100' value='0'
+       style='width:160px;vertical-align:middle'>
+<span id='oppdepth_lbl' class='note'>0 Cr</span>
+&nbsp;&nbsp;<span style='color:#9a9a9a' title='flat per-trip overhead:
+docking, cargo transfer and undocking at both endpoints'>Dock time
+(min):</span>
+&nbsp;<label for='oppdock' title='~15&ndash;30 s cargo transfer once an
+M is docked'>S/M</label>
 <input type='number' id='oppdock' min='0' step='0.5' value='2'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
 &nbsp;<label for='oppdockl' title='L/XL ships queue for piers and fly
 long docking approaches, and goods transfer takes ~60 s once docked,
-so their per-trip overhead is higher'>L/XL (min):</label>
+so their per-trip overhead is higher'>L/XL</label>
 <input type='number' id='oppdockl' min='0' step='0.5' value='5'
        style='width:60px;background:#2a2a2a;color:{DARK_FG};
        border:1px solid #555;padding:4px'>
+&nbsp;&nbsp;<label title='S/M ships ride local ring highways at an
+assumed 10 km/s average; untick for saves without highways (auto-set
+from whether this save contains any)'><input type='checkbox'
+id='opphw' {"checked" if frames.has_highways else ""}>
+use highways</label>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoplayer'>
 exclude player stations</label>
 &nbsp;&nbsp;<label><input type='checkbox' id='oppnoqt' checked>
@@ -1123,6 +1133,9 @@ exclude Quettanauts (barter only)</label>
 <th>Jumps</th><th title='profit per m&sup3; of hold per gate jump —
 a ship-independent distance proxy'>Cr/m&sup3;&middot;jump</th>
 <th>Depth m&sup3;</th><th>Trip profit</th>
+<th title='estimated one-way trip time for the picked ship: real route
+length at 90% of loadout travel speed (S/M on highways at 10 km/s when
+enabled) plus the flat dock time'>Time</th>
 <th title='trip profit / trip time for the picked ship: real route
 length, 90% of loadout travel speed, S/M on local highways at 10 km/s
 average, plus the flat dock time'>Cr/h</th><th>Lane total</th></tr></thead>
@@ -1172,8 +1185,9 @@ function tripProfit(r) {{
 // the highway-favouring route (kps/khs) when it differs from the
 // km-shortest one
 function isSM() {{ return SHIP && (SHIP.cls === 'S' || SHIP.cls === 'M'); }}
+function useHW() {{ return document.getElementById('opphw').checked; }}
 function routeKm(r) {{
-  if (isSM() && r.kps !== undefined) return [r.kps, r.khs];
+  if (isSM() && useHW() && r.kps !== undefined) return [r.kps, r.khs];
   return [r.kp, r.kh];
 }}
 function dockSeconds() {{
@@ -1184,7 +1198,7 @@ function dockSeconds() {{
 function tripSeconds(r) {{
   if (!SHIP || !SHIP.speed || r.kp === null) return null;
   const v = 0.9 * SHIP.speed;
-  const hwv = isSM() ? 10000 : v;
+  const hwv = (isSM() && useHW()) ? 10000 : v;
   const km = routeKm(r);
   return km[0] * 1000 / v + km[1] * 1000 / hwv + dockSeconds();
 }}
@@ -1210,10 +1224,16 @@ function endLabel(e) {{
     + " of trading credits'>barter</span>";
   return h;
 }}
+// min-lane-total slider: cubic curve up to the largest lane total
+const MAXTOTAL = Math.max(1, ...OPPS.map(r => r.total));
+function oppMinCr() {{
+  const pos = +document.getElementById('oppdepth').value;
+  return Math.round(MAXTOTAL * Math.pow(pos / 100, 3));
+}}
 const oppNum = (d, t) => t === 'display' ? fmt(d) : d;
 const opps = $('#opps').DataTable({{
   data: OPPS,
-  order: [[8, 'desc']], pageLength: 15,
+  order: [[12, 'desc']], pageLength: 15,
   columns: [
     {{data: 'wn'}},
     {{data: null, render: (d, t, r) => t === 'display' ? endLabel(r.s)
@@ -1237,6 +1257,14 @@ const opps = $('#opps').DataTable({{
       return v === null ? -1 : v;
     }}}},
     {{data: null, render: (d, t, r) => {{
+      const v = tripSeconds(r);
+      if (t === 'display') return v === null
+        ? "<span class='note' title='pick one of your trade ships"
+          + " above'>&mdash;</span>"
+        : fmtMin(v);
+      return v === null ? 1e12 : v;
+    }}}},
+    {{data: null, render: (d, t, r) => {{
       const v = crPerHour(r);
       if (t === 'display') return v === null
         ? "<span class='note' title='pick one of your trade ships"
@@ -1251,8 +1279,10 @@ const opps = $('#opps').DataTable({{
 }});
 $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {{
   if (settings.nTable.id !== 'opps') return true;
+  const wf = document.getElementById('oppware').value;
+  if (wf && rowData.w !== wf) return false;
   if (rowData.j > +document.getElementById('oppjumps').value) return false;
-  if (rowData.dm3 < +document.getElementById('oppdepth').value) return false;
+  if (rowData.total < oppMinCr()) return false;
   if (document.getElementById('oppnoplayer').checked
       && (rowData.s.p || rowData.b.p)) return false;
   if (document.getElementById('oppnoqt').checked
@@ -1289,12 +1319,12 @@ $('#opps tbody').on('click', 'tr', function() {{
     const km = routeKm(r);
     h += "<br>Route &asymp; " + fmt(km[0]) + " km plain"
       + (km[1] ? " + " + fmt(km[1]) + " km in highway sectors" : "")
-      + (isSM() && r.kps !== undefined
+      + (isSM() && useHW() && r.kps !== undefined
          ? " (highway-favouring S/M route)" : "") + ".";
     const t = tripSeconds(r);
     if (t !== null)
       h += " At " + fmt(SHIP.speed) + " m/s travel &times;0.9"
-        + ((SHIP.cls === 'S' || SHIP.cls === 'M') && r.kh
+        + (isSM() && useHW() && km[1]
            ? " (highways at 10 km/s)" : "")
         + (dockSeconds() ? " + " + fmtMin(dockSeconds()) + " docking"
            : "")
@@ -1304,6 +1334,13 @@ $('#opps tbody').on('click', 'tr', function() {{
   h += "</div>";
   row.child(h, 'note').show();
 }});
+const wareSel = document.getElementById('oppware');
+wareSel.appendChild(new Option('\u2014 all wares \u2014', ''));
+const seenW = new Map();
+OPPS.forEach(r => seenW.set(r.w, r.wn));
+[...seenW.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  .forEach(([w, n]) => wareSel.appendChild(new Option(n, w)));
+wareSel.addEventListener('change', () => opps.draw());
 const shipSel = document.getElementById('oppship');
 shipSel.appendChild(new Option(
   SHIPS.length ? '— pick one of your trade ships —'
@@ -1324,10 +1361,16 @@ document.getElementById('opphold').addEventListener('input', e => {{
   HOLD = +e.target.value || 0;
   oppRedraw();
 }});
-['oppjumps', 'oppdepth'].forEach(id =>
-  document.getElementById(id).addEventListener('input', () => opps.draw()));
+document.getElementById('oppjumps').addEventListener(
+  'input', () => opps.draw());
+document.getElementById('oppdepth').addEventListener('input', () => {{
+  document.getElementById('oppdepth_lbl').textContent =
+    fmt(oppMinCr()) + ' Cr';
+  opps.draw();
+}});
 ['oppdock', 'oppdockl'].forEach(id =>
   document.getElementById(id).addEventListener('input', oppRedraw));
+document.getElementById('opphw').addEventListener('change', oppRedraw);
 ['oppnoplayer', 'oppnoqt'].forEach(id =>
   document.getElementById(id).addEventListener(
     'change', () => opps.draw()));

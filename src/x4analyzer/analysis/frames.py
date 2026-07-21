@@ -82,6 +82,8 @@ class Frames:
     time_now: float = 0.0
     logged_hours: float = 0.0
     player_faction_name: str = "Player"
+    # ring highways exist in this save (custom starts can disable them)
+    has_highways: bool = True
 
 
 def _faction_levels(ref: RefData) -> list[str]:
@@ -548,6 +550,7 @@ def build_frames(save: SaveData, ref: RefData,
             FROM trade_offer WHERE save_id = {_CUR} ORDER BY rowid"""),
         orders=orders,
         built_refs=set(save.built_refs),
+        has_highways=save.has_highways,
         module_upgrades=_read(conn, f"""
             SELECT entry_id AS entry, equipment_macro AS macro
             FROM module_upgrade WHERE save_id = {_CUR} ORDER BY rowid"""),

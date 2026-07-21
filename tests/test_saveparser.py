@@ -90,6 +90,10 @@ FIXTURE = """<?xml version="1.0"?>
               </connection>
             </connections>
           </component>
+          <component class="highway" connection="zonehighways"
+                     macro="highway01_cluster_01_macro" id="[0x99a]">
+            <offset default="1"/>
+          </component>
           <component class="datavault" macro="landmarks_vault_02_macro"
                      id="[0x70]" code="KBE-495" owner="ownerless"
                      knownto="player" connection="space">
@@ -215,6 +219,8 @@ def test_fixture_parse(save_file: Path) -> None:
         in d.build_resources
     assert ("cluster_01_sector001_macro", "rawscrap", 1000.0) \
         in d.floating_wares
+
+    assert d.has_highways is True
 
     # equipped engines attributed to the nearest ship ancestor
     assert d.ship_engines == [
