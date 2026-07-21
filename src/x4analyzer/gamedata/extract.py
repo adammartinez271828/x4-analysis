@@ -293,7 +293,7 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
     return list(clusters.values()), list(sectors.values()), highway_rows
 
 
-_SPLINE_SAMPLES = 8   # evaluated points per control-point span
+_SPLINE_SAMPLES = 16  # evaluated points per control-point span
 
 
 def _sample_spline(ctrl: list[tuple]) -> list[tuple[float, float]]:
