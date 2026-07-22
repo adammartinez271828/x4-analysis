@@ -1,17 +1,19 @@
 """Storage-allocation model (analysis/storage.py).
 
-Deterministic synthetic station exercising the reverse-engineered rules:
-output gets the workforce work_effect bonus, input consumption stays at base,
-workforce food gets a fixed 4h buffer sized on *jobs* (full workforce), and the
-remaining pool capacity is split so every production ware holds equal hours
-(uniform T). See docs in analysis/storage.py; validated in-game against
-GDR-378 / UBX-812 (single-stage) and food on all stations.
+Two paths: producing stations get the exact throughput x T model
+(source='computed'); non-producers (wharfs/shipyards/docks/trade) get the
+stock+buy proxy (source='proxy'). See docs in analysis/storage.py; the compute
+path is validated in-game against GDR-378 / UBX-812, the proxy against
+same-faction wharves matching to r=0.9984.
 """
 from types import SimpleNamespace
 
 import pandas as pd
 
 from x4analyzer.analysis.storage import station_storage, FOOD_HOURS
+
+_CARGO = ["id", "ware", "amount"]
+_OFFERS = ["id", "side", "ware", "amount", "price"]
 
 
 def _ref():
@@ -39,61 +41,81 @@ def _ref():
                            modcaps=modcaps)
 
 
-def _frames():
-    built = pd.DataFrame([
-        ["st1", "prod_widget", 1],
-        ["st1", "store_container", 1],
-    ], columns=["id", "macro", "built"])
+def _frames(built, universe, workforce=None, cargo=None, offers=None):
     return SimpleNamespace(
-        built_modules=built,
-        universe=pd.DataFrame([["st1", "station"]], columns=["id", "class"]),
-        workforce_all=pd.DataFrame([["st1", "default", 100]],
+        built_modules=pd.DataFrame(built, columns=["id", "macro", "built"]),
+        universe=pd.DataFrame(universe, columns=["id", "class"]),
+        workforce_all=pd.DataFrame(workforce or [],
                                    columns=["id", "race", "amount"]),
+        station_cargo=pd.DataFrame(cargo or [], columns=_CARGO),
+        trade_offers=pd.DataFrame(offers or [], columns=_OFFERS),
     )
 
 
-def _run():
-    df = station_storage(_frames(), _ref())
+# ---- producing station (throughput x T) ------------------------------------
+
+def _producer():
+    return _frames(
+        built=[["st1", "prod_widget", 1], ["st1", "store_container", 1]],
+        universe=[["st1", "station"]],
+        workforce=[["st1", "default", 100]])
+
+
+def _run(frames=None):
+    df = station_storage(frames or _producer(), _ref())
     return {r.ware: r for r in df.itertuples()}
 
 
 def test_roles_and_throughput():
     rows = _run()
-    # output carries the +100% work_effect bonus: 100/h -> 200/h
-    assert rows["widget"].role == "output"
-    assert rows["widget"].throughput == 200.0
-    # input consumption stays at base (no bonus): 100/h
-    assert rows["energy"].role == "input"
+    assert rows["widget"].role == "output" and rows["widget"].source == "computed"
+    assert rows["widget"].throughput == 200.0        # 100/h * (1 + 1.0 bonus)
+    assert rows["energy"].role == "input"            # consumed at base (no bonus)
     assert rows["energy"].throughput == 100.0
-    # food: 90 per 200 workers/600s * 100 jobs = 270/h
-    assert rows["food1"].role == "food"
+    assert rows["food1"].role == "food"              # 90/200 * 6 * 100 jobs
     assert rows["food1"].throughput == 270.0
 
 
 def test_food_fixed_4h_buffer():
-    rows = _run()
-    assert rows["food1"].max_units == 270.0 * FOOD_HOURS  # 1080
+    assert _run()["food1"].max_units == 270.0 * FOOD_HOURS  # 1080
 
 
 def test_uniform_hours_and_capacity_conservation():
     rows = _run()
-    # food takes 4h * 270 = 1080 m³; production splits the remaining 98920 so
-    # every production ware holds equal hours: T = 98920 / (200 + 100) = 329.73h
     t_widget = rows["widget"].max_units / rows["widget"].throughput
     t_energy = rows["energy"].max_units / rows["energy"].throughput
     assert abs(t_widget - t_energy) < 1e-6            # uniform T
     assert abs(t_widget - 98920 / 300) < 1e-6
-    # every unit is volume 1, so max_volume == max_units and the pool fills
     total = sum(r.max_volume for r in rows.values())
     assert abs(total - 100000) < 1e-3                 # capacity conserved
+
+
+# ---- non-producing station (stock + buy proxy) -----------------------------
+
+def test_proxy_non_producer():
+    frames = _frames(
+        built=[["w1", "buildmodule_ships", 1]],       # not in ref.modules
+        universe=[["w1", "station"]],
+        cargo=[["w1", "energy", 100], ["w1", "food1", 50], ["w1", "widget", 40]],
+        offers=[["w1", "buy", "energy", 200, 5],
+                ["w1", "buy", "food1", 30, 3],
+                ["w1", "sell", "widget", 25, 9]])
+    rows = _run(frames)
+    assert all(r.source == "proxy" for r in rows.values())
+    assert rows["energy"].max_units == 300            # stock 100 + buy 200
+    assert rows["energy"].role == "input"
+    assert rows["food1"].max_units == 80              # stock 50 + buy 30
+    assert rows["food1"].role == "food"               # workunit input -> food
+    assert rows["widget"].max_units == 40             # sell-only: floor at stock
+    assert rows["widget"].throughput is None
 
 
 def test_empty_inputs_return_empty():
     empty = SimpleNamespace(built_modules=pd.DataFrame(),
                             universe=pd.DataFrame(columns=["id", "class"]),
                             workforce_all=pd.DataFrame())
-    ref = _ref()
-    out = station_storage(empty, ref)
+    out = station_storage(empty, _ref())
     assert out.empty
     assert list(out.columns) == ["station_id", "ware", "transport", "role",
-                                 "throughput", "max_units", "max_volume"]
+                                 "throughput", "max_units", "max_volume",
+                                 "source"]

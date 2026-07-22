@@ -21,17 +21,21 @@ of hours:
 Work_effect applies to output only; input consumption stays at base (verified:
 GDR-378 energy consumption = base rate).
 
-Not modeled (v1) -- these station types get only their workforce-food rows (or
-nothing), because their main storage is driven by mechanisms this module does
-not read:
-  * wharfs / shipyards / equipment docks -- consume ship/equipment build inputs
-    (hull parts, electronics, scanning arrays, ...) via BUILD modules, not
-    production recipes, so that storage is absent.
-  * pure trade stations -- no production; their target comes from trade config.
-  * the separate ammunition/defence pool (drone energy, missile components,
-    smart chips) on stations with drone/ammo production (e.g. PEJ-489 energy).
-  * multi-stage internally-cycled wares (produced AND consumed on-site) use
-    gross production, not net flow.
+Non-producing stations (wharfs / shipyards / equipment docks / trade stations)
+have no production recipes -- their storage is driven by ship/equipment
+construction or arbitrage, not recipes. For these we use a PROXY: the allocated
+max per ware ~= current stock + open buy-offer amount (source='proxy'), which we
+verified is genuinely allocated storage (two same-faction Argon wharves matched
+to Pearson r=0.9984 despite different fill). A full build bill-of-materials
+model would be far costlier and not meaningfully more accurate. Producing
+stations keep the exact throughput x T model (source='computed').
+
+Still not modeled: the separate ammunition/defence pool (drone energy, missile
+components, smart chips) on stations with drone/ammo production (e.g. PEJ-489
+energy); multi-stage internally-cycled wares (gross vs net flow); and a combined
+production+build station keeps the computed path only (its build inputs are
+omitted). Proxy caveats: excess stock over-states, and a pure trade station's
+*sold*-ware max is only a floor (the proxy reads the buy side).
 """
 from __future__ import annotations
 
@@ -46,7 +50,7 @@ FOOD_HOURS = 4.0
 WORKUNIT = "workunit_busy"
 
 _COLS = ["station_id", "ware", "transport", "role",
-         "throughput", "max_units", "max_volume"]
+         "throughput", "max_units", "max_volume", "source"]
 
 
 def _num(series, fill=0.0):
@@ -85,6 +89,10 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             float(first["time"]), float(first["amount"]),
             float(first["work_effect"]), inputs)
     methods = set(recipes)
+    # wares any race's workforce eats (inputs of the workunit_busy recipes) --
+    # they get the fixed 4h food buffer on the proxy path too.
+    food_wares = {inw for (w, _m), (_t, _a, _e, ins) in recipes.items()
+                  if w == WORKUNIT for inw, _ in ins}
 
     # module_ref: macro -> [(ware, method, scale, weight)]; weight splits a
     # multi-queue module (one recipe at a time) evenly across its options.
@@ -152,9 +160,14 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 food[sid][inw] += (ina / wamount / wtime * 3600.0
                                    * jobs[sid] * frac)
 
-    # allocate per station per transport pool
+    # producers = stations with a real production module (macro known to
+    # ref.modules). Only these get the throughput x T model; wharfs / shipyards
+    # / docks / trade stations build or trade instead and use the proxy below.
+    producers = set(mods[mods["macro"].isin(set(modrows))]["id"]) & stations
+
+    # allocate per producing station per transport pool
     rows: list[dict] = []
-    for sid in stations:
+    for sid in producers:
         caps = pool_cap.get(sid)
         if not caps:
             continue
@@ -194,7 +207,34 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             rows.append({
                 "station_id": sid, "ware": ware, "transport": t, "role": r,
                 "throughput": thru[ware], "max_units": mx,
-                "max_volume": mx * vol,
+                "max_volume": mx * vol, "source": "computed",
+            })
+
+    # proxy path: non-producing stations (wharfs / shipyards / docks / trade).
+    # The game's allocated max per ware is well-approximated by what the station
+    # holds plus what it still bids to buy (proven ~allocated: two same-faction
+    # wharves match to r=0.9984). throughput is unknown here -> left NULL.
+    cargo = frames.station_cargo
+    offers = frames.trade_offers
+    stock: dict[str, dict[str, float]] = defaultdict(dict)
+    if cargo is not None and not cargo.empty:
+        for c in cargo.itertuples():
+            if c.id not in producers and c.id in stations:
+                stock[c.id][c.ware] = stock[c.id].get(c.ware, 0.0) + c.amount
+    buy: dict[str, dict[str, float]] = defaultdict(dict)
+    if offers is not None and not offers.empty:
+        for o in offers.itertuples():
+            if o.side == "buy" and o.id not in producers and o.id in stations:
+                buy[o.id][o.ware] = buy[o.id].get(o.ware, 0.0) + o.amount
+    for sid in set(stock) | set(buy):
+        for ware in set(stock.get(sid, {})) | set(buy.get(sid, {})):
+            mx = stock.get(sid, {}).get(ware, 0.0) + buy.get(sid, {}).get(ware, 0.0)
+            rows.append({
+                "station_id": sid, "ware": ware,
+                "transport": transport.get(ware, ""),
+                "role": "food" if ware in food_wares else "input",
+                "throughput": None, "max_units": mx,
+                "max_volume": mx * volume.get(ware, 1.0), "source": "proxy",
             })
 
     return pd.DataFrame(rows, columns=_COLS)

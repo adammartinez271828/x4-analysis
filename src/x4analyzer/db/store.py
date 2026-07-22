@@ -921,7 +921,7 @@ def write_derived(conn: sqlite3.Connection, frames) -> None:
 
 
 _STATION_STORAGE_COLS = ["station_id", "ware", "transport", "role",
-                         "throughput", "max_units", "max_volume"]
+                         "throughput", "max_units", "max_volume", "source"]
 
 
 def write_station_storage(conn: sqlite3.Connection, save_id: int,
@@ -933,4 +933,4 @@ def write_station_storage(conn: sqlite3.Connection, save_id: int,
     with conn:
         conn.execute("DELETE FROM station_storage")
         conn.executemany(
-            "INSERT INTO station_storage VALUES (?,?,?,?,?,?,?,?)", rows)
+            "INSERT INTO station_storage VALUES (?,?,?,?,?,?,?,?,?)", rows)

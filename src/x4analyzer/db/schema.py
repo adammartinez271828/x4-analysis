@@ -19,7 +19,8 @@ from __future__ import annotations
 # v6: resource rows carry the yieldid's level/speed tokens (replenishment)
 # v7: resource rows carry per-area starttime (respawn-eligibility clock)
 # v8: recipe.work_effect (workforce output bonus) + station_storage table
-SCHEMA_VERSION = "8"
+# v9: station_storage.source (computed model vs stock+buy proxy)
+SCHEMA_VERSION = "9"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -466,6 +467,7 @@ TABLES: dict[str, str] = {
   throughput REAL,
   max_units  REAL,
   max_volume REAL,
+  source     TEXT,
   PRIMARY KEY (save_id, station_id, ware)
 )""",
 }
@@ -552,7 +554,8 @@ GROUP BY n.save_id, n.id""",
     "v_station_storage": """CREATE VIEW v_station_storage AS
 SELECT ss.station_id, c.code AS station_code, c.name AS station_name,
        sec.name AS sector_name, ss.ware, w.name AS ware_name,
-       ss.transport, ss.role, ss.throughput, ss.max_units, ss.max_volume
+       ss.transport, ss.role, ss.throughput, ss.max_units, ss.max_volume,
+       ss.source
 FROM station_storage ss
 LEFT JOIN component c   ON c.id = ss.station_id AND c.save_id = ss.save_id
 LEFT JOIN sector_ref sec ON sec.macro = c.sector_macro
