@@ -19,6 +19,10 @@
 - **Resource overlay redesigned** — the whole-hex tint that washed out busy sectors is gone. Each selected resource now draws **percentile edge gauges**: **mineable-now** up the left hex edges and **max replenishment rate** up the right edges (a half-full gauge = the median sector), so "empty but replenishing fast" reads distinctly from "full but slow to come back". The sector detail panel lists **every resource field** in a collapsible dropdown — current / capacity, gatherspeed, and a respawn ETA for depleted fields — with respawned ("overdue") fields correctly shown as full. Resources render regardless of which factions are selected.
 - **Defaults** — gate/superhighway/highway routes on by default; Kha'ak stations off.
 
+#### Universe Charts
+
+- **Total Sector max replenishment per Resource** — a new sunburst on the Universe → Overview tab, companion to "Total Sector resources per Resource": each resource ring is subdivided by each sector's share of that resource's theoretical maximum replenishment rate (Σ capacity ÷ respawndelay, units/h).
+
 #### Dashboard Layout
 
 - **Five question-shaped tabs** — the dashboard is reorganized into a two-level layout (Map / Trade / Empire / Market / Universe) with sub-tab pills; the active view and sub-view persist across reloads.

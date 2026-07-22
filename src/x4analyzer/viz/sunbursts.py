@@ -173,6 +173,44 @@ def build_sunbursts(frames: Frames, ref: RefData, cfg: Config,
                    str(row.resource), float(row.percentage))
         emit(sb.figure(title), title)
 
+        # theoretical max replenishment rate per resource (Sigma
+        # capacity/respawndelay, units/h) — same shape as the yield chart
+        # above, from the rep.<ware> columns frames builds for the map's
+        # right-edge gauge (each resource ring is one whole, subdivided by
+        # each sector's share of that resource's replenishment)
+        rep_cols = [f"rep.{c}" for c in frames.resource_cols
+                    if f"rep.{c}" in frames.sectors.columns]
+        if rep_cols:
+            rmelt = frames.sectors.melt(
+                id_vars=["id", "owner", "name"], value_vars=rep_cols,
+                var_name="resource", value_name="value"
+            ).dropna(subset=["value"])
+            rmelt["resource"] = rmelt["resource"].str.slice(4)  # strip "rep."
+            rmelt = rmelt[rmelt["value"] > 0]
+            rtotals = rmelt.groupby("resource")["value"].sum()
+            rmelt["percentage"] = (10000.0 * rmelt["value"]
+                                   / rmelt["resource"].map(rtotals)).round()
+            rmelt = rmelt[rmelt["percentage"] > 0]
+
+        if rep_cols and not rmelt.empty:
+            title = "Total Sector max replenishment per Resource"
+            log("->", title)
+            sb = Sunburst()
+            res_tot = rmelt.groupby("resource")["percentage"].sum()
+            sb.add_root("Max<br>Replenishment", float(res_tot.sum()),
+                        id_="root")
+            for resource, val in res_tot.items():
+                sb.add(str(resource),
+                       f"{ref.ware_name.get(str(resource), str(resource))}<br>"
+                       f"{fmt_big(rtotals[resource])}/h total",
+                       "root", float(val))
+            for row in rmelt.itertuples(index=False):
+                sb.add(f"{row.resource}>>{row.id}",
+                       f"{row.name}<br>{fmt_big(row.value)}/h · "
+                       f"{0.01 * row.percentage:g} %",
+                       str(row.resource), float(row.percentage))
+            emit(sb.figure(title), title)
+
         title = "Resource availability per Sector"
         log("->", title)
         sb = Sunburst()
