@@ -91,6 +91,11 @@ class Frames:
     faction_meta: pd.DataFrame = None
     faction_licences: pd.DataFrame = None
 
+    # storage-allocation model (analysis/storage.py): per (station id, ware)
+    # max_units / max_volume / throughput / transport / role. Computed after
+    # the frames are built (analyze.py) and attached for the viz layer.
+    station_storage: pd.DataFrame = None
+
     resource_cols: list = field(default_factory=list)
     faction_levels: list = field(default_factory=list)
     # per-area resource status for the map detail panel, keyed

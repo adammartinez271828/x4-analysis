@@ -18,7 +18,8 @@ from __future__ import annotations
 
 # v6: resource rows carry the yieldid's level/speed tokens (replenishment)
 # v7: resource rows carry per-area starttime (respawn-eligibility clock)
-SCHEMA_VERSION = "7"
+# v8: recipe.work_effect (workforce output bonus) + station_storage table
+SCHEMA_VERSION = "8"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -397,7 +398,8 @@ TABLES: dict[str, str] = {
     "recipe": """CREATE TABLE IF NOT EXISTS recipe (
   ware TEXT NOT NULL, method TEXT NOT NULL,
   time REAL, amount REAL,
-  input_ware TEXT, input_amount REAL
+  input_ware TEXT, input_amount REAL,
+  work_effect REAL
 )""",
     "module_ref": """CREATE TABLE IF NOT EXISTS module_ref (
   macro TEXT NOT NULL, name TEXT,
@@ -451,6 +453,21 @@ TABLES: dict[str, str] = {
     "event_police": """CREATE TABLE IF NOT EXISTS event_police (
   time REAL, faction TEXT, sector_macro TEXT
 )""",
+    # per-snapshot storage-allocation model (analysis/storage.py): the max
+    # amount of each ware a station allocates storage for, derived from its
+    # production/consumption throughput at full workforce. Written after the
+    # frames are built (store.write_station_storage), so grouped on its own.
+    "station_storage": """CREATE TABLE IF NOT EXISTS station_storage (
+  save_id    INTEGER NOT NULL,
+  station_id TEXT NOT NULL,
+  ware       TEXT NOT NULL,
+  transport  TEXT,
+  role       TEXT,
+  throughput REAL,
+  max_units  REAL,
+  max_volume REAL,
+  PRIMARY KEY (save_id, station_id, ware)
+)""",
 }
 
 INDEXES = (
@@ -463,6 +480,8 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_recipe ON recipe(ware, method)",
     "CREATE INDEX IF NOT EXISTS idx_entity_slot ON entity(code, class)",
     "CREATE INDEX IF NOT EXISTS idx_entity_event ON entity_event(entity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_station_storage ON "
+    "station_storage(station_id)",
 )
 
 # The frames.py replacement layer. (Re)created at every connect so
@@ -529,4 +548,14 @@ FROM npc n LEFT JOIN npc_skill s
   ON s.save_id = n.save_id AND s.npc_id = n.id
 WHERE n.save_id = (SELECT MAX(save_id) FROM save)
 GROUP BY n.save_id, n.id""",
+    # storage-allocation model with station + ware display names
+    "v_station_storage": """CREATE VIEW v_station_storage AS
+SELECT ss.station_id, c.code AS station_code, c.name AS station_name,
+       sec.name AS sector_name, ss.ware, w.name AS ware_name,
+       ss.transport, ss.role, ss.throughput, ss.max_units, ss.max_volume
+FROM station_storage ss
+LEFT JOIN component c   ON c.id = ss.station_id AND c.save_id = ss.save_id
+LEFT JOIN sector_ref sec ON sec.macro = c.sector_macro
+LEFT JOIN ware w        ON w.id = ss.ware
+WHERE ss.save_id = (SELECT MAX(save_id) FROM save)""",
 }

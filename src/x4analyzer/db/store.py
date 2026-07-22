@@ -136,7 +136,8 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
          ["id", "name", "grp", "transport", "volume", "tags", "price_avg",
           "component", "source"]),
         ("recipe", ref.recipes,
-         ["ware", "method", "time", "amount", "input_ware", "input_amount"]),
+         ["ware", "method", "time", "amount", "input_ware", "input_amount",
+          "work_effect"]),
         ("module_ref", ref.modules,
          ["macro", "name", "ware", "method", "scale", "workforce", "source"]),
         ("ship_ref", ref.ships,
@@ -917,3 +918,19 @@ def write_derived(conn: sqlite3.Connection, frames) -> None:
             "INSERT INTO event_transfer VALUES (?,?,?)", transfers)
         conn.executemany("INSERT INTO event_pirate VALUES (?,?)", pirates)
         conn.executemany("INSERT INTO event_police VALUES (?,?,?)", police)
+
+
+_STATION_STORAGE_COLS = ["station_id", "ware", "transport", "role",
+                         "throughput", "max_units", "max_volume"]
+
+
+def write_station_storage(conn: sqlite3.Connection, save_id: int,
+                          df: pd.DataFrame) -> None:
+    """Persist the storage-allocation model (analysis.storage.station_storage).
+    Rebuilt every run — the reverse-engineered model is cheap to recompute."""
+    rows = [(save_id, *r)
+            for r in _df_rows(df, _STATION_STORAGE_COLS)]
+    with conn:
+        conn.execute("DELETE FROM station_storage")
+        conn.executemany(
+            "INSERT INTO station_storage VALUES (?,?,?,?,?,?,?,?)", rows)

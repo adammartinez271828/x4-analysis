@@ -6,6 +6,7 @@ from .db import store
 from .cli import log
 from .config import Config
 from .analysis.frames import build_frames, station_types_from_db
+from .analysis.storage import station_storage
 from .gamedata.refdata import load_refdata
 from .save.parser import parse_savegame
 
@@ -27,13 +28,15 @@ def run_analysis(cfg: Config) -> int:
         log("Database:", store.db_path(cfg, save.guid))
         store.write_reference(conn, ref)
         store.import_legacy_caches(conn, cfg, save.guid, ref)
-        store.write_snapshot(conn, save, ref, save_file)
+        save_id = store.write_snapshot(conn, save, ref, save_file)
         entities = store.update_entity_registry(conn, save, ref)
         store.merge_events(conn, save, ref,
                            station_types_from_db(conn, ref), entities)
 
         frames = build_frames(save, ref, conn)
         store.write_derived(conn, frames)
+        frames.station_storage = station_storage(frames, ref)
+        store.write_station_storage(conn, save_id, frames.station_storage)
     finally:
         conn.close()
 

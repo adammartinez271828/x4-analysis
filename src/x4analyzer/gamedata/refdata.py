@@ -113,7 +113,7 @@ def load_refdata(data_dir: Path) -> RefData:
                          "workforce", "source"])
     recipes = _optional("recipes.csv",
                         ["ware", "method", "time", "amount", "input_ware",
-                         "input_amount"])
+                         "input_amount", "work_effect"])
     modcaps = _optional("modcaps.csv",
                         ["macro", "class", "housing", "workers", "cargo_max",
                          "cargo_tags"])

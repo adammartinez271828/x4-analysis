@@ -568,12 +568,16 @@ def extract_recipes(gf: GameFiles) -> list[list]:
         time = prod.get("time", "")
         amount = prod.get("amount", "")
         method = prod.get("method", "default")
+        # workforce production bonus: <effects><effect type="work" product="X"/>
+        # is the max output multiplier at full workforce (0 if none).
+        eff = prod.find("effects/effect[@type='work']")
+        work = eff.get("product", "") if eff is not None else ""
         inputs = prod.findall("primary/ware")
         if not inputs:
-            rows.append((wid, method, time, amount, "", ""))
+            rows.append((wid, method, time, amount, "", "", work))
         for inp in inputs:
             rows.append((wid, method, time, amount,
-                         inp.get("ware", ""), inp.get("amount", "")))
+                         inp.get("ware", ""), inp.get("amount", ""), work))
 
     for w, _source in _iter_merged(gf, "libraries/wares.xml", "ware"):
         wid = w.get("id")
@@ -800,7 +804,8 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     log("Extracting production recipes")
     _write_csv(
         cfg.data_dir / "recipes.csv",
-        ["ware", "method", "time", "amount", "input_ware", "input_amount"],
+        ["ware", "method", "time", "amount", "input_ware", "input_amount",
+         "work_effect"],
         extract_recipes(gf),
     )
 
