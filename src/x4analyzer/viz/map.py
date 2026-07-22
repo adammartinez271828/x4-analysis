@@ -147,6 +147,7 @@ stroke-linecap:round;stroke-linejoin:round;}
 #ly-gates circle{fill:rgba(140,170,200,0.8);}
 #ly-shighways line{stroke:rgba(110,220,190,0.6);}
 #ly-shighways circle{fill:rgba(110,220,190,0.85);}
+#ly-shighways polygon.shw-arrow{fill:rgba(110,220,190,0.95);stroke:none;}
 #ly-highways polyline{stroke:rgba(255,138,60,0.8);}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
 #ly-factions g.dim polygon{stroke-opacity:0.15;}
@@ -558,14 +559,20 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     # (see _slot_xy); the single-sector 62px matches R
     big, small = 62, 29
     has_pts = {"ax", "az", "bx", "bz"} <= set(ref.gates.columns)
+    has_dir = "oneway" in ref.gates.columns
     raw_gates = []
     for r in ref.gates.itertuples(index=False):
         if r.sector_a in index and r.sector_b in index:
             pa = (float(r.ax), float(r.az)) if has_pts else (0.0, 0.0)
             pb = (float(r.bx), float(r.bz)) if has_pts else (0.0, 0.0)
-            raw_gates.append((index[r.sector_a], index[r.sector_b], pa, pb))
+            # direction: 0 = two-way, 1 = flows to endpoint b, 2 = flows to a
+            # (a one-way superhighway; oneway carries the exit sector macro)
+            d = 0
+            if has_dir and isinstance(r.oneway, str) and r.oneway:
+                d = 1 if r.oneway == r.sector_b else 2
+            raw_gates.append((index[r.sector_a], index[r.sector_b], pa, pb, d))
     reach: dict[int, float] = {}
-    for ia, ib, pa, pb in raw_gates:
+    for ia, ib, pa, pb, _d in raw_gates:
         reach[ia] = max(reach.get(ia, 0.0), (pa[0]**2 + pa[1]**2) ** 0.5)
         reach[ib] = max(reach.get(ib, 0.0), (pb[0]**2 + pb[1]**2) ** 0.5)
     for _m, si, _rec, off in st_recs:
@@ -635,8 +642,8 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         return (round(s["x"] + p[0] / sc * r_px, 2),
                 round(s["y"] - p[1] / sc * r_px, 2))
 
-    gates = [[ia, ib, *in_hex_pt(ia, pa), *in_hex_pt(ib, pb)]
-             for ia, ib, pa, pb in raw_gates]
+    gates = [[ia, ib, *in_hex_pt(ia, pa), *in_hex_pt(ib, pb), d]
+             for ia, ib, pa, pb, d in raw_gates]
 
     # finalize station records with in-hex positions (centre when the
     # snapshot predates position tracking), grouped per sector. The

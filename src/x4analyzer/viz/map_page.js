@@ -208,17 +208,32 @@
                 fill: "#B012B0"}, g);
   });
 
-  // gate records: [ia, ib, x1, y1, x2, y2] — the endpoints sit at the
+  // gate records: [ia, ib, x1, y1, x2, y2, dir] — the endpoints sit at the
   // gates' approximate in-sector positions, so lines attach there and
   // each endpoint gets a small dot. Links between sectors of one
   // cluster are superhighways (accelerators) and draw in their own
-  // toggleable layer; only jump gates ever cross clusters
+  // toggleable layer; only jump gates ever cross clusters. dir: 0 = two-way,
+  // 1 = flows to endpoint b, 2 = flows to a (a ONE-WAY superhighway, e.g.
+  // Savage Spur I -> II) -> a midpoint arrowhead pointing at the exit
   D.gates.forEach(function (g) {
     var sh = D.sectors[g[0]].cluster === D.sectors[g[1]].cluster;
     var ly = sh ? layers.shighways : layers.gates;
     el("line", {x1: g[2], y1: g[3], x2: g[4], y2: g[5]}, ly);
     el("circle", {cx: g[2], cy: g[3], r: 2}, ly);
     el("circle", {cx: g[4], cy: g[5], r: 2}, ly);
+    if (g[6]) {
+      var dx = g[6] === 1 ? g[4] - g[2] : g[2] - g[4];
+      var dy = g[6] === 1 ? g[5] - g[3] : g[3] - g[5];
+      var L = Math.sqrt(dx * dx + dy * dy) || 1; dx /= L; dy /= L;
+      var mx = (g[2] + g[4]) / 2, my = (g[3] + g[5]) / 2;   // midpoint
+      var s = 3.2, px = -dy, py = dx;
+      el("polygon", {points:
+        (mx + dx * s).toFixed(1) + "," + (my + dy * s).toFixed(1) + " " +
+        (mx - dx * s + px * s).toFixed(1) + "," +
+        (my - dy * s + py * s).toFixed(1) + " " +
+        (mx - dx * s - px * s).toFixed(1) + "," +
+        (my - dy * s - py * s).toFixed(1), "class": "shw-arrow"}, ly);
+    }
   });
 
   // local (ring) highway tracks: [si, x1, y1, x2, y2, ...] polylines of

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 — unreleased
+
+### New User Features
+
+- **One-way superhighways on the map** — superhighways are directional tubes; a normal accelerator has one each way, but the galaxy has a single **one-way** superhighway (Savage Spur I → II). `gates.csv` now records superhighway direction (`oneway` column, set when a `sechighways` connection has no reverse), and the map draws a midpoint **arrowhead** pointing the way traffic flows. Two-way links and jump gates are unaffected.
+
 ## 1.3.0 — 2026-07-21
 
 ### New User Features

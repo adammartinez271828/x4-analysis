@@ -252,6 +252,25 @@ def test_payload_gate_endpoints_scaled_into_hex():
     assert g[4] == b["x"] and g[5] < b["y"]
 
 
+def test_payload_gate_oneway_direction():
+    # oneway carries the exit sector macro; the payload encodes it per row as
+    # 1 (flows to endpoint b) or 0 (two-way), relative to the a/b column order
+    ref = _ref(gates=pd.DataFrame({
+        "sector_a": ["sec_b1", "sec_a1"],
+        "sector_b": ["sec_b2", "sec_b1"],
+        "oneway": ["sec_b2", ""],
+    }))
+    p = _payload(_frames(), ref, _cfg())
+    idx = {s["macro"]: i for i, s in enumerate(p["sectors"])}
+    ow = next(g for g in p["gates"]
+              if {g[0], g[1]} == {idx["sec_b1"], idx["sec_b2"]})
+    tw = next(g for g in p["gates"]
+              if {g[0], g[1]} == {idx["sec_a1"], idx["sec_b1"]})
+    assert ow[0] == idx["sec_b1"] and ow[1] == idx["sec_b2"]
+    assert ow[6] == 1        # sec_b1(a) -> sec_b2(b), flows to endpoint b
+    assert tw[6] == 0        # two-way
+
+
 def test_payload_highway_polylines():
     ref = _ref(highways=pd.DataFrame({
         "sector": ["sec_a1", "sec_zzz"],   # unknown sector rows drop

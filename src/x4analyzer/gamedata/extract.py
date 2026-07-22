@@ -426,12 +426,14 @@ def extract_gates(gf: GameFiles) -> list[list]:
     pairs: dict[tuple[str, str], list] = {}
 
     def add(a: str, b: str, pa: tuple[float, float],
-            pb: tuple[float, float], source: str) -> None:
+            pb: tuple[float, float], source: str, oneway: str = "") -> None:
+        # oneway: "" for a two-way link, else the sector macro traffic flows
+        # TO (invariant under the a/b sort below, since it is one of them)
         if a and b and a != b:
             if b < a:
                 a, b, pa, pb = b, a, pb, pa
             pairs.setdefault((a, b),
-                             [a, b, pa[0], pa[1], pb[0], pb[1], source])
+                             [a, b, pa[0], pa[1], pb[0], pb[1], source, oneway])
 
     for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
         root = _parse(gf, path)
@@ -448,6 +450,14 @@ def extract_gates(gf: GameFiles) -> list[list]:
                 zone_of(conn.get("path")), zone_of(macro_el.get("path")),
                 source)
 
+    # Intra-cluster superhighways are DIRECTIONAL tubes: each sechighways
+    # connection is one entrypoint->exitpoint direction. A normal two-way
+    # accelerator declares two (one each way); a ONE-WAY has only one (the
+    # galaxy's sole case is Savage Spur I -> II, cluster_112). Collect the
+    # directed edges first, then a pair is one-way when its reverse is absent.
+    # (Galaxy jump gates above are inherently bidirectional and stored once,
+    # so the one-way test applies to sechighways only.)
+    shw_edges: list[tuple] = []   # (from, to, from_pos, to_pos, source)
     for path in gf.glob(
             r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*clusters\.xml$"):
         root = _parse(gf, path)
@@ -467,8 +477,15 @@ def extract_gates(gf: GameFiles) -> list[list]:
                         ends[sub.get("ref")] = (
                             sector_of(mp),
                             zone_of(mp, macro_el.get("connection") or ""))
-            add(ends["entrypoint"][0], ends["exitpoint"][0],
-                ends["entrypoint"][1], ends["exitpoint"][1], source)
+            f, fp = ends["entrypoint"]
+            t, tp = ends["exitpoint"]
+            if f and t:
+                shw_edges.append((f, t, fp, tp, source))
+
+    directed = {(f, t) for f, t, *_ in shw_edges}
+    for f, t, fp, tp, source in shw_edges:
+        oneway = "" if (t, f) in directed else t
+        add(f, t, fp, tp, source, oneway)
 
     return list(pairs.values())
 
@@ -769,7 +786,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     log("Extracting gate connections")
     _write_csv(
         cfg.data_dir / "gates.csv",
-        ["sector_a", "sector_b", "ax", "az", "bx", "bz", "source"],
+        ["sector_a", "sector_b", "ax", "az", "bx", "bz", "source", "oneway"],
         extract_gates(gf),
     )
 
