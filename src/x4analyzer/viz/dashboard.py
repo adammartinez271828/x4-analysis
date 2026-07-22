@@ -23,6 +23,7 @@ from .advisor import build_advisor
 from .charts import build_charts
 from .common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
 from .audit import build_audit
+from .diplomacy import build_diplomacy
 from .history import build_trade_history
 from .map import build_map
 from .market import build_market
@@ -175,9 +176,10 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
         "Map": {"": [_iframe(map_src, map_style, lazy=False)]},
         "Trade": {"Opportunities": [], "Earnings": [], "History": [],
                   "Charts": [], "Starburst Charts": []},
-        "Empire": {"Audit": [], "Station P&L": [], "Fleet": []},
+        "Empire": {"Audit": [], "Station P&L": [], "Fleet": [],
+                   "Standings": []},
         "Market": {"Overview": [], "Build Advisor": []},
-        "Universe": {"Overview": [], "Contested": []},
+        "Universe": {"Overview": [], "Contested": [], "Relations": []},
     }
 
     log("Generating time-series charts")
@@ -212,6 +214,17 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
         tabs["Market"]["Build Advisor"].append(
             "<p>" + _iframe(advisor, "width:100%;height:1600px;", lazy=True)
             + "</p>")
+
+    log("Generating diplomacy views")
+    diplo = build_diplomacy(frames, ref, cfg, files_dir, guid)
+    if diplo:
+        standings_src, relations_src = diplo
+        tabs["Empire"]["Standings"].append(
+            "<p>" + _iframe(standings_src, "width:100%;height:1000px;",
+                            lazy=True) + "</p>")
+        tabs["Universe"]["Relations"].append(
+            "<p>" + _iframe(relations_src, "width:100%;height:900px;",
+                            lazy=True) + "</p>")
 
     log("Generating market overview")
     market, opportunities = build_market(frames, ref, cfg, files_dir, guid)

@@ -119,6 +119,14 @@ class SaveData:
     # equipped engines: (ship_id, engine_macro) per engine component (all
     # ships; the store keeps player ships only — speed-from-loadout)
     ship_engines: list = field(default_factory=list)
+    # faction diplomacy (universe/factions block). base relations, temporary
+    # boosters (additive, decay toward base — the stored value is current as
+    # of the save) and trade discounts, one row each:
+    faction_relations: list = field(default_factory=list)  # (faction, other, relation)
+    faction_boosters: list = field(default_factory=list)   # (faction, other, relation, time)
+    faction_discounts: list = field(default_factory=list)  # (faction, other, amount, time)
+    faction_accounts: list = field(default_factory=list)   # (faction, amount)
+    faction_licences: list = field(default_factory=list)   # (faction, type, factions_csv)
     # False when the save was started with local (ring) highways
     # disabled: such saves contain no class="highway" components
     has_highways: bool = False
@@ -162,6 +170,9 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     # open wormhole/anomaly components awaiting source/transition/connected
     # children: [comp_stack depth, record dict]
     wormhole_stack: list[list] = []
+    # id of the open <faction> in the universe/factions block, so its
+    # relation/booster/discount/account/licence children attribute correctly
+    faction_id_stack: list[str] = []
     in_faction_player = 0
     n_elems = 0
 
@@ -209,8 +220,13 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     if object_stack:
                         key = (object_stack[-1], elem.get("role", ""))
                         d.people[key] = d.people.get(key, 0) + 1
-                elif tag == "faction" and elem.get("id") == "player":
-                    in_faction_player += 1
+                elif tag == "faction":
+                    # a faction in universe/factions (not a faction= attr
+                    # elsewhere): track its id for the relations children
+                    if "factions" in tag_stack:
+                        faction_id_stack.append(elem.get("id", ""))
+                    if elem.get("id") == "player":
+                        in_faction_player += 1
                 continue
 
             # ---- end events ----
@@ -553,7 +569,47 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 if in_faction_player and tag_stack and tag_stack[-1] == "custom":
                     d.player_faction_name = elem.get("name", "")
 
+            elif tag == "relation":
+                # base <relation faction= relation=> under a faction's relations
+                if faction_id_stack and elem.get("faction"):
+                    d.faction_relations.append((
+                        faction_id_stack[-1], elem.get("faction", ""),
+                        float(elem.get("relation", 0) or 0)))
+
+            elif tag == "booster":
+                # <booster> appears under both <relations> (relation=, a
+                # temporary standing modifier) and <discounts> (amount=, a
+                # trade discount) — distinguished by the now-current parent
+                if faction_id_stack and elem.get("faction"):
+                    parent = tag_stack[-1] if tag_stack else ""
+                    if parent == "relations":
+                        d.faction_boosters.append((
+                            faction_id_stack[-1], elem.get("faction", ""),
+                            float(elem.get("relation", 0) or 0),
+                            elem.get("time", "")))
+                    elif parent == "discounts":
+                        d.faction_discounts.append((
+                            faction_id_stack[-1], elem.get("faction", ""),
+                            float(elem.get("amount", 0) or 0),
+                            elem.get("time", "")))
+
+            elif tag == "licence":
+                # rep-gated unlocks: <licence type= factions="a b c"/>
+                if faction_id_stack and elem.get("type"):
+                    d.faction_licences.append((
+                        faction_id_stack[-1], elem.get("type", ""),
+                        elem.get("factions", "")))
+
+            elif tag == "account":
+                # a faction's treasury: <account id= amount=>
+                if faction_id_stack and elem.get("amount") is not None:
+                    d.faction_accounts.append((
+                        faction_id_stack[-1],
+                        float(elem.get("amount", 0) or 0)))
+
             elif tag == "faction":
+                if faction_id_stack and "factions" in tag_stack:
+                    faction_id_stack.pop()
                 if elem.get("id") == "player":
                     in_faction_player = max(0, in_faction_player - 1)
 

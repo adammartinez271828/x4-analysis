@@ -350,6 +350,28 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, wid, own, _s(role), tgt)
              for (wid, own, role, tgt) in save.wormhole_links])
 
+        # faction diplomacy: base relations, boosters, discounts -> one table
+        def _t(v):
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+        rel_rows = [(save_id, _low(a), _low(b), "base", v, None)
+                    for (a, b, v) in save.faction_relations]
+        rel_rows += [(save_id, _low(a), _low(b), "booster", v, _t(t))
+                     for (a, b, v, t) in save.faction_boosters]
+        rel_rows += [(save_id, _low(a), _low(b), "discount", v, _t(t))
+                     for (a, b, v, t) in save.faction_discounts]
+        conn.executemany(
+            "INSERT INTO faction_relation VALUES (?,?,?,?,?,?)", rel_rows)
+        conn.executemany(
+            "INSERT OR REPLACE INTO faction_meta VALUES (?,?,?)",
+            [(save_id, _low(f), amount) for (f, amount) in save.faction_accounts])
+        conn.executemany(
+            "INSERT INTO faction_licence VALUES (?,?,?,?)",
+            [(save_id, _low(f), _s(typ), _s(facs))
+             for (f, typ, facs) in save.faction_licences])
+
     return save_id
 
 

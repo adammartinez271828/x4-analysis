@@ -76,6 +76,7 @@ WORLD_TABLES = (
     "npc", "npc_skill", "post", "people", "cargo", "trade_offer",
     "build_resource", "ship_order", "resource", "floating_ware",
     "datavault", "wormhole", "wormhole_link", "ship_engine",
+    "faction_relation", "faction_meta", "faction_licence",
 )
 
 REFERENCE_TABLES = (
@@ -268,6 +269,32 @@ TABLES: dict[str, str] = {
   own_conn    TEXT NOT NULL,
   role        TEXT,
   target_conn TEXT
+)""",
+    # faction diplomacy (universe/factions). kind: base | booster | discount
+    # (discount value is a trade discount fraction, not a standing). time is
+    # the application game-time (NULL for base). Effective standing = base +
+    # active boosters, computed in frames. See docs/faction-relations-model.md
+    "faction_relation": """CREATE TABLE IF NOT EXISTS faction_relation (
+  save_id  INTEGER NOT NULL,
+  faction  TEXT NOT NULL,
+  other    TEXT NOT NULL,
+  kind     TEXT NOT NULL,
+  value    REAL,
+  time     REAL
+)""",
+    # per-faction scalars (currently the treasury)
+    "faction_meta": """CREATE TABLE IF NOT EXISTS faction_meta (
+  save_id  INTEGER NOT NULL,
+  faction  TEXT NOT NULL,
+  account  REAL,
+  PRIMARY KEY (save_id, faction)
+)""",
+    # rep-gated unlocks: which factions a licence type is granted for
+    "faction_licence": """CREATE TABLE IF NOT EXISTS faction_licence (
+  save_id  INTEGER NOT NULL,
+  faction  TEXT NOT NULL,
+  type     TEXT NOT NULL,
+  factions TEXT
 )""",
     # equipped engines of PLAYER ships (speed-from-loadout for the trade
     # opportunity travel times); n = mounted count of that engine macro

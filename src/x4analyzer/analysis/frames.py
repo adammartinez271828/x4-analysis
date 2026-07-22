@@ -81,6 +81,15 @@ class Frames:
     wormhole_links: pd.DataFrame = None
     # player ships' equipped engines: id, macro, n (mounted count)
     ship_engines: pd.DataFrame = None
+    # faction diplomacy (universe/factions):
+    #   faction_relations: faction, other, base, booster, effective (clamped)
+    #   faction_discounts: faction, other, discount (trade discount fraction)
+    #   faction_meta: faction, account (treasury)
+    #   faction_licences: faction, type, factions (rep-gated unlocks)
+    faction_relations: pd.DataFrame = None
+    faction_discounts: pd.DataFrame = None
+    faction_meta: pd.DataFrame = None
+    faction_licences: pd.DataFrame = None
 
     resource_cols: list = field(default_factory=list)
     faction_levels: list = field(default_factory=list)
@@ -604,6 +613,35 @@ def build_frames(save: SaveData, ref: RefData,
         FROM ship_order WHERE save_id = {_CUR} ORDER BY rowid""", fill=["state"])
     orders["default"] = orders["default"].astype(bool)
 
+    # ---- faction diplomacy: pivot base/booster into effective standing -----
+    frel_raw = _read(conn, f"""
+        SELECT faction, other, kind, value FROM faction_relation
+        WHERE save_id = {_CUR} ORDER BY rowid""")
+    if not frel_raw.empty:
+        base = (frel_raw[frel_raw["kind"] == "base"]
+                .groupby(["faction", "other"])["value"].sum())
+        boost = (frel_raw[frel_raw["kind"] == "booster"]
+                 .groupby(["faction", "other"])["value"].sum())
+        keys = base.index.union(boost.index)
+        faction_relations = pd.DataFrame(index=keys)
+        faction_relations["base"] = base.reindex(keys).fillna(0.0)
+        faction_relations["booster"] = boost.reindex(keys).fillna(0.0)
+        # effective standing as of the save (boosters are stored at their
+        # current decayed value) = base + boosters, clamped to [-1, 1]
+        faction_relations["effective"] = (
+            faction_relations["base"] + faction_relations["booster"]
+        ).clip(-1.0, 1.0)
+        faction_relations = faction_relations.reset_index()
+        faction_discounts = (frel_raw[frel_raw["kind"] == "discount"]
+                             [["faction", "other", "value"]]
+                             .rename(columns={"value": "discount"})
+                             .reset_index(drop=True))
+    else:
+        faction_relations = pd.DataFrame(
+            columns=["faction", "other", "base", "booster", "effective"])
+        faction_discounts = pd.DataFrame(
+            columns=["faction", "other", "discount"])
+
     return Frames(
         universe=universe, sectors=sectors, playerowned=playerowned,
         wings=wings, npcs=npcs, stations=stations, ships=ships, log=df_log,
@@ -652,6 +690,13 @@ def build_frames(save: SaveData, ref: RefData,
         ship_engines=_read(conn, f"""
             SELECT object_id AS id, macro, n
             FROM ship_engine WHERE save_id = {_CUR} ORDER BY rowid"""),
+        faction_relations=faction_relations, faction_discounts=faction_discounts,
+        faction_meta=_read(conn, f"""
+            SELECT faction, account FROM faction_meta
+            WHERE save_id = {_CUR} ORDER BY rowid"""),
+        faction_licences=_read(conn, f"""
+            SELECT faction, type, factions FROM faction_licence
+            WHERE save_id = {_CUR} ORDER BY rowid""", fill=["factions"]),
         resource_cols=resource_cols, faction_levels=faction_levels,
         resource_areas=resource_areas,
         time_now=time_now, logged_hours=logged_hours,
