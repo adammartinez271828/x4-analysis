@@ -397,7 +397,8 @@
   // wormhole / anomaly overlay: violet ring markers in three tiers — a
   // "linked" warp (solid ring + core, joined to its partner by a dashed
   // arrowed link), a "dormant" story warp (hollow dashed ring, transition
-  // not yet wired up) and an "inert" lore anomaly (small dim dot). Links are
+  // not yet wired up) and an "inert" Unstable Warp Anomaly (small dim dot,
+  // god-placed scenery, permanently "too unstable to be active"). Links are
   // [ax, ay, bx, by] with the arrow pointing origin -> destination
   (D.wlinks || []).forEach(function (w) {
     el("line", {x1: w[0], y1: w[1], x2: w[2], y2: w[3],
@@ -418,7 +419,7 @@
   var WARP_COL = "#c07df0";
   var WARP_CAT = {
     linked: "Active warp point", dormant: "Dormant warp point (story)",
-    inert: "Anomaly (lore)",
+    inert: "Unstable Warp Anomaly",
   };
   (D.wormholes || []).forEach(function (w) {
     var g = el("g", {}, layers.warps);
@@ -442,6 +443,8 @@
         h += "<br>Warps to: " + esc(w.dest);
       else if (w.cat === "dormant")
         h += "<br>Destination assigned in-mission";
+      else if (w.cat === "inert")
+        h += "<br>Too unstable to be active";
       if (w.entry) h += "<br><span style='opacity:0.6'>" +
         esc(w.entry) + "</span>";
       tip.innerHTML = h;

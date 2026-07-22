@@ -613,8 +613,9 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
 
     # wormholes / anomalies for the warp overlay, spoiler-filtered like
     # everything else. Three tiers: "linked" (a resolved partner warp),
-    # "dormant" (a story <transition> not yet wired up) and "inert" (a plain
-    # lore anomaly). Partner links resolve via the connection-id ownership
+    # "dormant" (a story <transition> not yet wired up) and "inert" (a
+    # god-placed "Unstable Warp Anomaly", never activated). Partner links
+    # resolve via the connection-id ownership
     # map — docs/wormhole-connection-model.md
     wh = getattr(frames, "wormholes", None)
     wl = getattr(frames, "wormhole_links", None)

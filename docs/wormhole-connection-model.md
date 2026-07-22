@@ -18,7 +18,9 @@ while dormant), and a `<connections>` block **links it to a partner**. A
 wormhole with a partner link is an active warp; you can resolve exactly where
 it goes from the save alone. A wormhole with only a transition is a dormant
 story warp whose exit is wired up at runtime by the mission director and is
-**not** predictable from the save. A wormhole with neither is inert lore.
+**not** predictable from the save. A wormhole with neither is an inert
+**Unstable Warp Anomaly** — a god-placed scenery object, permanently "too
+unstable to be active."
 
 ## The three tiers [OBS]
 
@@ -26,13 +28,34 @@ Sweeping the test save found **41** anomalies, all `class="anomaly"`:
 
 | Tier | Count | `<transition>` | `<connections>` | Meaning |
 |------|-------|----------------|-----------------|---------|
-| **inert** | 30 | — | — | Lore swirl, one per sector (`thevoid_anomaly_01`, `grandexchange_anomaly_01`, …). Not a warp. |
+| **inert** | 30 | — | — | **Unstable Warp Anomaly**, one per base-game sector, permanently inactive. |
 | **dormant** | 7 | `destination="0"` | — | Story warp, destination not yet assigned. All in Avarice (`cluster_500`, Tide of Avarice `S2A_/S2B_/S2C_` entries). |
 | **linked** | 4 | some | yes | Actively paired warp — the exit is resolvable. |
 
-The inert anomalies are named after their sector's story beat and sit near the
-sector centre (`hereticsend_anomaly_01`, `nopileoslegacy_anomaly_01`, …). Their
-`<source class="godobject">` places them via the game's `god.xml`.
+### What the inert tier actually is [OBS]
+
+Verified against the game files (not inferred). The macro
+`wormhole_v1_macro` (`assets/environments/asteroids/macros/`) is
+`class="anomaly"` with name text `{20109,4901}` = **"Unstable Warp Anomaly"**
+and `inactivename="Too unstable to be active"`. It carries a
+`<longrangescan minlevel="1">` (so it shows as a scannable long-range signal)
+and a gravity `<force range="8000" strength="-2.52e7">` well — but the macro
+defines **no transition and no connections**.
+
+The base game's `libraries/god.xml` statically places **exactly 30** of them,
+one per base-game sector, each `id="<sector>_anomaly_01"`
+(`thevoid_anomaly_01`, `nopileosfortune_anomaly_01`, …). A sweep of all 9,215
+game XML files finds those entry ids **only in `god.xml`** — **no script ever
+activates them.** They are permanent scenery: the "unstable" cousins of the
+functional warps, forever too unstable to be active.
+
+Every *functional* warp is a **different** object that a story script
+`create_object`s at runtime and pairs with `add_anomaly_destination`
+(renaming it `{20109,4911}` = **"Stable Warp Anomaly"**): Boso Ta's "The
+Anomalies" (`md/story_research_welfare_1.xml`), Tide of Avarice
+(`setup_dlc_pirate.xml` — the dormant Avarice tier), Timelines wave attacks,
+and the Freedom's Reach pair (`md/placedobjects.xml`). So the god-placed 30 and
+the script-placed warps never overlap.
 
 ## How a link is encoded [OBS]
 
@@ -98,7 +121,7 @@ connections per wormhole cleanly.)*
   the save; the Tide of Avarice mission script assigns their destinations when
   the story activates them. We can identify them as dormant and name their
   `source entry`, but the exit is genuinely absent until runtime. [INF]
-- **Inert anomalies** → no warp at all. [OBS]
+- **Inert Unstable Warp Anomalies** → no warp at all, ever (verified above). [OBS]
 
 The intended (but not-yet-wired) ToA pairing is visible in the entry ids:
 `S2B_anomaly_01` (the one already linked) mates the `S3_anomaly_01` end in
