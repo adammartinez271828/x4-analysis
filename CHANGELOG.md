@@ -4,20 +4,20 @@
 
 ### New User Features
 
-#### Trade Opportunities
-
-- **New Opportunities view** — the Trade tab now opens on **Opportunities**: ranked buy-here → sell-here **lanes** per ware, with per-ware "buy here / sell here" offer charts and top trading stations. Click a lane to jump the charts to its ware.
-- **Real trip economics from your own ships** — each lane's profit-per-hour is built from your player trade ships' **loadout travel speed** and the lane's **actual route length** (station and gate positions along the gate-graph path, split into plain vs local-highway km), plus dock time — not a flat estimate.
-- **Controls, as cards** — ware filter, ship preset (its cargo hold and computed travel speed shown read-only), adjustable **travel drive ratio** and **average highway speed**, per-ship-size dock time, and a **sell-player-reserve-stock** mode. Sort by Cr/h; **Distance (km)**, **Time**, and depth-capped **Depth Cr** columns.
-- **Documented assumptions** — the "what these lanes mean and caveats" note explains what each control does to the model.
-
-#### Sector Map
+#### Sector Map Updates
 
 - **Data-vault overlays** — regular vaults (cyan stars) and Erlking vaults (gold stars) at every zoom level, showing opened vs unopened state and, on hover, code / status / blueprint; legend labels carry opened/total counts.
 - **Player station markers** — zoomed in, each player station shows a marker with a name/code tooltip.
 - **Highways on the map** — **Superhighways** and local **ring Highways** as their own Base Map toggles, drawn along their true spline tracks; gate lines now attach at the actual gate positions rather than zone centres.
 - **Resource overlay redesigned** — the whole-hex tint that washed out busy sectors is gone. Each selected resource now draws **percentile edge gauges**: **mineable-now** up the left hex edges and **max replenishment rate** up the right edges (a half-full gauge = the median sector), so "empty but replenishing fast" reads distinctly from "full but slow to come back". The sector detail panel lists **every resource field** in a collapsible dropdown — current / capacity, gatherspeed, and a respawn ETA for depleted fields — with respawned ("overdue") fields correctly shown as full. Resources render regardless of which factions are selected.
 - **Defaults** — gate/superhighway/highway routes on by default; Kha'ak stations off.
+
+#### Trade Opportunities
+
+- **New Opportunities view** — the Trade tab now opens on **Opportunities**: ranked buy-here → sell-here **lanes** per ware, with per-ware "buy here / sell here" offer charts and top trading stations. Click a lane to jump the charts to its ware.
+- **Real trip economics from your own ships** — each lane's profit-per-hour is built from your player trade ships' **loadout travel speed** and the lane's **actual route length** (station and gate positions along the gate-graph path, split into plain vs local-highway km), plus dock time — not a flat estimate.
+- **Controls, as cards** — ware filter, ship preset (its cargo hold and computed travel speed shown read-only), adjustable **travel drive ratio** and **average highway speed**, per-ship-size dock time, and a **sell-player-reserve-stock** mode. Sort by Cr/h; **Distance (km)**, **Time**, and depth-capped **Depth Cr** columns.
+- **Documented assumptions** — the "what these lanes mean and caveats" note explains what each control does to the model.
 
 #### Universe Charts
 
