@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.3.0 — 2026-07-21
+
+### New User Features
+
+#### Trade Opportunities
+
+- **New Opportunities view** — the Trade tab now opens on **Opportunities**: ranked buy-here → sell-here **lanes** per ware, with per-ware "buy here / sell here" offer charts and top trading stations. Click a lane to jump the charts to its ware.
+- **Real trip economics from your own ships** — each lane's profit-per-hour is built from your player trade ships' **loadout travel speed** and the lane's **actual route length** (station and gate positions along the gate-graph path, split into plain vs local-highway km), plus dock time — not a flat estimate.
+- **Controls, as cards** — ware filter, ship preset (its cargo hold and computed travel speed shown read-only), adjustable **travel drive ratio** and **average highway speed**, per-ship-size dock time, and a **sell-player-reserve-stock** mode. Sort by Cr/h; **Distance (km)**, **Time**, and depth-capped **Depth Cr** columns.
+- **Documented assumptions** — the "what these lanes mean and caveats" note explains what each control does to the model.
+
+#### Sector Map
+
+- **Data-vault overlays** — regular vaults (cyan stars) and Erlking vaults (gold stars) at every zoom level, showing opened vs unopened state and, on hover, code / status / blueprint; legend labels carry opened/total counts.
+- **Player station markers** — zoomed in, each player station shows a marker with a name/code tooltip.
+- **Highways on the map** — **Superhighways** and local **ring Highways** as their own Base Map toggles, drawn along their true spline tracks; gate lines now attach at the actual gate positions rather than zone centres.
+- **Resource overlay redesigned** — the whole-hex tint that washed out busy sectors is gone. Each selected resource now draws **percentile edge gauges**: **mineable-now** up the left hex edges and **max replenishment rate** up the right edges (a half-full gauge = the median sector), so "empty but replenishing fast" reads distinctly from "full but slow to come back". The sector detail panel lists **every resource field** in a collapsible dropdown — current / capacity, gatherspeed, and a respawn ETA for depleted fields — with respawned ("overdue") fields correctly shown as full. Resources render regardless of which factions are selected.
+- **Defaults** — gate/superhighway/highway routes on by default; Kha'ak stations off.
+
+#### Dashboard Layout
+
+- **Five question-shaped tabs** — the dashboard is reorganized into a two-level layout (Map / Trade / Empire / Market / Universe) with sub-tab pills; the active view and sub-view persist across reloads.
+
+### Internal
+
+- **Resource respawn model** — the parser now captures each resource area's respawn-eligibility clock (`starttime`, schema v7) alongside its yield/level/gatherspeed tokens, and `extract-gamedata` pulls `regionyields.xml` and gatherspeeds into new reference CSVs. The reverse-engineered v9 depletion/respawn mechanic — areas deplete under mining, respawn whole once past `respawndelay`, and the stored yield materializes on the next miner contact — is documented in `docs/resource-depletion-model.md`, validated by an in-game experiment.
+
+### Bugfixes
+
+- **Weapon sim: mass drivers read as heatless** — Paranid Mass Drivers store per-shot heat on `<heat initial>` rather than `<heat value>`, so they showed no overheat time or cooldown. Fixed, and the heat cycle is now **simulated discretely**: mass drivers overheat in 2 shots, and `initial`-spike + `value` beams (e.g. the Scalar Aperture) are modeled correctly — all validated against in-game behavior.
+- **Weapon sim: clip weapons showed burst rate** — clip/burst weapons (Tau Accelerator, Bolt Repeater/Turret, Neutron Gatling, …) displayed the intra-clip burst rate instead of the **sustained** fire rate the in-game encyclopedia shows (S Tau Accelerator 3/s → ~1.06/s).
+
 ## 1.2.0 — 2026-07-20
 
 ### New User Features
