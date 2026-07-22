@@ -120,6 +120,7 @@ controller): they grow until ~1.3x their base screen weight, then hold */
 #ly-shighways circle{r:calc(2px*var(--sw));}
 #ly-highways polyline{stroke-width:calc(1.5px*var(--sw));
 stroke-linecap:round;stroke-linejoin:round;}
+#ly-wlinks line{stroke-width:calc(1.3px*var(--sw));}
 #ly-contested path,#ly-police path,#ly-pirates path{
 stroke-width:calc(1px*var(--sw));}
 #ly-resources path{stroke-width:calc(4px*var(--sw));
@@ -149,6 +150,8 @@ stroke-linecap:round;stroke-linejoin:round;}
 #ly-shighways circle{fill:rgba(110,220,190,0.85);}
 #ly-shighways polygon.shw-arrow{fill:rgba(110,220,190,0.95);stroke:none;}
 #ly-highways polyline{stroke:rgba(255,138,60,0.8);}
+#ly-wlinks line{stroke:rgba(192,125,240,0.75);stroke-dasharray:5,4;}
+#ly-wlinks polygon.warp-arrow{fill:rgba(192,125,240,0.95);stroke:none;}
 #ly-factions polygon{stroke-opacity:0.9;transition:stroke-opacity 0.15s;}
 #ly-factions g.dim polygon{stroke-opacity:0.15;}
 #ly-highlight *{pointer-events:none;}
@@ -608,6 +611,49 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             reach[si] = max(reach.get(si, 0.0),
                             (off[0] ** 2 + off[1] ** 2) ** 0.5)
 
+    # wormholes / anomalies for the warp overlay, spoiler-filtered like
+    # everything else. Three tiers: "linked" (a resolved partner warp),
+    # "dormant" (a story <transition> not yet wired up) and "inert" (a plain
+    # lore anomaly). Partner links resolve via the connection-id ownership
+    # map — docs/wormhole-connection-model.md
+    wh = getattr(frames, "wormholes", None)
+    wl = getattr(frames, "wormhole_links", None)
+    wh_recs: list[tuple] = []   # (sector idx, record, offset)
+    wh_by_id: dict[str, dict] = {}
+    conn_owner: dict[str, str] = {}
+    linked_ids: set[str] = set()
+    origin_links: list[tuple] = []   # (from_id, target_conn)
+    if wl is not None and len(wl):
+        for _, r in wl.iterrows():
+            conn_owner[str(r["own_conn"])] = str(r["id"])
+            linked_ids.add(str(r["id"]))
+            if r["role"] == "origin":
+                origin_links.append((str(r["id"]), str(r["target_conn"])))
+    if wh is not None and len(wh):
+        whv = wh[wh["sector.macro"].isin(index)]
+        if cfg.spoilers_hide:
+            whv = whv[whv["knownto"] == "player"]
+        for _, r in whv.iterrows():
+            off = None
+            if pd.notna(r["sx"]) and pd.notna(r["sz"]):
+                off = (float(r["sx"]), float(r["sz"]))
+            wid = str(r["id"])
+            tdest = r["transition_dest"]
+            cat = ("linked" if wid in linked_ids
+                   else "dormant" if pd.notna(tdest) else "inert")
+            rec = {
+                "id": wid, "code": str(r["code"]), "cat": cat,
+                "entry": str(r["source_entry"] or ""),
+                "sector": sectors[index[r["sector.macro"]]]["name"],
+                "dest": "",   # filled for linked warps below
+            }
+            wh_by_id[wid] = rec
+            wh_recs.append((index[r["sector.macro"]], rec, off))
+    for si, _rec, off in wh_recs:
+        if off:
+            reach[si] = max(reach.get(si, 0.0),
+                            (off[0] ** 2 + off[1] ** 2) ** 0.5)
+
     # local (ring) highway tracks — the extracted splinetube polylines —
     # drawn inside their sector hex; every point joins the shared
     # per-sector normalization so the curve keeps its true shape
@@ -661,6 +707,25 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         rec["x"], rec["y"] = in_hex_pt(si, off) if off \
             else (sectors[si]["x"], sectors[si]["y"])
         vaults.append(rec)
+
+    # wormhole markers (positions in-hex) + directional warp edges. An edge is
+    # drawn once per "origin" link whose partner is also visible; both markers
+    # carry it (dedup by the origin side). dir semantics match gates: the arrow
+    # points from the origin (entry) to the destination (exit) endpoint
+    wormholes: list[dict] = []
+    for si, rec, off in wh_recs:
+        rec["x"], rec["y"] = in_hex_pt(si, off) if off \
+            else (sectors[si]["x"], sectors[si]["y"])
+        wormholes.append(rec)
+    wlinks: list[list] = []
+    for from_id, target_conn in origin_links:
+        to_id = conn_owner.get(target_conn)
+        a, b = wh_by_id.get(from_id), wh_by_id.get(to_id)
+        if a is None or b is None:
+            continue   # an endpoint is hidden (spoilers) or out of scene
+        a["dest"] = b["sector"]
+        b["dest"] = a["sector"]
+        wlinks.append([a["x"], a["y"], b["x"], b["y"]])
 
     hws = [[si] + [c for p in pts for c in in_hex_pt(si, p)]
            for si, pts in hw_raw]
@@ -770,6 +835,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "pirates": overlay_recs(pirates, "harassments"),
         "resources": resources, "factions": factions, "stations": stations,
         "vaults": vaults, "hws": hws, "area_status": area_status,
+        "wormholes": wormholes, "wlinks": wlinks,
     }
 
 

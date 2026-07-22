@@ -4,6 +4,7 @@
 
 ### New User Features
 
+- **Wormholes on the map** — a new **Wormholes** overlay marks every anomaly in the galaxy. The save encodes each one's partner directly (a connection-id cross-link), so **active** warp points (violet ring) are drawn joined to their exit by an arrowed link showing which way you travel — including the two-way pair in Freedom's Reach and the Avarice V Dead End → Unknown System link. **Dormant** story warps (a dashed ring; the Tide of Avarice points whose destination the game only assigns mid-mission) and **inert** lore anomalies (a dim dot) are distinguished. Spoiler mode hides undiscovered wormholes and any link that would reveal one. How the connections are decoded is written up in `docs/wormhole-connection-model.md`.
 - **One-way superhighways on the map** — superhighways are directional tubes; a normal accelerator has one each way, but the galaxy has a single **one-way** superhighway (Savage Spur I → II). `gates.csv` now records superhighway direction (`oneway` column, set when a `sechighways` connection has no reverse), and the map draws a midpoint **arrowhead** pointing the way traffic flows. Two-way links and jump gates are unaffected.
 
 ## 1.3.0 — 2026-07-21

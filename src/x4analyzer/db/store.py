@@ -338,6 +338,18 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for (vid, macro, code, knownto, sector, sx, sz,
                   unlocked, loot, bps) in save.datavaults])
 
+        conn.executemany(
+            "INSERT OR REPLACE INTO wormhole VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [(save_id, wid, _low(macro), _s(code), _s(knownto),
+              _low(cluster), _low(sector), sx, sz, _s(entry), _s(sclass),
+              tdest)
+             for (wid, macro, code, knownto, cluster, sector, sx, sz,
+                  entry, sclass, tdest) in save.wormholes])
+        conn.executemany(
+            "INSERT INTO wormhole_link VALUES (?,?,?,?,?)",
+            [(save_id, wid, own, _s(role), tgt)
+             for (wid, own, role, tgt) in save.wormhole_links])
+
     return save_id
 
 

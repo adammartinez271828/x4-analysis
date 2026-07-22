@@ -81,6 +81,28 @@ def _frames(**over):
         "loot": [0, 2, 1],
         "blueprints": ["", "turret_pir_l_mk1", ""],
     })
+    # w1 (sec_a1) <-> w2 (sec_b1) are a linked pair (origin -> destination);
+    # w3 is a dormant story warp (transition, no link); w4 an inert lore
+    # anomaly (no transition) that is undiscovered
+    wormholes = pd.DataFrame({
+        "id": ["w1", "w2", "w3", "w4"],
+        "macro": ["wormhole_v1_macro"] * 4,
+        "code": ["WRP-1", "WRP-2", "WRP-3", "WRP-4"],
+        "knownto": ["player", "player", "player", ""],
+        "cluster.macro": ["cluster_a", "cluster_b", "cluster_a", "cluster_a"],
+        "sector.macro": ["sec_a1", "sec_b1", "sec_a1", "sec_a1"],
+        "sx": [30_000.0, None, 0.0, 0.0],
+        "sz": [15_000.0, None, 0.0, 0.0],
+        "source_entry": ["e1", "e2", "e3", ""],
+        "source_class": ["godobject"] * 4,
+        "transition_dest": ["0", None, "0", None],
+    })
+    wormhole_links = pd.DataFrame({
+        "id": ["w1", "w2"],
+        "own_conn": ["c1", "c2"],
+        "role": ["origin", "destination"],
+        "target_conn": ["c2", "c1"],
+    })
     base = dict(
         sectors=sectors, universe=universe,
         police=empty_events, pirates=empty_events.copy(),
@@ -88,6 +110,7 @@ def _frames(**over):
         resource_areas={},
         built_modules=pd.DataFrame(columns=["id", "macro"]),
         datavaults=datavaults,
+        wormholes=wormholes, wormhole_links=wormhole_links,
     )
     base.update(over)
     return SimpleNamespace(**base)
@@ -323,6 +346,39 @@ def test_payload_area_status_spoiler_filtered():
 def test_payload_vaults_spoilers_hidden():
     p = _payload(_frames(), _ref(), _cfg(spoilers_hide=True))
     assert [v["code"] for v in p["vaults"]] == ["VLT-001"]
+
+
+def test_payload_wormholes(payload):
+    ws = {w["code"]: w for w in payload["wormholes"]}
+    assert set(ws) == {"WRP-1", "WRP-2", "WRP-3", "WRP-4"}
+    assert ws["WRP-1"]["cat"] == "linked"
+    assert ws["WRP-3"]["cat"] == "dormant"    # transition, no partner
+    assert ws["WRP-4"]["cat"] == "inert"      # no transition, no partner
+    # linked pair resolves each other's sector as the destination
+    assert ws["WRP-1"]["dest"] == "Beta I"
+    assert ws["WRP-2"]["dest"] == "Alpha"
+    # one directed edge, from the origin (WRP-1) end to the destination
+    (link,) = payload["wlinks"]
+    assert [round(link[0], 2), round(link[1], 2)] == \
+        [ws["WRP-1"]["x"], ws["WRP-1"]["y"]]
+    assert [round(link[2], 2), round(link[3], 2)] == \
+        [ws["WRP-2"]["x"], ws["WRP-2"]["y"]]
+    # WRP-1 carries a sector-local offset (east, north) -> scaled inside its
+    # hex (positive z is up on screen, i.e. a smaller y)
+    a = next(s for s in payload["sectors"] if s["macro"] == "sec_a1")
+    assert ws["WRP-1"]["x"] > a["x"] and ws["WRP-1"]["y"] < a["y"]
+    assert abs(ws["WRP-1"]["x"] - a["x"]) < 31
+
+
+def test_payload_wormholes_spoilers_hide_partner():
+    # partner (WRP-2) undiscovered: it drops from the page and so does the
+    # link that would have leaked its (hidden) sector
+    wh = _frames().wormholes.copy()
+    wh.loc[wh["id"] == "w2", "knownto"] = ""
+    p = _payload(_frames(wormholes=wh), _ref(), _cfg(spoilers_hide=True))
+    codes = {w["code"] for w in p["wormholes"]}
+    assert "WRP-2" not in codes and "WRP-4" not in codes
+    assert p["wlinks"] == []
 
 
 def test_payload_stations_grouped_and_typed(payload):

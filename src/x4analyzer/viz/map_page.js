@@ -144,15 +144,16 @@
   // gates under resources under outlines under overlays under faction hexes
   // under labels; transparent hover targets on top) ---
   var layers = {};
-  ["gates", "shighways", "highways", "resources", "clusters", "contested",
-   "police", "pirates", "player", "factions", "highlight", "labels",
-   "hover"]
+  ["gates", "shighways", "highways", "wlinks", "resources", "clusters",
+   "contested", "police", "pirates", "player", "factions", "highlight",
+   "labels", "hover"]
     .forEach(function (n) { layers[n] = el("g", {id: "ly-" + n}, svg); });
-  // vault overlay markers also sit above the hover layer (hoverable at
-  // every zoom level — spotting unopened vaults galaxy-wide is their
+  // vault + wormhole overlay markers also sit above the hover layer
+  // (hoverable at every zoom level — spotting them galaxy-wide is their
   // point); one group per toggle
   layers.vaults = el("g", {id: "ly-vaults"}, svg);
   layers.erlking = el("g", {id: "ly-erlking"}, svg);
+  layers.warps = el("g", {id: "ly-warps"}, svg);
   // player station markers sit above the hover layer so they can take
   // pointer events for their tooltips (zoomed-in only: the zoomed-out
   // CSS hides them — the dashed ring + count badge covers that mode);
@@ -391,6 +392,65 @@
     g.addEventListener("mousemove", moveTip);
     g.addEventListener("mouseleave", hideTip);
     ptMarkers.push({el: g, x: v.x, y: v.y});
+  });
+
+  // wormhole / anomaly overlay: violet ring markers in three tiers — a
+  // "linked" warp (solid ring + core, joined to its partner by a dashed
+  // arrowed link), a "dormant" story warp (hollow dashed ring, transition
+  // not yet wired up) and an "inert" lore anomaly (small dim dot). Links are
+  // [ax, ay, bx, by] with the arrow pointing origin -> destination
+  (D.wlinks || []).forEach(function (w) {
+    el("line", {x1: w[0], y1: w[1], x2: w[2], y2: w[3],
+                "class": "warp-link"}, layers.wlinks);
+    var dx = w[2] - w[0], dy = w[3] - w[1];
+    var L = Math.sqrt(dx * dx + dy * dy) || 1; dx /= L; dy /= L;
+    var s = 3.6, px = -dy, py = dx;
+    // arrowhead a short way back from the destination marker
+    var tx = w[2] - dx * 6, ty = w[3] - dy * 6;
+    el("polygon", {points:
+      (tx + dx * s).toFixed(1) + "," + (ty + dy * s).toFixed(1) + " " +
+      (tx - dx * s + px * s).toFixed(1) + "," +
+      (ty - dy * s + py * s).toFixed(1) + " " +
+      (tx - dx * s - px * s).toFixed(1) + "," +
+      (ty - dy * s - py * s).toFixed(1), "class": "warp-arrow"},
+      layers.wlinks);
+  });
+  var WARP_COL = "#c07df0";
+  var WARP_CAT = {
+    linked: "Active warp point", dormant: "Dormant warp point (story)",
+    inert: "Anomaly (lore)",
+  };
+  (D.wormholes || []).forEach(function (w) {
+    var g = el("g", {}, layers.warps);
+    el("circle", {r: 6, fill: "transparent"}, g);
+    if (w.cat === "inert") {
+      el("circle", {r: 2, fill: WARP_COL, opacity: 0.5,
+                    stroke: "#1e1e1e", "stroke-width": 0.5}, g);
+    } else if (w.cat === "dormant") {
+      el("circle", {r: 4.5, fill: "none", stroke: WARP_COL,
+                    "stroke-width": 1.1, opacity: 0.7,
+                    "stroke-dasharray": "2,1.6"}, g);
+    } else {   // linked
+      el("circle", {r: 5, fill: "none", stroke: WARP_COL,
+                    "stroke-width": 1.3}, g);
+      el("circle", {r: 1.8, fill: WARP_COL}, g);
+    }
+    g.addEventListener("mouseenter", function (ev) {
+      var h = "<b>" + WARP_CAT[w.cat] +
+        (w.code ? " (" + esc(w.code) + ")" : "") + "</b>";
+      if (w.cat === "linked" && w.dest)
+        h += "<br>Warps to: " + esc(w.dest);
+      else if (w.cat === "dormant")
+        h += "<br>Destination assigned in-mission";
+      if (w.entry) h += "<br><span style='opacity:0.6'>" +
+        esc(w.entry) + "</span>";
+      tip.innerHTML = h;
+      tip.style.display = "block";
+      moveTip(ev);
+    });
+    g.addEventListener("mousemove", moveTip);
+    g.addEventListener("mouseleave", hideTip);
+    ptMarkers.push({el: g, x: w.x, y: w.y});
   });
 
   // resource overlay: one hidden group per resource; the LEFT-edge gauge
@@ -672,7 +732,7 @@
     layers: {gates: true, shighways: true, highways: true,
              clusters: true, labels: true,
              contested: false, police: false, pirates: false,
-             player: false, vaults: false, erlking: false,
+             player: false, vaults: false, erlking: false, warps: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
              fac_equipdock: true, fac_trading: true, fac_khaak: false},
     factions: {},
@@ -729,7 +789,8 @@
                 clusters: layers.clusters, labels: layers.labels,
                 contested: layers.contested, police: layers.police,
                 pirates: layers.pirates, player: layers.player,
-                vaults: layers.vaults, erlking: layers.erlking};
+                vaults: layers.vaults, erlking: layers.erlking,
+                warps: layers.warps};
 
   function applyLayer(name) {
     var on = state.layers[name] ? "" : "none";
@@ -737,6 +798,8 @@
     // the station markers live outside layers.player (they must sit
     // above the hover hexes) but toggle with it
     if (name === "player") layers.playerStations.style.display = on;
+    // warp markers and their link lines toggle together
+    if (name === "warps") layers.wlinks.style.display = on;
     saveState();
   }
   function applyFaction(name) {
@@ -876,6 +939,15 @@
     overlayRows.push(["erlking",
       "Erlking Vaults (" + ec.open + "/" + ec.n + " opened)",
       pathSwatch(starPath, VAULT_STYLE.erlking.colour, 9)]);
+  if ((D.wormholes || []).length) {
+    var nActive = D.wormholes.filter(
+      function (w) { return w.cat === "linked"; }).length;
+    overlayRows.push(["warps",
+      "Wormholes (" + nActive + " active / " + D.wormholes.length + ")",
+      "<svg width='18' height='14' viewBox='-9 -7 18 14'>" +
+      "<circle r='5' fill='none' stroke='#c07df0' stroke-width='1.3'/>" +
+      "<circle r='1.8' fill='#c07df0'/></svg>"]);
+  }
   overlayRows.forEach(function (row) {
     litem(gOver, row[1], row[2],
       function () { return state.layers[row[0]]; },

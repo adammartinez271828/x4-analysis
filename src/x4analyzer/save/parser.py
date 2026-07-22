@@ -35,6 +35,13 @@ _YIELD_WARE_RE = re.compile(
 # class="datavault", Erlking vaults class="object")
 _VAULT_RE = re.compile(r"^landmarks_(erlking_)?vault_\d+_macro$")
 
+# wormholes / anomalies: every galaxy anomaly (the scannable lore swirls AND
+# the story warp points) is class="anomaly", macro wormhole_v1(_standalone).
+# Only some carry a <transition destination> (story warp) or a <connected>
+# link to a partner wormhole (an active/paired warp) — see
+# docs/wormhole-connection-model.md
+_ANOMALY_CLASS = "anomaly"
+
 
 @dataclass
 class SaveData:
@@ -97,6 +104,18 @@ class SaveData:
     # loot = collectable child components still uncollected; blueprints =
     # blueprint macros still inside (Erlking; empty once collected)
     datavaults: list = field(default_factory=list)
+    # wormholes / anomalies for the map overlay:
+    # (id, macro, code, knownto, cluster_macro, sector_macro, sx, sz,
+    #  source_entry, source_class, transition_dest). transition_dest is None
+    # when the component has no <transition> (an inert lore anomaly), else the
+    # destination-state string ("0" = a dormant/story warp not yet wired up)
+    wormholes: list = field(default_factory=list)
+    # directional links between paired wormholes, one row per <connection>:
+    # (wormhole_id, own_conn_id, role, target_conn_id). role is "origin"
+    # (this end is the entry) or "destination" (this end is the exit);
+    # target_conn_id is the partner's connection id — resolve the partner by
+    # matching it to another wormhole's own_conn_id (frames.wormhole_edges)
+    wormhole_links: list = field(default_factory=list)
     # equipped engines: (ship_id, engine_macro) per engine component (all
     # ships; the store keeps player ships only — speed-from-loadout)
     ship_engines: list = field(default_factory=list)
@@ -140,6 +159,9 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     sector_macro_stack: list[str] = []
     # open data-vault components awaiting their loot/unlock children
     vault_stack: list[list] = []
+    # open wormhole/anomaly components awaiting source/transition/connected
+    # children: [comp_stack depth, record dict]
+    wormhole_stack: list[list] = []
     in_faction_player = 0
     n_elems = 0
 
@@ -160,6 +182,14 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     if _VAULT_RE.match(elem.get("macro", "").lower()):
                         # [comp_stack depth, unlocked, loot, blueprints]
                         vault_stack.append([len(comp_stack), 0, 0, []])
+                    elif clazz == _ANOMALY_CLASS:
+                        wormhole_stack.append([len(comp_stack), {
+                            "id": cid, "macro": elem.get("macro", "").lower(),
+                            "code": elem.get("code", ""),
+                            "knownto": elem.get("knownto", ""),
+                            "source_entry": "", "source_class": "",
+                            "transition_dest": None, "links": [],
+                        }])
                     if clazz == "station" or _SHIP_RE.match(clazz):
                         object_stack.append(cid)
                     elif clazz == "sector":
@@ -204,6 +234,20 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 if vault_stack and len(comp_stack) == vault_stack[-1][0] \
                         and elem.get("state") == "unlocked":
                     vault_stack[-1][1] = 1
+
+            elif tag == "source":
+                # <source entry= class=> of an open wormhole
+                if wormhole_stack and len(comp_stack) == wormhole_stack[-1][0]:
+                    rec = wormhole_stack[-1][1]
+                    rec["source_entry"] = elem.get("entry", "")
+                    rec["source_class"] = elem.get("class", "")
+
+            elif tag == "transition":
+                # <transition destination="N"/> of an open wormhole; N=0 is a
+                # dormant story warp (destination wired up in-mission)
+                if wormhole_stack and len(comp_stack) == wormhole_stack[-1][0]:
+                    wormhole_stack[-1][1]["transition_dest"] = \
+                        elem.get("destination", "")
 
             elif tag == "component":
                 clazz, cid, macro, own_pos = comp_stack.pop()
@@ -305,6 +349,33 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                             if bp:
                                 v[3].extend(bp.split(","))
 
+                if wormhole_stack and \
+                        wormhole_stack[-1][0] == len(comp_stack) + 1:
+                    # this component IS the open wormhole: finalize with its
+                    # sector-local position (same offset walk as vaults)
+                    rec = wormhole_stack.pop()[1]
+                    wcluster = wsector = ""
+                    wsector_depth = -1
+                    for i, (pcls, _pid, pmacro, _pp) in enumerate(comp_stack):
+                        if pcls == "cluster":
+                            wcluster = pmacro
+                        elif pcls == "sector":
+                            wsector, wsector_depth = pmacro, i
+                    wx = own_pos[0] if own_pos else 0.0
+                    wz = own_pos[1] if own_pos else 0.0
+                    if wsector_depth >= 0:
+                        for _c, _i2, _m, p in comp_stack[wsector_depth + 1:]:
+                            if p:
+                                wx += p[0]
+                                wz += p[1]
+                    d.wormholes.append((
+                        rec["id"], rec["macro"], rec["code"], rec["knownto"],
+                        wcluster, wsector, wx, wz, rec["source_entry"],
+                        rec["source_class"], rec["transition_dest"]))
+                    for own_conn, role, target in rec["links"]:
+                        d.wormhole_links.append(
+                            (rec["id"], own_conn, role, target))
+
             elif tag == "connected":
                 parent = elem.getparent()
                 if (object_stack and parent is not None
@@ -312,6 +383,17 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         and parent.get("connection") == "commander"):
                     d.commander_links.append(
                         (object_stack[-1], elem.get("connection", "")))
+                # a wormhole's warp connection: <connection connection="origin"
+                # id="[A]"><connected connection="[B]"/> — [B] is the partner
+                # wormhole's connection id (resolved in frames)
+                elif (wormhole_stack and parent is not None
+                        and len(comp_stack) == wormhole_stack[-1][0]
+                        and parent.tag == "connection"
+                        and parent.get("connection") in ("origin",
+                                                         "destination")):
+                    wormhole_stack[-1][1]["links"].append((
+                        parent.get("id", ""), parent.get("connection", ""),
+                        elem.get("connection", "")))
 
             elif tag == "connection":
                 if object_stack and elem.get("connection") == "subordinates":

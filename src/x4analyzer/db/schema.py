@@ -75,7 +75,7 @@ WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",
     "npc", "npc_skill", "post", "people", "cargo", "trade_offer",
     "build_resource", "ship_order", "resource", "floating_ware",
-    "datavault", "ship_engine",
+    "datavault", "wormhole", "wormhole_link", "ship_engine",
 )
 
 REFERENCE_TABLES = (
@@ -241,6 +241,33 @@ TABLES: dict[str, str] = {
   loot         INTEGER NOT NULL,
   blueprints   TEXT,
   PRIMARY KEY (save_id, object_id)
+)""",
+    # wormholes / anomalies (map overlay): every galaxy anomaly. transition_dest
+    # is NULL for an inert lore anomaly, else the destination-state string
+    # ("0" = a dormant/story warp). See docs/wormhole-connection-model.md
+    "wormhole": """CREATE TABLE IF NOT EXISTS wormhole (
+  save_id        INTEGER NOT NULL,
+  object_id      TEXT NOT NULL,
+  macro          TEXT NOT NULL,
+  code           TEXT,
+  knownto        TEXT,
+  cluster_macro  TEXT,
+  sector_macro   TEXT,
+  sx             REAL,
+  sz             REAL,
+  source_entry   TEXT,
+  source_class   TEXT,
+  transition_dest TEXT,
+  PRIMARY KEY (save_id, object_id)
+)""",
+    # directional warp links: role "origin" (entry) / "destination" (exit);
+    # target_conn is the partner wormhole's own_conn (resolved in frames)
+    "wormhole_link": """CREATE TABLE IF NOT EXISTS wormhole_link (
+  save_id     INTEGER NOT NULL,
+  object_id   TEXT NOT NULL,
+  own_conn    TEXT NOT NULL,
+  role        TEXT,
+  target_conn TEXT
 )""",
     # equipped engines of PLAYER ships (speed-from-loadout for the trade
     # opportunity travel times); n = mounted count of that engine macro

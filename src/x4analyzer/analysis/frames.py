@@ -74,6 +74,11 @@ class Frames:
     # data vaults (regular + Erlking): id, macro, code, knownto,
     # sector.macro, sx, sz, unlocked, loot, blueprints
     datavaults: pd.DataFrame = None
+    # wormholes / anomalies: id, macro, code, knownto, cluster.macro,
+    # sector.macro, sx, sz, source_entry, source_class, transition_dest
+    wormholes: pd.DataFrame = None
+    # directional warp links: id, own_conn, role, target_conn
+    wormhole_links: pd.DataFrame = None
     # player ships' equipped engines: id, macro, n (mounted count)
     ship_engines: pd.DataFrame = None
 
@@ -632,6 +637,18 @@ def build_frames(save: SaveData, ref: RefData,
                    unlocked, loot, blueprints
             FROM datavault WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["code", "knownto", "sector.macro", "blueprints"]),
+        wormholes=_read(conn, f"""
+            SELECT object_id AS id, macro, code, knownto,
+                   cluster_macro AS "cluster.macro",
+                   sector_macro AS "sector.macro", sx, sz,
+                   source_entry, source_class, transition_dest
+            FROM wormhole WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["code", "knownto", "cluster.macro", "sector.macro",
+                  "source_entry", "source_class"]),
+        wormhole_links=_read(conn, f"""
+            SELECT object_id AS id, own_conn, role, target_conn
+            FROM wormhole_link WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["role"]),
         ship_engines=_read(conn, f"""
             SELECT object_id AS id, macro, n
             FROM ship_engine WHERE save_id = {_CUR} ORDER BY rowid"""),
