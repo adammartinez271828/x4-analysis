@@ -198,7 +198,7 @@ def construction_rates(frames: Frames, ref: RefData
                        ) -> tuple[dict, pd.DataFrame, float]:
     """ESTIMATED construction consumption of build materials (units/h),
     from the economylog stock-delta stream
-    (docs/continuous-construction-demand.md; the doc's snapshot "Build
+    (docs/plans/continuous-construction-demand.md; the doc's snapshot "Build
     demand" premise was later replaced by build-storage buy offers, but
     its flow estimators survive):
 

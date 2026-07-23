@@ -1,4 +1,4 @@
-"""SQLite schema for the analysis database (docs/sqlite-schema.md).
+"""SQLite schema for the analysis database (docs/reference/db-schema.md).
 
 Every table is one of four scoping classes:
 
@@ -248,7 +248,7 @@ TABLES: dict[str, str] = {
 )""",
     # wormholes / anomalies (map overlay): every galaxy anomaly. transition_dest
     # is NULL for an inert lore anomaly, else the destination-state string
-    # ("0" = a dormant/story warp). See docs/wormhole-connection-model.md
+    # ("0" = a dormant/story warp). See docs/models/wormhole-connection-model.md
     "wormhole": """CREATE TABLE IF NOT EXISTS wormhole (
   save_id        INTEGER NOT NULL,
   object_id      TEXT NOT NULL,
@@ -276,7 +276,7 @@ TABLES: dict[str, str] = {
     # faction diplomacy (universe/factions). kind: base | booster | discount
     # (discount value is a trade discount fraction, not a standing). time is
     # the application game-time (NULL for base). Effective standing = base +
-    # active boosters, computed in frames. See docs/faction-relations-model.md
+    # active boosters, computed in frames. See docs/models/faction-relations-model.md
     "faction_relation": """CREATE TABLE IF NOT EXISTS faction_relation (
   save_id  INTEGER NOT NULL,
   faction  TEXT NOT NULL,

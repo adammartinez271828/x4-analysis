@@ -1,4 +1,4 @@
-"""Sector connectivity graph (analytics-ideas.md infrastructure item 1).
+"""Sector connectivity graph (docs/plans/analytics-ideas.md infrastructure item 1).
 
 Adjacency = gate/accelerator pairs from game data (gates.csv) plus
 same-cluster sector pairs (multi-sector clusters are linked by internal

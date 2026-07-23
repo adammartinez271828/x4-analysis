@@ -1,129 +1,194 @@
-# Save-XML coverage inventory & extraction candidates
+# Feasibility study: future analytics tools
 
-**Save analyzed:** `save_008.xml.gz` (2026-07-13, 58 MB gz, game v9.0 build 611726,
-`modified="1"`, guid `8E0C8E37-…`, game time 36,853 s ≈ 10.2 h).
-**Method:** one streaming `lxml.iterparse` pass (same discipline as `save/parser.py`)
-counting every element by *path key* = tag stack relative to the nearest enclosing
-`<component class=…>` (components are the recursive unit of the save), collecting
-attribute-name frequencies and up to 3 sample attribute dicts per path.
-Result: **9,221,265 elements, 2,311 distinct path keys**. Every claim below is backed
-by sampled values from this save; targeted `zcat|grep` and filtered iterparse passes
-pulled the example subtrees. Peak memory stayed in the tens of MB.
+Status: **idea catalogue, nothing implemented.** Companion to
+`player-view-plan.md`. Feasibility ratings are grounded in what the save and
+game data are known to contain (see CLAUDE.md "Market tab data semantics"
+for the hard-won parsing knowledge these build on).
 
-Current DB for this playthrough (`x4_8E0C8E37….sqlite`, 71 MB after multiple runs):
-trade_tx 728, stock_event 173,577, log_entry 1,744, component 15,987, trade_offer 14,172.
+Design principle (user-confirmed): prescriptive tools produce **ranked
+recommendations whose scores decompose into visible factors** — a top-10
+list where every score can be expanded into profit / distance / danger /
+etc., with tunable weights. Never an opaque oracle.
 
----
-
-## 1. Coverage inventory
-
-"Captured" = lands in a SQLite table via `save/parser.py` + `db/store.py`.
-Counts are element counts in this save.
-
-### 1.1 Save/universe metadata
-
-| Path | Count | Captured | Notes |
-|---|---:|---|---|
-| `info/game`, `info/save`, `info/player` | 3 | **yes** → `save` | guid, version, time, date, name, money, modified |
-| `info/patches/patch` (+`history/`) | 18 | no | DLC/mod load list (`ws_3737446888` Habitat Capacity Boost, `ws_3566937504` Respectable Terran Crews) — provenance for mod-sensitive analyses |
-| `universe/factions/faction` (132) with `relations/relation` (972), `relations/booster` (18), `licences/licence` (132), `moods/mood` (27), `discounts/booster` (5), `diplomacy/exclude`, `traderules/traderule` | ~1,400 | no | **Candidate #6** |
-| `universe/blacklists/blacklist` | 2 | no | player blacklist definitions; referenced by ships (see 1.4) |
-| `universe/jobs/job` (+`waiting`, `requested`) | ~3,700 | no | NPC job-system state; low analytics value |
-| `universe/diplomacy/actions/action`, `operations/diplomacy/…` | ~30 | no | envoy/agent operations (DLC mini_02); tiny |
-| `universe/physics/…`, `controltextures` | ~1,800 | no | engine state — skip |
-| `stats/stat` | 103 | no | global playthrough counters — **candidate #9** |
-| `missions/mission` (17), `missions/offer` (52) | ~600 | no | active missions + offers incl. rewards — honorable mention |
-| `messages/entry` (32), `tickercache/entry` (100) | 132 | no | GalNet/notification history — honorable mention |
-| `log/entry` | 1,998 | **yes** → `log_entry` | all attrs kept (incl. `raw_attrs`) |
-
-### 1.2 economylog
-
-| Entry type | Count | Captured | Notes |
-|---|---:|---|---|
-| `type="trade"` | 189,169 | **yes** → `trade_tx` / `stock_event` | two flavors handled; `price`/`max` of stock snapshots survive only inside `raw_attrs` JSON |
-| `buyoffer` / `selloffer` | 294,870 / 120,126 | **no** | per-(owner,ware) offer snapshots **with `price` and `max`** — price history! |
-| `consume` / `produce` | 114,748 / 88,579 | **no** | cumulative production/consumption counters |
-| `construction` | 59,925 | **no** | wares consumed by construction |
-| `collect` / `drop` | 24,598 / 13,611 | **no** | mining/salvage gathered; cargo dropped |
-| `init`, `surplus`, `recycle`, `transfer`, `destruction`, `ownerchange`, `debug` | ~16,100 | **no** | |
-| `economylog/removed/object` | (per save) | **yes** → `removed_object` | |
-
-→ **Candidate #1**: ~790k dropped events per save, the single biggest gap.
-
-### 1.3 Components that become universe rows
-
-`cluster`/`sector`/`station`/`buildstorage`/`ship_*` → `component` table: **captured**
-(id, class, macro, name, code, owner, knownto, contested, connection, spawntime,
-cluster/sector ids, basename, parent). Attributes present in the save but dropped:
-`state`, `cover`, `level`, `variation`, `attacker`, `attacktime`, `attackership`,
-`description`, `nameindex`, `factionheadquarters`, `modulelevel`, `thruster`.
-(`attacker`/`attacktime` = "under attack" signal — folded into candidate #7.)
-
-Component classes never collected (not universe classes, not ships):
-
-| Class | Count (components) | Notes |
-|---|---:|---|
-| `satellite` / `mine` / `resourceprobe` | 993 / 758 / present (`resourceprobe/hull` seen) | player + NPC deployables — honorable mention (map overlay) |
-| `asteroid` (868), `gate` (323), `highway`, `adsign`, `destructible`, `object`, `room`, `zone`, … | ~6,000 | mostly scenery; gates already come from `gates.csv` |
-| equipment classes nested in ships/stations: `turret` 114,024, `shieldgenerator` 98,298, `engine` 30,025, `weapon` 25,531, `missileturret` 10,415 | ~280k | mounted loadouts — **candidate #8** |
-
-### 1.4 Sub-records of stations/ships
-
-| Path (per 1.0 path-key) | Count | Captured | Notes |
-|---|---:|---|---|
-| `connections/connection[@connection=subordinates]` + follower `connected` | ~5k | **yes** → `fleet_edge` | |
-| `subordinates/group` (`index`, **`assignmment`**, `protectedsector`) | 2,071 | **no** | commander-side group roles — **candidate #2** |
-| `<subordinate group="N"/>` (flat, on follower) | 9,616 | **no** | follower→group index — **candidate #2** |
-| `control/post` | ~27k | **yes** → `post` | |
-| `workforce` | (per station) | **yes** → `workforce` | |
-| `construction/sequence/entry`, `snapshot/entry`, buildstorage `buildtasks/inprogress/build/sequence/entry` + `upgrades/groups/{shields,turrets,engines}` | ~250k | **yes** → `module`, `module_upgrade`, built_refs | `upgrades/ammunition/unit` (14.9k) dropped |
-| `people/person` (+`skills`, `npcseed`) | 259,698 | **partial** → `people` role counts | per-person `skills` (morale/piloting/…) and `macro` (race) dropped |
-| `npc` components owner=player + `skills` | (93 ships' officers) | **yes** → `npc`, `npc_skill` | NPC `inventory/ware` (6,901), `blackboard` dropped |
-| `cargo/ware` | ~13k | **yes** → `cargo` | |
-| `trade/offers/**/trade` | 12,539 | **partial** → `trade_offer` | side/ware/amount/price kept; `desired`, `id`, `flags`, `restrictions@factions` (3,491) dropped |
-| `trade/reservations/reservation` | 2,175 | **no** | committed in-flight trades — **candidate #3** |
-| `trade/prices/reference/ware` | 6,053 | **no** | per-station reference buy/sell — **candidate #4** |
-| `production/production` (cycle state) | 2,630 | **no** | **candidate #5** |
-| `account` | 105 | **no** | object money accounts — **candidate #9** |
-| `shields/group`, `…/hull` | 99,901 / 1,914 | **no** | damage state — **candidate #7** |
-| `modification/{paint,ship,weapon,engine,shield}` | 13,533 | **no** | 11.9k are `paint`; real mods ~600 — part of #8 |
-| `ammunition/available/item` | 72,511 | **no** | missiles/mines/drones aboard — part of #8 |
-| `blacklists/blacklist` (`type`, `ref`) | 3,094 | **no** | per-ship blacklist assignment; honorable mention |
-| `source` (`job`, `mission`, `commander`) | 36,626 | **no** | NPC job/mission provenance; honorable mention |
-| `orders/order` | ~19k | **partial** → `ship_order` | `param` children (~390k), `syncpoint` dropped |
-| `events/event` | 59,198 | no | mostly `updatetradeoffers`/`updateengineparameters` noise — skip |
-| `supplies/wares/ware`, `units/unit` | ~2,100 | no | resupply reserves, drones under buildprocessor |
-| `buildtasks/queue/build` (`faction`, `time`, `price`) | 202 | no | shipyard order queue w/ customer+price; honorable mention |
-| `boost`, `gravidar`, `listeners`, `offset/position` etc. | ~1.6M | no | flight/engine state, geometry — skip |
-
-### 1.5 Player component
-
-| Path | Count | Captured | Notes |
-|---|---:|---|---|
-| `blueprints/blueprint` | 151 | no | **candidate #10** |
-| `research/research` | 25 | no | **candidate #10** |
-| `inventory/ware` | 102 | no | **candidate #9** |
-| `memory/scan/item` (`component`, `level`) | 7,652 | no | scan level per known object; honorable mention |
-| `discovered/sector/quadtree/**` | 64,825 | no | fog-of-war bitmap — skip |
-| `known/entries`, `unlocks`, `platformtriggers`, `memory/subscriptions` | ~8k | no | minor |
-
-### 1.6 Engine state (provably skippable)
-
-| Group | Count | Verdict |
-|---|---:|---|
-| `//savegame/script/**` (script engine refs/vars) | 1,157,163 | skip |
-| `//savegame/aidirector/**` | 996,302 | skip |
-| `//savegame/md/**` (mission-director cues) | 809,425 | skip |
-| `offset/position/rotation` under components | 1,403,798 | skip (see honorable mentions: in-sector maps) |
-| `listeners/listener` | 222,067 | skip |
-
-Together with economylog these account for ~4.6M of the 9.2M elements; the captured
-record types cover most of the rest. The gaps listed above are the complete set of
-plausibly-useful uncaptured data.
+Priority guidance (user-confirmed): all four themes appeal; cross-run
+history is constrained by the user *not* wanting to run the analyzer
+habitually — see the watch-mode idea (#10) which removes that constraint.
 
 ---
 
-## 2. Ranked candidates
+## A. Prescriptive advisors
+
+### 1. Trade route finder — feasibility: HIGH ⭐ recommended first
+
+"Buy ware W at station A for P₁, haul N units (M m³) through K gates, sell
+at station B for P₂ → profit/trip, profit/hour, profit/m³."
+
+- **Data:** open buy/sell offers with prices, amounts, station sectors (all
+  already parsed for the Market tab). Sector adjacency graph from gates:
+  220 known gate components exist in the save with sector ancestry;
+  gate-pair connections also derivable from game files
+  (`galaxy.xml` connections) for unrevealed links.
+- **Work:** build the sector graph once; BFS distances; enumerate
+  (sell-offer × buy-offer) pairs per ware; score = spread × min(amounts)
+  constrained by a configurable cargo size, discounted by gate distance.
+- **Factors exposed:** spread, volume ceiling, cargo trips, gate count,
+  sector danger (from #8's threat index), counterparty faction.
+- **Risks:** none structural; needs the player-view caveat (omniscient
+  offers) eventually.
+
+### 2. Station build advisor — feasibility: MEDIUM-HIGH ⭐ **IMPLEMENTED** (Build Advisor tab)
+
+Score "build a W factory in sector S": market gap (Market tab metrics) ×
+input availability nearby (sell offers + mining yields within R gates) ×
+demand proximity (understocked buyers within R gates) × danger × workforce
+availability (habitat food supply chains nearby).
+
+- **Data:** every factor already computed or parsed; needs the sector graph
+  from #1 and a scoring model.
+- **Work:** mostly the scoring model + a per-sector detail view justifying
+  each recommendation ("claytronics fab in Segaris: 30M build demand within
+  3 gates, silicon at 152 Cr 1 gate away, 0 hostile events logged").
+- **Risks:** recommendation quality is judgement-laden; mitigate with the
+  decomposable-factors principle and tunable weights.
+
+### 3. Blueprint ROI calculator — feasibility: HIGH
+
+For each buildable production module: build cost (module ware build recipes
+— already in recipes.csv) + blueprint price (game data) vs revenue at
+*current live prices* (best open buy offers) → payback hours, ranked.
+
+- **Data:** all present. Needs blueprint prices extracted (wares.xml has
+  module ware prices; blueprint licence costs live in game data too).
+- **Work:** small; a table on the Market tab or its own tab section.
+- **Nuance:** revenue should offer both "average price" (conservative) and
+  "current best offers" (opportunistic) columns.
+
+### 4. Mining site advisor — feasibility: HIGH
+
+Best sectors per minable ware: resource yield (parsed for the map) ×
+distance to paying buyers (graph from #1) × danger × current competition
+(NPC miner density per sector — countable from universe ships with
+purpose="mine" per sector).
+
+- **Data:** all present including competitor density, which is a nice
+  differentiator ("high yield but 40 NPC miners already work it").
+
+---
+
+## B. Own-empire operations
+
+### 5. Empire bottleneck audit — feasibility: HIGH ⭐ **IMPLEMENTED** (Audit tab)
+
+One page listing everything wrong with YOUR assets:
+
+- production stalled waiting for inputs (own stations' `<build>`/queue
+  states and `insufficient` blocks — richest data in the save);
+- output storage saturated → production choking (cargo vs capacity; may
+  need storage-capacity extraction from module macros);
+- idle ships (no orders / default orders only — order queues are in the
+  save, currently unparsed);
+- understaffed stations (workforce vs `workforce max` per module);
+- ships without engineers, low-skill pilots on high-value ships (already
+  parsed for df.ships).
+
+### 6. Station P&L statements — feasibility: HIGH — **IMPLEMENTED** (Station P&L tab)
+
+Per-station: revenue, input costs, net profit/h, trend; ROI ranking across
+the empire. Extends the existing Trade History data (per-station trades are
+already attributed); add module-based cost attribution for shared stations.
+The cross-run cache already accumulates the needed history passively.
+
+### 7. Fleet readiness report — feasibility: HIGH
+
+Hull %, missing crew, engineer gaps, pilot skill distribution, equipment
+tier audit (mk1 shame list — loadout components are in the save, currently
+skipped), and ammo/missile/drone reserves vs capacity (the
+`<supplies><wares>` blocks explicitly excluded from market stock are
+exactly this data).
+
+---
+
+## C. Military / strategic
+
+### 8. War dashboard + threat map — feasibility: MEDIUM-HIGH
+
+- Hostile military mass per sector (universe ships × ship mass × owner
+  relations — relations are in the save's faction data, unparsed);
+- map overlay of Xenon pressure on border sectors;
+- defence coverage: friendly defence platforms per border sector;
+- station kills from the global log (all factions' losses, not just
+  player's — `destroyed` entries exist for NPC stations too, worth
+  verifying coverage).
+- **Output:** a "front line report": sectors likely to flip, with the
+  factors visible (hostile mass vs defence mass vs recent losses).
+
+### 9. Loss heatmap — feasibility: HIGH (small)
+
+Player ship losses on the map with killer attribution and time trend.
+Mostly a presentation extension of the existing Destroyed table; danger
+scores feed advisors #1/#2/#4.
+
+---
+
+## D. Cross-run history
+
+### 10. Autosave watch mode — feasibility: MEDIUM ⭐ unlocks the theme
+
+The user won't run the analyzer habitually — but X4 writes autosaves every
+few minutes regardless. A `x4-analyzer --watch` daemon (or scheduled task)
+that notices new autosaves and silently appends compact snapshots (prices,
+stocks, ownership, player net worth) to the existing cache infrastructure
+would build history with **zero user habit change**. Parsing is already
+fast enough (~18 s) to run per autosave.
+
+- **Risks:** long-running process UX; snapshot compaction so years of play
+  stay small; autosave cadence varies.
+
+### 11. History charts — feasibility: HIGH *once #10 exists*
+
+Price history per ware, sector ownership timeline / war-progress animation,
+player net-worth curve, market Fill %/backlog trends. All are simple charts
+over #10's snapshots; without #10 they degrade to whatever sparse manual
+runs exist (design must tolerate gaps).
+
+### 12. Supply-chain Sankey — feasibility: MEDIUM (single-save, bonus)
+
+Ware flow diagram (ore → refined → components → ships) per faction from the
+capacity/delivery data; plotly has native sankey support. The work is
+layout readability, not data.
+
+---
+
+## Suggested build order
+
+1. **Sector graph** (shared infrastructure: gates → distances) — enables
+   #1, #2, #4, #8. **DONE** (`sectorgraph.py` + `gates.csv` from galaxy.xml).
+2. **#1 Trade route finder** — highest immediate decision value, proves the
+   graph.
+3. **#5 Bottleneck audit** — best value/effort, no new infrastructure.
+4. **#2 Build advisor** — the flagship, once #1's graph and the danger
+   index from #9 exist.
+5. **#9 → #8** military layer.
+6. **#10 watch mode** when history features get pulled.
+
+#3, #4, #7 are independent small wins to slot anywhere.
+
+---
+
+## E. Save-data extraction candidates (coverage-sweep backlog)
+
+Folded in from the retired save-XML coverage inventory (2026-07-13, one
+streaming sweep of `save_008` — 9.2 M elements, 2,311 distinct path keys;
+the counts below are from that save). The structural documentation that
+accompanied it now lives in `../reference/savegame-structure.md`; what
+remains here is the backlog: save content **not yet extracted**, ranked by
+analytics value ÷ (parse + storage cost). Candidate numbers (#1–#10) are
+local to this section — they are unrelated to the idea numbers above.
+
+Shipped since the sweep: candidate #6 (faction relations, boosters,
+discounts, licences, accounts → the Standings/Relations views; moods and
+diplomacy excludes remain uncaptured), and the station-level `ammunition`
+part of #8 (the station-munition census). The rest is open.
 
 Ranking = analytics value for existing tabs ÷ (parse + storage cost). All fit the
 existing single pass: each is either a new `elif tag == …` branch keyed off
@@ -340,7 +405,7 @@ branch. None needs a second pass.
 
 ---
 
-## 3. Cost summary within the single pass
+### Cost summary within the single pass
 
 Parse-time: all candidates ride the existing start/end dispatch; the only measurable
 additions are #1 (~790k extra attrib dicts, est. +1–2 s on the ~18 s pass) and #8 if

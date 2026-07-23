@@ -4,7 +4,7 @@ The database (one per game GUID, in the user data dir next to the csv.gz
 caches) is a rebuildable artifact derived from save + game files — EXCEPT
 the event-history tables (schema.EVENT_TABLES), which preserve the
 rolling log/economylog windows the game has already discarded and are never
-dropped. Schema and conventions: docs/sqlite-schema.md.
+dropped. Schema and conventions: docs/reference/db-schema.md.
 
 Load rules worth calling out:
 - "" from the parser becomes NULL (SQL predicates read better); macros are

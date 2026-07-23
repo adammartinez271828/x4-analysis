@@ -773,7 +773,7 @@ components carrying `blueprints="ware_id,…"`, **not present in this save**):
 Every galaxy anomaly — scannable lore swirls and story warps alike — is
 `class="anomaly"`, macro `wormhole_v1_macro` or
 `wormhole_v1_standalone_macro` (41 here). Three tiers, distinguished by two
-optional children (see `docs/wormhole-connection-model.md` for the full
+optional children (see `docs/models/wormhole-connection-model.md` for the full
 model):
 
 Inert (no `<transition>`, no `<connections>` — permanent scenery, one per

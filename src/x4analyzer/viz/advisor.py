@@ -1,4 +1,4 @@
-"""Station build advisor (docs/analytics-ideas.md #2).
+"""Station build advisor (docs/plans/analytics-ideas.md #2).
 
 Scores "build a factory for ware W in sector S" for every producible
 economy ware and every known, non-hostile sector. The score decomposes

@@ -1,6 +1,6 @@
 """Empire bottleneck audit: everything currently wrong with YOUR assets.
 
-Sections (see docs/analytics-ideas.md #5):
+Sections (see docs/plans/analytics-ideas.md #5):
 - production input starvation: hours of input cover per station, from stock
   vs the station's own recipe consumption rates;
 - output pile-up: product stock measured in hours of production;

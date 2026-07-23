@@ -260,7 +260,7 @@ the save's engine count).
 
 Resource-area replenishment parameters — quantifies the `yieldid` level
 token of save resource areas (savegame-structure.md § Sector resource
-areas; full model in docs/resource-depletion-model.md). One row per
+areas; full model in docs/models/resource-depletion-model.md). One row per
 (level, ware); key (`level`, `ware`). Not loaded into the DB.
 
 | Column | Meaning | Provenance |

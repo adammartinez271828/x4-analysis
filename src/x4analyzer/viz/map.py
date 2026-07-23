@@ -616,7 +616,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     # "dormant" (a story <transition> not yet wired up) and "inert" (a
     # god-placed "Unstable Warp Anomaly", never activated). Partner links
     # resolve via the connection-id ownership
-    # map — docs/wormhole-connection-model.md
+    # map — docs/models/wormhole-connection-model.md
     wh = getattr(frames, "wormholes", None)
     wl = getattr(frames, "wormhole_links", None)
     wh_recs: list[tuple] = []   # (sector idx, record, offset)

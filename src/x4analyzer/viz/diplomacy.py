@@ -6,7 +6,7 @@ template with `__TOKEN__` placeholders and a shared `diplomacy_page.js` that
 branches on the payload's `view`. Everything comes from the savegame's
 `universe/factions` block (frames.faction_*): base relation + boosters =
 effective standing, clamped to [-1, 1], as of the save. See
-docs/faction-relations-model.md.
+docs/models/faction-relations-model.md.
 """
 
 from __future__ import annotations

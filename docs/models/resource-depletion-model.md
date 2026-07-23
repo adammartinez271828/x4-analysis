@@ -301,8 +301,8 @@ empty-but-eligible area at its **full capacity**, not count it as 0.
   `respawndelay` is a post-depletion cooldown (in minutes), not a rate
   denominator, so any per-hour figure built from it is dimensionally
   meaningless. **[DOC-derived]** (An earlier version of the map gauge
-  computed exactly this; it is being reworked — see
-  [resource-extraction-plan.md](resource-extraction-plan.md).)
+  computed exactly this; it has since been
+  reworked; the follow-up measured-rate plan was shelved.)
 - The **respawn-throughput ceiling** (whole areas returning every
   respawndelay) is enormous — far above any real mining fleet. In every
   sector studied the binding limit on sustainable extraction was the

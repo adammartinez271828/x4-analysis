@@ -10,3 +10,6 @@ dist/
 output/
 data/cache_*.csv
 data/cache_*.csv.gz
+
+# Scratch/historical docs live loose in docs/; tracked docs go in subfolders
+docs/*.md

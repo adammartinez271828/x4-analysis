@@ -39,7 +39,7 @@ _VAULT_RE = re.compile(r"^landmarks_(erlking_)?vault_\d+_macro$")
 # the story warp points) is class="anomaly", macro wormhole_v1(_standalone).
 # Only some carry a <transition destination> (story warp) or a <connected>
 # link to a partner wormhole (an active/paired warp) — see
-# docs/wormhole-connection-model.md
+# docs/models/wormhole-connection-model.md
 _ANOMALY_CLASS = "anomaly"
 
 

@@ -200,8 +200,8 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
     # heat sources: `value` accrues per shot (bullet) / per second (beam);
     # `initial` is an INSTANTANEOUS spike at the onset of each firing cycle /
     # beam re-activation. A weapon with only `initial` (Paranid mass drivers)
-    # deposits it on every discrete shot. (Model corrected 2026-07 — see
-    # docs/weapon-heat-and-rate-bug-2026-07.md.)
+    # deposits it on every discrete shot. (Model corrected 2026-07;
+    # reference numbers in tests/test_weaponsim.py.)
     value_heat = weapon.get("heat") or 0.0
     init_heat = weapon.get("heat_initial") or 0.0
     overheat = weapon.get("overheat") or 0.0
@@ -275,8 +275,8 @@ def simulate(weapon: dict, mults: dict[str, float] | None = None) -> dict:
     # from the first shot to the last, THEN the FIXED clip reload (never
     # modded). The in-game encyclopedia rate-of-fire is this sustained figure,
     # NOT the intra-clip burst rate (1/interval) -- e.g. the S Tau Accelerator
-    # reads 3/s burst but ~1.06/s sustained. (Bug fix 2026-07, see
-    # docs/weapon-heat-and-rate-bug-2026-07.md.)
+    # reads 3/s burst but ~1.06/s sustained. (Bug fix 2026-07,
+    # validated against in-game figures.)
     if clip:
         clip_cycle = max(clip - 1.0, 0.0) * interval + clip_reload
         eff_rate = clip / clip_cycle if clip_cycle > 0 else rate

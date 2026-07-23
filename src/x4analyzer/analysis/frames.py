@@ -214,7 +214,7 @@ def build_frames(save: SaveData, ref: RefData,
         FROM resource WHERE save_id = {_CUR} ORDER BY rowid""")
     if not res.empty:
         # Per-area status from the confirmed respawn model
-        # (docs/resource-depletion-model.md). An area's stored yield reads 0
+        # (docs/models/resource-depletion-model.md). An area's stored yield reads 0
         # once depleted and only "materializes" back to full when a miner
         # mines it, but availability itself is timer-driven: an empty area is
         # already respawned & full once past its starttime (respawn-eligibility

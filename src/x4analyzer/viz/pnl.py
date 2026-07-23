@@ -1,4 +1,4 @@
-"""Station P&L statements (docs/analytics-ideas.md #6).
+"""Station P&L statements (docs/plans/analytics-ideas.md #6).
 
 Per player station: revenue, input costs, net profit/h and trend from the
 (cross-run cached) tradelog — trades executed by a station's subordinate

@@ -580,7 +580,7 @@ savegame-structure.md § Data vaults.
 ### wormhole / wormhole_link
 
 Every galaxy anomaly plus its directional warp links (see
-docs/wormhole-connection-model.md for the tier model). Save-side:
+docs/models/wormhole-connection-model.md for the tier model). Save-side:
 savegame-structure.md § Anomalies / wormholes.
 
 #### wormhole
@@ -614,7 +614,7 @@ savegame-structure.md § Anomalies / wormholes.
 
 The diplomacy block, flattened. Relations are directional; unlisted pair =
 neutral. Save-side: savegame-structure.md § `<factions>` (and
-docs/faction-relations-model.md for the semantics).
+docs/models/faction-relations-model.md for the semantics).
 
 #### faction_relation
 

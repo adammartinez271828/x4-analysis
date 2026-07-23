@@ -83,8 +83,7 @@ def _parse_bullets(gf: GameFiles) -> dict[str, dict]:
             # heat: `value` is the ongoing per-shot/-second heat; `initial` is
             # an instantaneous spike at each firing-cycle onset. Kept separate
             # (the sim applies initial as a one-time spike, or as the per-shot
-            # heat for a mass driver that has only initial and no value). See
-            # docs/weapon-heat-and-rate-bug-2026-07.md.
+            # heat for a mass driver that has only initial and no value).
             heat_el = props.find("heat")
             bullets[name] = {
                 "speed": _f(b, "speed"),
