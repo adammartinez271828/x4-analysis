@@ -20,7 +20,8 @@ from __future__ import annotations
 # v7: resource rows carry per-area starttime (respawn-eligibility clock)
 # v8: recipe.work_effect (workforce output bonus) + station_storage table
 # v9: station_storage.source (computed model vs stock+buy proxy)
-SCHEMA_VERSION = "9"
+# v10: modcap.unit_storage (drone slots) + station_munition table
+SCHEMA_VERSION = "10"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -430,7 +431,8 @@ TABLES: dict[str, str] = {
 )""",
     "modcap": """CREATE TABLE IF NOT EXISTS modcap (
   macro TEXT PRIMARY KEY, class TEXT,
-  housing REAL, workers REAL, cargo_max REAL, cargo_tags TEXT
+  housing REAL, workers REAL, cargo_max REAL, cargo_tags TEXT,
+  unit_storage REAL
 )""",
     "text": """CREATE TABLE IF NOT EXISTS text (
   page INTEGER NOT NULL, tid INTEGER NOT NULL, text TEXT,
@@ -470,6 +472,24 @@ TABLES: dict[str, str] = {
   source     TEXT,
   PRIMARY KEY (save_id, station_id, ware)
 )""",
+    # per-snapshot station munition census (analysis/drones.py): every item in
+    # a station's own <ammunition><available> -- one row per macro with a
+    # category and is_unit flag. is_unit rows (drones + police) share the
+    # units.maxcount pool; the rest (missiles/countermeasures/deployables) are
+    # separate inventories, captured for reference. capacity_floor = Sum
+    # modcap.unit_storage over the station's built modules -- the READABLE lower
+    # bound on the drone pool (exact unless the station has production modules,
+    # which add ~10 each with no readable field). Written after frames build.
+    "station_munition": """CREATE TABLE IF NOT EXISTS station_munition (
+  save_id        INTEGER NOT NULL,
+  station_id     TEXT NOT NULL,
+  macro          TEXT NOT NULL,
+  category       TEXT,
+  is_unit        INTEGER,
+  count          REAL,
+  capacity_floor REAL,
+  PRIMARY KEY (save_id, station_id, macro)
+)""",
 }
 
 INDEXES = (
@@ -484,6 +504,8 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_entity_event ON entity_event(entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_station_storage ON "
     "station_storage(station_id)",
+    "CREATE INDEX IF NOT EXISTS idx_station_munition ON "
+    "station_munition(station_id)",
 )
 
 # The frames.py replacement layer. (Re)created at every connect so
@@ -561,4 +583,17 @@ LEFT JOIN component c   ON c.id = ss.station_id AND c.save_id = ss.save_id
 LEFT JOIN sector_ref sec ON sec.macro = c.sector_macro
 LEFT JOIN ware w        ON w.id = ss.ware
 WHERE ss.save_id = (SELECT MAX(save_id) FROM save)""",
+    # full station munition census with station + sector display names
+    "v_station_munition": """CREATE VIEW v_station_munition AS
+SELECT sm.station_id, c.code AS station_code, c.name AS station_name,
+       c.owner AS owner, sec.name AS sector_name,
+       sm.category, sm.is_unit, sm.macro, sm.count, sm.capacity_floor
+FROM station_munition sm
+LEFT JOIN component c    ON c.id = sm.station_id AND c.save_id = sm.save_id
+LEFT JOIN sector_ref sec ON sec.macro = c.sector_macro
+WHERE sm.save_id = (SELECT MAX(save_id) FROM save)""",
+    # drone/unit pool only (defence/repair/transport/build/mining/police) --
+    # answers "how many drones does station X have, of its cap floor"
+    "v_station_drones": """CREATE VIEW v_station_drones AS
+SELECT * FROM v_station_munition WHERE is_unit = 1""",
 }

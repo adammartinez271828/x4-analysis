@@ -151,7 +151,8 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
          ["cluster", "macro", "x", "y", "z", "name", "source"]),
         ("gate", ref.gates, ["sector_a", "sector_b", "source"]),
         ("modcap", ref.modcaps,
-         ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags"]),
+         ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags",
+          "unit_storage"]),
     )
     with conn:
         for table, df, cols in loads:
@@ -934,3 +935,19 @@ def write_station_storage(conn: sqlite3.Connection, save_id: int,
         conn.execute("DELETE FROM station_storage")
         conn.executemany(
             "INSERT INTO station_storage VALUES (?,?,?,?,?,?,?,?,?)", rows)
+
+
+_STATION_MUNITION_COLS = ["station_id", "macro", "category", "is_unit",
+                          "count", "capacity_floor"]
+
+
+def write_station_munition(conn: sqlite3.Connection, save_id: int,
+                           df: pd.DataFrame) -> None:
+    """Persist the station munition census (analysis.drones.station_munition).
+    Rebuilt every run from the save's <ammunition> + module unit storage."""
+    rows = [(save_id, *r)
+            for r in _df_rows(df, _STATION_MUNITION_COLS)]
+    with conn:
+        conn.execute("DELETE FROM station_munition")
+        conn.executemany(
+            "INSERT INTO station_munition VALUES (?,?,?,?,?,?,?)", rows)

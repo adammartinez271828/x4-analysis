@@ -95,6 +95,9 @@ class Frames:
     # max_units / max_volume / throughput / transport / role. Computed after
     # the frames are built (analyze.py) and attached for the viz layer.
     station_storage: pd.DataFrame = None
+    # station munition census: station_id / macro / category / is_unit / count
+    # / capacity_floor. Attached after the frames are built (analyze.py).
+    station_munition: pd.DataFrame = None
 
     resource_cols: list = field(default_factory=list)
     faction_levels: list = field(default_factory=list)

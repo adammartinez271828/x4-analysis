@@ -79,6 +79,14 @@ class SaveData:
     # yield=0 but is actually full and mineable
     resources: list = field(default_factory=list)
     cargo: list = field(default_factory=list)          # (object_id, ware, amount)
+    # station-level ammunition: (station_id, macro, amount) from the station's
+    # own <ammunition><available> -- drones (defence/repair/transport/build/
+    # mining, sharing one units.maxcount pool), police craft, turret munitions
+    # (missiles, countermeasures) and deployables. Docked ships' ammunition is
+    # excluded (nearest component must be the station itself). Classified in
+    # analysis/drones.py. NB: drones/police are the units; the rest are
+    # separate inventories.
+    ammunition: list = field(default_factory=list)
     # materials missing for builds (<insufficient>/<shortage> under
     # <build><resources>); host is "" for free-floating build storages.
     # kind: "insufficient" = station construction, "shortage" = shipyard
@@ -264,6 +272,18 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 if wormhole_stack and len(comp_stack) == wormhole_stack[-1][0]:
                     wormhole_stack[-1][1]["transition_dest"] = \
                         elem.get("destination", "")
+
+            elif tag == "item":
+                # station-level <ammunition><available><item macro= amount=>:
+                # the station's own drones. comp_stack[-1] is the enclosing
+                # component, so requiring it to be a station drops the
+                # ammunition of ships docked at the station.
+                if (comp_stack and comp_stack[-1][0] == "station"
+                        and tag_stack[-2:] == ["ammunition", "available"]):
+                    amt = elem.get("amount", "")
+                    macro = elem.get("macro", "").lower()
+                    if macro and amt:
+                        d.ammunition.append((comp_stack[-1][1], macro, amt))
 
             elif tag == "component":
                 clazz, cid, macro, own_pos = comp_stack.pop()

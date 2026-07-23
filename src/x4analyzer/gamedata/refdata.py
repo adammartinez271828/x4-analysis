@@ -116,7 +116,7 @@ def load_refdata(data_dir: Path) -> RefData:
                          "input_amount", "work_effect"])
     modcaps = _optional("modcaps.csv",
                         ["macro", "class", "housing", "workers", "cargo_max",
-                         "cargo_tags"])
+                         "cargo_tags", "unit_storage"])
     gates = _optional("gates.csv", ["sector_a", "sector_b", "source"])
     engines = _optional("engines.csv",
                         ["macro", "size", "type", "mk", "forward",

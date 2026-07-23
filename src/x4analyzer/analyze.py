@@ -7,6 +7,7 @@ from .cli import log
 from .config import Config
 from .analysis.frames import build_frames, station_types_from_db
 from .analysis.storage import station_storage
+from .analysis.drones import station_munition
 from .gamedata.refdata import load_refdata
 from .save.parser import parse_savegame
 
@@ -37,6 +38,8 @@ def run_analysis(cfg: Config) -> int:
         store.write_derived(conn, frames)
         frames.station_storage = station_storage(frames, ref)
         store.write_station_storage(conn, save_id, frames.station_storage)
+        frames.station_munition = station_munition(save, frames, ref)
+        store.write_station_munition(conn, save_id, frames.station_munition)
     finally:
         conn.close()
 

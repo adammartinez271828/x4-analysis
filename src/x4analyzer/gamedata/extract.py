@@ -620,7 +620,14 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
                 continue
             wf = m.find("properties/workforce")
             cargo = m.find("properties/cargo")
-            if wf is None and cargo is None:
+            # drone/unit storage capacity: <properties><storage unit="N"/> --
+            # only dock/pier/build/defence modules declare it; it is the
+            # readable FLOOR of a station's shared drone pool (the engine's
+            # units.maxcount adds an unexposed amount on production-heavy
+            # stations, so this under-counts big factories -- see analysis/
+            # drones.py). Kept as a modcap alongside housing/cargo.
+            unit = m.find("properties/storage")
+            if wf is None and cargo is None and unit is None:
                 continue
             rows[macro] = [
                 macro,
@@ -629,6 +636,7 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
                 wf.get("max", "") if wf is not None else "",       # workers used
                 cargo.get("max", "") if cargo is not None else "",
                 cargo.get("tags", "") if cargo is not None else "",
+                unit.get("unit", "") if unit is not None else "",  # drone slots
             ]
     return list(rows.values())
 
@@ -812,7 +820,8 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     log("Extracting module capacities")
     _write_csv(
         cfg.data_dir / "modcaps.csv",
-        ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags"],
+        ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags",
+         "unit_storage"],
         extract_modcaps(gf),
     )
 
