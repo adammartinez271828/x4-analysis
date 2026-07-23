@@ -4,7 +4,9 @@ A top-down map of the save-file tree as far as it is currently understood.
 Assembled 2026-07-23 from direct inspection of a real v9.0 save plus the
 format knowledge accumulated in this repo; every element and attribute shown
 below was verified to occur in the reference save, and all XML snippets are
-verbatim from it (elisions are marked `<!-- … -->`). Semantics that go beyond
+verbatim from it, except that they are re-indented for readability (the save
+itself is unindented) and elisions are marked `<!-- … -->`. Semantics that go
+beyond
 what the XML itself shows (units, counters, id behavior) are reverse-engineered;
 anything not validated is flagged **(unverified)**.
 
@@ -66,27 +68,28 @@ Conventions that hold throughout the tree:
 ## Top of the tree
 
 Children of `<savegame>`, in document order as they occur in the reference
-save:
+save; Count = size of the whole subtree (including the element itself)
+in the reference save:
 
-| Element | Contents | Status |
-|---|---|---|
-| `<info>` | save/game/player metadata, DLC+mod list | documented |
-| `<universe>` | factions, the whole component tree, jobs, god, … | documented (core) |
-| `<economylog>` | rolling economy event window + removed-object list | documented |
-| `<stats>` | ~100 lifetime playthrough counters | documented |
-| `<log>` | player logbook (rolling window) | documented |
-| `<messages>` | notification history | outlined |
-| `<tickercache>` | recent ticker lines | stub |
-| `<script>` | script-engine state (~1.2 M elements) | stub |
-| `<md>` | mission-director cue state (~0.8 M elements) | stub |
-| `<missions>` | active missions and mission offers | outlined |
-| `<aidirector>` | AI director state (~1 M elements) | stub |
-| `<operations>` | ventures/diplomacy operations state | stub |
-| `<fleetmanager>` | fleet-manager state | stub |
-| `<ventures>` | venture platform state | stub |
-| `<notifications>` | pending UI notifications | stub |
-| `<ui>` | UI state (map filters, etc.) | stub |
-| `<signature>` | integrity signature blob | stub |
+| Element | Contents | Count | Status |
+|---|---|---:|---|
+| `<info>` | save/game/player metadata, DLC+mod list | 24 | documented |
+| `<universe>` | factions, the whole component tree, jobs, god, … | 5,869,811 | documented (core) |
+| `<economylog>` | rolling economy event window + removed-object list | 2,100,394 | documented |
+| `<stats>` | lifetime playthrough counters | 104 | documented |
+| `<log>` | player logbook (rolling window) | 3,952 | documented |
+| `<messages>` | notification history | 72 | outlined |
+| `<tickercache>` | recent ticker lines | 101 | stub |
+| `<script>` | script-engine state | 1,367,360 | stub |
+| `<md>` | mission-director cue state | 874,430 | stub |
+| `<missions>` | active missions and mission offers | 1,405 | outlined |
+| `<aidirector>` | AI director state | 1,075,865 | stub |
+| `<operations>` | ventures/diplomacy operations state | 108 | stub |
+| `<fleetmanager>` | fleet-manager state | 2 | stub |
+| `<ventures>` | venture platform state | 1 | stub |
+| `<notifications>` | pending UI notifications | 1 | stub |
+| `<ui>` | UI state (map filters, etc.) | 3 | stub |
+| `<signature>` | integrity signature blob | 1 | stub |
 
 ## `<info>`
 
@@ -96,14 +99,14 @@ order at first creation **(unverified)**):
 
 ```xml
 <info>
-<save name="#002" date="1784772579"/>
-<game id="X4" version="900" build="611726" modified="1" time="72813.204" code="3394980" original="900" originalbuild="611726" start="custom_creative" seed="2788852738" guid="8E0C8E37-2192-49FD-BF4B-F535782A1C55"/>
-<player name="Athena Seldon" location="{20004,4050011}" money="5904557"/>
-<patches>
-<patch extension="ego_dlc_split" version="900" name="Split Vendetta"/>
-<patch extension="ws_3737446888" version="100" name="Habitat Capacity Boost"/>
-<!-- … one <patch> per DLC/mod, then <history> repeating them … -->
-</patches>
+  <save name="#002" date="1784772579"/>
+  <game id="X4" version="900" build="611726" modified="1" time="72813.204" code="3394980" original="900" originalbuild="611726" start="custom_creative" seed="2788852738" guid="8E0C8E37-2192-49FD-BF4B-F535782A1C55"/>
+  <player name="Athena Seldon" location="{20004,4050011}" money="5904557"/>
+  <patches>
+    <patch extension="ego_dlc_split" version="900" name="Split Vendetta"/>
+    <patch extension="ws_3737446888" version="100" name="Habitat Capacity Boost"/>
+    <!-- … one <patch> per DLC/mod, then <history> repeating them … -->
+  </patches>
 </info>
 ```
 
@@ -125,10 +128,25 @@ order at first creation **(unverified)**):
 
 ## `<universe>`
 
-Children in document order: `blacklists`, `traderules`, `fightrules`,
-`factions`, `jobs`, `god`, `diplomacy`, `controltextures`, `component`
-(the galaxy — the entire physical universe), `cameras`, `physics`,
-`uianchorhelper`, `uianchorhelper_cutscene`, `cameraanchor`.
+Children in document order:
+
+- `<blacklists>` — player-defined blacklist definitions, referenced by ships'
+  `<blacklists><blacklist type=… ref=…/>`. *(not yet documented)*
+- `<traderules>` / `<fightrules>` — global rule definitions. *(not yet
+  documented)*
+- `<factions>` — the diplomacy block (next section).
+- `<jobs>` — NPC job-system state (`job` elements with `waiting`/`requested`
+  ship templates; the full component subtrees of not-yet-spawned ships live
+  here too). *(not yet documented)*
+- `<god>` — god-engine state (station/object seeding). *(not yet
+  documented)*
+- `<diplomacy>` — envoy/agent operations (Envoy Pack DLC). *(not yet
+  documented)*
+- `<controltextures>` — engine state. *(not yet documented)*
+- `<component class="galaxy">` — the entire physical universe (the rest of
+  this chapter).
+- `<cameras>`, `<physics>`, `<uianchorhelper>`, `<uianchorhelper_cutscene>`,
+  `<cameraanchor>` — engine/render state. *(not yet documented)*
 
 ### `<factions>`
 
@@ -139,26 +157,26 @@ A faction that the player has interacted with, trimmed:
 
 ```xml
 <faction id="argon">
-<relations>
-<relation faction="antigone" relation="0.67"/>
-<relation faction="scaleplate" relation="-0.32"/>
-<relation faction="xenon" relation="-1"/>
-<!-- … one <relation> per non-neutral counterpart … -->
-<booster faction="player" relation="0.264266" time="72806.6"/>
-</relations>
-<diplomacy active="1" events="1">
-<exclude faction="antigone" reason="dlc2_1"/>
-</diplomacy>
-<moods>
-<mood type="avarice" level="high"/>
-</moods>
-<discounts>
-<booster faction="player" amount="0.15" time="69376.571"/>
-</discounts>
-<licences>
-<licence type="capitalship" factions="antigone"/>
-<licence type="generaluseship" factions="antigone hatikvah"/>
-</licences>
+  <relations>
+    <relation faction="antigone" relation="0.67"/>
+    <relation faction="scaleplate" relation="-0.32"/>
+    <relation faction="xenon" relation="-1"/>
+    <!-- … one <relation> per non-neutral counterpart … -->
+    <booster faction="player" relation="0.264266" time="72806.6"/>
+  </relations>
+  <diplomacy active="1" events="1">
+    <exclude faction="antigone" reason="dlc2_1"/>
+  </diplomacy>
+  <moods>
+    <mood type="avarice" level="high"/>
+  </moods>
+  <discounts>
+    <booster faction="player" amount="0.15" time="69376.571"/>
+  </discounts>
+  <licences>
+    <licence type="capitalship" factions="antigone"/>
+    <licence type="generaluseship" factions="antigone hatikvah"/>
+  </licences>
 </faction>
 ```
 
@@ -178,23 +196,23 @@ and identity:
 
 ```xml
 <faction id="player">
-<relations><!-- … --></relations>
-<blacklists>
-<blacklist type="sectortravel" civilian="2" military="2"/>
-</blacklists>
-<fightrules>
-<fightrule type="attack" fightrule="1"/>
-</fightrules>
-<buildrules method="terran"/>
-<licences>
-<licence type="militaryship" factions="alliance pioneers terran argon antigone hatikvah scavenger yaki holyorder"/>
-<!-- … -->
-</licences>
-<account id="[0x10c]" amount="5904557"/>
-<custom>
-<name name="Special Circumstances"/>
-<image file="assets\textures\ui\player_logos/playerlogo_10.tga"/>
-</custom>
+  <relations><!-- … --></relations>
+  <blacklists>
+    <blacklist type="sectortravel" civilian="2" military="2"/>
+  </blacklists>
+  <fightrules>
+    <fightrule type="attack" fightrule="1"/>
+  </fightrules>
+  <buildrules method="terran"/>
+  <licences>
+    <licence type="militaryship" factions="alliance pioneers terran argon antigone hatikvah scavenger yaki holyorder"/>
+    <!-- … -->
+  </licences>
+  <account id="[0x10c]" amount="5904557"/>
+  <custom>
+    <name name="Special Circumstances"/>
+    <image file="assets\textures\ui\player_logos/playerlogo_10.tga"/>
+  </custom>
 </faction>
 ```
 
@@ -228,25 +246,35 @@ components, a ship contains its engines, turrets, shield generators, crew
 ship's turret is routinely 6–8 components deep.
 
 Component classes present in the reference save (counts for scale):
-`turret` 125,796 · `shieldgenerator` 107,874 · `cargobay` 71,106 ·
-`dockingbay` 70,088 · `engine` 33,497 · `weapon` 27,978 · `computer` 17,750 ·
-`storage` 16,879 · `cockpit` 14,889 · `npc` 13,012 · `missileturret` 11,176 ·
-`ship_s` 8,398 · `connectionmodule` 8,372 · `defencemodule` 6,275 ·
-`ship_m` 4,653 · `dockarea` 3,686 · `destructible` 3,557 · `controlroom`
-3,490 · `production` 3,235 · `zone` 2,662 · `buildprocessor` 2,458 ·
-`missilelauncher` 2,456 · `room` 2,219 · `pier` 1,943 · `buildmodule` 1,931 ·
-`habitation` 1,865 · `station` 1,775 · `buildstorage` 1,693 · `ship_l` 1,126 ·
-`satellite` 1,079 · `collectablewares` 1,009 · `asteroid` 973 · `recyclable`
-727 · `mine` 722 · `region` 464 · `ship_xl` 366 · `ship_xs` 346 · `gate` 323 ·
-`adsign` 177 · `sector` 152 · `radar` 133 · `object` 130 · `cluster` 127 ·
-`celestialbody` 127 · `collectableammo` 121 · `highwayentrygate` /
-`highwayexitgate` / `highway` 106 each · `signalleak` 89 · `resourceprobe` 74 ·
-`effectobject` 71 · `navbeacon` 66 · `anomaly` 41 · `datavault` 30 ·
-`welfaremodule` 30 · `navcontext` 23 · `processingmodule` 17 · `checkpoint`
-16 · `dismantleprocessor` 4 · `galaxy` / `player` / `scene` / `positional` /
-`forceemitter` 1 each. (`lockbox` is a known class but absent from this
-save.) A save started with local ring highways disabled contains no
-`class="highway"` components at all.
+
+| Class | Count | Class | Count | Class | Count |
+|---|---:|---|---:|---|---:|
+| `turret` | 125,796 | `room` | 2,219 | `collectableammo` | 121 |
+| `shieldgenerator` | 107,874 | `pier` | 1,943 | `highwayentrygate` | 106 |
+| `cargobay` | 71,106 | `buildmodule` | 1,931 | `highwayexitgate` | 106 |
+| `dockingbay` | 70,088 | `habitation` | 1,865 | `highway` | 106 |
+| `engine` | 33,497 | `station` | 1,775 | `signalleak` | 89 |
+| `weapon` | 27,978 | `buildstorage` | 1,693 | `resourceprobe` | 74 |
+| `computer` | 17,750 | `ship_l` | 1,126 | `effectobject` | 71 |
+| `storage` | 16,879 | `satellite` | 1,079 | `navbeacon` | 66 |
+| `cockpit` | 14,889 | `collectablewares` | 1,009 | `anomaly` | 41 |
+| `npc` | 13,012 | `asteroid` | 973 | `datavault` | 30 |
+| `missileturret` | 11,176 | `recyclable` | 727 | `welfaremodule` | 30 |
+| `ship_s` | 8,398 | `mine` | 722 | `navcontext` | 23 |
+| `connectionmodule` | 8,372 | `region` | 464 | `processingmodule` | 17 |
+| `defencemodule` | 6,275 | `ship_xl` | 366 | `checkpoint` | 16 |
+| `ship_m` | 4,653 | `ship_xs` | 346 | `dismantleprocessor` | 4 |
+| `dockarea` | 3,686 | `gate` | 323 | `galaxy` | 1 |
+| `destructible` | 3,557 | `adsign` | 177 | `player` | 1 |
+| `controlroom` | 3,490 | `sector` | 152 | `scene` | 1 |
+| `production` | 3,235 | `radar` | 133 | `positional` | 1 |
+| `zone` | 2,662 | `object` | 130 | `forceemitter` | 1 |
+| `buildprocessor` | 2,458 | `cluster` | 127 | | |
+| `missilelauncher` | 2,456 | `celestialbody` | 127 | | |
+
+(`lockbox` is a known class but absent from this save.) A save started with
+local ring highways disabled contains no `class="highway"` components at
+all.
 
 Common component attributes (all optional except `class`/`id` in practice):
 
@@ -277,8 +305,8 @@ Every component may carry its own `<offset>` right under itself:
 
 ```xml
 <offset>
-<position x="7.395" y="-6.36" z="-18.909"/>
-<rotation roll="-179.99989"/>
+  <position x="7.395" y="-6.36" z="-18.909"/>
+  <rotation roll="-179.99989"/>
 </offset>
 ```
 
@@ -286,22 +314,27 @@ or the no-offset form `<offset default="1"/>` (178,450 occurrences here).
 Positions are metres relative to the parent component (see conventions).
 
 Other recurring child blocks of components, not detailed further:
-`<listeners>`, `<events>`, `<movement>` (velocity + interpolation state),
-`<physics>`, `<gravidar>`, `<boost>`, `<source>` (provenance: `class=`
-`godobject`/`script`/`job`/`drop`/`production` with `entry=`/`job=`/… refs),
-`<blackboard>` (script variables), `<shields>`/`<hull>` (damage state:
-`<hull value="88"/>`, `<shields><group group=… value=… time=…/>`),
-`<modification>` (installed equipment mods), `<supplies>` (ships' own
-ammo/drone ware reserves — **not** cargo), `<removed>` (connections whose
-child component is gone, e.g. collected vault pickups).
+
+- `<listeners>` / `<events>` — event subscription/history bookkeeping.
+- `<movement>` — velocity + interpolation state.
+- `<physics>`, `<gravidar>`, `<boost>` — engine/flight state.
+- `<source>` — provenance: `class=` `godobject`/`script`/`job`/`drop`/
+  `production` with `entry=`/`job=`/… refs.
+- `<blackboard>` — script variables.
+- `<shields>` / `<hull>` — damage state: `<hull value="88"/>`,
+  `<shields><group group=… value=… time=…/>`.
+- `<modification>` — installed equipment mods.
+- `<supplies>` — ships' own ammo/drone ware reserves — **not** cargo.
+- `<removed>` — connections whose child component is gone, e.g. collected
+  vault pickups.
 
 ### Galaxy, cluster, sector, zone
 
 ```xml
 <component class="galaxy" macro="xu_ep2_universe_macro" code="AWM-980" id="[0x55b5]">
-<component class="cluster" macro="cluster_409_macro" connection="galaxy" code="BDO-271" knownto="player" known="1" id="[0x55b6]">
-<component class="sector" macro="cluster_409_sector001_macro" connection="cluster" code="TVA-098" owner="freesplit" contested="1" knownto="player" known="1" id="[0x55b9]">
-<component class="zone" macro="zone004_cluster_409_sector001_macro" connection="sector" code="CFT-615" knownto="player" id="[0x55bb]">
+  <component class="cluster" macro="cluster_409_macro" connection="galaxy" code="BDO-271" knownto="player" known="1" id="[0x55b6]">
+    <component class="sector" macro="cluster_409_sector001_macro" connection="cluster" code="TVA-098" owner="freesplit" contested="1" knownto="player" known="1" id="[0x55b9]">
+      <component class="zone" macro="zone004_cluster_409_sector001_macro" connection="sector" code="CFT-615" knownto="player" id="[0x55bb]">
 ```
 
 Clusters also host `region` components (asteroid-field geometry),
@@ -317,17 +350,17 @@ one `<area>` per minable sphere:
 
 ```xml
 <resourceareas>
-<area id="[0x6844]" yieldid="sphere_large_ore_high_slow" yield="53658" starttime="0">
-<offset>
-<position x="150000" y="10000" z="-250000"/>
-</offset>
-<fields>
-<field region="[0x6841]" macro="env_ast_ore_l_01_macro" weight="1075059"/>
-<!-- … more asteroid-model fields … -->
-</fields>
-</area>
-<!-- … more areas; some carry <reservations><reservation id=…/> (a miner
-     working the area) … -->
+  <area id="[0x6844]" yieldid="sphere_large_ore_high_slow" yield="53658" starttime="0">
+    <offset>
+      <position x="150000" y="10000" z="-250000"/>
+    </offset>
+    <fields>
+      <field region="[0x6841]" macro="env_ast_ore_l_01_macro" weight="1075059"/>
+      <!-- … more asteroid-model fields … -->
+    </fields>
+  </area>
+  <!-- … more areas; some carry <reservations><reservation id=…/> (a miner
+  working the area) … -->
 </resourceareas>
 ```
 
@@ -346,21 +379,34 @@ one `<area>` per minable sphere:
 
 ### Stations
 
-Direct children of a `station` component, in observed order: `listeners`,
-`events`, `offset`, `source`, `gravidar`, `control`, `construction`,
-`shields`, `ammunition`, `weapongroups`, `trade`, `supplies`, `workforces`,
-`production`, `economylog` (per-station, empty here), `buildtasks`,
-`snapshot`, `buildplot`, `connections` (the modules and docked ships).
+Direct children of a `station` component, in observed order:
+
+- `<listeners>`, `<events>`, `<offset>`, `<source>`, `<gravidar>`,
+  `<shields>`, `<supplies>` — the common component blocks listed above.
+- `<control>` — crew posts (below).
+- `<construction>` — the build-plan sequence (below).
+- `<ammunition>` — station drones & munitions (below).
+- `<weapongroups>` — turret group assignments. *(not yet documented)*
+- `<trade>` — offers, prices, reservations (below).
+- `<workforces>` — workforce per race (below).
+- `<production>` — station-level production block, distinct from the
+  per-module cycle state. *(not yet documented)*
+- `<economylog>` — per-station variant of the top-level block (empty here).
+- `<buildtasks>` — in-progress build tasks (below, under build storages).
+- `<snapshot>` — repeats sequence-entry data. *(not yet documented)*
+- `<buildplot>` — the station's build-plot definition. *(not yet
+  documented)*
+- `<connections>` — the modules and docked ships.
 
 **Crew posts** — `<control>` holds one `<post>` per assigned officer,
 pointing at the `npc` component filling it:
 
 ```xml
 <control>
-<post id="shadyguy" component="[0x5686]"/>
-<post id="manager" component="[0x5685]"/>
-<post id="defence" component="[0x5683]"/>
-<post id="engineer" component="[0x5684]"/>
+  <post id="shadyguy" component="[0x5686]"/>
+  <post id="manager" component="[0x5685]"/>
+  <post id="defence" component="[0x5683]"/>
+  <post id="engineer" component="[0x5684]"/>
 </control>
 ```
 
@@ -370,11 +416,11 @@ pointing at the `npc` component filling it:
 
 ```xml
 <workforce race="split" amount="227">
-<insufficient>
-<ware ware="cheltmeat" amount="72461"/>
-<ware ware="medicalsupplies" amount="72461"/>
-<ware ware="scruffinfruits" amount="72461"/>
-</insufficient>
+  <insufficient>
+    <ware ware="cheltmeat" amount="72461"/>
+    <ware ware="medicalsupplies" amount="72461"/>
+    <ware ware="scruffinfruits" amount="72461"/>
+  </insufficient>
 </workforce>
 ```
 
@@ -389,29 +435,29 @@ count). Station side:
 
 ```xml
 <construction>
-<sequence>
-<entry id="[0x1f64]" index="1" macro="pier_spl_harbor_03_macro">
-<offset>
-<position y="-828.706" z="-510.504"/>
-<rotation yaw="-90"/>
-</offset>
-</entry>
-<entry id="[0x1f67]" index="4" macro="defence_spl_disc_01_macro" connection="connectionsnap002">
-<predecessor index="2" connection="connectionsnap001"/>
-<offset>
-<position x="-0.000102" y="-828.706" z="389.496"/>
-<rotation yaw="-120"/>
-</offset>
-<upgrades>
-<groups>
-<shields macro="shield_spl_m_standard_02_mk2_macro" group="group02"/>
-<turrets macro="turret_spl_m_beam_02_mk1_macro" group="group02"/>
-<!-- … planned loadout: <shields>/<turrets>/<engines> per group … -->
-</groups>
-</upgrades>
-</entry>
-<!-- … -->
-</sequence>
+  <sequence>
+    <entry id="[0x1f64]" index="1" macro="pier_spl_harbor_03_macro">
+      <offset>
+        <position y="-828.706" z="-510.504"/>
+        <rotation yaw="-90"/>
+      </offset>
+    </entry>
+    <entry id="[0x1f67]" index="4" macro="defence_spl_disc_01_macro" connection="connectionsnap002">
+      <predecessor index="2" connection="connectionsnap001"/>
+      <offset>
+        <position x="-0.000102" y="-828.706" z="389.496"/>
+        <rotation yaw="-120"/>
+      </offset>
+      <upgrades>
+        <groups>
+          <shields macro="shield_spl_m_standard_02_mk2_macro" group="group02"/>
+          <turrets macro="turret_spl_m_beam_02_mk1_macro" group="group02"/>
+          <!-- … planned loadout: <shields>/<turrets>/<engines> per group … -->
+        </groups>
+      </upgrades>
+    </entry>
+    <!-- … -->
+  </sequence>
 </construction>
 ```
 
@@ -420,20 +466,17 @@ here `<upgrades generated="1">`):
 
 ```xml
 <buildtasks>
-<inprogress>
-<build id="[0x5]" type="expand" preexisting="1" builder="[0x55be]" component="[0x5680]" faction="split" time="6206.435" flags="nothing">
-<sequence>
-<entry id="[0x1f64]" index="1" macro="pier_spl_harbor_03_macro">
-<!-- … identical entries … -->
-</sequence>
-<paint inventory="0"/>
-</build>
-</inprogress>
-</buildtasks>
+  <inprogress>
+    <build id="[0x5]" type="expand" preexisting="1" builder="[0x55be]" component="[0x5680]" faction="split" time="6206.435" flags="nothing">
+      <sequence>
+        <entry id="[0x1f64]" index="1" macro="pier_spl_harbor_03_macro">
+          <!-- … identical entries … -->
+        </sequence>
+        <paint inventory="0"/>
+      </build>
+    </inprogress>
+  </buildtasks>
 ```
-
-A station also keeps a `<snapshot>` block repeating sequence-entry data
-*(not yet documented)*.
 
 **Missing build materials** — `<build>` elements (on `buildprocessor`
 components inside build/dock modules, and as bare
@@ -442,14 +485,14 @@ components inside build/dock modules, and as bare
 
 ```xml
 <build start="62915.848" step="1" steps="1" method="split" secondary="checkresources" constructionvesselrequired="1" increasehull="1" type="build" state="waitingforresources" sequenceindex="18" order="[0x42]">
-<resources>
-<ware ware="claytronics" amount="61"/>
-<ware ware="energycells" amount="121"/>
-<ware ware="hullparts" amount="222"/>
-<insufficient>
-<ware ware="claytronics" amount="62915"/>
-</insufficient>
-</resources>
+  <resources>
+    <ware ware="claytronics" amount="61"/>
+    <ware ware="energycells" amount="121"/>
+    <ware ware="hullparts" amount="222"/>
+    <insufficient>
+      <ware ware="claytronics" amount="62915"/>
+    </insufficient>
+  </resources>
 </build>
 ```
 
@@ -469,12 +512,12 @@ state, an efficiency factor, and its queue (with the shortage form above):
 
 ```xml
 <production start="71248.835" end="72806.826" item="0" cycle="0" state="waitingforresources">
-<efficiency product="1.53"/>
-<queue ware="turretcomponents">
-<shortage>
-<ware ware="microchips" amount="58648"/>
-</shortage>
-</queue>
+  <efficiency product="1.53"/>
+  <queue ware="turretcomponents">
+    <shortage>
+      <ware ware="microchips" amount="58648"/>
+    </shortage>
+  </queue>
 </production>
 ```
 
@@ -483,11 +526,11 @@ state, an efficiency factor, and its queue (with the shortage form above):
 
 ```xml
 <ammunition>
-<available>
-<item macro="ship_gen_xs_repairdrone_01_a_macro" amount="2"/>
-<item macro="ship_gen_xs_cargodrone_empty_01_a_macro" amount="1"/>
-<item macro="ship_gen_s_fightingdrone_01_a_macro" amount="12"/>
-</available>
+  <available>
+    <item macro="ship_gen_xs_repairdrone_01_a_macro" amount="2"/>
+    <item macro="ship_gen_xs_cargodrone_empty_01_a_macro" amount="1"/>
+    <item macro="ship_gen_s_fightingdrone_01_a_macro" amount="12"/>
+  </available>
 </ammunition>
 ```
 
@@ -495,29 +538,37 @@ This one pool mixes drones (defence/repair/transport/build/mining), police
 craft, turret munitions (missiles, countermeasures) and deployables; only
 the *current* counts are stored — desired levels are not persisted.
 
-**Trade block** — `<trade>` children observed: `reservations`, `source`,
-`restrictions`, `prices`, `offers`, `active`, `settings`. Open offers sit
-under `<offers>`, wrapped in a grouping element (only `<production>`
-observed, 2,139 occurrences — other group names **(unverified)**). One
+**Trade block** — `<trade>` children observed:
+
+- `<offers>` — open buy/sell offers (below).
+- `<prices>` — configured reference prices (below).
+- `<reservations>` — committed in-flight trades (below).
+- `<restrictions>` — station-wide counterparty restrictions **(semantics
+  unverified)**.
+- `<source>`, `<active>`, `<settings>` — *(not yet documented)*.
+
+Open offers sit under `<offers>`, wrapped in a grouping element (only
+`<production>` observed, 2,139 occurrences — other group names
+**(unverified)**). One
 `<trade>` element per open offer; `buyer`/`seller` names the offering
 object (which is how build storages' construction demand appears —
 their buy offers):
 
 ```xml
 <offers>
-<production>
-<trade id="[0x4c78]" buyer="[0x5680]" ware="energycells" price="1255" amount="120" desired="120" flags="invertfactionrestriction">
-<source class="production"/>
-</trade>
-<trade id="[0x4c7e]" seller="[0x5680]" ware="turretcomponents" price="29773" amount="1411" flags="invertfactionrestriction">
-<source class="production"/>
-</trade>
-<trade id="[0x4c81]" buyer="[0x5680]" ware="majadust" price="32866" amount="168" desired="168" flags="buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady">
-<source class="production"/>
-<restrictions factions="player"/>
-</trade>
-<!-- … -->
-</production>
+  <production>
+    <trade id="[0x4c78]" buyer="[0x5680]" ware="energycells" price="1255" amount="120" desired="120" flags="invertfactionrestriction">
+      <source class="production"/>
+    </trade>
+    <trade id="[0x4c7e]" seller="[0x5680]" ware="turretcomponents" price="29773" amount="1411" flags="invertfactionrestriction">
+      <source class="production"/>
+    </trade>
+    <trade id="[0x4c81]" buyer="[0x5680]" ware="majadust" price="32866" amount="168" desired="168" flags="buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady">
+      <source class="production"/>
+      <restrictions factions="player"/>
+    </trade>
+    <!-- … -->
+  </production>
 </offers>
 ```
 
@@ -532,10 +583,10 @@ their buy offers):
 
 ```xml
 <prices>
-<reference>
-<ware ware="hullparts" buy="276" sell="0"/>
-<ware ware="energycells" buy="21" sell="0"/>
-</reference>
+  <reference>
+    <ware ware="hullparts" buy="276" sell="0"/>
+    <ware ware="energycells" buy="21" sell="0"/>
+  </reference>
 </prices>
 ```
 
@@ -575,7 +626,7 @@ Notable children (all also seen on stations where marked):
 
   ```xml
   <cargo>
-  <ware ware="energycells" amount="7500"/>
+    <ware ware="energycells" amount="7500"/>
   </cargo>
   ```
 
@@ -588,11 +639,11 @@ Notable children (all also seen on stations where marked):
 
   ```xml
   <orders>
-  <order id="[0xba24]" default="1" order="DeployStaticDefenseStrategy">
-  <param name="staticdefensestrategy"/>
-  <param name="isminesonly" type="integer"/>
-  <param name="debugchance" type="integer"/>
-  </order>
+    <order id="[0xba24]" default="1" order="DeployStaticDefenseStrategy">
+      <param name="staticdefensestrategy"/>
+      <param name="isminesonly" type="integer"/>
+      <param name="debugchance" type="integer"/>
+    </order>
   </orders>
   ```
 
@@ -609,8 +660,8 @@ Notable children (all also seen on stations where marked):
 
   ```xml
   <person macro="character_yaki_female_cau_marine_01_macro" role="marine">
-  <npcseed seed="8726040872602428135"/>
-  <skills boarding="12" engineering="2" management="3" morale="11" piloting="5"/>
+    <npcseed seed="8726040872602428135"/>
+    <skills boarding="12" engineering="2" management="3" morale="11" piloting="5"/>
   </person>
   ```
 
@@ -626,12 +677,12 @@ owns a `commander` connection whose `<connected>` names the commander's
 ```xml
 <!-- on the follower -->
 <connection connection="commander" id="[0x6684]">
-<connected connection="[0x66c0]"/>
+  <connected connection="[0x66c0]"/>
 </connection>
 
 <!-- on the commander -->
 <connection connection="subordinates" id="[0x66c0]">
-<connected connection="[0x6684]"/>
+  <connected connection="[0x6684]"/>
 </connection>
 ```
 
@@ -640,7 +691,7 @@ The commander also lists its groups — note the game's own double-m spelling
 
 ```xml
 <subordinates>
-<group index="1" assignmment="defence"/>
+  <group index="1" assignmment="defence"/>
 </subordinates>
 ```
 
@@ -668,31 +719,31 @@ marker. A regular vault, trimmed:
 
 ```xml
 <component class="datavault" macro="landmarks_vault_01_macro" connection="space" code="KBE-495" owner="ownerless" id="[0x8aab]">
-<offset>
-<position x="-2087" y="300" z="2604"/>
-</offset>
-<source class="script"/>
-<connections>
-<connection connection="connection_trigger004" macro="connection_trigger004">
-<component class="destructible" macro="interactive_repairpanel_01_macro" connection="connection01" id="[0x8aac]">
-<offset default="1"/>
-<hull value="88"/>
-</component>
-</connection>
-<connection connection="connection_pickup" macro="connection_pickup">
-<component class="collectablewares" macro="sm_gen_wares_exploration_02_a_macro" connection="connection01" code="DYO-595" money="12117600" id="[0x8ab0]">
-<offset default="1"/>
-<wares>
-<ware ware="inv_modulartrigger"/>
-<ware ware="inv_hallucinogenics" amount="2"/>
-<!-- … -->
-</wares>
-</component>
-</connection>
-<connection connection="connection_info">
-<component class="signalleak" macro="dataleak_xs_vault_01_macro" connection="slotconnection" type="data" id="[0x8ab2]"/>
-</connection>
-</connections>
+  <offset>
+    <position x="-2087" y="300" z="2604"/>
+  </offset>
+  <source class="script"/>
+  <connections>
+    <connection connection="connection_trigger004" macro="connection_trigger004">
+      <component class="destructible" macro="interactive_repairpanel_01_macro" connection="connection01" id="[0x8aac]">
+        <offset default="1"/>
+        <hull value="88"/>
+      </component>
+    </connection>
+    <connection connection="connection_pickup" macro="connection_pickup">
+      <component class="collectablewares" macro="sm_gen_wares_exploration_02_a_macro" connection="connection01" code="DYO-595" money="12117600" id="[0x8ab0]">
+        <offset default="1"/>
+        <wares>
+          <ware ware="inv_modulartrigger"/>
+          <ware ware="inv_hallucinogenics" amount="2"/>
+          <!-- … -->
+        </wares>
+      </component>
+    </connection>
+    <connection connection="connection_info">
+      <component class="signalleak" macro="dataleak_xs_vault_01_macro" connection="slotconnection" type="data" id="[0x8ab2]"/>
+    </connection>
+  </connections>
 </component>
 ```
 
@@ -702,16 +753,16 @@ components carrying `blueprints="ware_id,…"`, **not present in this save**):
 
 ```xml
 <component class="object" macro="landmarks_erlking_vault_04_macro" connection="space" code="WYH-699" owner="ownerless" knownto="player" id="[0x2f96c]">
-<removed>
-<connection macro="connection_pickup002"/>
-<connection macro="connection_pickup001"/>
-</removed>
-<offset>
-<position x="-10283.68" y="5808.466" z="-7077.066"/>
-<rotation yaw="-96.3538"/>
-</offset>
-<source entry="erlking_blueprint_4" seed="6554725687427950394" class="godobject"/>
-<!-- … destructible trigger panels … -->
+  <removed>
+    <connection macro="connection_pickup002"/>
+    <connection macro="connection_pickup001"/>
+  </removed>
+  <offset>
+    <position x="-10283.68" y="5808.466" z="-7077.066"/>
+    <rotation yaw="-96.3538"/>
+  </offset>
+  <source entry="erlking_blueprint_4" seed="6554725687427950394" class="godobject"/>
+  <!-- … destructible trigger panels … -->
 </component>
 ```
 
@@ -730,11 +781,11 @@ base-game sector):
 
 ```xml
 <component class="anomaly" macro="wormhole_v1_macro" connection="space" code="ICY-656" owner="ownerless" id="[0x6a52]">
-<offset>
-<position x="175" z="1369"/>
-<rotation yaw="178.1111" pitch="-9.55945"/>
-</offset>
-<source entry="nopileoslegacy_anomaly_01" seed="5044054990889015214" class="godobject"/>
+  <offset>
+    <position x="175" z="1369"/>
+    <rotation yaw="178.1111" pitch="-9.55945"/>
+  </offset>
+  <source entry="nopileoslegacy_anomaly_01" seed="5044054990889015214" class="godobject"/>
 </component>
 ```
 
@@ -743,8 +794,8 @@ mission director at runtime, not resolvable from the save):
 
 ```xml
 <component class="anomaly" macro="wormhole_v1_macro" connection="space" code="HJD-749" owner="ownerless" id="[0x2ee89]">
-<source entry="S2A_anomaly_01" seed="17252468560025069807" class="godobject"/>
-<transition destination="0"/>
+  <source entry="S2A_anomaly_01" seed="17252468560025069807" class="godobject"/>
+  <transition destination="0"/>
 </component>
 ```
 
@@ -754,22 +805,22 @@ resolve pairs; `origin` is the entry, `destination` the exit):
 
 ```xml
 <component class="anomaly" macro="wormhole_v1_macro" connection="space" code="WHT-407" owner="ownerless" knownto="player" id="[0x2ff7b]">
-<source entry="S2B_anomaly_01" seed="782053128877211007" class="godobject"/>
-<transition destination="0"/>
-<connections>
-<connection connection="origin" id="[0x2ff7c]">
-<connected connection="[0x8a5e9]"/>
-</connection>
-</connections>
+  <source entry="S2B_anomaly_01" seed="782053128877211007" class="godobject"/>
+  <transition destination="0"/>
+  <connections>
+    <connection connection="origin" id="[0x2ff7c]">
+      <connected connection="[0x8a5e9]"/>
+    </connection>
+  </connections>
 </component>
 
 <component class="anomaly" macro="wormhole_v1_standalone_macro" connection="space" code="IVC-752" owner="ownerless" id="[0x8a5e8]">
-<source entry="S3_anomaly_01" seed="5297873152422558501" class="godobject"/>
-<connections>
-<connection connection="destination" id="[0x8a5e9]">
-<connected connection="[0x2ff7c]"/>
-</connection>
-</connections>
+  <source entry="S3_anomaly_01" seed="5297873152422558501" class="godobject"/>
+  <connections>
+    <connection connection="destination" id="[0x8a5e9]">
+      <connected connection="[0x2ff7c]"/>
+    </connection>
+  </connections>
 </component>
 ```
 
@@ -781,10 +832,10 @@ Collectable stock in space is a component with a `<wares>` block:
 
 ```xml
 <component class="recyclable" macro="recyclable_gen_m_scrapcube_01_macro" connection="space" code="DZX-196" id="[0x12def]">
-<!-- … movement/offset … -->
-<wares>
-<ware ware="rawscrap" amount="1000"/>
-</wares>
+  <!-- … movement/offset … -->
+  <wares>
+    <ware ware="rawscrap" amount="1000"/>
+  </wares>
 </component>
 ```
 
@@ -800,23 +851,6 @@ somewhere in the tree (in whatever they currently pilot/stand on). Children:
 (incl. per-object scan levels), `discovered` (fog-of-war quadtrees),
 `theme`, `spacesuit`, and more. *(Contents not yet documented.)*
 
-### Other `<universe>` blocks
-
-- `<blacklists>` — player-defined blacklist definitions, referenced by ships'
-  `<blacklists><blacklist type=… ref=…/>`. *(not yet documented)*
-- `<traderules>` / `<fightrules>` — global rule definitions. *(not yet
-  documented)*
-- `<jobs>` — NPC job-system state (`job` elements with `waiting`/`requested`
-  ship templates; the full component subtrees of not-yet-spawned ships live
-  here too). *(not yet documented)*
-- `<god>` — god-engine state (station/object seeding). *(not yet
-  documented)*
-- `<diplomacy>` — envoy/agent operations (Envoy Pack DLC). *(not yet
-  documented)*
-- `<controltextures>`, `<cameras>`, `<physics>`, `<uianchorhelper>`,
-  `<uianchorhelper_cutscene>`, `<cameraanchor>` — engine/render state.
-  *(not yet documented)*
-
 ## `<economylog>`
 
 Structure: `<economylog><entries>` holding ~2.1 M `<log>` elements, plus a
@@ -824,12 +858,20 @@ Structure: `<economylog><entries>` holding ~2.1 M `<log>` elements, plus a
 entries, so history older than a few game-hours is gone from any single
 save. Stations also embed their own (empty here) `<economylog>` element.
 
-Entry types and counts in the reference save: `buyoffer` 573,968 · `trade`
-383,742 · `produce` 246,575 · `selloffer` 246,334 · `consume` 236,125 ·
-`script_add` 201,672 · `construction` 108,682 · `collect` 44,450 · `drop`
-28,536 · `surplus` 12,471 · `init` 7,196 · `recycle` 5,428 · `script_remove`
-2,123 · `transfer` 1,257 · `orderqueue_remove` 1,124 · `orderqueue_add` 288 ·
-`destruction` 254 · `ownerchange` 9 · `debug` 6 · `sellship` 1.
+Entry types and counts in the reference save:
+
+| Type | Count | Type | Count |
+|---|---:|---|---:|
+| `buyoffer` | 573,968 | `init` | 7,196 |
+| `trade` | 383,742 | `recycle` | 5,428 |
+| `produce` | 246,575 | `script_remove` | 2,123 |
+| `selloffer` | 246,334 | `transfer` | 1,257 |
+| `consume` | 236,125 | `orderqueue_remove` | 1,124 |
+| `script_add` | 201,672 | `orderqueue_add` | 288 |
+| `construction` | 108,682 | `destruction` | 254 |
+| `collect` | 44,450 | `ownerchange` | 9 |
+| `drop` | 28,536 | `debug` | 6 |
+| `surplus` | 12,471 | `sellship` | 1 |
 
 ### `type="trade"` — two flavors
 
@@ -888,14 +930,14 @@ Flat list of lifetime playthrough counters (~100):
 
 ```xml
 <stats>
-<stat id="time_total" value="72813.204"/>
-<stat id="sectors_discovered" value="132"/>
-<stat id="money_player" value="5904557"/>
-<stat id="trades_executed" value="3428"/>
-<stat id="trade_value" value="260914602"/>
-<stat id="ships_owned" value="150"/>
-<stat id="stations_owned" value="7"/>
-<!-- … distances, combat counters, ranks, … -->
+  <stat id="time_total" value="72813.204"/>
+  <stat id="sectors_discovered" value="132"/>
+  <stat id="money_player" value="5904557"/>
+  <stat id="trades_executed" value="3428"/>
+  <stat id="trade_value" value="260914602"/>
+  <stat id="ships_owned" value="150"/>
+  <stat id="stations_owned" value="7"/>
+  <!-- … distances, combat counters, ranks, … -->
 </stats>
 ```
 
@@ -969,10 +1011,10 @@ name/faction/type/reward:
 
 ```xml
 <offer id="692082" actor="[0x61bc1]" name="14) Boarding Ships" description="Boarding large ships." faction="player" type="tutorial" level="trivial">
-<briefing>
-<objective step="1" type="custom" name="Training Marines"/>
-<!-- … -->
-</briefing>
+  <briefing>
+    <objective step="1" type="custom" name="Training Marines"/>
+    <!-- … -->
+  </briefing>
 </offer>
 
 <mission name="Gathering Material" description="" faction="antigone" type="find" reward="459190" index="1"/>
@@ -983,13 +1025,13 @@ documented.)*
 
 ## Remaining top-level regions (stubs)
 
-All *(not yet documented)*; sizes from the reference save to justify the
-skip:
+All *(not yet documented)*; subtree sizes are in the top-of-the-tree table —
+the three engine-state blocks alone are ~3.3 M elements, which is what
+justifies the skip:
 
-- `<script>` — script-engine state: instance stacks, variables, object refs
-  (~1.2 M elements).
-- `<md>` — mission-director cue state (~0.8 M elements).
-- `<aidirector>` — AI director state (~1 M elements).
+- `<script>` — script-engine state: instance stacks, variables, object refs.
+- `<md>` — mission-director cue state.
+- `<aidirector>` — AI director state.
 - `<operations>` — long-running operations (ventures, diplomacy agent
   missions).
 - `<fleetmanager>` — fleet-manager bookkeeping.
