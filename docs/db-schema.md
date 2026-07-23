@@ -55,7 +55,8 @@ the only record that older imports happened).
 - **No FK enforcement** (`PRAGMA foreign_keys=OFF`), TEXT everywhere
   identifiers appear: modded saves reference macros/factions/wares the
   reference tables have never heard of, and the rule is *load, never
-  fail*. Every relationship below is documentation, not a constraint.
+  fail*. Every relationship below — including the `FK →` labels in the
+  column tables — is documentation, not a constraint, and may dangle.
 - **`{page,id}` text refs** in component names are resolved at load (via
   the `text` table's source data), so SQL consumers never see raw refs —
   except `log_entry.faction`, which keeps the raw save string.
@@ -352,20 +353,24 @@ component tree.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `id` | INTEGER, TEXT PK | snapshot + runtime id | `component@id` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `id` | TEXT PK | runtime id | `component@id` |
 | `class` | TEXT | component class | `component@class` |
 | `macro` | TEXT | asset macro, lowercased | `component@macro` |
 | `name` | TEXT | display name, `{page,id}` refs resolved at load | `component@name` |
 | `basename` | TEXT | base display name, refs resolved | `component@basename` |
 | `code` | TEXT | display code `ABC-123` (recycled — not identity) | `component@code` |
-| `owner` | TEXT | owning faction id | `component@owner` |
+| `owner` | TEXT, FK → `faction.id` | owning faction id | `component@owner` |
 | `knownto` | TEXT | `player` = discovered | `component@knownto` |
 | `contested` | INTEGER | contested-sector flag | `component@contested` |
 | `spawntime` | REAL | creation game time (NULL = at world creation) | `component@spawntime` |
-| `parent_id` | TEXT | nearest ancestor that is itself a component row (containment: ship docked at station, station in sector) | derived: ancestor stack |
-| `cluster_id`, `cluster_macro` | TEXT | enclosing cluster | derived: ancestor stack |
-| `sector_id`, `sector_macro` | TEXT | enclosing sector | derived: ancestor stack |
-| `sx`, `sz` | REAL | sector-local position in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
+| `parent_id` | TEXT, FK → `component.id` | nearest ancestor that is itself a component row (containment: ship docked at station, station in sector) | derived: ancestor stack |
+| `cluster_id` | TEXT, FK → `component.id` | enclosing cluster's runtime id | derived: ancestor stack |
+| `cluster_macro` | TEXT, FK → `cluster_ref.macro` | enclosing cluster's macro | derived: ancestor stack |
+| `sector_id` | TEXT, FK → `component.id` | enclosing sector's runtime id | derived: ancestor stack |
+| `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector's macro | derived: ancestor stack |
+| `sx` | REAL | sector-local x in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
+| `sz` | REAL | sector-local z in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
 | `faction_hq` | INTEGER | 1 = the faction representative sits here | `component@factionheadquarters` |
 
 ### fleet_edge
@@ -376,8 +381,9 @@ warn). Save-side structure: savegame-structure.md § Fleet hierarchy.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `follower_id` | INTEGER, TEXT PK | the subordinate ship | derived: match below |
-| `commander_id` | TEXT | its commander | derived: follower's `connection[@connection="commander"]/connected@connection` matched to the commander's `connection[@connection="subordinates"]@id` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `follower_id` | TEXT PK, FK → `component.id` | the subordinate ship | derived: match below |
+| `commander_id` | TEXT, FK → `component.id` | its commander | derived: follower's `connection[@connection="commander"]/connected@connection` matched to the commander's `connection[@connection="subordinates"]@id` |
 
 ### module
 
@@ -388,11 +394,11 @@ structure: savegame-structure.md § Stations.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `host_id` | TEXT | owning station / build storage / ship | derived: nearest trackable ancestor |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `host_id` | TEXT, FK → `component.id` | owning station / build storage / ship | derived: nearest trackable ancestor |
 | `entry_id` | TEXT | sequence-entry id (NULL for entries without one) | `entry@id` |
 | `idx` | INTEGER | build-order index | `entry@index` |
-| `macro` | TEXT | module macro, lowercased | `entry@macro` |
+| `macro` | TEXT, FK → `module_ref.macro` / `modcap.macro` | module macro, lowercased | `entry@macro` |
 | `build_method` | TEXT | enclosing build task's method — **defined but never populated** (sequence entries never sit under a `<build method=…>` in observed saves) | `build@method` |
 | `built` | INTEGER | 1 = a finished component exists for this entry (`state="construction"` still counts as unbuilt); entries without an id default to built | derived: `component@construction` back-references |
 
@@ -406,8 +412,8 @@ Save-side: savegame-structure.md § Stations (upgrades/groups).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `entry_id` | TEXT | the sequence entry | `entry@id` |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `entry_id` | TEXT, FK → `module.entry_id` | the sequence entry | `entry@id` |
 | `equipment_macro` | TEXT | shield/turret/engine macro, lowercased | `entry/upgrades/groups/(shields\|turrets\|engines)@macro` |
 
 ### workforce
@@ -417,7 +423,9 @@ elements. Save-side: savegame-structure.md § Stations.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `station_id`, `race` | PK | station and race | `workforces/workforce@race` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `station_id` | TEXT PK, FK → `component.id` | the station | derived: enclosing station |
+| `race` | TEXT PK | workforce race | `workforces/workforce@race` |
 | `amount` | REAL | current workers | `workforces/workforce@amount` (summed) |
 
 ### npc / npc_skill
@@ -425,12 +433,24 @@ elements. Save-side: savegame-structure.md § Stations.
 Player-owned NPCs (officers) and their skills; the crowd crew is only
 counted in `people`. Save-side: savegame-structure.md § Ships (crew).
 
-| Table.Column | Type | Meaning | Provenance |
+#### npc
+
+| Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `npc.save_id`, `npc.id` | PK | runtime id | `component[@class="npc"][@owner="player"]@id` |
-| `npc.name` / `code` / `owner` | TEXT | display fields | same element's `@name` / `@code` / `@owner` |
-| `npc_skill.npc_id`, `skill` | PK | one row per skill | `traits/skills@*` (attribute name → `skill`) |
-| `npc_skill.value` | REAL | 0–15 | `traits/skills@*` value |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `id` | TEXT PK | runtime id | `component[@class="npc"][@owner="player"]@id` |
+| `name` | TEXT | display name | same element `@name` |
+| `code` | TEXT | display code | same element `@code` |
+| `owner` | TEXT | always `player` (only player NPCs are collected) | same element `@owner` |
+
+#### npc_skill
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `npc_id` | TEXT PK, FK → `npc.id` | the npc's runtime id | parent `component@id` |
+| `skill` | TEXT PK | skill name (`boarding`, `engineering`, `management`, `morale`, `piloting`) | `traits/skills@*` (attribute name) |
+| `value` | REAL | 0–15 | `traits/skills@*` value |
 
 ### post
 
@@ -439,10 +459,10 @@ savegame-structure.md § Stations (crew posts).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `object_id` | TEXT | station/ship | derived: enclosing object |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `object_id` | TEXT, FK → `component.id` | station/ship | derived: enclosing object |
 | `post` | TEXT | post id (`manager`, `defence`, `engineer`, `aipilot`, `shadyguy`, `shiptrader`, …) | `control/post@id` |
-| `npc_id` | TEXT | the npc component filling it | `control/post@component` |
+| `npc_id` | TEXT, FK → `npc.id` | the npc component filling it | `control/post@component` |
 
 ### people
 
@@ -451,7 +471,9 @@ elements are not stored. Save-side: savegame-structure.md § Ships (crew).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `object_id`, `role` | PK | roles: `service`, `marine`, `passenger`, `prisoner` | `people/person@role` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the crewed ship/station | derived: enclosing object |
+| `role` | TEXT PK | `service` / `marine` / `passenger` / `prisoner` | `people/person@role` |
 | `count` | INTEGER | number of persons | derived: element count |
 
 ### cargo
@@ -461,7 +483,9 @@ components. Save-side: savegame-structure.md § Ships (`<cargo>`).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `object_id`, `ware` | PK | holder (nearest ship/station/buildstorage) and ware | `cargo/ware@ware` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | holder (nearest ship/station/buildstorage) | derived: nearest host |
+| `ware` | TEXT PK, FK → `ware.id` | ware id | `cargo/ware@ware` |
 | `amount` | REAL | units held | `cargo/ware@amount` (summed) |
 
 ### trade_offer
@@ -472,10 +496,10 @@ block).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `object_id` | TEXT | offering object (`''` when hostless — the one non-NULL empty-string column) | derived: `trade@buyer` / `@seller` host |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `object_id` | TEXT, FK → `component.id` | offering object (`''` when hostless — the one non-NULL empty-string column) | derived: `trade@buyer` / `@seller` host |
 | `side` | TEXT | `buy` / `sell` | derived: which of `@buyer`/`@seller` is set |
-| `ware` | TEXT | ware id | `trade/offers//trade@ware` |
+| `ware` | TEXT, FK → `ware.id` | ware id | `trade/offers//trade@ware` |
 | `amount` | REAL | open quantity | same element `@amount` |
 | `price_cr` | REAL | unit price, credits | same element `@price` ÷ 100 |
 
@@ -487,9 +511,9 @@ cross-checks disproved them as per-ware quantities; treat rows as flags
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `host_id` | TEXT | station/build storage/ship (NULL for free-floating sites without a trackable ancestor) | derived: nearest host |
-| `ware` | TEXT | lacking ware | `build/resources/(insufficient\|shortage)/ware@ware` |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `host_id` | TEXT, FK → `component.id` | station/build storage/ship (NULL for free-floating sites without a trackable ancestor) | derived: nearest host |
+| `ware` | TEXT, FK → `ware.id` | lacking ware | `build/resources/(insufficient\|shortage)/ware@ware` |
 | `amount` | REAL | stored as-is, semantics unreliable | same element `@amount` |
 | `kind` | TEXT | `insufficient` (station construction) / `shortage` (shipyard ship-order backlog) | derived: parent element name |
 
@@ -500,8 +524,8 @@ Ships (`<orders>`).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `object_id` | TEXT | the ordered object | derived: enclosing object |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `object_id` | TEXT, FK → `component.id` | the ordered object | derived: enclosing object |
 | `order_name` | TEXT | order id (`TradeRoutine`, …) | `orders/order@order` |
 | `is_default` | INTEGER | 1 = standing default order | `orders/order@default` = `"1"` |
 | `state` | TEXT | `started`, `critical`, `finish`, NULL | `orders/order@state` |
@@ -514,9 +538,9 @@ depleted area past its `starttime` reads `yield=0` but is actually full.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `sector_macro` | TEXT | enclosing sector, lowercased | derived: ancestor stack |
-| `ware` | TEXT | mined ware | derived: parsed from `area@yieldid` |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector, lowercased | derived: ancestor stack |
+| `ware` | TEXT, FK → `ware.id` | mined ware | derived: parsed from `area@yieldid` |
 | `yield` | REAL | current mineable amount | `area@yield` |
 | `level` | TEXT | yield tier (`verylow`…`veryhigh`, may be NULL) | derived: `area@yieldid` token |
 | `speed` | TEXT | gatherspeed tier (`veryslow`…`veryfast`, may be NULL) | derived: `area@yieldid` token |
@@ -529,9 +553,9 @@ lockboxes). Save-side: savegame-structure.md § Floating objects.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER | snapshot | — |
-| `sector_macro` | TEXT | where it floats | derived: enclosing sector |
-| `ware` | TEXT | ware id | `wares/ware@ware` (under `recyclable` / `collectablewares` / `lockbox` components) |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `sector_macro` | TEXT, FK → `sector_ref.macro` | where it floats | derived: enclosing sector |
+| `ware` | TEXT, FK → `ware.id` | ware id | `wares/ware@ware` (under `recyclable` / `collectablewares` / `lockbox` components) |
 | `amount` | REAL | units | `wares/ware@amount` |
 
 ### datavault
@@ -541,10 +565,14 @@ savegame-structure.md § Data vaults.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `object_id` | PK | the vault component | `component@id` (macro `landmarks_(erlking_)?vault_*`) |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK | the vault component | `component@id` (macro `landmarks_(erlking_)?vault_*`) |
 | `macro` | TEXT | vault macro | `component@macro` |
-| `code`, `knownto` | TEXT | display code, discovery | `component@code` / `@knownto` |
-| `sector_macro`, `sx`, `sz` | TEXT, REAL | sector + local position (m) | derived: ancestor stack + offset walk |
+| `code` | TEXT | display code | `component@code` |
+| `knownto` | TEXT | `player` = discovered | `component@knownto` |
+| `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector | derived: ancestor stack |
+| `sx` | REAL | sector-local x (m) | derived: offset walk |
+| `sz` | REAL | sector-local z (m) | derived: offset walk |
 | `unlocked` | INTEGER | 1 = opened | derived: child `unlock@state` = `"unlocked"` |
 | `loot` | INTEGER | count of uncollected pickup children | derived: `collectablewares`/`collectableblueprints` descendants |
 | `blueprints` | TEXT | comma-separated blueprint ware ids still inside (Erlking) — all-NULL in the reference DB (everything collected) | descendant `component@blueprints` |
@@ -555,17 +583,32 @@ Every galaxy anomaly plus its directional warp links (see
 docs/wormhole-connection-model.md for the tier model). Save-side:
 savegame-structure.md § Anomalies / wormholes.
 
-| Table.Column | Type | Meaning | Provenance |
+#### wormhole
+
+| Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `wormhole.save_id`, `object_id` | PK | the anomaly component | `component[@class="anomaly"]@id` |
-| `wormhole.macro`, `code`, `knownto` | TEXT | identity/display | same element attrs |
-| `wormhole.cluster_macro`, `sector_macro`, `sx`, `sz` | TEXT, REAL | location (m) | derived: ancestor stack + offset walk |
-| `wormhole.source_entry`, `source_class` | TEXT | placement provenance | `source@entry` / `@class` |
-| `wormhole.transition_dest` | TEXT | NULL = inert scenery; `"0"` = dormant story warp | `transition@destination` |
-| `wormhole_link.object_id` | TEXT | owning wormhole | — |
-| `wormhole_link.own_conn` | TEXT | this end's connection id | `connections/connection@id` |
-| `wormhole_link.role` | TEXT | `origin` (entry) / `destination` (exit) | `connections/connection@connection` |
-| `wormhole_link.target_conn` | TEXT | the partner's connection id (resolve by matching another wormhole's `own_conn`) | `connection/connected@connection` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK | the anomaly component | `component[@class="anomaly"]@id` |
+| `macro` | TEXT | anomaly macro, lowercased | `component@macro` |
+| `code` | TEXT | display code | `component@code` |
+| `knownto` | TEXT | `player` = discovered | `component@knownto` |
+| `cluster_macro` | TEXT, FK → `cluster_ref.macro` | enclosing cluster | derived: ancestor stack |
+| `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector | derived: ancestor stack |
+| `sx` | REAL | sector-local x (m) | derived: offset walk |
+| `sz` | REAL | sector-local z (m) | derived: offset walk |
+| `source_entry` | TEXT | placement entry id (`S2B_anomaly_01`, …) | `source@entry` |
+| `source_class` | TEXT | placement kind (`godobject` / `script`) | `source@class` |
+| `transition_dest` | TEXT | NULL = inert scenery; `"0"` = dormant story warp | `transition@destination` |
+
+#### wormhole_link
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `object_id` | TEXT, FK → `wormhole.object_id` | owning wormhole | `component@id` |
+| `own_conn` | TEXT | this end's connection id | `connections/connection@id` |
+| `role` | TEXT | `origin` (entry) / `destination` (exit) | `connections/connection@connection` |
+| `target_conn` | TEXT | the partner's connection id (resolve by matching another wormhole's `own_conn`) | `connection/connected@connection` |
 
 ### faction_relation / faction_meta / faction_licence
 
@@ -573,17 +616,33 @@ The diplomacy block, flattened. Relations are directional; unlisted pair =
 neutral. Save-side: savegame-structure.md § `<factions>` (and
 docs/faction-relations-model.md for the semantics).
 
-| Table.Column | Type | Meaning | Provenance |
+#### faction_relation
+
+| Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `faction_relation.faction`, `other` | TEXT | from → toward, lowercased | `factions/faction@id` / child `@faction` |
-| `faction_relation.kind` | TEXT | `base` / `booster` / `discount` | derived: source element |
-| `faction_relation.value` | REAL | base/booster: standing −1…+1 (booster stored at its current decayed value); discount: price fraction (0.15 = 15 %) | `relations/relation@relation`, `relations/booster@relation`, `discounts/booster@amount` |
-| `faction_relation.time` | REAL | booster/discount last-update game time; NULL for base | `…booster@time` |
-| `faction_meta.faction` | TEXT PK | faction id | `factions/faction@id` |
-| `faction_meta.account` | REAL | treasury — **raw cents**, not converted (only the player faction carries one in this playthrough) | `faction/account@amount` |
-| `faction_licence.faction` | TEXT | licence holder | `factions/faction@id` |
-| `faction_licence.type` | TEXT | licence type (`militaryship`, …) | `licences/licence@type` |
-| `faction_licence.factions` | TEXT | granting factions, space-separated as in the save | `licences/licence@factions` |
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `faction` | TEXT, FK → `faction.id` | relation holder (from), lowercased | `factions/faction@id` |
+| `other` | TEXT, FK → `faction.id` | counterpart (toward), lowercased | child element `@faction` |
+| `kind` | TEXT | `base` / `booster` / `discount` | derived: source element |
+| `value` | REAL | base/booster: standing −1…+1 (booster stored at its current decayed value); discount: price fraction (0.15 = 15 %) | `relations/relation@relation`, `relations/booster@relation`, `discounts/booster@amount` |
+| `time` | REAL | booster/discount last-update game time; NULL for base | `…booster@time` |
+
+#### faction_meta
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `faction` | TEXT PK, FK → `faction.id` | faction id, lowercased | `factions/faction@id` |
+| `account` | REAL | treasury — **raw cents**, not converted (only the player faction carries one in this playthrough) | `faction/account@amount` |
+
+#### faction_licence
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `faction` | TEXT, FK → `faction.id` | licence holder, lowercased | `factions/faction@id` |
+| `type` | TEXT | licence type (`militaryship`, …) | `licences/licence@type` |
+| `factions` | TEXT | granting factions, space-separated as in the save | `licences/licence@factions` |
 
 ### ship_engine
 
@@ -593,7 +652,9 @@ value). Save-side: savegame-structure.md § Ships (equipment).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `object_id`, `macro` | PK | ship and engine macro (lowercased) | nested `component[@class="engine"]@macro` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the player ship | derived: enclosing ship |
+| `macro` | TEXT PK | engine macro, lowercased | nested `component[@class="engine"]@macro` |
 | `n` | INTEGER | mounted count of that macro | derived: component count |
 
 ## Event history (E) — merged across runs
@@ -603,6 +664,12 @@ These six tables are the reason the DB exists: the save's `log` and
 analyzed save contributes a window and the DB stitches them into continuous
 history. They are never dropped — schema resets spare them, and schema
 changes reach them only through targeted `ALTER`s (see Schema versioning).
+
+Runtime-id columns in these tables (`buyer_id`, `seller_id`, `owner_id`,
+`component_id`, `removed_object.id`, the `*_cmdr_id`s) deliberately carry
+no `FK →` label: they belong to their **source save's** id namespace, which
+remaps on every game load — they do not resolve against the current
+snapshot's `component.id`. The `*_entity` columns are the durable join.
 
 ### Merge semantics and idempotency
 
@@ -650,15 +717,29 @@ warning included.
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
 | `time` | REAL | transaction game time | `economylog/entries/log[@type="trade"]@time` |
-| `ware` | TEXT | traded ware (`''` if absent) | `…log@ware` |
-| `buyer_id`, `seller_id` | TEXT | runtime ids **valid only within the source save** | `…log@buyer` / `@seller` |
+| `ware` | TEXT, FK → `ware.id` | traded ware (`''` if absent) | `…log@ware` |
+| `buyer_id` | TEXT | buyer runtime id, **valid only within the source save** | `…log@buyer` |
+| `seller_id` | TEXT | seller runtime id, **valid only within the source save** | `…log@seller` |
 | `price_cr` | REAL | unit price, credits | `…log@price` ÷ 100 |
 | `amount` | REAL | traded units | `…log@v` |
 | `raw_attrs` | TEXT | full source element as JSON (incl. `b`/`bmax`/`s`/`smax` not modeled as columns) | derived: JSON dump |
-| `buyer_faction`, `buyer_code`, `buyer_name`, `seller_faction`, `seller_code`, `seller_name` | TEXT | display identity resolved at merge time | derived: snapshot components + removed-objects catalog |
+| `buyer_faction` | TEXT | buyer's faction id, resolved at merge time | derived: snapshot components + removed-objects catalog |
+| `buyer_code` | TEXT | buyer's display code, resolved at merge time | derived: snapshot components + removed-objects catalog |
+| `buyer_name` | TEXT | buyer's display name, resolved at merge time | derived: snapshot components + removed-objects catalog |
+| `seller_faction` | TEXT | seller's faction id, resolved at merge time | derived: snapshot components + removed-objects catalog |
+| `seller_code` | TEXT | seller's display code, resolved at merge time | derived: snapshot components + removed-objects catalog |
+| `seller_name` | TEXT | seller's display name, resolved at merge time | derived: snapshot components + removed-objects catalog |
 | `epoch` | INTEGER | coverage epoch | derived: merge bookkeeping |
-| `buyer_cmdr_id`, `buyer_cmdr_name`, `buyer_cmdr_code`, `seller_cmdr_id`, `seller_cmdr_name`, `seller_cmdr_code` | TEXT | commander a player subordinate traded for (fleet hierarchy at save time; NULL otherwise) | derived: player fleet edges |
-| `buyer_entity`, `seller_entity`, `buyer_cmdr_entity`, `seller_cmdr_entity` | INTEGER | entity-registry surrogate ids (NULL when unresolvable) | derived: entity registry |
+| `buyer_cmdr_id` | TEXT | runtime id of the commander a player-subordinate buyer traded for (fleet hierarchy at save time; NULL otherwise) | derived: player fleet edges |
+| `buyer_cmdr_name` | TEXT | that commander's display name | derived: player fleet edges |
+| `buyer_cmdr_code` | TEXT | that commander's display code | derived: player fleet edges |
+| `seller_cmdr_id` | TEXT | runtime id of the commander a player-subordinate seller traded for (NULL otherwise) | derived: player fleet edges |
+| `seller_cmdr_name` | TEXT | that commander's display name | derived: player fleet edges |
+| `seller_cmdr_code` | TEXT | that commander's display code | derived: player fleet edges |
+| `buyer_entity` | INTEGER, FK → `entity.entity_id` | buyer's entity-registry id (NULL when unresolvable) | derived: entity registry |
+| `seller_entity` | INTEGER, FK → `entity.entity_id` | seller's entity-registry id (NULL when unresolvable) | derived: entity registry |
+| `buyer_cmdr_entity` | INTEGER, FK → `entity.entity_id` | buyer-side commander's entity-registry id | derived: entity registry |
+| `seller_cmdr_entity` | INTEGER, FK → `entity.entity_id` | seller-side commander's entity-registry id | derived: entity registry |
 
 ### stock_event
 
@@ -671,12 +752,14 @@ volume comes from positive deltas between consecutive snapshots
 |---|---|---|---|
 | `time` | REAL | event game time | `economylog/entries/log[@type="trade"]@time` |
 | `owner_id` | TEXT | runtime id, source-save scoped | `…log@owner` |
-| `ware` | TEXT | ware (`''` if absent — such rows carry no delta info) | `…log@ware` |
+| `ware` | TEXT, FK → `ware.id` | ware (`''` if absent — such rows carry no delta info) | `…log@ware` |
 | `level` | REAL | stock after the trade (absent attr = 0, deliberately not NULL) | `…log@v` |
 | `raw_attrs` | TEXT | full source element as JSON | derived |
-| `owner_faction`, `owner_code`, `owner_name` | TEXT | display identity at merge time | derived |
+| `owner_faction` | TEXT | owner's faction id, resolved at merge time | derived |
+| `owner_code` | TEXT | owner's display code, resolved at merge time | derived |
+| `owner_name` | TEXT | owner's display name, resolved at merge time | derived |
 | `epoch` | INTEGER | coverage epoch | derived |
-| `owner_entity` | INTEGER | registry id | derived |
+| `owner_entity` | INTEGER, FK → `entity.entity_id` | registry id | derived |
 
 ### log_entry
 
@@ -687,7 +770,8 @@ The player logbook, all categories. Save-side: savegame-structure.md §
 |---|---|---|---|
 | `time` | REAL | game time | `log/entry@time` |
 | `category` | TEXT | `upkeep`, `missions`, `news`, `tips`, `alerts`, `diplomacy`, NULL | `log/entry@category` |
-| `title`, `text` | TEXT | localized display strings (`[\012]` newlines preserved) | `log/entry@title` / `@text` |
+| `title` | TEXT | localized title (`[\012]` newlines preserved) | `log/entry@title` |
+| `text` | TEXT | localized body text (`[\012]` newlines preserved) | `log/entry@text` |
 | `faction` | TEXT | actor ref — kept **raw**, including `{page,id}` refs | `log/entry@faction` |
 | `money_cr` | REAL | credits involved | `log/entry@money` ÷ 100 |
 | `interaction` | TEXT | **defined but never populated** — the save spells the attribute `interact`, the loader reads `interaction`; the value survives only inside `raw_attrs` | `log/entry@interact` (missed) |
@@ -705,7 +789,9 @@ rows still resolve to a name. Save-side: savegame-structure.md §
 |---|---|---|---|
 | `time` | REAL | **defined but never populated** — v9 removed-objects carry no `time` attribute | `economylog/removed/object@time` (absent) |
 | `id` | TEXT | the object's last runtime id | `…object@id` |
-| `name`, `code`, `owner` | TEXT | last identity | `…object@name` / `@code` / `@owner` |
+| `name` | TEXT | last display name | `…object@name` |
+| `code` | TEXT | last display code | `…object@code` |
+| `owner` | TEXT | last owning faction | `…object@owner` |
 | `raw_attrs` | TEXT | full source element as JSON (incl. the unexplained `offer` attr) | derived |
 
 ### entity / entity_event — the entity registry
@@ -737,20 +823,31 @@ evidence:
 Event rows are stamped with entity ids at merge time; `component` rows are
 not (join through code+class or via the event tables).
 
-| Table.Column | Type | Meaning | Provenance |
+#### entity
+
+| Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `entity.entity_id` | INTEGER PK | the minted surrogate key | derived |
-| `entity.code`, `class` | TEXT | the slot | `component@code` / `@class` |
-| `entity.macro` | TEXT | asset macro | `component@macro` |
-| `entity.spawntime` | REAL | the generation (NULL = world creation; only a slot's first generation can carry it) | `component@spawntime` |
-| `entity.owner`, `name` | TEXT | **current** values; history in `entity_event` | `component@owner` / `@name` |
-| `entity.first_seen`, `last_seen` | REAL | game times of first/latest observation | derived |
-| `entity.gone_time` | REAL | game time of the first snapshot it was absent from (death ∈ [`last_seen`, `gone_time`]); NULL = alive | derived |
-| `entity.gone_reason` | TEXT | `recycled` (code resurfaced on a new generation) / `disappeared` | derived |
-| `entity_event.entity_id` | INTEGER | subject entity | derived |
-| `entity_event.time` | REAL | observation game time | derived |
-| `entity_event.event` | TEXT | `captured` / `renamed` | derived |
-| `entity_event.old_value`, `new_value` | TEXT | the changed field's values | derived |
+| `entity_id` | INTEGER PK | the minted surrogate key | derived |
+| `code` | TEXT | the slot, part 1 | `component@code` |
+| `class` | TEXT | the slot, part 2 | `component@class` |
+| `macro` | TEXT | asset macro | `component@macro` |
+| `spawntime` | REAL | the generation (NULL = world creation; only a slot's first generation can carry it) | `component@spawntime` |
+| `owner` | TEXT | **current** owner; history in `entity_event` | `component@owner` |
+| `name` | TEXT | **current** name; history in `entity_event` | `component@name` |
+| `first_seen` | REAL | game time of first observation | derived |
+| `last_seen` | REAL | game time of latest observation | derived |
+| `gone_time` | REAL | game time of the first snapshot it was absent from (death ∈ [`last_seen`, `gone_time`]); NULL = alive | derived |
+| `gone_reason` | TEXT | `recycled` (code resurfaced on a new generation) / `disappeared` | derived |
+
+#### entity_event
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `entity_id` | INTEGER, FK → `entity.entity_id` | subject entity | derived |
+| `time` | REAL | observation game time | derived |
+| `event` | TEXT | `captured` / `renamed` | derived |
+| `old_value` | TEXT | the changed field's previous value | derived |
+| `new_value` | TEXT | the changed field's new value | derived |
 
 Reference DB scale: 35,456 entities (18,289 open, 15,338 disappeared,
 1,829 recycled), 62 events (27 captures, 35 renames).
@@ -767,13 +864,13 @@ are out of scope here (non-goal: documenting the game files).
 | Table | Source CSV | Purpose / notable columns |
 |---|---|---|
 | `ware` | `wares.csv` | ware catalog: `id` PK, `name`, `grp` (group), `transport` (storage class: container/liquid/solid/…), `volume` (m³/unit), `tags`, `price_avg` (credits), `component` (macro a module-ware builds — the ware↔module link), `source` |
-| `recipe` | `recipes.csv` | production recipes, one row per (ware, method, input): `time` (s/cycle), `amount` (output units/cycle), `input_ware`, `input_amount`, `work_effect` (workforce output bonus fraction) |
-| `module_ref` | `modules.csv` | station-module catalog: `macro`, `name`, `ware` (product), `method`, `scale` (parallel recipe units), `workforce`, `source` |
+| `recipe` | `recipes.csv` | production recipes, one row per (ware, method, input): `ware` (FK → `ware.id`), `method`, `time` (s/cycle), `amount` (output units/cycle), `input_ware` (FK → `ware.id`), `input_amount`, `work_effect` (workforce output bonus fraction) |
+| `module_ref` | `modules.csv` | station-module catalog: `macro`, `name`, `ware` (product, FK → `ware.id`), `method`, `scale` (parallel recipe units), `workforce`, `source` |
 | `ship_ref` | `ships.csv` | ship catalog: `macro` PK, `model`, `class`, `race`, `purpose`, `hull`, `mass`, `cargo` (hold volume m³), `crew`, `price` (credits), `source` |
 | `faction` | `factions.csv` | faction catalog: `id` PK, `shortname` (3-letter code), `name`, `primaryrace`, `colour` (hex), `source` |
 | `cluster_ref` | `clusters.csv` | cluster positions/names: `macro` PK, `x`/`y`/`z` (galaxy coords), `name`, `description`, `source` |
-| `sector_ref` | `sectors.csv` | sector positions/names: `macro` PK, `cluster`, `x`/`y`/`z`, `name`, `source` |
-| `gate` | `gates.csv` | sector adjacency, one row per connection: `sector_a`, `sector_b`, `source`. **Subset**: the CSV's endpoint-position and `oneway` columns are not loaded |
+| `sector_ref` | `sectors.csv` | sector positions/names: `macro` PK, `cluster` (FK → `cluster_ref.macro`), `x`/`y`/`z`, `name`, `source` |
+| `gate` | `gates.csv` | sector adjacency, one row per connection: `sector_a`, `sector_b` (both FK → `sector_ref.macro`), `source`. **Subset**: the CSV's endpoint-position and `oneway` columns are not loaded |
 | `modcap` | `modcaps.csv` | module capacities: `macro` PK, `class`, `housing`, `workers`, `cargo_max` (m³), `cargo_tags`, `unit_storage` (drone slots) |
 | `text` | `textdb.csv.gz` | localization dump: (`page`, `tid`) PK → `text`; used at load to resolve `{page,id}` refs |
 
@@ -807,7 +904,9 @@ frames, so it is written after the pipeline's analysis stage.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `station_id`, `ware` | PK | station and ware | derived: model over `component`/`module`/`recipe` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `station_id` | TEXT PK, FK → `component.id` | the modeled station | derived: model host |
+| `ware` | TEXT PK, FK → `ware.id` | modeled ware | derived: model over `component`/`module`/`recipe` |
 | `transport` | TEXT | storage pool (`container`/`liquid`/`solid`) | reference: `ware.transport` |
 | `role` | TEXT | `output` / `input` / `food` (workforce supplies) | derived: recipe role |
 | `throughput` | REAL | modeled units/hour at full workforce (NULL on proxy rows) | derived: recipes × module scale |
@@ -823,7 +922,9 @@ savegame-structure.md § Stations (drones & munitions).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id`, `station_id`, `macro` | PK | station and item macro | `ammunition/available/item@macro` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `station_id` | TEXT PK, FK → `component.id` | the censused station | derived: census host |
+| `macro` | TEXT PK | item macro, lowercased | `ammunition/available/item@macro` |
 | `category` | TEXT | `defence`/`repair`/`transport`/`build`/`police` (units) or `missile` (turret ammo) | derived: macro classification |
 | `is_unit` | INTEGER | 1 = shares the station's one `units.maxcount` drone pool; 0 = separate inventory | derived |
 | `count` | REAL | items currently aboard | `ammunition/available/item@amount` |
