@@ -958,6 +958,7 @@ sparse union — each category uses what it needs:
 | `entity` / `faction` | actor display refs |
 | `component` | runtime id of the subject object |
 | `interact` | UI action hint (`showonmap`, …) |
+| `highlighted` | `"1"` on emphasized entries (e.g. under-attack alerts) |
 
 ```xml
 <entry time="21.4454" category="upkeep" title="Assigned Individual Charles Antonov to Falx." interact="showonmap" component="[0x39aa0]"/>
