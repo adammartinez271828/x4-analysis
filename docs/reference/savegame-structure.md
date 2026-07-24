@@ -75,7 +75,7 @@ in the reference save:
 |---|---|---:|---|
 | `<info>` | save/game/player metadata, DLC+mod list | 24 | documented |
 | `<universe>` | factions, the whole component tree, jobs, god, … | 5,869,811 | documented (core) |
-| `<economylog>` | rolling economy event window + removed-object list | 2,100,394 | documented |
+| `<economylog>` | four typed economy ledgers (cargo/tradeoffer/trade/money) + removed-object list | 2,100,394 | documented |
 | `<stats>` | lifetime playthrough counters | 104 | documented |
 | `<log>` | player logbook (rolling window) | 3,952 | documented |
 | `<messages>` | notification history | 72 | outlined |
@@ -391,7 +391,8 @@ Direct children of a `station` component, in observed order:
 - `<workforces>` — workforce per race (below).
 - `<production>` — station-level production block, distinct from the
   per-module cycle state. *(not yet documented)*
-- `<economylog>` — per-station variant of the top-level block (empty here).
+- `<economylog>` — self-closing per-station stub with attributes
+  (`cargo="0" offer="0"`), not a structural variant of the top-level block.
 - `<buildtasks>` — in-progress build tasks (below, under build storages).
 - `<snapshot>` — repeats sequence-entry data. *(not yet documented)*
 - `<buildplot>` — the station's build-plot definition. *(not yet
@@ -853,66 +854,110 @@ somewhere in the tree (in whatever they currently pilot/stand on). Children:
 
 ## `<economylog>`
 
-Structure: `<economylog><entries>` holding ~2.1 M `<log>` elements, plus a
-`<removed>` block. This is a **rolling window** — the game prunes old
-entries, so history older than a few game-hours is gone from any single
-save. Stations also embed their own (empty here) `<economylog>` element.
+Structure: **four typed ledgers** — `<entries type="cargo">`,
+`<entries type="tradeoffer">`, `<entries type="trade">`,
+`<entries type="money">`, each holding `<log>` elements (~2.1 M total),
+plus a `<removed>` block (first in document order). The **wrapper block
+is the primary semantic key**: a `<log>`'s own `type` attribute names the
+*mutation cause* within its ledger, not the record type — the same
+`type="trade"` means three different things in three different blocks.
+The cargo/tradeoffer/money blocks are **rolling windows** (the game
+prunes old entries); the trade block appears to grow from game start —
+its row count exactly equals the save's own `trades_executed` +
+internal-transfer total (verified in save_002 and save_003). Stations
+also embed their own self-closing `<economylog cargo="0" offer="0"/>`
+stub element — an attribute-carrying marker, not a nested ledger.
 
-Entry types and counts in the reference save:
+Per-block `<log type=…>` counts (save_003, game time 74,720):
 
-| Type | Count | Type | Count |
-|---|---:|---|---:|
-| `buyoffer` | 573,968 | `init` | 7,196 |
-| `trade` | 383,742 | `recycle` | 5,428 |
-| `produce` | 246,575 | `script_remove` | 2,123 |
-| `selloffer` | 246,334 | `transfer` | 1,257 |
-| `consume` | 236,125 | `orderqueue_remove` | 1,124 |
-| `script_add` | 201,672 | `orderqueue_add` | 288 |
-| `construction` | 108,682 | `destruction` | 254 |
-| `collect` | 44,450 | `ownerchange` | 9 |
-| `drop` | 28,536 | `debug` | 6 |
-| `surplus` | 12,471 | `sellship` | 1 |
+| Block | Types (count) |
+|---|---|
+| `cargo` (1,313,619) | `trade` 390,156 · `produce` 256,198 · `consume` 242,666 · `script_add` 209,343 · `construction` 112,225 · `collect` 45,610 · `drop` 29,347 · `surplus` 12,493 · `init` 7,195 · `recycle` 5,634 · `script_remove` 2,193 · `destruction` 268 · `transfer` 272 · `ownerchange` 19 |
+| `tradeoffer` (842,248) | `buyoffer` 588,854 · `selloffer` 253,394 |
+| `trade` (3,656) | `trade` 3,477 · `transfer` 179 |
+| `money` (4,773) | `trade` 1,295 · `script_add` 1,182 · `orderqueue_remove` 1,142 · `transfer` 848 · `orderqueue_add` 290 · `collect` 8 · `debug` 6 · `init` 1 · `sellship` 1 |
 
-### `type="trade"` — two flavors
+### The cargo ledger (`<entries type="cargo">`)
 
-**Full transactions** (buyer + seller + price — 3,252 here) are real trades:
-
-```xml
-<log time="961.477" type="trade" ware="stimulants" buyer="[0x399c7]" seller="[0x5425f]" price="33777" v="891" b="891" bmax="0" s="3283" smax="7450"/>
-```
-
-`price` is cents/unit, `v` the traded amount; `b`/`s` appear to be the
-buyer's/seller's stock and `bmax`/`smax` capacity or target levels
-**(b/bmax/s/smax semantics unverified)**.
-
-**Owner-only entries** (380,490 here) are NOT transactions:
+Per-(owner, ware) stock mutations. `v` is the **stock level after the
+mutation** (CONFIRMED: for pairs whose last cargo-ledger row carries `v`,
+it matches the same save's `<cargo>` amount — 96–99% per type, residue
+explained by in-flight processes); continuous processes amend their row
+in place with a second point `t2`/`v2` (`v2` = the latest level — using
+it is what makes the `consume`/`produce` rows match `<cargo>`). An
+**absent `v` means stock 0**, not unknown (CONFIRMED: 2,591/2,591 v-less
+`type="trade"` rows correspond to zero/absent `<cargo>` in save_003;
+replicated in save_010) — the game omits default attributes.
 
 ```xml
 <log time="83.3" type="trade" owner="[0x3e15f]" ware="ice" v="7611"/>
+<log time="62.043" type="produce" owner="[0x25d7b]" ware="energycells" v="829151" t2="3603.699" v2="926267"/>
 ```
 
-`v` records the owner's **stock level after a trade touched that ware** —
-a snapshot, not an amount. Traded volume must be derived from positive
-deltas between consecutive snapshots per (owner, ware); summing `v`
-directly overcounts ~40×. (Reverse-engineered, validated in-game.)
+Only the `type="trade"` rows (stock level after a trade touched that
+ware) are ingested, into `stock_event`. Traded volume must be derived
+from positive deltas between consecutive snapshots per (owner, ware);
+summing `v` directly overcounts ~40×. (Reverse-engineered, validated
+in-game.)
 
-### Other entry types
+### The trade ledger (`<entries type="trade">`)
 
-Per-(owner, ware) counter snapshots in a two-point encoding — value `v` at
-`time`, optionally a second point `v2` at `t2`; offer types add `price` and
-`max` (target level). Exact counter semantics (cumulative vs windowed)
-**(unverified)**:
+Real transactions (`type="trade"`; buyer AND seller, `price` cents/unit,
+`v` the traded amount) and **player-internal transfers**
+(`type="transfer"`; same shape minus `price`):
 
 ```xml
-<log time="62.043" type="produce" owner="[0x25d7b]" ware="energycells" v="829151" t2="3603.699" v2="926267"/>
-<log time="0" type="selloffer" owner="[0x583a4]" ware="advancedcomposites" price="54000" v="1728" max="3256"/>
-<log time="0" type="buyoffer" owner="[0xa49ee]" ware="dronecomponents" price="102800" v="80"/>
-<log time="149.974" type="collect" owner="[0x2e6b8]" ware="condensate" v="2"/>
-<log time="71761.462" type="sellship" owner="[0x61bc0]" v="8189639800" partner="[0x18950]"/>
+<log time="961.477" type="trade" ware="stimulants" buyer="[0x399c7]" seller="[0x5425f]" price="33777" v="891" b="891" bmax="0" s="3283" smax="7450"/>
+<log time="5279.291" type="transfer" ware="claytronics" buyer="[0x3a7f5]" seller="[0x62c8d]" v="445" b="445" bmax="1132"/>
 ```
 
-The `orderqueue_add`/`orderqueue_remove`/`debug`/`sellship` types carry
-money-like `v` values (cents) and a `partner` id.
+`b`/`s` appear to be the buyer's/seller's stock and `bmax`/`smax`
+capacity or target levels **(b/bmax/s/smax semantics unverified)**. A
+handful of `trade` rows lack `price` (3 in save_002). Transfer parties
+are player↔player in every resolvable case (census over save_003 and
+the 559 h playthrough; unresolvable parties are consistent with
+later-removed player objects such as build storages) — the game's
+`trades_executed` stat counts trades **and** transfers. Trade entries
+between the same pair can be **amended/reused** across repeat deliveries
+(duplicate `tradeentry` references from the money ledger point at one
+entry; `b`/`bmax`/`s`/`smax` update in place).
+
+### The money ledger (`<entries type="money">`)
+
+The **player's** per-object money mutations (CONFIRMED: every owner
+resolvable in the current universe is player-faction — 2,497/2,497 in
+save_003, 15,431/15,431 in the 559 h playthrough's newest save). All
+money values are cents. For `type="trade"` rows:
+
+```xml
+<log time="995.834" type="trade" owner="[0x4feb4]" v="12641200" partner="[0x7f389]" tradeentry="2"/>
+```
+
+- **`tradeentry` is a 1-based ordinal into the trade ledger** (CONFIRMED:
+  the referenced entry's {buyer, seller} equals {owner, partner} for
+  1,295/1,295 rows in save_003 and 6,762/6,764 in the 559 h save).
+- `v` is the money amount for that trade in cents — exactly
+  `price × amount` or within 0.01% (sub-credit unit-price rounding) for
+  the unamended majority; rows referencing amended/reused trade entries
+  diverge further (hypothesis: `v` accumulates actual payments across
+  partial fills while the trade entry shows only its latest state).
+  Like the cargo ledger, rows can be amended with `t2`/`v2`.
+- Direction is carried by the owner's **role** in the referenced trade:
+  seller-side rows almost always carry `v` (money in); buyer-side rows
+  are mostly v-less (hypothesis: the payment was already escrowed at
+  order time — see `orderqueue_add`, whose `v` ≈ price × amount at
+  order placement).
+
+The other types (`script_add`, `transfer`, `orderqueue_add/_remove`,
+`collect`, `sellship`, `debug`, `init`) are non-trade money mutations
+(mission income, surplus transfers, order-queue escrow, ship sales, …)
+with `owner`, optional `partner` and money-scale `v`.
+
+### The tradeoffer ledger (`<entries type="tradeoffer">`)
+
+`buyoffer`/`selloffer` rows per (owner, ware) with `price`, optional
+`price2`/`t2`/`v2` amendments and `max` (target level). Offer history —
+large, derivable from snapshots, and not ingested.
 
 ### `<removed>`
 

@@ -664,6 +664,13 @@ WINDOW w AS (PARTITION BY COALESCE('e' || owner_entity,
              ware, epoch ORDER BY time, rowid);
 ```
 
+> **Note (2026-07-24, R3/T15):** the `ware != ''` guard existed solely to
+> exclude the money-block rows the old ingestion shunted into
+> `stock_event`; T15's v12 migration re-typed those rows into
+> `money_event` and the shipped `v_stock_delta` dropped the guard. When
+> M2 implements this view, drop the `WHERE ware != ''` line — it is dead
+> code under the v12 schema.
+
 Entity-first partitioning (C5) with the existing text fallbacks for
 pre-registry rows; with T2's `idx_stock_entity` the per-station query
 drops from a scan to an index range.
@@ -972,6 +979,68 @@ once before implementation to pin the failure in a test. Verified: the
 unconditional delete is `store.py:736` read directly; the registry
 guard pattern being mirrored is `store.py:412-417`.
 
+### T15. Economylog ingestion by ledger: type the four blocks, re-type the mis-merged rows
+
+The backlog item 1 (B1) fix, anticipated by roadmap refinement R2. The
+economylog is four typed ledgers keyed by the *wrapper*
+(`<entries type="cargo|tradeoffer|trade|money">`); the `<log type=…>`
+attribute names the *mutation cause*, not the record type. The parser
+collects every `<log type="trade">` regardless of block, so
+`_merge_trades` ingests three different record types under one
+heuristic — and the money-block family (player money ledger, `v` in
+cents) lands in `stock_event` as fake `ware=''` stock snapshots, the
+sole reason for `v_stock_delta`'s `ware != ''` guard.
+
+B1 verdicts this design consumes (evidence:
+docs/reports/phase3-event-semantics.md): money-block rows are the
+**player's** per-object money ledger (every resolvable owner is
+player-faction across both playthroughs); their `tradeentry` attr is a
+1-based ordinal into the trade block (1,295/1,295 and 6,762/6,764
+pair-matched); `v` is cents (price×amount exact or <0.01% for the
+unamended majority); cargo-block v-less `type="trade"` rows mean stock
+0 (2,591/2,591 against same-save `<cargo>`) — the store's existing
+assumption, now confirmed. B18 rides along: trade-block
+`type="transfer"` rows are player-internal ware movements, the missing
+slice of the save's own `trades_executed` counter.
+
+Design:
+
+- **Parser** tracks the enclosing `<entries type>` (one variable on the
+  existing stacks; the depth-1 block only — stations embed self-closing
+  `<economylog>` stubs) and splits collection: `trades` = trade-block
+  rows (all types), `stock_logs` = cargo-block `type="trade"` rows,
+  `money_logs` = money-block rows (all types). Volume is unchanged
+  (~400 k dicts); the tradeoffer block stays uncollected.
+- **`_merge_trades`** types by origin, not attribute shape: trade-block
+  rows → `trade_tx` (new `kind` column = the type attr, `'trade'` /
+  `'transfer'`; `price_cr` now nullable — transfers and the 3 price-less
+  trades ingest instead of vanishing), cargo-block rows → `stock_event`
+  (absent `v` still 0, now evidence-backed), money-block rows → new E
+  table **`money_event`** (owner/partner identity resolved at merge time
+  like the other E tables; `kind` = the type attr; `tradeentry`;
+  `value_cr` = amended `v2` else `v`, ÷100; rolling-window merge +
+  coverage stream like its siblings).
+- **`v_stock_delta`** drops the `ware != ''` guard — after the
+  migration below no ware-less row can exist in `stock_event` (the csv
+  legacy import never wrote stock rows, verified).
+- **Migration (v12, `EVENT_MIGRATIONS["11"]`)**: create `money_event`;
+  `trade_tx` gains `kind` (existing rows backfilled `'trade'` — the old
+  ingestion criterion guaranteed it); move every `stock_event` row with
+  `ware = ''` into `money_event`, extracting partner/kind/tradeentry/v
+  from `raw_attrs` JSON, keeping epoch and owner columns; delete the
+  moved rows. Stays in the chain indefinitely so any older DB is
+  corrected on open.
+- **frames.tradelog** filters `kind = 'trade' AND price_cr IS NOT NULL`
+  — DB completeness changes, dashboard behavior doesn't (transfers and
+  price-less rows are stored, not yet displayed).
+
+*Migration:* v12 bump as above; rides the repaired chain (T0), so v5/v10
+DBs pick it up on open. **Depends on** nothing in this plan; T6's M2
+must restate or drop its `v_stock_flow` guard when it lands (R3 — see
+the T6 note). Verified: B1/B18 sweeps on save_003, save_010 and the
+559 h playthrough's newest save; migration rehearsed on scratch copies
+of both real DBs before the real run (phase 3 report).
+
 ---
 
 ## 4. Prioritized recommendations
@@ -997,6 +1066,7 @@ backlog items settle evidence.
 | **M4** | T3 coverage table | Medium | H0 | Provenance made queryable; backfill preserves everything; needs the repaired chain to reach off-chain DBs |
 | **M5** | T9 `region_yield` + `v_resource_area` | Medium | — | Closes the one reference gap forcing pandas; units corrected (minutes); track review backlog items 5/11 for the model caveats |
 | **M6** | T1 `current_save` + T7 `v_faction_standing` | Medium (ergonomics) | — | Views only; can ride along with any bump; T7 no longer presumes booster-decay semantics (review backlog item 9) |
+| **H5** | T15 economylog ingestion by ledger (+ `money_event`, `trade_tx.kind`) | **High** (stops mis-typed rows accumulating every import) | — | B1/B18 evidence consumed; shipped as the v12 bump (phase 3) |
 | **L1** | T11 naming cleanups | Low | — | Batch into whichever bump comes first |
 | **L2** | T12 `interact` backfill | Low | H0 | One migration statement — on the repaired chain |
 | **L3** | T13 zombie-drop hygiene + `removed_object.first_save_id` | Low | H0 | Migration-machinery debt |

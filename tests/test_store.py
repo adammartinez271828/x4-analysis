@@ -66,8 +66,9 @@ EXPECTED_COUNTS = {
     "datavault": 2,
     "ship_engine": 1,     # 2 identical engines aggregate to one n=2 row
     # event history (merged, not rebuilt)
-    "trade_tx": 1,
+    "trade_tx": 2,        # one real trade + one internal transfer
     "stock_event": 1,
+    "money_event": 1,
     "log_entry": 1,
     "removed_object": 1,
 }
@@ -255,12 +256,14 @@ def test_schema_version_reset_keeps_event_tables(cfg, save_data, ref):
 
 # ---- event-history merges (phase 2) ----------------------------------------
 
-def events_save(log=(), trades=(), removed=(), components=(),
-                links=(), conns=()):
+def events_save(log=(), trades=(), stock=(), money=(), removed=(),
+                components=(), links=(), conns=()):
     from x4analyzer.save.parser import SaveData
     s = SaveData()
     s.log_entries = list(log)
-    s.trades = list(trades)
+    s.trades = list(trades)          # trade-block rows (tx + transfers)
+    s.stock_logs = list(stock)       # cargo-block type="trade" rows
+    s.money_logs = list(money)       # money-block rows
     s.removed_objects = list(removed)
     s.components = list(components)
     s.commander_links = list(links)
@@ -280,9 +283,10 @@ def dump(conn, table):
 
 def test_event_values(conn):
     assert conn.execute(
-        "SELECT time, ware, buyer_id, seller_id, price_cr, amount"
-        " FROM trade_tx").fetchall() == [
-        (10.5, "energycells", "[0x20]", "[0x77]", 16.0, 100.0)]
+        "SELECT time, ware, buyer_id, seller_id, price_cr, amount, kind"
+        " FROM trade_tx ORDER BY time").fetchall() == [
+        (10.5, "energycells", "[0x20]", "[0x77]", 16.0, 100.0, "trade"),
+        (12.0, "ice", "[0x30]", "[0x20]", None, 25.0, "transfer")]
     assert conn.execute(
         "SELECT time, owner_id, ware, level FROM stock_event").fetchall() \
         == [(11.0, "[0x20]", "ice", 50.0)]
@@ -293,7 +297,14 @@ def test_event_values(conn):
         ).fetchall() == [("player", "STA-001", 0)]
     assert conn.execute(
         "SELECT buyer_code, seller_faction, seller_code FROM trade_tx"
-        ).fetchall() == [("STA-001", None, None)]
+        " WHERE kind = 'trade'").fetchall() == [("STA-001", None, None)]
+    # the money-block row lands in money_event, never in stock_event
+    # (v is cents -> value_cr; tradeentry = ordinal into the trade ledger)
+    assert conn.execute(
+        "SELECT time, owner_id, partner_id, kind, tradeentry, value_cr,"
+        " owner_faction, owner_code FROM money_event").fetchall() \
+        == [(10.7, "[0x20]", "[0x77]", "trade", 1, 160000.0,
+             "player", "STA-001")]
     assert conn.execute(
         "SELECT time, category, title FROM log_entry").fetchall() == [
         (100.0, "upkeep", "Test entry")]
@@ -304,7 +315,8 @@ def test_event_values(conn):
 
 def test_merge_idempotent(conn, save_data, ref):
     before = {t: dump(conn, t) for t in
-              ("trade_tx", "stock_event", "log_entry", "removed_object")}
+              ("trade_tx", "stock_event", "money_event", "log_entry",
+               "removed_object")}
     store.merge_events(conn, save_data, ref)
     for table, rows in before.items():
         assert dump(conn, table) == rows, table
@@ -364,11 +376,11 @@ def test_stock_merge_window_cutoff(conn):
     conn.execute("DELETE FROM stock_event")
     conn.commit()
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+        stock=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
     # the fresh window is authoritative from its oldest entry on: the old
     # t=200 level was superseded
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("200.0", "35"), stock_attrs("300.0", "60")]))
+        stock=[stock_attrs("200.0", "35"), stock_attrs("300.0", "60")]))
     assert conn.execute(
         "SELECT time, level FROM stock_event ORDER BY time").fetchall() \
         == [(100.0, 10.0), (200.0, 35.0), (300.0, 60.0)]
@@ -379,8 +391,8 @@ def test_merge_skips_entries_without_time(conn):
     # and wipe the preserved history (the tables' whole reason to exist)
     store.merge_events(conn, events_save(
         log=[{"title": "no time", "text": "t"}],
-        trades=[{"ware": "ice", "owner": "[0x9]", "v": "5"},
-                {"ware": "ice", "owner": "[0x9]", "v": "5", "time": "bogus"}],
+        stock=[{"ware": "ice", "owner": "[0x9]", "v": "5"},
+               {"ware": "ice", "owner": "[0x9]", "v": "5", "time": "bogus"}],
     ))
     # fixture history untouched, timeless entries not inserted
     assert count(conn, "log_entry") == 1
@@ -410,14 +422,14 @@ def test_duplicate_ids_never_fail(cfg, save_data, ref):
 def test_window_boundary_keeps_dropped_siblings(conn):
     conn.execute("DELETE FROM stock_event")
     conn.commit()
-    store.merge_events(conn, events_save(trades=[
+    store.merge_events(conn, events_save(stock=[
         stock_attrs("100.0", "10", "[0xA]"),
         stock_attrs("100.0", "20", "[0xB]"),
         stock_attrs("200.0", "30", "[0xA]"),
     ]))
     # the game dropped [0xB]'s t=100 snapshot: the new window is thinner at
     # the boundary, so the cached siblings there must survive the merge
-    store.merge_events(conn, events_save(trades=[
+    store.merge_events(conn, events_save(stock=[
         stock_attrs("100.0", "10", "[0xA]"),
         stock_attrs("200.0", "30", "[0xA]"),
     ]))
@@ -430,11 +442,11 @@ def test_epoch_increments_on_coverage_gap(conn):
     conn.execute("DELETE FROM stock_event")
     conn.commit()
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+        stock=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
     # next analyzed save's window starts after everything stored: the game
     # discarded the events in between, deltas must not span the gap
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("500.0", "90"), stock_attrs("600.0", "95")]))
+        stock=[stock_attrs("500.0", "90"), stock_attrs("600.0", "95")]))
     assert conn.execute("SELECT time, epoch FROM stock_event ORDER BY time"
                         ).fetchall() == [
         (100.0, 0), (200.0, 0), (500.0, 1), (600.0, 1)]
@@ -448,14 +460,14 @@ def test_identity_heals_series_across_sessions(conn):
     conn.commit()
     # session 1: the station is [0xA]
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("100.0", "10", "[0xA]"),
-                stock_attrs("120.0", "20", "[0xA]")],
+        stock=[stock_attrs("100.0", "10", "[0xA]"),
+               stock_attrs("120.0", "20", "[0xA]")],
         components=[comp("[0xA]", "STA-001", "argon")]))
     # session 2 (game reload): same station, remapped to [0xB]; the new
     # window overlaps at t=120 so coverage is continuous
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("120.0", "20", "[0xB]"),
-                stock_attrs("150.0", "40", "[0xB]")],
+        stock=[stock_attrs("120.0", "20", "[0xB]"),
+               stock_attrs("150.0", "40", "[0xB]")],
         components=[comp("[0xB]", "STA-001", "argon")]))
     # the faction|code partition bridges the id change: the t=120 row's
     # delta is computed against the [0xA] row at t=100
@@ -496,7 +508,7 @@ def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
     from x4analyzer.analysis.frames import build_frames
 
     # a later save whose window no longer overlaps the fixture's history
-    store.merge_events(conn, events_save(trades=[
+    store.merge_events(conn, events_save(stock=[
         stock_attrs("5000.0", "10", "[0x20]"),
         stock_attrs("5100.0", "60", "[0x20]"),
     ]))
@@ -544,7 +556,7 @@ def test_stock_missing_level_is_zero(conn):
     conn.execute("DELETE FROM stock_event")
     conn.commit()
     store.merge_events(conn, events_save(
-        trades=[{"time": "10.0", "ware": "ice", "owner": "[0x9]"}]))
+        stock=[{"time": "10.0", "ware": "ice", "owner": "[0x9]"}]))
     assert conn.execute("SELECT level FROM stock_event").fetchall() \
         == [(0.0,)]
 
@@ -555,8 +567,9 @@ def test_coverage_rows_written_by_merges(conn):
     rows = {(r[0], r[1]): r[2:] for r in conn.execute(
         "SELECT stream, epoch, t_min, t_max, window_start, updated_save_id"
         " FROM coverage")}
-    assert rows[("trade_tx", 0)] == (10.5, 10.5, 10.5, 1)
+    assert rows[("trade_tx", 0)] == (10.5, 12.0, 10.5, 1)
     assert rows[("stock_event", 0)] == (11.0, 11.0, 11.0, 1)
+    assert rows[("money_event", 0)] == (10.7, 10.7, 10.7, 1)
     assert rows[("log:upkeep", 0)] == (100.0, 100.0, 100.0, 1)
 
 
@@ -565,9 +578,9 @@ def test_coverage_extends_on_overlapping_window(conn):
     conn.execute("DELETE FROM coverage")
     conn.commit()
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+        stock=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("200.0", "35"), stock_attrs("300.0", "60")]))
+        stock=[stock_attrs("200.0", "35"), stock_attrs("300.0", "60")]))
     # same epoch, interval extended, window_start = the newest window's
     assert conn.execute(
         "SELECT epoch, t_min, t_max, window_start FROM coverage"
@@ -580,9 +593,9 @@ def test_coverage_epoch_matches_table_epoch_on_gap(conn):
     conn.execute("DELETE FROM coverage")
     conn.commit()
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+        stock=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("500.0", "90"), stock_attrs("600.0", "95")]))
+        stock=[stock_attrs("500.0", "90"), stock_attrs("600.0", "95")]))
     assert conn.execute(
         "SELECT epoch, t_min, t_max FROM coverage"
         " WHERE stream = 'stock_event' ORDER BY epoch").fetchall() \
@@ -651,7 +664,7 @@ def test_v_universe(conn):
 def test_v_stock_delta(conn):
     conn.execute("DELETE FROM stock_event")
     conn.commit()
-    store.merge_events(conn, events_save(trades=[
+    store.merge_events(conn, events_save(stock=[
         stock_attrs("10.0", "100"), stock_attrs("20.0", "150"),
         stock_attrs("30.0", "120"), stock_attrs("40.0", "200"),
     ]))
@@ -764,8 +777,8 @@ def test_display_name_fallback_at_merge(conn, ref):
     ship = ("[0xS]", "ship_s", "ship_test_macro", "", "SHP-002", "player",
             "", "", "conn", "", "", "", "", "", "", "")
     store.merge_events(conn, events_save(
-        trades=[stock_attrs("10.0", "5", "[0xA]"),
-                stock_attrs("11.0", "5", "[0xS]")],
+        stock=[stock_attrs("10.0", "5", "[0xA]"),
+               stock_attrs("11.0", "5", "[0xS]")],
         components=[unnamed_station, ship],
     ), ref, stypes={"[0xA]": "Solar Power Plant"})
     names = dict(conn.execute(
@@ -1082,7 +1095,7 @@ def test_legacy_csv_import(cfg, save_data, ref):
     # one-time: flag set, a second call is a no-op
     store.import_legacy_caches(conn, cfg, guid, ref)
     assert count(conn, "log_entry") == 3
-    assert count(conn, "trade_tx") == 2
+    assert count(conn, "trade_tx") == 3  # csv row + fixture trade + transfer
     conn.close()
 
 

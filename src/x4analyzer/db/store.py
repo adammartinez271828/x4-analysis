@@ -587,8 +587,9 @@ def merge_events(conn: sqlite3.Connection, save: SaveData,
 
     - log_entry: per category, cached entries at or after that category's
       oldest new timestamp are replaced by the new window.
-    - trade_tx/stock_event: cached entries newer than the oldest new
-      timestamp are replaced (the new window is authoritative from there).
+    - trade_tx/stock_event/money_event: cached entries newer than the
+      oldest new timestamp are replaced (the new window is authoritative
+      from there).
     - removed_object: cumulative catalog, append unseen objects.
 
     Trade parties are resolved to their save-stable, display-ready
@@ -619,7 +620,7 @@ def merge_events(conn: sqlite3.Connection, save: SaveData,
             return
     ident = _identities(save, ref, stypes or {})
     _merge_log(conn, save.log_entries)
-    _merge_trades(conn, save.trades, ident, _player_edges(save),
+    _merge_trades(conn, save, ident, _player_edges(save),
                   entities or {})
     _merge_removed(conn, save.removed_objects)
     if t:
@@ -638,7 +639,8 @@ def _merge_high_water(conn: sqlite3.Connection) -> float | None:
     if row is not None:
         return float(row[0])
     times = [conn.execute(f"SELECT MAX(time) FROM {table}").fetchone()[0]
-             for table in ("trade_tx", "stock_event", "log_entry")]
+             for table in ("trade_tx", "stock_event", "money_event",
+                           "log_entry")]
     times = [t for t in times if t is not None]
     return max(times) if times else None
 
@@ -777,16 +779,27 @@ _TX_COLS = ("time", "ware", "buyer_id", "seller_id", "price_cr", "amount",
             "buyer_cmdr_id", "buyer_cmdr_name", "buyer_cmdr_code",
             "seller_cmdr_id", "seller_cmdr_name", "seller_cmdr_code",
             "buyer_entity", "seller_entity",
-            "buyer_cmdr_entity", "seller_cmdr_entity")
+            "buyer_cmdr_entity", "seller_cmdr_entity", "kind")
 _STOCK_COLS = ("time", "owner_id", "ware", "level", "raw_attrs",
                "owner_faction", "owner_code", "owner_name", "owner_entity")
+_MONEY_COLS = ("time", "owner_id", "partner_id", "kind", "tradeentry",
+               "value_cr", "raw_attrs", "owner_faction", "owner_code",
+               "owner_name", "partner_faction", "partner_code",
+               "partner_name", "owner_entity", "partner_entity")
 
 
-def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
+def _merge_trades(conn: sqlite3.Connection, save: SaveData,
                   ident: dict, edges: dict, entities: dict) -> None:
-    # the economylog's type="trade" entries are two different record types:
-    # real transactions (buyer AND seller AND price; v is a traded amount)
-    # vs owner-only stock snapshots (v is the level AFTER a trade)
+    # each economylog ledger is typed by its wrapper block (plan T15 /
+    # review B1), and the parser collected them per block:
+    # - save.trades (trade block): real transactions (type="trade", price
+    #   in cents, v = traded amount) and player-internal transfers
+    #   (type="transfer", no price) -> trade_tx, told apart by `kind`
+    # - save.stock_logs (cargo block, type="trade" only): the owner's
+    #   stock level after a trade touched that ware -> stock_event
+    # - save.money_logs (money block): the player's per-object money
+    #   ledger (v in cents; tradeentry = 1-based ordinal into the trade
+    #   ledger) -> money_event
     nobody = (None, None, None)
 
     def cmdr(party_id):
@@ -802,31 +815,50 @@ def _merge_trades(conn: sqlite3.Connection, trades: list[dict],
         leader = edges.get(party_id)
         return entities.get(leader) if leader is not None else None
 
-    tx, stock = [], []
-    for t in trades:
+    tx, stock, money = [], [], []
+    for t in save.trades:
         time = _time_of(t)
-        if time is None:
+        if time is None or not (t.get("buyer") and t.get("seller")):
             continue
-        raw = json.dumps(t, sort_keys=True)
-        if t.get("buyer") and t.get("seller") and t.get("price"):
-            tx.append((time, t.get("ware") or "", _s(t.get("buyer")),
-                       _s(t.get("seller")), _cents(t.get("price")),
-                       _f(t.get("v")), raw,
-                       *ident.get(t["buyer"], nobody),
-                       *ident.get(t["seller"], nobody),
-                       *cmdr(t["buyer"]), *cmdr(t["seller"]),
-                       entities.get(t["buyer"]), entities.get(t["seller"]),
-                       cmdr_entity(t["buyer"]), cmdr_entity(t["seller"])))
-        elif t.get("owner") and not t.get("buyer"):
-            # absent v means an empty stock, not unknown (the game omits
-            # default attrs); NULL would punch holes into the LAG deltas
-            stock.append((time, t["owner"], t.get("ware") or "",
-                          _f(t.get("v")) or 0.0, raw,
-                          *ident.get(t["owner"], nobody),
-                          entities.get(t["owner"])))
+        tx.append((time, t.get("ware") or "", _s(t.get("buyer")),
+                   _s(t.get("seller")), _cents(t.get("price")),
+                   _f(t.get("v")), json.dumps(t, sort_keys=True),
+                   *ident.get(t["buyer"], nobody),
+                   *ident.get(t["seller"], nobody),
+                   *cmdr(t["buyer"]), *cmdr(t["seller"]),
+                   entities.get(t["buyer"]), entities.get(t["seller"]),
+                   cmdr_entity(t["buyer"]), cmdr_entity(t["seller"]),
+                   _s(t.get("type")) or "trade"))
+    for s in save.stock_logs:
+        time = _time_of(s)
+        if time is None or not s.get("owner"):
+            continue
+        # absent v means an empty stock, not unknown (the game omits
+        # default attrs; confirmed 2,591/2,591 against same-save <cargo>);
+        # NULL would punch holes into the LAG deltas
+        stock.append((time, s["owner"], s.get("ware") or "",
+                      _f(s.get("v")) or 0.0, json.dumps(s, sort_keys=True),
+                      *ident.get(s["owner"], nobody),
+                      entities.get(s["owner"])))
+    for m in save.money_logs:
+        time = _time_of(m)
+        if time is None or not m.get("owner"):
+            continue
+        partner = _s(m.get("partner"))
+        # continuously-filled entries are amended in place with a second
+        # point (t2, v2): v2 is the latest value; raw_attrs keeps both
+        money.append((time, m["owner"], partner,
+                      _s(m.get("type")), _i(m.get("tradeentry")),
+                      _cents(m.get("v2") if m.get("v2") is not None
+                             else m.get("v")),
+                      json.dumps(m, sort_keys=True),
+                      *ident.get(m["owner"], nobody),
+                      *(ident.get(partner, nobody) if partner else nobody),
+                      entities.get(m["owner"]), entities.get(partner)))
 
     _merge_window(conn, "trade_tx", tx, _TX_COLS)
     _merge_window(conn, "stock_event", stock, _STOCK_COLS)
+    _merge_window(conn, "money_event", money, _MONEY_COLS)
 
 
 def _merge_window(conn: sqlite3.Connection, table: str,
@@ -997,6 +1029,7 @@ def _import_tradelog_cache(conn: sqlite3.Connection,
             s_fac, s_exec[2], s_exec[1],
             *b_cmdr, *s_cmdr,
             None, None, None, None,  # entity ids: unresolvable for csv rows
+            "trade",  # the csv tradelog cached real transactions only
             0,  # epoch: pre-DB history, one continuous csv timeline
         ))
     with conn:

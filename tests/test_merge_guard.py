@@ -27,6 +27,9 @@ SAVE_TEMPLATE = """<?xml version="1.0"?>
     </component>
   </universe>
   <economylog>
+    <entries type="cargo">
+{stock}
+    </entries>
     <entries type="trade">
 {trades}
     </entries>
@@ -38,11 +41,12 @@ SAVE_TEMPLATE = """<?xml version="1.0"?>
 """
 
 
-def make_save(tmp_path, name, time, trades, logs):
+def make_save(tmp_path, name, time, trades=(), stock=(), logs=()):
     p = tmp_path / name
     p.write_text(SAVE_TEMPLATE.format(
         time=time,
         trades="\n".join(trades),
+        stock="\n".join(stock),
         logs="\n".join(logs)))
     return parse_savegame(p)
 
@@ -53,6 +57,8 @@ def test_older_save_merge_preserves_newer_history(tmp_path):
         trades=[
             '<log time="5500.0" type="trade" ware="energycells" '
             'buyer="[0x20]" seller="[0x21]" price="1600" v="100"/>',
+        ],
+        stock=[
             '<log time="5500.0" type="trade" ware="ice" owner="[0x20]" v="50"/>',
             '<log time="5900.0" type="trade" ware="ice" owner="[0x20]" v="70"/>',
         ],
@@ -62,6 +68,8 @@ def test_older_save_merge_preserves_newer_history(tmp_path):
         trades=[
             '<log time="4500.0" type="trade" ware="energycells" '
             'buyer="[0x20]" seller="[0x21]" price="1500" v="90"/>',
+        ],
+        stock=[
             '<log time="4900.0" type="trade" ware="ice" owner="[0x20]" v="40"/>',
         ],
         logs=['<entry time="4500.0" category="upkeep" title="old" text="t"/>'])
@@ -94,13 +102,13 @@ def test_guard_falls_back_to_event_times(tmp_path):
     newest stored event time is the fallback high-water mark."""
     newer = make_save(
         tmp_path, "newer.xml", 6000.0,
-        trades=['<log time="5900.0" type="trade" ware="ice" owner="[0x20]"'
-                ' v="70"/>'],
+        stock=['<log time="5900.0" type="trade" ware="ice" owner="[0x20]"'
+               ' v="70"/>'],
         logs=[])
     older = make_save(
         tmp_path, "older.xml", 5000.0,
-        trades=['<log time="4900.0" type="trade" ware="ice" owner="[0x20]"'
-                ' v="40"/>'],
+        stock=['<log time="4900.0" type="trade" ware="ice" owner="[0x20]"'
+               ' v="40"/>'],
         logs=[])
     conn = sqlite3.connect(":memory:")
     store._ensure_schema(conn)
@@ -118,8 +126,8 @@ def test_same_save_remerge_proceeds(tmp_path):
     still merge (and stay idempotent via the window semantics)."""
     save = make_save(
         tmp_path, "save.xml", 6000.0,
-        trades=['<log time="5900.0" type="trade" ware="ice" owner="[0x20]"'
-                ' v="70"/>'],
+        stock=['<log time="5900.0" type="trade" ware="ice" owner="[0x20]"'
+               ' v="70"/>'],
         logs=['<entry time="5500.0" category="upkeep" title="n" text="t"/>'])
     conn = sqlite3.connect(":memory:")
     store._ensure_schema(conn)

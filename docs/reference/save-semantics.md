@@ -16,9 +16,14 @@ where it still matters.
   the R script kept a resource cache — there is consequently **no resource
   cache** anymore.) Depletion/respawn behavior:
   [../models/resource-depletion-model.md](../models/resource-depletion-model.md).
-- **economylog `type="trade"` entries come in two flavors**; only those
-  with buyer+seller+price are real transactions (owner-only entries are
-  stock snapshots — see Market semantics below).
+- **The economylog is four typed ledgers**, keyed by the wrapper
+  `<entries type="cargo|tradeoffer|trade|money">` — a `<log>`'s own
+  `type` attr names the mutation cause, not the record type. Trade-block
+  rows are real transactions (+ player-internal transfers); cargo-block
+  `type="trade"` rows are stock snapshots (see Market semantics below);
+  money-block rows are the player's money ledger (`v` in cents,
+  `tradeentry` = ordinal into the trade ledger). Full model:
+  savegame-structure.md § `<economylog>`.
 - **`ship_xs`** is a component class (drones, pods), mapped to size XS and
   excluded from mass plots.
 - **Fleet hierarchy**: a follower's `<connected connection="[X]">` ↔ the
@@ -70,11 +75,13 @@ only works against the same save that produced them.
 
 ## Market data semantics (all reverse-engineered, validated in-game)
 
-- The owner-only economylog `<log type="trade" owner ware v>` events record
-  the station's **stock level after each trade**, NOT a trade amount —
+- The cargo-ledger `<log type="trade" owner ware v>` events record the
+  station's **stock level after each trade**, NOT a trade amount —
   traded volume must be derived from positive deltas between consecutive
   snapshots per (owner, ware) (`frames.global_trades["dv"]`,
-  `v_stock_delta`). Summing `v` directly overcounts ~40×.
+  `v_stock_delta`). Summing `v` directly overcounts ~40×. An absent `v`
+  means stock 0, not unknown (CONFIRMED against same-save `<cargo>`,
+  2,591/2,591 pairs).
 - Consumption capacity = module recipe inputs + population needs.
   Workforce upkeep is the game's per-race `workunit_busy` recipes in
   wares.xml (200 workers consume e.g. 75 foodrations + 45 medicalsupplies

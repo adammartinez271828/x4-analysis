@@ -36,7 +36,7 @@ readers and the writer coexist, which live/serve mode relies on.
 |---|---|---|---|
 | **P — persistent bookkeeping** | `meta`, `save`, `coverage` | per key / per import / per (stream, epoch) | never dropped, schema bumps included — `save` ids are the time dimension cross-run data keys into, `meta` carries flags the bump path itself reads, `coverage` records what the event history covers (`meta` upserted; `save` accumulates one row per import; `coverage` extended by every merge) |
 | **W — world state** | 22 tables (`component` …) | rebuilt on every import, stamped `save_id` | ALL rows deleted before each import — only the latest snapshot is retained |
-| **E — event history** | `trade_tx`, `stock_event`, `log_entry`, `removed_object`, `entity`, `entity_event` | merged across runs, windows stitched | never dropped, not even on schema resets; migrated by targeted `ALTER`s |
+| **E — event history** | `trade_tx`, `stock_event`, `money_event`, `log_entry`, `removed_object`, `entity`, `entity_event` | merged across runs, windows stitched | never dropped, not even on schema resets; migrated by targeted `ALTER`s |
 | **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) when the reference data changed since the last import (`meta.reference_digest` guard; unchanged data skips the rewrite) |
 | **D — derived** | 5 `event_*` tables + `station_storage`, `station_munition` | recomputed every run (log-text parsing / analysis models) | replaced wholesale every run |
 
@@ -193,6 +193,7 @@ erDiagram
     trade_tx {
         REAL time
         TEXT ware
+        TEXT kind
         INTEGER buyer_entity FK
         INTEGER seller_entity FK
         INTEGER epoch
@@ -202,6 +203,16 @@ erDiagram
         TEXT owner_id
         TEXT ware
         INTEGER owner_entity FK
+        INTEGER epoch
+    }
+    money_event {
+        REAL time
+        TEXT owner_id
+        TEXT kind
+        INTEGER tradeentry
+        REAL value_cr
+        INTEGER owner_entity FK
+        INTEGER partner_entity FK
         INTEGER epoch
     }
     log_entry {
@@ -313,6 +324,7 @@ erDiagram
     entity ||..o{ entity_event : "entity_id"
     entity ||..o{ trade_tx : "buyer/seller_entity"
     entity ||..o{ stock_event : "owner_entity"
+    entity ||..o{ money_event : "owner/partner_entity"
     entity ||..o{ component : "entity_id"
     component ||..o{ station_storage : "station_id"
     component ||..o{ station_munition : "station_id"
@@ -326,7 +338,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"11"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"12"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are refused registry updates |
 | `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
@@ -368,7 +380,7 @@ dropped): each merge extends its stream's newest epoch row, or opens a
 new epoch row when the incoming window starts past everything stored
 (a coverage gap — the game discarded events in between).
 
-Streams: `trade_tx`, `stock_event` (epochs match those tables' `epoch`
+Streams: `trade_tx`, `stock_event`, `money_event` (epochs match those tables' `epoch`
 column) and `log:<category>` per logbook category — the logbook has no
 epoch column of its own, so its gap-awareness lives here. **Backfill
 pending**: rows describe only merges performed since the table existed
@@ -378,7 +390,7 @@ later migration (plan T3/M4).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `stream` | TEXT PK | `trade_tx` / `stock_event` / `log:<category>` | derived: merge bookkeeping |
+| `stream` | TEXT PK | `trade_tx` / `stock_event` / `money_event` / `log:<category>` | derived: merge bookkeeping |
 | `epoch` | INTEGER PK | coverage epoch (joins the E tables' `epoch` for the economylog streams) | derived: merge bookkeeping |
 | `t_min` | REAL | covered interval start, game seconds | derived: merged windows |
 | `t_max` | REAL | covered interval end, game seconds | derived: merged windows |
@@ -709,7 +721,7 @@ value). Save-side: savegame-structure.md § Ships (equipment).
 
 ## Event history (E) — merged across runs
 
-These six tables are the reason the DB exists: the save's `log` and
+These seven tables are the reason the DB exists: the save's `log` and
 `economylog` are **rolling windows** (the game prunes old entries), so each
 analyzed save contributes a window and the DB stitches them into continuous
 history. They are never dropped — schema resets spare them, and schema
@@ -744,7 +756,7 @@ crash never half-merges, and **re-running on the same save adds nothing**:
   new timestamp are deleted and replaced by the window. (Categories scroll
   at different speeds; a global cutoff would let a fast category truncate a
   slow one.)
-- **`trade_tx` / `stock_event`** — *min-time cutoff*: stored rows newer
+- **`trade_tx` / `stock_event` / `money_event`** — *min-time cutoff*: stored rows newer
   than the window's oldest timestamp are deleted; the new window is
   authoritative from there. Rows cannot be matched individually because
   runtime ids drift between saves. At exactly the boundary timestamp the
@@ -781,17 +793,20 @@ on disk untouched as the only backup of that history.
 
 ### trade_tx
 
-Real trade transactions — the economylog's *full* flavor (buyer AND seller
-AND price). Save-side: savegame-structure.md § `<economylog>`, two-flavor
-warning included.
+The economylog's **trade ledger** (`<entries type="trade">`, complete —
+one row per entry): real transactions (`kind='trade'`) and
+player-internal transfers (`kind='transfer'`, no price). Rows are typed
+by their ledger block since v12, not by attribute shape; the block's row
+count equals the save's own `trades_executed` counter plus transfers.
+Save-side: savegame-structure.md § `<economylog>`.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `time` | REAL | transaction game time | `economylog/entries/log[@type="trade"]@time` |
+| `time` | REAL | transaction game time | `economylog/entries[@type="trade"]/log@time` |
 | `ware` | TEXT, FK → `ware.id` | traded ware (`''` if absent) | `…log@ware` |
 | `buyer_id` | TEXT | buyer runtime id, **valid only within the source save** | `…log@buyer` |
 | `seller_id` | TEXT | seller runtime id, **valid only within the source save** | `…log@seller` |
-| `price_cr` | REAL | unit price, credits | `…log@price` ÷ 100 |
+| `price_cr` | REAL | unit price, credits — NULL for transfers and the rare price-less trade rows (the frames layer keeps only priced `kind='trade'` rows for display) | `…log@price` ÷ 100 |
 | `amount` | REAL | traded units | `…log@v` |
 | `raw_attrs` | TEXT | full source element as JSON (incl. `b`/`bmax`/`s`/`smax` not modeled as columns) | derived: JSON dump |
 | `buyer_faction` | TEXT | buyer's faction id, resolved at merge time | derived: snapshot components + removed-objects catalog |
@@ -811,26 +826,60 @@ warning included.
 | `seller_entity` | INTEGER, FK → `entity.entity_id` | seller's entity-registry id (NULL when unresolvable) | derived: entity registry |
 | `buyer_cmdr_entity` | INTEGER, FK → `entity.entity_id` | buyer-side commander's entity-registry id | derived: entity registry |
 | `seller_cmdr_entity` | INTEGER, FK → `entity.entity_id` | seller-side commander's entity-registry id | derived: entity registry |
+| `kind` | TEXT | trade-block log type: `'trade'` or `'transfer'` (pre-v12 rows backfilled `'trade'` — the old ingestion only accepted priced buyer+seller rows) | `…log@type` |
 
 ### stock_event
 
-The economylog's *owner-only* trade flavor: the owner's **stock level
-after a trade touched that ware** — a snapshot, not an amount. Traded
-volume comes from positive deltas between consecutive snapshots
-(`v_stock_delta`); summing levels directly overcounts ~40×.
+The cargo ledger's trade-caused rows (`<entries type="cargo">`,
+`type="trade"` only): the owner's **stock level after a trade touched
+that ware** — a snapshot, not an amount. Traded volume comes from
+positive deltas between consecutive snapshots (`v_stock_delta`); summing
+levels directly overcounts ~40×. Before v12 the merge also shunted
+money-ledger rows in here as `ware=''` fake snapshots (their `v` is
+cents, not units — the reason `v_stock_delta` used to guard
+`WHERE ware != ''`); the v12 migration re-typed them into `money_event`
+and dropped the guard.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `time` | REAL | event game time | `economylog/entries/log[@type="trade"]@time` |
+| `time` | REAL | event game time | `economylog/entries[@type="cargo"]/log[@type="trade"]@time` |
 | `owner_id` | TEXT | runtime id, source-save scoped | `…log@owner` |
-| `ware` | TEXT, FK → `ware.id` | ware (`''` if absent — such rows carry no delta info) | `…log@ware` |
-| `level` | REAL | stock after the trade (absent attr = 0, deliberately not NULL) | `…log@v` |
+| `ware` | TEXT, FK → `ware.id` | ware | `…log@ware` |
+| `level` | REAL | stock after the trade (absent attr = 0, deliberately not NULL — CONFIRMED against same-save `<cargo>`, 2,591/2,591) | `…log@v` |
 | `raw_attrs` | TEXT | full source element as JSON | derived |
 | `owner_faction` | TEXT | owner's faction id, resolved at merge time | derived |
 | `owner_code` | TEXT | owner's display code, resolved at merge time | derived |
 | `owner_name` | TEXT | owner's display name, resolved at merge time | derived |
 | `epoch` | INTEGER | coverage epoch | derived |
 | `owner_entity` | INTEGER, FK → `entity.entity_id` | registry id | derived |
+
+### money_event
+
+The economylog's **money ledger** (`<entries type="money">`, all types):
+the player's per-object money mutations — every resolvable owner is
+player-faction (verified across both real playthroughs). For
+`kind='trade'` rows, `tradeentry` is a 1-based ordinal into the trade
+ledger (CONFIRMED 1,295/1,295 and 6,762/6,764 pair-matches) and
+`value_cr` is the trade's money amount; buyer-side rows are usually
+value-less (escrowed at order time — hypothesis). Other kinds
+(`transfer`, `orderqueue_add/_remove`, `script_add`, `collect`,
+`sellship`, …) are non-trade money mutations. Rows that predate v12
+were re-typed out of `stock_event` by the migration, with these fields
+extracted from their `raw_attrs`.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `time` | REAL | event game time | `economylog/entries[@type="money"]/log@time` |
+| `owner_id` | TEXT | runtime id (player object), source-save scoped | `…log@owner` |
+| `partner_id` | TEXT | counterparty runtime id, source-save scoped | `…log@partner` |
+| `kind` | TEXT | money-block log type (`trade`, `transfer`, `orderqueue_add`, …) | `…log@type` |
+| `tradeentry` | INTEGER | 1-based ordinal into the save's trade ledger (`kind='trade'`/`'orderqueue_add'`; NULL otherwise) | `…log@tradeentry` |
+| `value_cr` | REAL | money moved, credits (amended `v2` preferred over `v`); NULL = no movement recorded | `…log@v2`/`@v` ÷ 100 |
+| `raw_attrs` | TEXT | full source element as JSON (incl. `t2`/`v2` amendments) | derived |
+| `owner_faction` / `owner_code` / `owner_name` | TEXT | owner identity, resolved at merge time | derived |
+| `partner_faction` / `partner_code` / `partner_name` | TEXT | partner identity, resolved at merge time | derived |
+| `epoch` | INTEGER | coverage epoch | derived |
+| `owner_entity` / `partner_entity` | INTEGER, FK → `entity.entity_id` | registry ids (NULL when unresolvable) | derived |
 
 ### log_entry
 
@@ -1043,6 +1092,7 @@ From `db/schema.py`; all `CREATE INDEX IF NOT EXISTS`:
 | `idx_offer_ware` | `trade_offer(save_id, ware)` | per-ware offer books |
 | `idx_tx_time` | `trade_tx(time)` | window merges and time-range queries |
 | `idx_tx_ware` | `trade_tx(ware)` | per-ware trade history |
+| `idx_money_time` | `money_event(time)` | window merges and time-range queries |
 | `idx_stock` | `stock_event(owner_id, ware, time)` | the `v_stock_delta` window scan |
 | `idx_log_time` | `log_entry(category, time)` | per-category merges and reads |
 | `idx_recipe` | `recipe(ware, method)` | recipe lookups |
@@ -1063,7 +1113,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"11"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"12"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1072,13 +1122,17 @@ The E-table indices are applied through the idempotent
    tables and so has no `EVENT_MIGRATIONS` entry (the real case: a v5
    database) — walks all the way forward, applying whatever
    E-migrations it passes.
-2. **Event tables** get targeted `ALTER TABLE … ADD COLUMN` chains
-   (`EVENT_MIGRATIONS` in `db/schema.py`, v1→v2→v3→v4: identity columns,
-   commander attribution, entity links) — their history is irreplaceable.
-   New columns always append at the end of the fresh DDL so ALTERed and
+2. **Event tables** get targeted statements
+   (`EVENT_MIGRATIONS` in `db/schema.py` — v1→v2→v3→v4: identity columns,
+   commander attribution, entity links; v11→v12: `trade_tx.kind`,
+   `money_event` creation and the re-typing of mis-merged money-ledger
+   rows out of `stock_event`) — their history is irreplaceable. New
+   columns always append at the end of the fresh DDL so ALTERed and
    fresh tables line up; even so, a migrated DB may carry a different
    *physical* column order than a fresh one, which is why inserts name
-   their columns explicitly.
+   their columns explicitly. The v11→v12 step stays in the chain
+   indefinitely: any pre-v12 DB is corrected the first time it is
+   opened, whenever that happens.
 3. **P tables (`save`, `meta`) are never dropped** — `save_id`s never
    recycle and `meta` flags survive the code path that reads them. Their
    DDL is version-stable; if their shape ever must change, they migrate

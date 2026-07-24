@@ -25,12 +25,15 @@ import hashlib
 # v10: modcap.unit_storage (drone slots) + station_munition table
 # v11: component.entity_id (the entity spine: snapshot rows join the
 #      registry directly) + W/E access-path indices
-SCHEMA_VERSION = "11"
+# v12: economylog ingestion typed by ledger (plan T15 / review B1):
+#      money_event table, trade_tx.kind, money-block rows re-typed out of
+#      stock_event
+SCHEMA_VERSION = "12"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
-EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object",
-                "entity", "entity_event")
+EVENT_TABLES = ("trade_tx", "stock_event", "money_event", "log_entry",
+                "removed_object", "entity", "entity_event")
 
 # P tables: persistent bookkeeping, never dropped on a version bump. save
 # is the provenance log and the time dimension anything cross-run keys
@@ -39,6 +42,26 @@ EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object",
 # Their DDL is version-stable — if their shape ever must change, they
 # migrate like E tables via EVENT_MIGRATIONS.
 PERSISTENT_TABLES = ("save", "meta", "coverage")
+
+# money_event's DDL is shared between TABLES and the v11->v12 migration:
+# the migration walk runs BEFORE the CREATE loop at connect, and its
+# INSERT...SELECT needs the table to exist already.
+_MONEY_EVENT_DDL = """CREATE TABLE IF NOT EXISTS money_event (
+  time       REAL NOT NULL,
+  owner_id   TEXT NOT NULL,
+  partner_id TEXT,
+  kind       TEXT,             -- money-block log type: trade, transfer,
+                               -- orderqueue_add/_remove, script_add, ...
+  tradeentry INTEGER,          -- 1-based ordinal into the save's trade
+                               -- ledger (kind='trade'/'orderqueue_add')
+  value_cr   REAL,             -- money moved, credits (save stores cents;
+                               -- amended v2 preferred); NULL = none moved
+  raw_attrs  TEXT,
+  owner_faction TEXT, owner_code TEXT, owner_name TEXT,
+  partner_faction TEXT, partner_code TEXT, partner_name TEXT,
+  epoch      INTEGER NOT NULL DEFAULT 0,
+  owner_entity INTEGER, partner_entity INTEGER
+)"""
 
 # Event-history migrations: old version -> targeted ALTERs bringing the E
 # tables to the next version (everything else is dropped and recreated).
@@ -82,6 +105,36 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
         "ALTER TABLE trade_tx ADD COLUMN buyer_cmdr_entity INTEGER",
         "ALTER TABLE trade_tx ADD COLUMN seller_cmdr_entity INTEGER",
         "ALTER TABLE stock_event ADD COLUMN owner_entity INTEGER",
+    ),
+    # v12 types the economylog ingestion by ledger (plan T15 / review B1).
+    # The pre-v12 merge shunted money-block rows (the player's per-object
+    # money ledger: no ware, v in cents, tradeentry = ordinal into the
+    # trade ledger) into stock_event as fake ware='' stock snapshots —
+    # the sole source of ware='' rows there (the csv legacy import never
+    # wrote stock rows). Re-type them into money_event, extracting the
+    # money-ledger fields from raw_attrs; epoch and merge-time owner
+    # identity survive the move. trade_tx.kind distinguishes real trades
+    # from the newly ingested internal transfers; every pre-v12 row passed
+    # the buyer+seller+price criterion, so they are all kind='trade'.
+    "11": (
+        _MONEY_EVENT_DDL,
+        "ALTER TABLE trade_tx ADD COLUMN kind TEXT",
+        "UPDATE trade_tx SET kind = 'trade'",
+        """INSERT INTO money_event (time, owner_id, partner_id, kind,
+             tradeentry, value_cr, raw_attrs, owner_faction, owner_code,
+             owner_name, partner_faction, partner_code, partner_name,
+             epoch, owner_entity, partner_entity)
+           SELECT time, owner_id, json_extract(raw_attrs, '$.partner'),
+                  json_extract(raw_attrs, '$.type'),
+                  CAST(json_extract(raw_attrs, '$.tradeentry') AS INTEGER),
+                  CAST(COALESCE(json_extract(raw_attrs, '$.v2'),
+                                json_extract(raw_attrs, '$.v')) AS REAL)
+                    / 100.0,
+                  raw_attrs, owner_faction, owner_code, owner_name,
+                  NULL, NULL, NULL, epoch, owner_entity, NULL
+           FROM stock_event
+           WHERE ware = '' AND raw_attrs IS NOT NULL""",
+        "DELETE FROM stock_event WHERE ware = '' AND raw_attrs IS NOT NULL",
     ),
 }
 
@@ -369,8 +422,12 @@ TABLES: dict[str, str] = {
   buyer_cmdr_id TEXT, buyer_cmdr_name TEXT, buyer_cmdr_code TEXT,
   seller_cmdr_id TEXT, seller_cmdr_name TEXT, seller_cmdr_code TEXT,
   buyer_entity INTEGER, seller_entity INTEGER,
-  buyer_cmdr_entity INTEGER, seller_cmdr_entity INTEGER
+  buyer_cmdr_entity INTEGER, seller_cmdr_entity INTEGER,
+  kind      TEXT              -- trade-block log type: 'trade' (real
+                              -- transaction) or 'transfer' (player-
+                              -- internal ware movement, no price)
 )""",
+    "money_event": _MONEY_EVENT_DDL,
     "stock_event": """CREATE TABLE IF NOT EXISTS stock_event (
   time      REAL NOT NULL,
   owner_id  TEXT NOT NULL,
@@ -555,6 +612,7 @@ INDEXES = (
     "WHERE seller_entity IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_tx_time ON trade_tx(time)",
     "CREATE INDEX IF NOT EXISTS idx_tx_ware ON trade_tx(ware)",
+    "CREATE INDEX IF NOT EXISTS idx_money_time ON money_event(time)",
     "CREATE INDEX IF NOT EXISTS idx_stock ON stock_event(owner_id, ware, time)",
     "CREATE INDEX IF NOT EXISTS idx_log_time ON log_entry(category, time)",
     "CREATE INDEX IF NOT EXISTS idx_recipe ON recipe(ware, method)",
@@ -614,14 +672,14 @@ FROM chain""",
     # market traded volume: positive stock deltas between consecutive
     # owner-only snapshots (level/dv_neg beyond the schema doc: frames'
     # Market actual-flows mode needs stock leaving the station too).
-    # Rows without a ware carry no delta information.
+    # (The pre-v12 `ware != ''` guard is gone: ware-less rows were the
+    # mis-typed money-ledger family, re-typed into money_event.)
     "v_stock_delta": """CREATE VIEW v_stock_delta AS
 SELECT owner_id, owner_faction, owner_code, owner_name, ware, time, level,
        epoch,
        MAX(level - LAG(level) OVER w, 0) AS dv,
        MAX(LAG(level) OVER w - level, 0) AS dv_neg
 FROM stock_event
-WHERE ware != ''
 WINDOW w AS (PARTITION BY COALESCE(owner_faction || '|' || owner_code,
                                    owner_id),
              ware, epoch ORDER BY time, rowid)""",

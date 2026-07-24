@@ -100,7 +100,16 @@ class SaveData:
     # order queues of stations/ships: (object_id, order, is_default, state)
     orders: list = field(default_factory=list)
     log_entries: list = field(default_factory=list)    # dict per <entry>
-    trades: list = field(default_factory=list)         # dict per economylog <log>
+    # the economylog is four typed ledgers keyed by the WRAPPER
+    # (<entries type="cargo|tradeoffer|trade|money">); the <log type=...>
+    # attr names the mutation cause, not the record type (docs/reference/
+    # savegame-structure.md § economylog). Collected by block:
+    trades: list = field(default_factory=list)       # trade block: dict per
+                                                     # <log> (trade+transfer)
+    stock_logs: list = field(default_factory=list)   # cargo block: dict per
+                                                     # <log type="trade">
+    money_logs: list = field(default_factory=list)   # money block: dict per
+                                                     # <log> (player ledger)
     removed_objects: list = field(default_factory=list)  # dict per <object>
     # aggregate crew aboard: (object_id, role) -> count of <person> elements
     # (roles: service, marine, passenger, prisoner; captain/engineer are
@@ -182,6 +191,11 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     # relation/booster/discount/account/licence children attribute correctly
     faction_id_stack: list[str] = []
     in_faction_player = 0
+    # type of the open economylog <entries> ledger block (cargo/tradeoffer/
+    # trade/money) — the block, not the log's type attr, decides what a
+    # <log> row IS. Only the top-level economylog qualifies: stations embed
+    # self-closing <economylog> stubs with no children.
+    eco_block: str | None = None
     n_elems = 0
 
     with _open_save(path) as fh:
@@ -228,6 +242,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     if object_stack:
                         key = (object_stack[-1], elem.get("role", ""))
                         d.people[key] = d.people.get(key, 0) + 1
+                elif tag == "entries":
+                    # a ledger block of the top-level economylog
+                    # (savegame/economylog/entries); encyclopedia <entries>
+                    # blocks live elsewhere and never match this path
+                    if len(tag_stack) == 3 and tag_stack[-2] == "economylog":
+                        eco_block = elem.get("type", "")
                 elif tag == "faction":
                     # a faction in universe/factions (not a faction= attr
                     # elsewhere): track its id for the relations children
@@ -562,8 +582,23 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         ))
 
             elif tag == "log" and "economylog" in tag_stack:
-                if elem.get("type") == "trade":
+                if eco_block == "trade":
+                    # the trade ledger: real transactions (type="trade")
+                    # and player-internal transfers (type="transfer")
                     d.trades.append(dict(elem.attrib))
+                elif eco_block == "money":
+                    # the player's per-object money ledger, every type
+                    d.money_logs.append(dict(elem.attrib))
+                elif eco_block == "cargo" and elem.get("type") == "trade":
+                    # cargo mutations: only trade-caused ones are stock
+                    # snapshots worth keeping (produce/consume/... are a
+                    # different, far larger family)
+                    d.stock_logs.append(dict(elem.attrib))
+
+            elif tag == "entries":
+                if eco_block is not None and tag_stack \
+                        and tag_stack[-1] == "economylog":
+                    eco_block = None
 
             elif tag == "object":
                 if "economylog" in tag_stack and "removed" in tag_stack:

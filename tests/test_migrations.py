@@ -100,6 +100,9 @@ def test_off_chain_v5_database_migrates(tmp_path):
     conn.execute(schema.TABLES["save"])
     conn.execute(schema.TABLES["trade_tx"])
     conn.execute(schema.TABLES["stock_event"])
+    # v5-era trade_tx predates the v12 `kind` column (the fresh DDL is
+    # the stand-in, so strip what the 11->12 migration will re-add)
+    conn.execute("ALTER TABLE trade_tx DROP COLUMN kind")
     conn.execute("CREATE TABLE component (save_id INTEGER, id TEXT)")
     conn.execute("INSERT INTO meta VALUES ('schema_version', '5')")
     conn.execute("INSERT INTO save (guid, game_time, source_file)"
@@ -149,4 +152,82 @@ def test_v1_database_walks_full_chain(tmp_path):
         == [(5.0, "[0x1]", None, None, 0)]
     assert conn.execute("SELECT value FROM meta WHERE key='schema_version'"
                         ).fetchone() == (schema.SCHEMA_VERSION,)
+    conn.close()
+
+
+def test_v11_database_retypes_money_rows(tmp_path):
+    """The v11->v12 step (plan T15 / review B1): money-block rows the old
+    ingestion shunted into stock_event as ware='' fake snapshots move to
+    money_event with their ledger fields extracted from raw_attrs; real
+    stock rows and csv-imported rows are untouched; trade_tx gains kind."""
+    import json
+
+    cfg = make_cfg(tmp_path)
+    conn = sqlite3.connect(store.db_path(cfg, "V11"))
+    conn.execute(schema.TABLES["meta"])
+    conn.execute(schema.TABLES["save"])
+    conn.execute(schema.TABLES["trade_tx"])
+    conn.execute(schema.TABLES["stock_event"])
+    conn.execute("ALTER TABLE trade_tx DROP COLUMN kind")  # v11 shape
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '11')")
+
+    def stock(time, ware, raw, level=0.0, faction=None, code=None,
+              epoch=0, entity=None):
+        conn.execute(
+            "INSERT INTO stock_event (time, owner_id, ware, level,"
+            " raw_attrs, owner_faction, owner_code, epoch, owner_entity)"
+            " VALUES (?, '[0x1]', ?, ?, ?, ?, ?, ?, ?)",
+            (time, ware, level,
+             json.dumps(raw, sort_keys=True) if raw is not None else None,
+             faction, code, epoch, entity))
+
+    # a real stock snapshot — must stay
+    stock(10.0, "ice", {"time": "10.0", "type": "trade", "owner": "[0x1]",
+                        "ware": "ice", "v": "50"}, level=50.0)
+    # mis-typed money rows: with v, v-less, amended (v2), no tradeentry
+    stock(20.0, "", {"time": "20.0", "type": "trade", "owner": "[0x1]",
+                     "partner": "[0x2]", "tradeentry": "7",
+                     "v": "12641200"},
+          faction="player", code="STA-001", epoch=1, entity=42)
+    stock(21.0, "", {"time": "21.0", "type": "trade", "owner": "[0x1]",
+                     "partner": "[0x2]", "tradeentry": "8"})
+    stock(22.0, "", {"time": "22.0", "type": "trade", "owner": "[0x1]",
+                     "partner": "[0x2]", "tradeentry": "9", "v": "100",
+                     "t2": "25.0", "v2": "300"})
+    stock(23.0, "", {"time": "23.0", "type": "trade", "owner": "[0x1]",
+                     "partner": "[0x2]", "v": "500"})
+    conn.execute("INSERT INTO trade_tx (time, ware, raw_attrs)"
+                 " VALUES (5.0, 'ice', '{}')")
+    # csv-legacy row shape (raw_attrs NULL): never touched by the move
+    conn.execute("INSERT INTO trade_tx (time, ware) VALUES (4.0, 'ore')")
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "V11")
+    # only the real snapshot remains in stock_event
+    assert conn.execute("SELECT time, ware, level FROM stock_event"
+                        ).fetchall() == [(10.0, "ice", 50.0)]
+    # the four money rows moved, fields extracted, cents -> credits,
+    # v2 preferred, merge-time identity and epoch preserved
+    assert conn.execute(
+        "SELECT time, owner_id, partner_id, kind, tradeentry, value_cr,"
+        " owner_faction, owner_code, epoch, owner_entity FROM money_event"
+        " ORDER BY time").fetchall() == [
+        (20.0, "[0x1]", "[0x2]", "trade", 7, 126412.0,
+         "player", "STA-001", 1, 42),
+        (21.0, "[0x1]", "[0x2]", "trade", 8, None, None, None, 0, None),
+        (22.0, "[0x1]", "[0x2]", "trade", 9, 3.0, None, None, 0, None),
+        (23.0, "[0x1]", "[0x2]", "trade", None, 5.0, None, None, 0, None),
+    ]
+    # every pre-v12 trade_tx row was a real trade by construction
+    assert conn.execute("SELECT time, kind FROM trade_tx ORDER BY time"
+                        ).fetchall() == [(4.0, "trade"), (5.0, "trade")]
+    conn.close()
+
+    # reopening at the current version changes nothing (the chain ran once)
+    conn = store.open_db(cfg, "V11")
+    assert conn.execute("SELECT COUNT(*) FROM money_event").fetchone() \
+        == (4,)
+    assert conn.execute("SELECT COUNT(*) FROM stock_event").fetchone() \
+        == (1,)
     conn.close()

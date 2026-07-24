@@ -136,10 +136,19 @@ FIXTURE = """<?xml version="1.0"?>
     </component>
   </universe>
   <economylog>
+    <entries type="cargo">
+      <log time="11.0" type="trade" ware="ice" owner="[0x20]" v="50"/>
+      <log time="11.5" type="produce" ware="ice" owner="[0x20]" v="60"/>
+    </entries>
     <entries type="trade">
       <log time="10.5" type="trade" ware="energycells" buyer="[0x20]"
            seller="[0x77]" price="1600" v="100"/>
-      <log time="11.0" type="trade" ware="ice" owner="[0x20]" v="50"/>
+      <log time="12.0" type="transfer" ware="ice" buyer="[0x30]"
+           seller="[0x20]" v="25" b="25" bmax="100"/>
+    </entries>
+    <entries type="money">
+      <log time="10.7" type="trade" owner="[0x20]" partner="[0x77]"
+           tradeentry="1" v="16000000"/>
     </entries>
     <removed>
       <object id="115" owner="teladi" name="TEL Trader" code="TDR-001"/>
@@ -250,7 +259,14 @@ def test_fixture_parse(save_file: Path) -> None:
     assert erl[7] == 0 and erl[8] == 2  # locked; wares + blueprint inside
     assert erl[9] == "turret_pir_l_battleship_01_laser_01_mk1"
 
-    assert len(d.trades) == 2  # frames layer filters the owner-only entry
+    # the economylog collections are split by ledger block, not by the
+    # log's type attr: the cargo-block produce row is not collected
+    assert [t["type"] for t in d.trades] == ["trade", "transfer"]
     assert d.trades[0]["ware"] == "energycells"
+    assert d.stock_logs == [{"time": "11.0", "type": "trade", "ware": "ice",
+                             "owner": "[0x20]", "v": "50"}]
+    assert d.money_logs == [{"time": "10.7", "type": "trade",
+                             "owner": "[0x20]", "partner": "[0x77]",
+                             "tradeentry": "1", "v": "16000000"}]
     assert d.removed_objects[0]["name"] == "TEL Trader"
     assert d.log_entries[0]["title"] == "Test entry"

@@ -444,6 +444,9 @@ def build_frames(save: SaveData, ref: RefData,
     # dotted columns: main = commander when a subordinate executed the
     # trade, proxy.* = the executing ship ("Executed by" in Trade History)
     log("Preparing economylog -> tradelog")
+    # priced real trades only: since v12 the table also stores player-
+    # internal transfers (kind='transfer') and the rare price-less trade
+    # rows for completeness — the dashboards don't render them (yet)
     tl = _read(conn, """
         SELECT time, ware, price_cr, amount,
                buyer_id, buyer_faction, buyer_code, buyer_name,
@@ -452,7 +455,9 @@ def build_frames(save: SaveData, ref: RefData,
                seller_cmdr_id, seller_cmdr_name, seller_cmdr_code,
                buyer_entity, seller_entity,
                buyer_cmdr_entity, seller_cmdr_entity
-        FROM trade_tx ORDER BY time""")
+        FROM trade_tx
+        WHERE (kind IS NULL OR kind = 'trade') AND price_cr IS NOT NULL
+        ORDER BY time""")
     # A rename must not split an object's history: names are display-only
     # and trade_tx keeps whatever name each row was merged under.
     # Re-resolve display names, best evidence first: the entity registry's
