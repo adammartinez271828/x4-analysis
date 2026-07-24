@@ -176,7 +176,15 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
 # ---- world state (W: one snapshot, replaced per import) ---------------------
 
 def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
-                   source_file: Path | str) -> int:
+                   source_file: Path | str,
+                   entities: dict[str, int] | None = None) -> int:
+    """Write the save's world snapshot. `entities` (component id ->
+    entity_id, from update_entity_registry — which therefore runs first
+    in the pipeline) stamps component rows with durable identity; rows
+    it does not cover (sectors, clusters, registry-skipped runs) keep
+    NULL."""
+    entities = entities or {}
+
     def resolve(name):
         if name and "{" in name:
             return ref.resolve_name(name)
@@ -200,12 +208,13 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
 
         conn.executemany(
             "INSERT OR REPLACE INTO component VALUES "
-            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [(save_id, cid, clazz, _low(macro), resolve(name),
               resolve(basename), _s(code), _s(owner), _s(knownto),
               _i(contested), _f(spawntime),
               _s(parent_id), _s(cluster_id), _low(cluster_macro),
-              _s(sector_id), _low(sector_macro), sx, sz, _i(faction_hq))
+              _s(sector_id), _low(sector_macro), sx, sz, _i(faction_hq),
+              entities.get(cid))
              for (cid, clazz, macro, name, code, owner, knownto, contested,
                   connection, spawntime, cluster_id, cluster_macro, sector_id,
                   sector_macro, basename, parent_id, sx, sz, faction_hq)

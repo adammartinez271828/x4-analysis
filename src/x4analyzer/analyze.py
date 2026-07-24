@@ -29,8 +29,10 @@ def run_analysis(cfg: Config) -> int:
         log("Database:", store.db_path(cfg, save.guid))
         store.write_reference(conn, ref)
         store.import_legacy_caches(conn, cfg, save.guid, ref)
-        save_id = store.write_snapshot(conn, save, ref, save_file)
+        # registry first: its component->entity mapping stamps both the
+        # snapshot (component.entity_id) and the merged event rows
         entities = store.update_entity_registry(conn, save, ref)
+        save_id = store.write_snapshot(conn, save, ref, save_file, entities)
         store.merge_events(conn, save, ref,
                            station_types_from_db(conn, ref), entities)
 

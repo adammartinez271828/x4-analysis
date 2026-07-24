@@ -43,10 +43,8 @@ def test_schema_bump_preserves_save_and_meta(tmp_path):
         "INSERT INTO save (guid, game_time, save_date, source_file)"
         " VALUES ('BUMP', 100.0, '1700000000', 'save.xml')")
     conn.execute("INSERT INTO meta VALUES ('csv_caches_imported', '1')")
-    conn.execute("INSERT INTO component VALUES "
-                 "(1, '[0x1]', 'sector', NULL, NULL, NULL, NULL, NULL,"
-                 " NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,"
-                 " NULL, NULL)")
+    conn.execute("INSERT INTO component (save_id, id, class)"
+                 " VALUES (1, '[0x1]', 'sector')")
     conn.commit()
     # simulate a future bump: stamp an unknown old version
     conn.execute("UPDATE meta SET value = '0' WHERE key = 'schema_version'")

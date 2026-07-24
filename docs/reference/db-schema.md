@@ -88,6 +88,7 @@ erDiagram
         TEXT class
         TEXT code
         TEXT owner
+        INTEGER entity_id FK
     }
     fleet_edge {
         TEXT follower_id PK
@@ -298,6 +299,7 @@ erDiagram
     entity ||..o{ entity_event : "entity_id"
     entity ||..o{ trade_tx : "buyer/seller_entity"
     entity ||..o{ stock_event : "owner_entity"
+    entity ||..o{ component : "entity_id"
     component ||..o{ station_storage : "station_id"
     component ||..o{ station_munition : "station_id"
 ```
@@ -310,7 +312,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"10"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"11"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are refused registry updates |
 | `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
@@ -373,6 +375,7 @@ component tree.
 | `sx` | REAL | sector-local x in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
 | `sz` | REAL | sector-local z in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
 | `faction_hq` | INTEGER | 1 = the faction representative sits here | `component@factionheadquarters` |
+| `entity_id` | INTEGER, FK → `entity.entity_id` | durable identity (the entity spine): NULL outside the registry domain (clusters, sectors) or when the registry skipped the import | derived: entity registry (which runs before the snapshot write) |
 
 ### fleet_edge
 
@@ -835,8 +838,10 @@ evidence:
 - Snapshots older than `meta.entity_registry_time` are refused — stale
   observations would corrupt newer lifecycle history.
 
-Event rows are stamped with entity ids at merge time; `component` rows are
-not (join through code+class or via the event tables).
+Event rows are stamped with entity ids at merge time, and `component`
+rows at snapshot time (`component.entity_id` — the registry runs before
+`write_snapshot` in the pipeline), so both the event history and the
+current snapshot join the registry directly.
 
 #### entity
 
@@ -981,10 +986,20 @@ From `db/schema.py`; all `CREATE INDEX IF NOT EXISTS`:
 | `idx_entity_event` | `entity_event(entity_id)` | per-entity history |
 | `idx_station_storage` | `station_storage(station_id)` | per-station storage rows |
 | `idx_station_munition` | `station_munition(station_id)` | per-station census rows |
+| `idx_component_entity` | `component(save_id, entity_id)` | entity → snapshot row (the spine join) |
+| `idx_component_class` | `component(save_id, class, owner)` | class/owner sweeps (presence counts) |
+| `idx_component_sector` | `component(save_id, sector_macro)` | per-sector object lookups |
+| `idx_stock_entity` | `stock_event(owner_entity, ware, time)` | entity-keyed stock history |
+| `idx_tx_buyer` | `trade_tx(buyer_entity) WHERE … IS NOT NULL` (partial) | entity-keyed trade history, buy side |
+| `idx_tx_seller` | `trade_tx(seller_entity) WHERE … IS NOT NULL` (partial) | entity-keyed trade history, sell side |
+
+The E-table indices are applied through the idempotent
+`CREATE INDEX IF NOT EXISTS` pass at connect — deliberately not through
+`EVENT_MIGRATIONS`, so they reach every DB whatever version it sits at.
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"10"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"11"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every

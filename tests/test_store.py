@@ -808,6 +808,45 @@ def test_entity_registry_skips_stale_snapshot(conn, ref):
     assert len(entity_rows(conn)) == 1   # and nothing was minted or closed
 
 
+def test_component_entity_spine(cfg, save_data, ref):
+    """T2: the registry runs before the snapshot write and its mapping is
+    stamped into component.entity_id — snapshot rows join the registry
+    directly, no code+class fallback."""
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    ents = store.update_entity_registry(conn, save_data, ref)
+    store.write_snapshot(conn, save_data, ref, "save.xml", ents)
+
+    rows = dict(conn.execute("SELECT id, entity_id FROM component"))
+    for cid, eid in ents.items():
+        assert rows[cid] == eid, cid
+    # outside the registry domain: NULL, not 0 or a bogus id
+    for cid, clazz in conn.execute("SELECT id, class FROM component"
+                                   " WHERE class IN ('cluster', 'sector')"):
+        assert rows[cid] is None, clazz
+    # the spine join: durable identity into the snapshot in one hop
+    assert conn.execute(
+        "SELECT e.code FROM component c JOIN entity e"
+        " ON e.entity_id = c.entity_id WHERE c.class = 'station'"
+        ).fetchall() == [("STA-001",)]
+    conn.close()
+
+
+def test_snapshot_without_registry_mapping_keeps_null_spine(conn):
+    # the conn fixture writes the snapshot with no entities mapping (the
+    # registry can skip stale saves and return {}) — every row stays NULL
+    assert conn.execute("SELECT COUNT(*) FROM component"
+                        " WHERE entity_id IS NOT NULL").fetchone() == (0,)
+
+
+def test_spine_indices_exist(conn):
+    names = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index'")}
+    assert {"idx_component_entity", "idx_component_class",
+            "idx_component_sector", "idx_stock_entity",
+            "idx_tx_buyer", "idx_tx_seller"} <= names
+
+
 def test_trade_tx_entity_linkage(conn, ref):
     conn.execute("DELETE FROM trade_tx")
     conn.commit()

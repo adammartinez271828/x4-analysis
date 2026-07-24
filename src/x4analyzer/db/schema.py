@@ -21,7 +21,9 @@ from __future__ import annotations
 # v8: recipe.work_effect (workforce output bonus) + station_storage table
 # v9: station_storage.source (computed model vs stock+buy proxy)
 # v10: modcap.unit_storage (drone slots) + station_munition table
-SCHEMA_VERSION = "10"
+# v11: component.entity_id (the entity spine: snapshot rows join the
+#      registry directly) + W/E access-path indices
+SCHEMA_VERSION = "11"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -143,6 +145,9 @@ TABLES: dict[str, str] = {
   sx            REAL,             -- sector-local position (stations/plots)
   sz            REAL,
   faction_hq    INTEGER,          -- factionheadquarters="1" on the station
+  entity_id     INTEGER,          -- FK entity.entity_id (doc only): NULL
+                                  -- outside the registry domain (sectors,
+                                  -- clusters) or when unresolvable
   PRIMARY KEY (save_id, id)
 )""",
     "fleet_edge": """CREATE TABLE IF NOT EXISTS fleet_edge (
@@ -505,9 +510,26 @@ TABLES: dict[str, str] = {
 )""",
 }
 
+# Applied idempotently at every connect — deliberately NOT via
+# EVENT_MIGRATIONS, so E-table indices reach every DB whatever version it
+# sits at (the chain only runs on a version mismatch).
 INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_module_host ON module(save_id, host_id)",
     "CREATE INDEX IF NOT EXISTS idx_offer_ware ON trade_offer(save_id, ware)",
+    # the entity spine's access paths (T2): durable identity into the
+    # snapshot, and entity-keyed event history
+    "CREATE INDEX IF NOT EXISTS idx_component_entity ON "
+    "component(save_id, entity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_component_class ON "
+    "component(save_id, class, owner)",
+    "CREATE INDEX IF NOT EXISTS idx_component_sector ON "
+    "component(save_id, sector_macro)",
+    "CREATE INDEX IF NOT EXISTS idx_stock_entity ON "
+    "stock_event(owner_entity, ware, time)",
+    "CREATE INDEX IF NOT EXISTS idx_tx_buyer ON trade_tx(buyer_entity) "
+    "WHERE buyer_entity IS NOT NULL",
+    "CREATE INDEX IF NOT EXISTS idx_tx_seller ON trade_tx(seller_entity) "
+    "WHERE seller_entity IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_tx_time ON trade_tx(time)",
     "CREATE INDEX IF NOT EXISTS idx_tx_ware ON trade_tx(ware)",
     "CREATE INDEX IF NOT EXISTS idx_stock ON stock_event(owner_id, ware, time)",
