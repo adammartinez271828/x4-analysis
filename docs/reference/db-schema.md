@@ -95,6 +95,7 @@ erDiagram
         INTEGER epoch PK
         REAL t_min
         REAL t_max
+        REAL window_start
         INTEGER updated_save_id FK
     }
 
@@ -291,6 +292,12 @@ erDiagram
     modcap {
         TEXT macro PK
     }
+    region_yield {
+        TEXT level PK
+        TEXT ware PK
+        REAL capacity
+        REAL respawn_min
+    }
     text {
         INTEGER page PK
         INTEGER tid PK
@@ -340,6 +347,7 @@ erDiagram
     component }o..o| sector_ref : "sector_macro"
     component }o..o| faction : "owner"
     sector_ref ||..o{ resource : "sector_macro"
+    region_yield ||..o{ resource : "level, ware"
     sector_ref ||..o{ floating_ware : "sector_macro"
     cluster_ref ||..o{ sector_ref : "cluster"
     wormhole ||..o{ wormhole_link : "object_id"
