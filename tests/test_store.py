@@ -1092,13 +1092,24 @@ def test_entity_registry_resurrects_exact_reappearance(conn, ref):
     assert row[6:] == (None, None)       # reopened
 
 
-def test_entity_registry_skips_stale_snapshot(conn, ref):
-    store.update_entity_registry(conn, snap(2000.0, [
+def test_entity_registry_resolves_stale_snapshot_readonly(conn, ref):
+    m1 = store.update_entity_registry(conn, snap(2000.0, [
         comp("[0x1]", "SHP-001", "argon", clazz="ship_s", spawn="10.0")]), ref)
+    # a stale snapshot resolves read-only: known slots still map (the
+    # archive seeding stamps historic component rows with them) …
     m = store.update_entity_registry(conn, snap(1000.0, [
-        comp("[0x1]", "SHP-002", "argon", clazz="ship_s", spawn="10.0")]), ref)
-    assert m == {}                       # older than the high-water mark
-    assert len(entity_rows(conn)) == 1   # and nothing was minted or closed
+        comp("[0x2]", "SHP-001", "teladi", clazz="ship_s", spawn="10.0"),
+        comp("[0x3]", "SHP-002", "argon", clazz="ship_s", spawn="10.0")]),
+        ref)
+    assert m == {"[0x2]": m1["[0x1]"]}   # unknown SHP-002 stays unmapped
+    # … but NOTHING is minted, closed or edited: no entity for SHP-002,
+    # no capture event from the old teladi owner, high-water untouched
+    (row,) = entity_rows(conn)
+    assert row[1] == "SHP-001" and row[3] == "argon"
+    assert count(conn, "entity_event") == 0
+    assert conn.execute("SELECT value FROM meta WHERE"
+                        " key='entity_registry_time'").fetchone() == \
+        ("2000.0",)
 
 
 def test_component_entity_spine(cfg, save_data, ref):

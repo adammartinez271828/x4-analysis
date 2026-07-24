@@ -563,6 +563,25 @@ predicted band) in well under a second; re-running the same
 review's F6 duplicate-insert reproduction succeeds against the *old*
 nullable DDL and is rejected by this one.
 
+> **Shipped (2026-07-24, Phase 4, schema v13** — the roadmap penciled
+> this phase in as v12 before T15 took that number**).** Two deviations
+> from the DDL above, both driven by historic (archived-save) imports,
+> which this spec did not cover:
+> 1. A rows key on the **canonical snapshot id** (T5's `v_snapshot`
+>    save_id, resolved by `store.snapshot_id()`), not the raw import
+>    id — see the T5 note.
+> 2. `sector_presence` filters to stations/ships/buildstorages
+>    (`class LIKE 'ship_%' OR class IN ('station','buildstorage')`) —
+>    the territory/military concept, keeping sectors/zones/etc. out.
+> A new `seed-trends` CLI command imports archived saves oldest→newest
+> through the normal snapshot path to backfill the layer; the entity
+> registry gained a read-only resolution mode for saves older than its
+> high-water mark (mapping returned, nothing minted/edited) so historic
+> `station_metric` rows still get durable identity. The command refuses
+> a batch whose newest save is older than the stored head, so the W
+> tables always end at the newest world state. Details:
+> docs/reports/phase4-trend-layer.md.
+
 ### T5. Separate "import run" from "snapshot"
 
 Keep `save` append-only (it is the provenance log and the A-tables' time
@@ -589,6 +608,15 @@ F1) would make every prior snapshot look new — the guard would happily
 re-append A-rows it can no longer see. T4 wants this item. Verified:
 `v_snapshot` executed on the 8E0C copy — 2 `save` rows collapse to 1
 distinct snapshot, matching the known state (two imports of one save).
+
+> **Shipped (2026-07-24, Phase 4).** The store-side rule generalized:
+> instead of "rerun ⇒ skip A-appends", A rows key on the **canonical
+> snapshot id** (`v_snapshot`'s MIN(save_id), `store.snapshot_id()`) and
+> `write_aggregates` appends a table's rows only when that snapshot has
+> none there yet. Same rerun-immunity, plus: a snapshot first imported
+> *before* the A layer existed (or via a historic `seed-trends` import)
+> still receives its rows on its next import — the spec's plain skip
+> would have left such snapshots without trend rows forever.
 
 ### T6. Event-history views: the domain read layer
 

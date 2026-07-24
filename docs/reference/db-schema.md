@@ -372,7 +372,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 |---|---|
 | `schema_version` | current schema version (`"13"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
-| `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are refused registry updates |
+| `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
 | `stock_event_window_start` | same for the stock-event window |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
@@ -975,8 +975,13 @@ evidence:
   prefers matching macro, then owner; fully indistinguishable candidates
   fall to deterministic entity_id order, which keeps each entity's
   timeline self-consistent but can swap which physical ship is which.
-- Snapshots older than `meta.entity_registry_time` are refused — stale
-  observations would corrupt newer lifecycle history.
+- Snapshots older than `meta.entity_registry_time` are resolved
+  **read-only**: the matching still returns a component → entity mapping
+  (so a historic import — `seed-trends` — can stamp its snapshot rows
+  and `station_metric` entries with durable identity), but nothing is
+  minted, closed or updated — stale observations would corrupt newer
+  lifecycle history. Components a read-only pass cannot match (entities
+  that died before the observed history began) stay unmapped.
 
 Event rows are stamped with entity ids at merge time, and `component`
 rows at snapshot time (`component.entity_id` — the registry runs before

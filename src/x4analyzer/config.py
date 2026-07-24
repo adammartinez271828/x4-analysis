@@ -117,15 +117,8 @@ class Config:
     # Open the dashboard in the default browser when done.
     open_browser: bool = True
 
-    def find_savegame(self) -> Path:
-        """Return the savegame to analyze (override, or newest by mtime)."""
-        if self.savegame_override is not None:
-            if not self.savegame_override.exists():
-                raise FileNotFoundError(
-                    f"savegame override does not exist: {self.savegame_override}"
-                )
-            return self.savegame_override
-
+    def find_all_savegames(self) -> list:
+        """Every discoverable savegame file (first user dir with any)."""
         candidates = [self.x4_user_dir] if self.x4_user_dir \
             else x4_user_dir_candidates()
         saves: list[Path] = []
@@ -142,6 +135,20 @@ class Config:
                 )
             if saves:
                 break
+        return saves
+
+    def find_savegame(self) -> Path:
+        """Return the savegame to analyze (override, or newest by mtime)."""
+        if self.savegame_override is not None:
+            if not self.savegame_override.exists():
+                raise FileNotFoundError(
+                    f"savegame override does not exist: {self.savegame_override}"
+                )
+            return self.savegame_override
+
+        candidates = [self.x4_user_dir] if self.x4_user_dir \
+            else x4_user_dir_candidates()
+        saves = self.find_all_savegames()
         if not saves:
             searched = "\n  ".join(str(c) for c in candidates if c)
             raise FileNotFoundError(

@@ -65,6 +65,19 @@ def main(argv: list[str] | None = None) -> int:
                                       "(default: landmarks_erlking_vault_*)")
     _add_common_args(p_fi)
 
+    p_se = sub.add_parser(
+        "seed-trends",
+        help="seed the trend layer from archived saves "
+             "(chronological import; world state and event history "
+             "stay at the newest save)",
+    )
+    p_se.add_argument("saves", nargs="*", type=Path,
+                      help="save files (default: every save in the "
+                           "savegame dir)")
+    p_se.add_argument("--x4-user-dir", type=Path,
+                      help="X4 user dir with <id>/save/")
+    _add_common_args(p_se)
+
     # default to `analyze` when no subcommand given
     if argv is None:
         argv = sys.argv[1:]
@@ -91,6 +104,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_dir:
             cfg.output_dir = args.output_dir
         return build_gamedata_dashboard(cfg)
+
+    if args.command == "seed-trends":
+        from .analyze import run_seed
+
+        if args.x4_user_dir:
+            cfg.x4_user_dir = args.x4_user_dir
+        return run_seed(cfg, args.saves)
 
     if args.command == "find":
         from .save.find import run_find

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .db import store
+from .db.schema import AGGREGATE_TABLES
 from .cli import log
 from .config import Config
 from .analysis.frames import build_frames, station_types_from_db
 from .analysis.storage import station_storage
 from .analysis.drones import station_munition
 from .gamedata.refdata import load_refdata
-from .save.parser import parse_savegame
+from .save.parser import parse_savegame, peek_save_info
 
 
 def run_analysis(cfg: Config) -> int:
@@ -64,3 +67,93 @@ def run_analysis(cfg: Config) -> int:
 
         webbrowser.open(out.as_uri())
     return 0
+
+
+def run_seed(cfg: Config, files: list[Path] | None = None) -> int:
+    """Seed the trend layer (A tables) from archived saves.
+
+    Imports each given save file (default: every save the config can
+    discover) in game-time order through the normal snapshot path. Per
+    save that adds: a `save` provenance row and the per-snapshot A rows.
+    The guards make history safe around it — the entity registry
+    resolves historic saves read-only (no lifecycle edits), the
+    stale-save merge guard keeps their shorter event windows out of the
+    E tables, and snapshots that already have trend rows are skipped
+    without a parse. Because imports run oldest→newest, the W tables end
+    at the newest world state; the command refuses a batch that would
+    leave them older than the stored head."""
+    files = [f for f in (files or cfg.find_all_savegames())
+             if "temp" not in f.name]
+    if not files:
+        log("No save files to seed from")
+        return 1
+    infos = []
+    for f in files:
+        guid, gtime, sdate = peek_save_info(f)
+        if not guid:
+            log(f"WARNING: {f} has no <info> header; skipped")
+            continue
+        infos.append((guid, gtime, sdate or None, f))
+
+    log("Loading reference data from", cfg.data_dir)
+    ref = load_refdata(cfg.data_dir)
+    rc = 0
+    for guid in sorted({i[0] for i in infos}):
+        batch = sorted((i for i in infos if i[0] == guid),
+                       key=lambda i: i[1])
+        conn = store.open_db(cfg, guid)
+        try:
+            head = conn.execute(
+                "SELECT MAX(game_time) FROM v_snapshot").fetchone()[0]
+            todo = []
+            for _g, gtime, sdate, f in batch:
+                snap = conn.execute(
+                    "SELECT MIN(save_id) FROM save WHERE guid IS ?"
+                    " AND game_time IS ? AND save_date IS ?",
+                    (guid, gtime, sdate)).fetchone()[0]
+                if snap is None or not conn.execute(
+                        "SELECT 1 FROM sector_presence WHERE save_id = ?"
+                        " LIMIT 1", (snap,)).fetchone():
+                    todo.append((gtime, f))
+            if not todo:
+                log(f"{guid}: trend layer already covers all "
+                    f"{len(batch)} saves; nothing to do")
+                continue
+            # the last import decides the W tables' world state: it must
+            # be at least as new as the stored head. If the newest known
+            # file is the head itself but already has trend rows, rerun
+            # it anyway (A appends skip, the W rebuild restores state).
+            newest = batch[-1]
+            if head is not None and todo[-1][0] < head:
+                if newest[1] >= head:
+                    todo.append((newest[1], newest[3]))
+                else:
+                    log(f"ERROR: seeding {guid} would leave the world "
+                        f"state at game time {todo[-1][0]:.0f}, older "
+                        f"than the stored head ({head:.0f}); include the "
+                        "newest save in the input set")
+                    rc = 1
+                    continue
+            store.write_reference(conn, ref)
+            for gtime, f in todo:
+                log(f"Seeding {guid} from {f.name} "
+                    f"(game time {gtime:.0f})")
+                save = parse_savegame(f, progress=log)
+                entities = store.update_entity_registry(conn, save, ref)
+                save_id = store.write_snapshot(conn, save, ref, f,
+                                               entities)
+                store.write_aggregates(conn, save_id)
+                store.merge_events(conn, save, ref,
+                                   station_types_from_db(conn, ref),
+                                   entities)
+            n_snap = conn.execute(
+                "SELECT COUNT(*) FROM v_snapshot").fetchone()[0]
+            counts = ", ".join(
+                f"{t}: {conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]}"
+                f" rows / "
+                f"{conn.execute(f'SELECT COUNT(DISTINCT save_id) FROM {t}').fetchone()[0]}"
+                " snapshots" for t in AGGREGATE_TABLES)
+            log(f"{guid}: {n_snap} distinct snapshots; {counts}")
+        finally:
+            conn.close()
+    return rc

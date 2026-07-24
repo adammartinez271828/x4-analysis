@@ -565,17 +565,22 @@ def update_entity_registry(conn: sqlite3.Connection, save: SaveData,
     the universe tree (frames.universe's @connection filter), so identity
     deliberately ignores placement and registers connectionless components
     too. Idempotent for the same save; snapshots older than the registry
-    high-water mark are skipped (returns {}) — lifecycle edits from stale
-    observations would corrupt newer history.
+    high-water mark are resolved READ-ONLY — the matching still returns a
+    mapping (a historic snapshot's components stamp their entity_ids, the
+    archive seeding relies on it), but nothing is minted, closed or
+    updated: lifecycle edits from stale observations would corrupt newer
+    history. Components a read-only pass cannot match (entities that died
+    unobserved before the history began) stay unmapped.
     """
     t = save.game_time
 
+    readonly = False
     prev = conn.execute("SELECT value FROM meta"
                         " WHERE key = 'entity_registry_time'").fetchone()
     if prev is not None and t < float(prev[0]):
-        log("WARNING: save predates the entity registry's newest snapshot; "
-            "entity resolution skipped for this run")
-        return {}
+        log("NOTE: save predates the entity registry's newest snapshot; "
+            "resolving entities read-only (no registry updates)")
+        readonly = True
 
     def resolve(name):
         if ref is not None and name and "{" in name:
@@ -647,6 +652,13 @@ def update_entity_registry(conn: sqlite3.Connection, save: SaveData,
         else:
             minted_slots.add((code, clazz))
             new_rows.append((cid, code, clazz, macro, spawn, owner, name))
+
+    if readonly:
+        # matching evidence only: a historic snapshot must not mint
+        # entities, edit lifecycle fields, or move the high-water mark —
+        # the "captures"/"renames" it sees are just old values of state
+        # the registry already tracks
+        return mapping
 
     with conn:
         for cid, code, clazz, macro, spawn, owner, name in new_rows:

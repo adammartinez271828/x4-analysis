@@ -155,6 +155,29 @@ def _open_save(path: Path) -> IO[bytes]:
     return open(path, "rb")
 
 
+def peek_save_info(path: Path) -> tuple[str, float, str]:
+    """Read just the save's identity card — (guid, game_time, save_date)
+    — from the <info> header, stopping before the body. The archive
+    seeding sorts save files chronologically before importing; a full
+    parse per file just to sort would cost ~20 s each, this costs
+    milliseconds."""
+    guid, game_time, save_date = "", 0.0, ""
+    with _open_save(path) as fh:
+        for _event, elem in etree.iterparse(
+                fh, events=("end",), recover=True, huge_tree=True):
+            parent = elem.getparent()
+            if parent is None or parent.tag != "info":
+                if elem.tag == "info":
+                    break
+                continue
+            if elem.tag == "game":
+                guid = elem.get("guid", "")
+                game_time = float(elem.get("time", 0) or 0)
+            elif elem.tag == "save":
+                save_date = elem.get("date", "")
+    return guid, game_time, save_date
+
+
 def _nearest_host(comp_stack: list) -> str:
     """Nearest trackable ancestor: station, build storage, or ship. Offers
     and cargo of a station plot's build storage attribute to the storage,
