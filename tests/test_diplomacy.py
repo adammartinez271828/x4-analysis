@@ -134,7 +134,7 @@ def _frames():
         faction_discounts=pd.DataFrame({
             "faction": ["argon"], "other": ["player"], "discount": [0.15]}),
         faction_meta=pd.DataFrame({
-            "faction": ["player"], "account": [500000.0]}),
+            "faction": ["player"], "account_cr": [5000.0]}),
         faction_licences=pd.DataFrame({
             "faction": ["player"], "type": ["capitalship"],
             "factions": ["argon antigone"]}),
@@ -145,7 +145,7 @@ def _frames():
 def test_standings_payload():
     p = _standings_payload(_frames(), _ref())
     assert p["view"] == "standings"
-    assert p["treasury"] == 500000.0
+    assert p["treasury"] == 5000.0
     rows = {r["id"]: r for r in p["rows"]}
     # only real factions present in the data, player excluded from its own list
     assert "player" not in rows and "visitor001" not in rows

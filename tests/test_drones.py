@@ -2,7 +2,7 @@
 
 Every item in a station's <ammunition> is captured with a category and is_unit
 flag; only drones + police (is_unit=1) count toward the shared units.maxcount
-pool. capacity_floor = Sum modcap.unit_storage over built modules -- exact for
+pool. capacity_floor = Sum module_cap.unit_storage over built modules -- exact for
 stations without production modules (validated in-game: ABR-398 40, EBT-957 92,
 QJI-262 220), a lower bound otherwise (MXH-411 40 floor vs 310 true cap).
 """

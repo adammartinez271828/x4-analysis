@@ -625,7 +625,7 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
             # readable FLOOR of a station's shared drone pool (the engine's
             # units.maxcount adds an unexposed amount on production-heavy
             # stations, so this under-counts big factories -- see analysis/
-            # drones.py). Kept as a modcap alongside housing/cargo.
+            # drones.py). Kept as a module cap alongside housing/cargo.
             unit = m.find("properties/storage")
             if wf is None and cargo is None and unit is None:
                 continue

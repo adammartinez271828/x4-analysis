@@ -51,15 +51,17 @@ and per-snapshot series (the A tables) key on its canonical `save_id`.
 ### Conventions
 
 - **NULL, not ""**: absent XML attributes load as SQL NULL (the parser's
-  empty-string convention is converted at load). Two deliberate
-  exceptions: `trade_offer.object_id` keeps `''` for hostless offers so
-  the NOT NULL column always loads, and the A tables' text **key**
-  columns use `''` for absent (SQLite treats NULL in a non-INTEGER PK
-  column as distinct-from-everything, which would let duplicate appends
-  succeed — the sentinel keeps the key real).
-- **Money**: columns suffixed `_cr` are credits (save cents ÷ 100 at load).
-  The one raw-cents column is `faction_meta.account` (verified: it equals
-  `save.player_money_cr` × 100).
+  empty-string convention is converted at load). One deliberate
+  exception: the A tables' text **key** columns use `''` for absent
+  (SQLite treats NULL in a non-INTEGER PK column as
+  distinct-from-everything, which would let duplicate appends succeed —
+  the sentinel keeps the key real). (`trade_offer.object_id` was the
+  other exception until v15: hostless offers are now NULL — plan T11.)
+- **Money**: columns suffixed `_cr` are credits (save cents ÷ 100 at
+  load) — since v15 with **no exceptions**: `faction_meta.account_cr`
+  (formerly raw-cents `account`; the cents provenance was verified
+  against `save.player_money_cr` × 100) joined the convention in the
+  T11 cleanup.
 - **Times** are game seconds since playthrough start (REAL).
 - **Casing**: macros and faction ids are lowercased at load (save and game
   files disagree on case).
@@ -113,7 +115,7 @@ erDiagram
         TEXT follower_id PK
         TEXT commander_id FK
     }
-    module {
+    build_entry {
         TEXT host_id FK
         TEXT entry_id
         INTEGER built
@@ -147,7 +149,7 @@ erDiagram
         TEXT ware PK
     }
     trade_offer {
-        TEXT object_id FK
+        TEXT object_id FK "NULL = hostless"
         TEXT side
         TEXT ware
     }
@@ -185,6 +187,7 @@ erDiagram
     }
     faction_meta {
         TEXT faction PK
+        REAL account_cr
     }
     faction_licence {
         TEXT faction FK
@@ -289,7 +292,7 @@ erDiagram
         TEXT sector_a FK
         TEXT sector_b FK
     }
-    modcap {
+    module_cap {
         TEXT macro PK
     }
     region_yield {
@@ -332,8 +335,8 @@ erDiagram
     save ||..o{ coverage : "updated_save_id"
     save ||..o{ component : "save_id"
     component ||..o{ fleet_edge : "follower/commander"
-    component ||..o{ module : "host_id"
-    module ||..o{ module_upgrade : "entry_id"
+    component ||..o{ build_entry : "host_id"
+    build_entry ||..o{ module_upgrade : "entry_id"
     component ||..o{ workforce : "station_id"
     component ||..o{ post : "object_id"
     post }o..o| npc : "npc_id"
@@ -378,7 +381,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"14"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"15"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
@@ -492,12 +495,15 @@ warn). Save-side structure: savegame-structure.md § Fleet hierarchy.
 | `follower_id` | TEXT PK, FK → `component.id` | the subordinate ship | derived: match below |
 | `commander_id` | TEXT, FK → `component.id` | its commander | derived: follower's `connection[@connection="commander"]/connected@connection` matched to the commander's `connection[@connection="subordinates"]@id` |
 
-### module
+### build_entry
 
-Station/build-storage build-plan entries, **deduplicated** across the two
-places a save lists them (station `construction/sequence` and the build
-storage's `buildtasks` expand queue repeat the same entry ids). Save-side
-structure: savegame-structure.md § Stations.
+Station/build-storage build-**plan** entries, **deduplicated** across the
+two places a save lists them (station `construction/sequence` and the
+build storage's `buildtasks` expand queue repeat the same entry ids).
+Renamed from `module` in v15 (plan T11): the rows are plan entries, not
+modules, and the old name was the direct cause of the 2×-capacity bug
+class (unbuilt plan entries counted as modules). Save-side structure:
+savegame-structure.md § Stations.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
@@ -505,7 +511,7 @@ structure: savegame-structure.md § Stations.
 | `host_id` | TEXT, FK → `component.id` | owning station / build storage / ship | derived: nearest trackable ancestor |
 | `entry_id` | TEXT | sequence-entry id (NULL for entries without one) | `entry@id` |
 | `idx` | INTEGER | build-order index | `entry@index` |
-| `macro` | TEXT, FK → `module_ref.macro` / `modcap.macro` | module macro, lowercased | `entry@macro` |
+| `macro` | TEXT, FK → `module_ref.macro` / `module_cap.macro` | module macro, lowercased | `entry@macro` |
 | `build_method` | TEXT | enclosing build task's method — **defined but never populated** (sequence entries never sit under a `<build method=…>` in observed saves) | `build@method` |
 | `built` | INTEGER | 1 = a finished component exists for this entry (`state="construction"` still counts as unbuilt); entries without an id default to built | derived: `component@construction` back-references |
 
@@ -520,7 +526,7 @@ Save-side: savegame-structure.md § Stations (upgrades/groups).
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
 | `save_id` | INTEGER, FK → `save` | snapshot | — |
-| `entry_id` | TEXT, FK → `module.entry_id` | the sequence entry | `entry@id` |
+| `entry_id` | TEXT, FK → `build_entry.entry_id` | the sequence entry | `entry@id` |
 | `equipment_macro` | TEXT | shield/turret/engine macro, lowercased | `entry/upgrades/groups/(shields\|turrets\|engines)@macro` |
 
 ### workforce
@@ -539,6 +545,9 @@ elements. Save-side: savegame-structure.md § Stations.
 
 Player-owned NPCs (officers) and their skills; the crowd crew is only
 counted in `people`. Save-side: savegame-structure.md § Ships (crew).
+The generic name is kept deliberately (plan T11 weighed a `player_npc`
+rename and chose documentation instead): despite what `npc` suggests,
+the table holds **player employees only**.
 
 #### npc
 
@@ -604,7 +613,7 @@ block).
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
 | `save_id` | INTEGER, FK → `save` | snapshot | — |
-| `object_id` | TEXT, FK → `component.id` | offering object (`''` when hostless — the one non-NULL empty-string column) | derived: `trade@buyer` / `@seller` host |
+| `object_id` | TEXT, FK → `component.id` | offering object (NULL when hostless; was the `''` exception before v15) | derived: `trade@buyer` / `@seller` host |
 | `side` | TEXT | `buy` / `sell` | derived: which of `@buyer`/`@seller` is set |
 | `ware` | TEXT, FK → `ware.id` | ware id | `trade/offers//trade@ware` |
 | `amount` | REAL | open quantity | same element `@amount` |
@@ -740,7 +749,7 @@ docs/models/faction-relations-model.md for the semantics).
 |---|---|---|---|
 | `save_id` | INTEGER PK, FK → `save` | snapshot | — |
 | `faction` | TEXT PK, FK → `faction.id` | faction id, lowercased | `factions/faction@id` |
-| `account` | REAL | treasury — **raw cents**, not converted (only the player faction carries one in this playthrough) | `faction/account@amount` |
+| `account_cr` | REAL | treasury, credits (÷ 100 at load since v15; only the player faction carries one in this playthrough) | `faction/account@amount` ÷ 100 |
 
 #### faction_licence
 
@@ -1073,7 +1082,7 @@ are skipped.
 | `save_id` | INTEGER PK, FK → `save.save_id` | canonical snapshot id | derived: `snapshot_id()` |
 | `entity_id` | INTEGER PK, FK → `entity.entity_id` | durable station identity | `component.entity_id` |
 | `workforce` | REAL | Σ `workforce.amount` | derived |
-| `modules_built` | INTEGER | built plan entries (`module.built = 1`) | derived |
+| `modules_built` | INTEGER | built plan entries (`build_entry.built = 1`) | derived |
 | `cargo_value_cr` | REAL | Σ `cargo.amount` × `ware.price_avg` | derived |
 | `buy_open_cr` | REAL | Σ open buy offers × price | derived from `trade_offer` |
 | `sell_open_cr` | REAL | Σ open sell offers × price | derived from `trade_offer` |
@@ -1115,7 +1124,7 @@ are out of scope here (non-goal: documenting the game files).
 | `cluster_ref` | `clusters.csv` | cluster positions/names: `macro` PK, `x`/`y`/`z` (galaxy coords), `name`, `description`, `source` |
 | `sector_ref` | `sectors.csv` | sector positions/names: `macro` PK, `cluster` (FK → `cluster_ref.macro`), `x`/`y`/`z`, `name`, `source` |
 | `gate` | `gates.csv` | sector adjacency, one row per connection: `sector_a`, `sector_b` (both FK → `sector_ref.macro`), `source`. **Subset**: the CSV's endpoint-position and `oneway` columns are not loaded |
-| `modcap` | `modcaps.csv` | module capacities: `macro` PK, `class`, `housing`, `workers`, `cargo_max` (m³), `cargo_tags`, `unit_storage` (drone slots) |
+| `module_cap` | `modcaps.csv` | module capacities (named `modcap` before v15): `macro` PK, `class`, `housing`, `workers`, `cargo_max` (m³), `cargo_tags`, `unit_storage` (drone slots) |
 | `region_yield` | `regionyields.csv` | resource replenishment: (`level`, `ware`) PK, `capacity` (full-area yield), `respawn_min` — **minutes**, the source unit (−1 = never respawns); anyone joining against `resource.starttime` (seconds) must convert ×60, which is why the column is not named `respawn_s`. Keyed by yield class, not a game id — deliberately no `_ref` suffix |
 | `text` | `textdb.csv.gz` | localization dump: (`page`, `tid`) PK → `text`; used at load to resolve `{page,id}` refs |
 
@@ -1151,7 +1160,7 @@ frames, so it is written after the pipeline's analysis stage.
 |---|---|---|---|
 | `save_id` | INTEGER PK, FK → `save` | snapshot | — |
 | `station_id` | TEXT PK, FK → `component.id` | the modeled station | derived: model host |
-| `ware` | TEXT PK, FK → `ware.id` | modeled ware | derived: model over `component`/`module`/`recipe` |
+| `ware` | TEXT PK, FK → `ware.id` | modeled ware | derived: model over `component`/`build_entry`/`recipe` |
 | `transport` | TEXT | storage pool (`container`/`liquid`/`solid`) | reference: `ware.transport` |
 | `role` | TEXT | `output` / `input` / `food` (workforce supplies) | derived: recipe role |
 | `throughput` | REAL | modeled units/hour at full workforce (NULL on proxy rows) | derived: recipes × module scale |
@@ -1173,7 +1182,7 @@ savegame-structure.md § Stations (drones & munitions).
 | `category` | TEXT | `defence`/`repair`/`transport`/`build`/`police` (units) or `missile` (turret ammo) | derived: macro classification |
 | `is_unit` | INTEGER | 1 = shares the station's one `units.maxcount` drone pool; 0 = separate inventory | derived |
 | `count` | REAL | items currently aboard | `ammunition/available/item@amount` |
-| `capacity_floor` | REAL | readable lower bound on the drone pool: Σ `modcap.unit_storage` over built modules (production modules add ~10 each with no readable field) | derived + reference: `modcap.unit_storage` |
+| `capacity_floor` | REAL | readable lower bound on the drone pool: Σ `module_cap.unit_storage` over built modules (production modules add ~10 each with no readable field) | derived + reference: `module_cap.unit_storage` |
 
 ## Views — recreated when their definitions change
 
@@ -1197,10 +1206,10 @@ references unknown ids).
 | `v_stock_flow` | window functions over `stock_event` | `owner_entity`, `owner_id`, `owner_faction`, `owner_code`, `owner_name`, `ware`, `time`, `level`, `epoch`, `inflow` (positive delta), `outflow` (negative delta) | "how much did this station actually trade" — LAG deltas partitioned by durable identity (`entity`, falling back to `faction\|code`, then `owner_id` for pre-registry rows) and by `epoch` so no delta spans a coverage gap; `rowid` breaks same-second ties in save order. Verified delta-identical to the retired text-first keying on both real DBs at introduction |
 | `v_stock_delta` | `v_stock_flow` renamed | the pre-T6 spelling: `dv` = `inflow`, `dv_neg` = `outflow` (no `owner_entity`) | compat alias, kept for one release |
 | `v_entity_life` | `entity` + `component` (current snapshot) | `entity.*` + `observed_span_s` (gone_time − first_seen, or now − first_seen while alive), `alive`, `component_id` (NULL when not in the current snapshot), `sector_macro` | "entity biographies" — lifespan, liveness and current whereabouts in one row |
-| `v_station` | `component` (stations) + `sector_ref` + correlated rollups over `module`/`workforce`/`cargo`+`ware` | `id`, `entity_id`, `name`, `basename`, `code`, `owner`, `sector_macro`, `sector_name`, `sx`, `sz`, `knownto`, `modules_built` (built plan entries only), `workforce` (Σ amount), `cargo_volume_m3` (Σ amount × ware volume) | "the concept *station*, assembled" — one row per station in the current snapshot with the rollups frames used to pivot in pandas |
+| `v_station` | `component` (stations) + `sector_ref` + correlated rollups over `build_entry`/`workforce`/`cargo`+`ware` | `id`, `entity_id`, `name`, `basename`, `code`, `owner`, `sector_macro`, `sector_name`, `sx`, `sz`, `knownto`, `modules_built` (built plan entries only), `workforce` (Σ amount), `cargo_volume_m3` (Σ amount × ware volume) | "the concept *station*, assembled" — one row per station in the current snapshot with the rollups frames used to pivot in pandas |
 | `v_player_fleet` | `fleet_edge` + 2× `component` | `follower_id`, `follower_entity`, `commander_id`, `commander_entity` | "the player's fleet edges, entity-keyed" — the ONE fleet resolution (write_snapshot's), player-filtered; `merge_events` takes its commander-attribution map from here and `frames.wings` reads it. Edges touching connectionless components are absent (the retired save-side `_player_edges` kept them — measured equivalent, 0 divergent edges, pinned in `test_views_parity.py`) |
 | `v_resource_area` | `resource` + `region_yield` | `sector_macro`, `ware`, `yield`, `level`, `speed`, `starttime`, `capacity`, `respawn_min`, `status` (`live`/`full`/`respawning`/`never`/`unknown`) | "what can I mine right now, where" — the confirmed timer/eligibility layer of the respawn model as SQL (an empty area past its `starttime` is respawned & full even though its stored yield reads 0). Caveats: `full` reports the *reference* capacity (overstates nividium, B11); respawn usually relocates the area within its sector (B5), so nothing position-keyed may be layered on it. Verified 0 status mismatches vs frames' classification on all areas (re-run the check if B21 changes the regionyields extraction) |
-| `v_built_module` | `module` filtered | `module.*` where `built = 1` | "what is physically built" (plans excluded — the capacity-overcount gotcha) |
+| `v_built_module` | `build_entry` filtered | `build_entry.*` where `built = 1` | "what is physically built" (plans excluded — the capacity-overcount gotcha; the view keeps its pre-v15 name, its meaning was always right) |
 | `v_npc` | `npc` + pivoted `npc_skill` | `npc.*` + `piloting`, `engineering`, `boarding`, `management`, `morale` | "crew skills as a wide table" |
 | `v_station_storage` | `station_storage` + `component` + `sector_ref` + `ware` | model columns + `station_code`, `station_name`, `sector_name`, `ware_name` | "what does this station stock and how much room did it allocate" |
 | `v_station_munition` | `station_munition` + `component` + `sector_ref` | census columns + `station_code`, `station_name`, `owner`, `sector_name` | "everything in a station's ammo store, labeled" |
@@ -1212,7 +1221,7 @@ From `db/schema.py`; all `CREATE INDEX IF NOT EXISTS`:
 
 | Index | On | Serves |
 |---|---|---|
-| `idx_module_host` | `module(save_id, host_id)` | per-station module lookups |
+| `idx_build_entry_host` | `build_entry(save_id, host_id)` | per-station module lookups |
 | `idx_offer_ware` | `trade_offer(save_id, ware)` | per-ware offer books |
 | `idx_tx_time` | `trade_tx(time)` | window merges and time-range queries |
 | `idx_tx_ware` | `trade_tx(ware)` | per-ware trade history |
@@ -1237,7 +1246,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"14"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"15"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1251,7 +1260,9 @@ The E-table indices are applied through the idempotent
    commander attribution, entity links; v11→v12: `trade_tx.kind`,
    `money_event` creation and the re-typing of mis-merged money-ledger
    rows out of `stock_event`; v13→v14: the coverage backfill + meta
-   window-key retirement) — their history is irreplaceable. New
+   window-key retirement; v14→v15: dropping the renamed `module`/
+   `modcap` tables, which the current-names-only drop path would
+   otherwise leave as zombies) — their history is irreplaceable. New
    columns always append at the end of the fresh DDL so ALTERed and
    fresh tables line up; even so, a migrated DB may carry a different
    *physical* column order than a fresh one, which is why inserts name
@@ -1287,7 +1298,7 @@ when inspecting older databases.
 
 | Column | Why |
 |---|---|
-| `module.build_method` | sequence entries never sit under a `<build method=…>` element in observed saves — always NULL |
+| `build_entry.build_method` | sequence entries never sit under a `<build method=…>` element in observed saves — always NULL |
 | `log_entry.interaction` | attribute-name mismatch: the save writes `interact`, the loader reads `interaction`; the value is recoverable from `raw_attrs` |
 | `removed_object.time` | v9 removed-object elements carry no `time` attribute |
 | `datavault.blueprints` | populated only while uncollected Erlking blueprints exist; this playthrough collected them all |

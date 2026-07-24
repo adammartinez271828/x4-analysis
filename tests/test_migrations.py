@@ -236,6 +236,34 @@ def test_v11_database_retypes_money_rows(tmp_path):
     conn.close()
 
 
+def test_v14_database_drops_renamed_tables(tmp_path):
+    """The v14->v15 step (plan T11): `module` and `modcap` were renamed
+    (build_entry / module_cap). The bump's drop path only knows current
+    names, so the migration must drop the old ones or they linger as
+    zombies; the replacements are created at the current shape."""
+    cfg = make_cfg(tmp_path)
+    conn = sqlite3.connect(store.db_path(cfg, "V14"))
+    conn.execute(schema.TABLES["meta"])
+    conn.execute(schema.TABLES["save"])
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '14')")
+    # v14-shape tables under the old names (+ the old index)
+    conn.execute("CREATE TABLE module (save_id INTEGER, host_id TEXT,"
+                 " entry_id TEXT, idx INTEGER, macro TEXT,"
+                 " build_method TEXT, built INTEGER)")
+    conn.execute("CREATE INDEX idx_module_host ON module(save_id, host_id)")
+    conn.execute("CREATE TABLE modcap (macro TEXT PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "V14")
+    names = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")}
+    assert "module" not in names and "modcap" not in names
+    assert "idx_module_host" not in names
+    assert {"build_entry", "module_cap", "idx_build_entry_host"} <= names
+    conn.close()
+
+
 def test_v13_database_backfills_coverage(tmp_path):
     """The v13->v14 step (plan T3/M4): historical event ranges are
     backfilled into coverage from the epoch-stamped E rows (per-category

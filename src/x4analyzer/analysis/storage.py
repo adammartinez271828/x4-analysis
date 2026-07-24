@@ -6,7 +6,7 @@ station sizes each ware's storage to hold a fixed number of *hours* of that
 ware's throughput, per transport pool (container / liquid / solid), at full
 workforce.
 
-  jobs           = Sum of modcap.workers over the station's built modules
+  jobs           = Sum of module_cap.workers over the station's built modules
   output(ware)   = Sum (recipe.amount/time * 3600 * scale) * (1 + work_effect)
   input(ware)    = Sum (recipe.input_amount/time * 3600 * scale)   (no bonus)
   food(ware)     = per-race workunit_busy input * jobs             (fixed 4h)

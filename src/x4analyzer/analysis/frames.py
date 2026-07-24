@@ -84,7 +84,7 @@ class Frames:
     # faction diplomacy (universe/factions):
     #   faction_relations: faction, other, base, booster, effective (clamped)
     #   faction_discounts: faction, other, discount (trade discount fraction)
-    #   faction_meta: faction, account (treasury)
+    #   faction_meta: faction, account_cr (treasury, credits)
     #   faction_licences: faction, type, factions (rep-gated unlocks)
     faction_relations: pd.DataFrame = None
     faction_discounts: pd.DataFrame = None
@@ -171,7 +171,7 @@ def station_types_from_db(conn: sqlite3.Connection, ref: RefData) -> dict:
         SELECT id, class, basename FROM component
         WHERE save_id = {_CUR}""", fill=["basename"])
     module_list = _read(conn, f"""
-        SELECT host_id AS id, macro FROM module
+        SELECT host_id AS id, macro FROM build_entry
         WHERE save_id = {_CUR}""", fill=["macro"])
     return dict(station_types(universe, module_list, ref))
 
@@ -362,7 +362,7 @@ def build_frames(save: SaveData, ref: RefData,
     module_list = _read(conn, f"""
         SELECT host_id AS id, idx AS "index", macro, entry_id AS entry,
                build_method AS method, built
-        FROM module WHERE save_id = {_CUR} ORDER BY rowid""",
+        FROM build_entry WHERE save_id = {_CUR} ORDER BY rowid""",
         fill=["macro", "entry", "method"])
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
@@ -641,7 +641,8 @@ def build_frames(save: SaveData, ref: RefData,
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["id"]),
         trade_offers=_read(conn, f"""
             SELECT object_id AS id, side, ware, amount, price_cr AS price
-            FROM trade_offer WHERE save_id = {_CUR} ORDER BY rowid"""),
+            FROM trade_offer WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["id"]),
         orders=orders,
         built_refs=set(save.built_refs),
         has_highways=save.has_highways,
@@ -675,7 +676,7 @@ def build_frames(save: SaveData, ref: RefData,
             FROM ship_engine WHERE save_id = {_CUR} ORDER BY rowid"""),
         faction_relations=faction_relations, faction_discounts=faction_discounts,
         faction_meta=_read(conn, f"""
-            SELECT faction, account FROM faction_meta
+            SELECT faction, account_cr FROM faction_meta
             WHERE save_id = {_CUR} ORDER BY rowid"""),
         faction_licences=_read(conn, f"""
             SELECT faction, type, factions FROM faction_licence

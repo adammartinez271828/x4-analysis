@@ -22,7 +22,8 @@ import hashlib
 # v7: resource rows carry per-area starttime (respawn-eligibility clock)
 # v8: recipe.work_effect (workforce output bonus) + station_storage table
 # v9: station_storage.source (computed model vs stock+buy proxy)
-# v10: modcap.unit_storage (drone slots) + station_munition table
+# v10: unit_storage drone slots on the module-capacity table (renamed
+#      module_cap in v15) + station_munition table
 # v11: component.entity_id (the entity spine: snapshot rows join the
 #      registry directly) + W/E access-path indices
 # v12: economylog ingestion typed by ledger (plan T15 / review B1):
@@ -36,7 +37,12 @@ import hashlib
 #      into the coverage table from the epoch-stamped E rows, and the
 #      three meta *_window_start keys it supersedes retired (the merge
 #      writes coverage.window_start instead)
-SCHEMA_VERSION = "14"
+# v15: naming/convention cleanups (plan T11): module -> build_entry (it
+#      holds build-PLAN entries, the misnomer behind the 2x-capacity bug
+#      class), modcap -> module_cap, faction_meta.account -> account_cr
+#      (credits at load, the last raw-cents column), trade_offer.object_id
+#      '' -> NULL (the last empty-string exception)
+SCHEMA_VERSION = "15"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -234,6 +240,16 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
         """DELETE FROM meta WHERE key IN ('trade_tx_window_start',
              'stock_event_window_start', 'money_event_window_start')""",
     ),
+    # v15 renames two W/R tables (plan T11). The bump's drop path only
+    # knows CURRENT table names, so the old names must be dropped here or
+    # they linger as zombies; their replacements (build_entry, module_cap)
+    # are created and repopulated by the normal rebuild right after the
+    # walk (the bump path also clears reference_digest, so module_cap
+    # reloads despite the digest guard).
+    "14": (
+        "DROP TABLE IF EXISTS module",
+        "DROP TABLE IF EXISTS modcap",
+    ),
 }
 
 # The complete version chain: every historical version steps to the next
@@ -244,7 +260,7 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
 NEXT_VERSION = {str(v): str(v + 1) for v in range(1, int(SCHEMA_VERSION))}
 
 WORLD_TABLES = (
-    "component", "fleet_edge", "module", "module_upgrade", "workforce",
+    "component", "fleet_edge", "build_entry", "module_upgrade", "workforce",
     "npc", "npc_skill", "post", "people", "cargo", "trade_offer",
     "build_resource", "ship_order", "resource", "floating_ware",
     "datavault", "wormhole", "wormhole_link", "ship_engine",
@@ -253,7 +269,7 @@ WORLD_TABLES = (
 
 REFERENCE_TABLES = (
     "ware", "recipe", "module_ref", "ship_ref", "faction", "cluster_ref",
-    "sector_ref", "gate", "modcap", "region_yield", "text",
+    "sector_ref", "gate", "module_cap", "region_yield", "text",
 )
 
 DERIVED_TABLES = (
@@ -316,7 +332,11 @@ TABLES: dict[str, str] = {
   commander_id TEXT NOT NULL,
   PRIMARY KEY (save_id, follower_id)
 )""",
-    "module": """CREATE TABLE IF NOT EXISTS module (
+    # build-PLAN entries, not modules (renamed from `module` in v15, plan
+    # T11): a station lists its plan twice and sequences include unbuilt
+    # entries — anything measuring existing capacity must filter built = 1
+    # (v_built_module), which is the 2x-capacity gotcha the old name caused
+    "build_entry": """CREATE TABLE IF NOT EXISTS build_entry (
   save_id      INTEGER NOT NULL,
   host_id      TEXT NOT NULL,
   entry_id     TEXT,
@@ -337,6 +357,9 @@ TABLES: dict[str, str] = {
   amount     REAL,
   PRIMARY KEY (save_id, station_id, race)
 )""",
+    # PLAYER EMPLOYEES only, despite the generic name (the parser collects
+    # <npc> entries under player-owned posts; plan T11 kept the name and
+    # documents the scope instead — lowest-value rename of the set)
     "npc": """CREATE TABLE IF NOT EXISTS npc (
   save_id INTEGER NOT NULL,
   id      TEXT NOT NULL,
@@ -370,9 +393,11 @@ TABLES: dict[str, str] = {
   amount    REAL,
   PRIMARY KEY (save_id, object_id, ware)
 )""",
+    # object_id NULL = hostless offer (was '' before v15; plan T11 made it
+    # follow the schema-wide absent-is-NULL convention)
     "trade_offer": """CREATE TABLE IF NOT EXISTS trade_offer (
   save_id   INTEGER NOT NULL,
-  object_id TEXT NOT NULL,
+  object_id TEXT,
   side      TEXT NOT NULL,
   ware      TEXT NOT NULL,
   amount    REAL,
@@ -463,11 +488,13 @@ TABLES: dict[str, str] = {
   value    REAL,
   time     REAL
 )""",
-    # per-faction scalars (currently the treasury)
+    # per-faction scalars (currently the treasury). account_cr is credits
+    # (÷100 at load, renamed from raw-cents `account` in v15): the schema
+    # convention is _cr everywhere money appears
     "faction_meta": """CREATE TABLE IF NOT EXISTS faction_meta (
-  save_id  INTEGER NOT NULL,
-  faction  TEXT NOT NULL,
-  account  REAL,
+  save_id    INTEGER NOT NULL,
+  faction    TEXT NOT NULL,
+  account_cr REAL,
   PRIMARY KEY (save_id, faction)
 )""",
     # rep-gated unlocks: which factions a licence type is granted for
@@ -611,7 +638,7 @@ TABLES: dict[str, str] = {
     "gate": """CREATE TABLE IF NOT EXISTS gate (
   sector_a TEXT NOT NULL, sector_b TEXT NOT NULL, source TEXT
 )""",
-    "modcap": """CREATE TABLE IF NOT EXISTS modcap (
+    "module_cap": """CREATE TABLE IF NOT EXISTS module_cap (
   macro TEXT PRIMARY KEY, class TEXT,
   housing REAL, workers REAL, cargo_max REAL, cargo_tags TEXT,
   unit_storage REAL
@@ -674,7 +701,7 @@ TABLES: dict[str, str] = {
     # category and is_unit flag. is_unit rows (drones + police) share the
     # units.maxcount pool; the rest (missiles/countermeasures/deployables) are
     # separate inventories, captured for reference. capacity_floor = Sum
-    # modcap.unit_storage over the station's built modules -- the READABLE lower
+    # module_cap.unit_storage over the station's built modules -- the READABLE lower
     # bound on the drone pool (exact unless the station has production modules,
     # which add ~10 each with no readable field). Written after frames build.
     "station_munition": """CREATE TABLE IF NOT EXISTS station_munition (
@@ -738,7 +765,8 @@ TABLES: dict[str, str] = {
 # EVENT_MIGRATIONS, so E-table indices reach every DB whatever version it
 # sits at (the chain only runs on a version mismatch).
 INDEXES = (
-    "CREATE INDEX IF NOT EXISTS idx_module_host ON module(save_id, host_id)",
+    "CREATE INDEX IF NOT EXISTS idx_build_entry_host ON "
+    "build_entry(save_id, host_id)",
     "CREATE INDEX IF NOT EXISTS idx_offer_ware ON trade_offer(save_id, ware)",
     # the entity spine's access paths (T2): durable identity into the
     # snapshot, and entity-keyed event history
@@ -933,12 +961,12 @@ LEFT JOIN component c ON c.entity_id = e.entity_id
     # the concept "station", assembled (T8): one row per station in the
     # current snapshot, with the rollups frames used to build in pandas.
     # modules_built counts BUILT plan entries (the capacity-overcount
-    # gotcha); correlated subqueries are index-served (idx_module_host,
+    # gotcha); correlated subqueries are index-served (idx_build_entry_host,
     # idx_offer_ware's cousins) and fine at ~1,800 stations.
     "v_station": """CREATE VIEW v_station AS
 SELECT c.id, c.entity_id, c.name, c.basename, c.code, c.owner,
        c.sector_macro, sec.name AS sector_name, c.sx, c.sz, c.knownto,
-       (SELECT COUNT(*) FROM module m
+       (SELECT COUNT(*) FROM build_entry m
          WHERE m.save_id = c.save_id AND m.host_id = c.id AND m.built = 1)
          AS modules_built,
        (SELECT SUM(w.amount) FROM workforce w
@@ -994,7 +1022,7 @@ LEFT JOIN region_yield ry ON ry.level = r.level AND ry.ware = r.ware
 WHERE r.save_id = (SELECT save_id FROM current_save)""",
     # built modules only (measure reality, not plans — CLAUDE.md gotcha)
     "v_built_module": """CREATE VIEW v_built_module AS
-SELECT * FROM module
+SELECT * FROM build_entry
 WHERE built = 1 AND save_id = (SELECT MAX(save_id) FROM save)""",
     # wide NPC skills for the crew tables
     "v_npc": """CREATE VIEW v_npc AS

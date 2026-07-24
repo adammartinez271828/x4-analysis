@@ -20,7 +20,7 @@ dock / pier / build / **defence** modules declare ``<storage unit="N">``
 in-game cap exactly for stations without production modules (validated: ABR-398
 40, EBT-957 92, QJI-262 220). The one unexposed term is production modules: each
 adds ~10 to the cap that appears in no module field (MXH-411 = 40 unit sum +
-27 production x 10 = 310). So ``capacity_floor`` = Sum modcap.unit_storage over
+27 production x 10 = 310). So ``capacity_floor`` = Sum module_cap.unit_storage over
 the station's built modules is a readable LOWER BOUND (exact unless the station
 has production modules); the unit ``count`` can exceed it by ~10 per production
 module. There is no reliable per-category *desired* to extract -- the player's
@@ -72,7 +72,7 @@ def station_munition(save, frames, ref: RefData) -> pd.DataFrame:
     if not items:
         return pd.DataFrame(columns=_COLS)
 
-    # capacity floor per station: Sum modcap.unit_storage over built modules.
+    # capacity floor per station: Sum module_cap.unit_storage over built modules.
     floor: dict[str, float] = {}
     mc = ref.modcaps
     mods = frames.built_modules

@@ -301,7 +301,7 @@ def test_v_station_matches_pandas_rollups(conn):
     assert len(view) == len(stations) > 1000
 
     built = pd.read_sql(
-        f"SELECT host_id FROM module WHERE built = 1"
+        f"SELECT host_id FROM build_entry WHERE built = 1"
         f" AND save_id = {_CUR}", conn) \
         .groupby("host_id").size().reindex(view.index).fillna(0)
     assert (view["modules_built"] == built).all()

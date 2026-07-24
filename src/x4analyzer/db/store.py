@@ -187,7 +187,7 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
         ("sector_ref", ref.sectors,
          ["cluster", "macro", "x", "y", "z", "name", "source"]),
         ("gate", ref.gates, ["sector_a", "sector_b", "source"]),
-        ("modcap", ref.modcaps,
+        ("module_cap", ref.modcaps,
          ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags",
           "unit_storage"]),
         # regionyields.csv reaches refdata as a dict; rebuild rows in a
@@ -317,17 +317,17 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
         # frames.built_modules keeps them defensively.
         built = set(save.built_refs)
         seen: set[tuple] = set()
-        module_rows = []
+        entry_rows = []
         for host, idx, macro, entry, method in save.modules:
             if entry:
                 if (host, entry) in seen:
                     continue
                 seen.add((host, entry))
-            module_rows.append(
+            entry_rows.append(
                 (save_id, host, _s(entry), idx, _low(macro), _s(method),
                  1 if (entry in built or not entry) else 0))
         conn.executemany(
-            "INSERT INTO module VALUES (?,?,?,?,?,?,?)", module_rows)
+            "INSERT INTO build_entry VALUES (?,?,?,?,?,?,?)", entry_rows)
 
         conn.executemany(
             "INSERT INTO module_upgrade VALUES (?,?,?)",
@@ -375,9 +375,9 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
 
         conn.executemany(
             "INSERT INTO trade_offer VALUES (?,?,?,?,?,?)",
-            # object_id is NOT NULL per the schema doc: hostless offers
-            # keep the parser's "" so modded saves load, never fail
-            [(save_id, oid or "", side, ware, amount, price_cr)
+            # hostless offers are NULL like every other absent value (the
+            # '' exception retired in v15, plan T11)
+            [(save_id, _s(oid), side, ware, amount, price_cr)
              for oid, side, ware, amount, price_cr in save.trade_offers])
 
         conn.executemany(
@@ -449,7 +449,10 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             "INSERT INTO faction_relation VALUES (?,?,?,?,?,?)", rel_rows)
         conn.executemany(
             "INSERT OR REPLACE INTO faction_meta VALUES (?,?,?)",
-            [(save_id, _low(f), amount) for (f, amount) in save.faction_accounts])
+            # treasuries are cents in the save; account_cr is credits like
+            # every other money column (v15, plan T11)
+            [(save_id, _low(f), _cents(amount))
+             for (f, amount) in save.faction_accounts])
         conn.executemany(
             "INSERT INTO faction_licence VALUES (?,?,?,?)",
             [(save_id, _low(f), _s(typ), _s(facs))
@@ -509,7 +512,7 @@ def write_aggregates(conn: sqlite3.Connection, save_id: int) -> bool:
                           (SELECT SUM(w.amount) FROM workforce w
                             WHERE w.save_id = c.save_id
                               AND w.station_id = c.id),
-                          (SELECT COUNT(*) FROM module m
+                          (SELECT COUNT(*) FROM build_entry m
                             WHERE m.save_id = c.save_id
                               AND m.host_id = c.id AND m.built = 1),
                           (SELECT SUM(cg.amount * COALESCE(wr.price_avg, 0))

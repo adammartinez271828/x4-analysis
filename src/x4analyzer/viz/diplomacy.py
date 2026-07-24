@@ -131,7 +131,7 @@ def _standings_payload(frames: Frames, ref: RefData) -> dict:
     if fm is not None and len(fm):
         prow = fm[fm["faction"] == "player"]
         if len(prow):
-            treasury = float(prow.iloc[0]["account"])
+            treasury = float(prow.iloc[0]["account_cr"])
 
     return {
         "view": "standings",

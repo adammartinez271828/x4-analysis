@@ -50,7 +50,7 @@ EXPECTED_COUNTS = {
     "save": 1,
     "component": 4,       # cluster, sector, station, ship_s
     "fleet_edge": 1,
-    "module": 2,
+    "build_entry": 2,
     "module_upgrade": 0,
     "workforce": 1,
     "npc": 1,
@@ -144,7 +144,7 @@ def test_fleet_edge_resolved(conn):
 
 def test_world_details(conn):
     assert conn.execute(
-        "SELECT host_id, entry_id, idx, macro, built FROM module"
+        "SELECT host_id, entry_id, idx, macro, built FROM build_entry"
         " ORDER BY idx").fetchall() == [
         ("[0x20]", "[0x50]", 1, "mod_a_macro", 0),
         ("[0x20]", "[0x51]", 3, "mod_b_macro", 0),
@@ -177,7 +177,7 @@ def test_reimport_replaces_snapshot(conn, save_data, ref):
 
 def test_reference_loaded(conn):
     for table in ("ware", "recipe", "ship_ref", "faction", "sector_ref",
-                  "cluster_ref", "gate", "modcap", "module_ref", "text"):
+                  "cluster_ref", "gate", "module_cap", "module_ref", "text"):
         assert count(conn, table) > 0, table
     # replaced wholesale, never accreted
     n = count(conn, "ware")
