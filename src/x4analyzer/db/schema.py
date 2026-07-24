@@ -571,6 +571,24 @@ INDEXES = (
 # MAX(save_id). Joins are LEFT JOINs — dangling references are normal
 # (event history outlives objects; modded content references unknown ids).
 VIEWS: dict[str, str] = {
+    # the current snapshot, named (T1): every snapshot-scoped query joins
+    # or subselects this instead of repeating the MAX(save_id) idiom
+    "current_save": """CREATE VIEW current_save AS
+SELECT MAX(save_id) AS save_id FROM save""",
+    # effective faction standing (T7): base + boosters clamped to [-1, 1],
+    # reproducing the frames.py pivot. Discount-only pairs emit no row
+    # (frames keys on base ∪ booster); discounts stay a plain filter on
+    # faction_relation. Whether boosters decay in-save is unsettled
+    # (faction-model F1) — this view just sums what the save stores.
+    "v_faction_standing": """CREATE VIEW v_faction_standing AS
+SELECT faction, other,
+       SUM(CASE WHEN kind = 'base'    THEN value ELSE 0 END) AS base,
+       SUM(CASE WHEN kind = 'booster' THEN value ELSE 0 END) AS booster,
+       MIN(1.0, MAX(-1.0, SUM(value))) AS effective
+FROM faction_relation
+WHERE save_id = (SELECT save_id FROM current_save)
+  AND kind IN ('base', 'booster')
+GROUP BY faction, other""",
     # resolved universe: names were resolved at load; adds sector display
     # name and faction shortname
     "v_universe": """CREATE VIEW v_universe AS

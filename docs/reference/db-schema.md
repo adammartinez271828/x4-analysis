@@ -40,7 +40,8 @@ readers and the writer coexist, which live/serve mode relies on.
 | **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) when the reference data changed since the last import (`meta.reference_digest` guard; unchanged data skips the rewrite) |
 | **D — derived** | 5 `event_*` tables + `station_storage`, `station_munition` | recomputed every run (log-text parsing / analysis models) | replaced wholesale every run |
 
-The **current snapshot** is `MAX(save_id)`; every view filters to it.
+The **current snapshot** is `MAX(save_id)` — named by the `current_save`
+view; every snapshot-scoped view filters to it.
 Re-importing the same save appends a new `save` row and rewrites the W
 tables under the new `save_id` — W history is not kept (the `save` table is
 the only record that older imports happened).
@@ -1021,6 +1022,8 @@ references unknown ids).
 
 | View | Joins | Columns | Question it answers |
 |---|---|---|---|
+| `current_save` | `save` aggregate | `save_id` | the current snapshot, named — `WHERE save_id = (SELECT save_id FROM current_save)` replaces the repeated `MAX(save_id)` idiom in hand-written SQL |
+| `v_faction_standing` | `faction_relation` pivoted | `faction`, `other`, `base`, `booster` (Σ), `effective` (= clamp(base + Σboosters, [−1, 1])) | "who stands where with whom" — reproduces the frames pivot; discount-only pairs emit no row (discounts stay a plain filter on `faction_relation`) |
 | `v_universe` | `component` + `sector_ref` + `faction` | all `component` columns + `sector_name`, `owner_code` (faction shortname) | "what exists right now, with display names" |
 | `v_fleet` | recursive over `fleet_edge` | `ship`, `cmdr`, `depth`, `is_root_edge` (1 on the edge to the top commander) | "who ultimately commands this ship" — transitive fleet membership |
 | `v_stock_delta` | window functions over `stock_event` | `owner_id`, `owner_faction`, `owner_code`, `owner_name`, `ware`, `time`, `level`, `epoch`, `dv` (positive delta), `dv_neg` (negative delta) | "how much did this station actually trade" — LAG deltas partitioned by save-stable identity (`faction\|code`, falling back to `owner_id`) and by `epoch` so no delta spans a coverage gap; `rowid` breaks same-second ties in save order |

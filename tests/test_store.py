@@ -665,6 +665,38 @@ def test_v_stock_delta(conn):
     ]
 
 
+def test_current_save_view(conn, save_data, ref):
+    assert conn.execute("SELECT save_id FROM current_save").fetchone() \
+        == (1,)
+    store.write_snapshot(conn, save_data, ref, "save.xml")
+    assert conn.execute("SELECT save_id FROM current_save").fetchone() \
+        == (2,)
+
+
+def test_v_faction_standing(conn):
+    conn.execute("DELETE FROM faction_relation")
+    conn.executemany(
+        "INSERT INTO faction_relation VALUES (?,?,?,?,?,?)", [
+            (1, "argon", "player", "base", 0.1, None),
+            (1, "argon", "player", "booster", 0.05, 100.0),
+            (1, "argon", "player", "booster", 0.03, 200.0),
+            (1, "xenon", "player", "base", -1.2, None),
+            # discount-only pair: frames keys on base ∪ booster — no row
+            (1, "teladi", "player", "discount", 0.15, None),
+            # stale snapshot: filtered out by current_save
+            (0, "boron", "player", "base", 0.5, None),
+        ])
+    conn.commit()
+    out = {(f, o): (b, bo, e) for f, o, b, bo, e in conn.execute(
+        "SELECT faction, other, base, booster, effective"
+        " FROM v_faction_standing")}
+    assert out[("argon", "player")] == (
+        0.1, pytest.approx(0.08), pytest.approx(0.18))
+    assert out[("xenon", "player")] == (-1.2, 0.0, -1.0)  # clamped
+    assert ("teladi", "player") not in out
+    assert ("boron", "player") not in out
+
+
 def test_build_frames_from_db(cfg, save_data, ref, conn):
     from x4analyzer.analysis.frames import build_frames
 
