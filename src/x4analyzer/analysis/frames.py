@@ -259,47 +259,34 @@ def build_frames(save: SaveData, ref: RefData,
 
     resource_cols: list[str] = []
     resource_areas: dict = {}
-    res = _read(conn, f"""
-        SELECT sector_macro AS macro, ware, yield, level, speed, starttime
-        FROM resource WHERE save_id = {_CUR} ORDER BY rowid""")
+    res = _read(conn, """
+        SELECT sector_macro AS macro, ware, yield, level, speed, starttime,
+               capacity, respawn_min, status
+        FROM v_resource_area""")
     if not res.empty:
-        # Per-area status from the confirmed respawn model
-        # (docs/models/resource-depletion-model.md). An area's stored yield reads 0
-        # once depleted and only "materializes" back to full when a miner
-        # mines it, but availability itself is timer-driven: an empty area is
-        # already respawned & full once past its starttime (respawn-eligibility
-        # clock). So mineable-now = live yield, OR full capacity for an
-        # eligible-empty area, OR 0 while still on the respawn cooldown. The
-        # replenishment CEILING is Σ capacity/respawndelay (per hour) — the
-        # rate if every area were held depleted; gatherspeed is an EXTRACTION
-        # term, not a respawn term, so it is deliberately absent here.
+        # Per-area status from the confirmed respawn model — classified in
+        # v_resource_area (T9) since region_yield became a reference table
+        # (docs/models/resource-depletion-model.md). An area's stored yield
+        # reads 0 once depleted and only "materializes" back to full when a
+        # miner mines it, but availability itself is timer-driven: an empty
+        # area is already respawned & full once past its starttime
+        # (respawn-eligibility clock). So mineable-now = live yield, OR
+        # full capacity for an eligible-empty area, OR 0 while still on the
+        # respawn cooldown. The replenishment CEILING is
+        # Σ capacity/respawn_min (per hour) — the rate if every area were
+        # held depleted; gatherspeed is an EXTRACTION term, not a respawn
+        # term, so it is deliberately absent here. respawn_min is minutes
+        # (source unit), hence the ×60.
         now_t = float(save.game_time)
-
-        def _classify(ware, level, yld, start):
-            cap, delay = ref.region_yields.get(
-                (str(level), str(ware)), (0.0, 0.0))
-            if yld > 0:
-                status, mineable = "live", yld
-            elif not cap:                       # no reference entry
-                status, mineable = "unknown", 0.0
-            elif delay < 0:                     # -1 = never respawns
-                status, mineable = "never", 0.0
-            elif start == 0 or start <= now_t:  # respawned & full (reads 0)
-                status, mineable = "full", cap
-            else:
-                status, mineable = "respawning", 0.0
-            rate = cap / delay * 60.0 if delay and delay > 0 else 0.0
-            eta = (start - now_t) / 60.0 if status == "respawning" else None
-            return status, float(mineable), float(cap), rate, eta
-
-        # (status, mineable, cap, rate, eta) per area, aligned with res rows.
-        # Only the pure-float mineable/rate go back into res (for pivots);
-        # status/cap/eta feed the breakdown directly from cls to avoid pandas
-        # coercing the None etas to NaN
-        cls = [_classify(w, lv, y, st) for w, lv, y, st in zip(
-            res["ware"], res["level"], res["yield"], res["starttime"])]
-        res["mineable"] = [c[1] for c in cls]
-        res["rate"] = [c[3] for c in cls]
+        status = res["status"]
+        cap = res["capacity"].fillna(0.0)
+        delay = res["respawn_min"].fillna(0.0)
+        res["mineable"] = res["yield"].where(
+            status == "live", cap.where(status == "full", 0.0)).astype(float)
+        rate = pd.Series(0.0, index=res.index)
+        pos = delay > 0
+        rate[pos] = cap[pos] / delay[pos] * 60.0
+        res["rate"] = rate
 
         # left gauge / panel headline: mineable-now (the encyclopedia number)
         pivot = res.pivot_table(index="macro", columns="ware",
@@ -320,10 +307,14 @@ def build_frames(save: SaveData, ref: RefData,
         sectors[rep_cols] = sectors[rep_cols].fillna(0.0)
 
         # per-area breakdown for the detail dropdown, one record per area,
-        # carrying the yieldid's gatherspeed token
-        for macro, ware, speed, (status, now_v, cap_v, _rate, eta_v) in zip(
-                res["macro"], res["ware"], res["speed"], cls):
-            rec = {"status": status, "cap": round(cap_v), "now": round(now_v),
+        # carrying the yieldid's gatherspeed token; eta only while on the
+        # respawn cooldown (kept out of the frame so pandas can't coerce
+        # the Nones to NaN)
+        for macro, ware, speed, st_v, now_v, cap_v, start in zip(
+                res["macro"], res["ware"], res["speed"], status,
+                res["mineable"], cap, res["starttime"]):
+            eta_v = (start - now_t) / 60.0 if st_v == "respawning" else None
+            rec = {"status": st_v, "cap": round(cap_v), "now": round(now_v),
                    "speed": "" if pd.isna(speed) else str(speed),
                    "eta_min": None if eta_v is None else round(eta_v)}
             resource_areas.setdefault(macro, {}).setdefault(ware, []).append(rec)

@@ -347,6 +347,67 @@ def test_v_player_fleet_matches_retired_wings_filter(conn):
     assert view["commander_entity"].notna().all()
 
 
+def _retired_classify(ware, level, yld, start, region_yields, now_t):
+    """Verbatim status half of the retired frames._classify closure."""
+    cap, delay = region_yields.get((str(level), str(ware)), (0.0, 0.0))
+    if yld > 0:
+        return "live"
+    if not cap:
+        return "unknown"
+    if delay < 0:
+        return "never"
+    if start == 0 or start <= now_t:
+        return "full"
+    return "respawning"
+
+
+def test_v_resource_area_matches_retired_classify(conn, ref):
+    """The plan's scripted 0-mismatch check (T9): the view's status CASE
+    reproduces frames' retired classification on every area of the real
+    DB. Re-run this whenever B21 changes the regionyields extraction
+    (roadmap R5)."""
+    # self-contained reference data: a TEMP region_yield shadows the main
+    # table, so the check tests the checked-out CSV + view DDL even
+    # against a DB whose R tables predate the region_yield load
+    conn.execute("DROP TABLE IF EXISTS temp.region_yield")
+    conn.execute("CREATE TEMP TABLE region_yield"
+                 " (level TEXT, ware TEXT, capacity REAL, respawn_min REAL,"
+                 "  PRIMARY KEY (level, ware))")
+    conn.executemany(
+        "INSERT INTO temp.region_yield VALUES (?,?,?,?)",
+        [(level, w, c, d) for (level, w), (c, d)
+         in sorted(ref.region_yields.items())])
+    res = pd.read_sql(
+        "SELECT sector_macro, ware, yield, level, starttime, status"
+        " FROM v_resource_area", conn)
+    now_t = conn.execute(
+        "SELECT game_time FROM save"
+        " WHERE save_id = (SELECT MAX(save_id) FROM save)").fetchone()[0]
+    assert len(res) > 3000
+    expect = [
+        _retired_classify(w, lv, y, st, ref.region_yields, now_t)
+        for w, lv, y, st in zip(res["ware"], res["level"], res["yield"],
+                                res["starttime"])]
+    mismatches = int((res["status"] != pd.Series(expect)).sum())
+    assert mismatches == 0
+    # all the load-bearing states occur in a real save
+    assert {"live", "full", "respawning"} <= set(res["status"])
+
+
+def test_region_yield_table_matches_csv(conn, ref):
+    have = conn.execute(
+        "SELECT 1 FROM main.sqlite_master"
+        " WHERE type = 'table' AND name = 'region_yield'").fetchone()
+    rows = {(level, w): (c, d) for level, w, c, d in conn.execute(
+        "SELECT level, ware, capacity, respawn_min FROM main.region_yield")
+    } if have else {}
+    if not rows:
+        pytest.skip("region_yield not yet loaded into this DB")
+    assert rows == ref.region_yields
+    # the unit sentinel: minutes, straight from the CSV
+    assert rows[("verylow", "ore")][1] == 20.0
+
+
 def test_v_player_fleet_no_connectionless_fleet_members(conn):
     """Pinned equivalence (plan-F10): the retired _player_edges resolved
     owners over ALL parsed components, the view joins `component`, which

@@ -190,6 +190,15 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
         ("modcap", ref.modcaps,
          ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags",
           "unit_storage"]),
+        # regionyields.csv reaches refdata as a dict; rebuild rows in a
+        # deterministic order (the digest below hashes them). respawn_min
+        # keeps the CSV's MINUTES unit — see the region_yield DDL note
+        ("region_yield", pd.DataFrame(
+            [(level, ware, cap, delay)
+             for (level, ware), (cap, delay)
+             in sorted(ref.region_yields.items())],
+            columns=["level", "ware", "capacity", "respawn_min"]),
+         ["level", "ware", "capacity", "respawn_min"]),
     )
     payload = [(table, cols, _df_rows(df, cols)) for table, df, cols in loads]
     text_rows = list(ref.textdb.items())

@@ -521,16 +521,17 @@ def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
 
 
 def test_resource_areas_status_and_mineable(save_data, ref, conn):
-    import dataclasses
-
     from x4analyzer.analysis.frames import build_frames
 
-    # inject reference capacities/respawndelays for the fixture's classes
-    ry = dataclasses.replace(ref, region_yields={
-        ("high", "ore"): (5000.0, 20.0),
-        ("low", "silicon"): (3000.0, 40.0),
-    })
-    frames = build_frames(save_data, ry, conn)
+    # inject reference capacities/respawndelays for the fixture's classes —
+    # into the region_yield table: since T9/M5 the classification reads the
+    # DB (v_resource_area), not ref.region_yields
+    conn.execute("DELETE FROM region_yield")
+    conn.executemany("INSERT INTO region_yield VALUES (?,?,?,?)", [
+        ("high", "ore", 5000.0, 20.0),
+        ("low", "silicon", 3000.0, 40.0)])
+    conn.commit()
+    frames = build_frames(save_data, ref, conn)
 
     ore = frames.resource_areas["cluster_01_sector001_macro"]["ore"]
     # game_time 5000.5: live 1000; empty@starttime=4000 is past -> full at

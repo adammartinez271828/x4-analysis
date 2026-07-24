@@ -253,7 +253,7 @@ WORLD_TABLES = (
 
 REFERENCE_TABLES = (
     "ware", "recipe", "module_ref", "ship_ref", "faction", "cluster_ref",
-    "sector_ref", "gate", "modcap", "text",
+    "sector_ref", "gate", "modcap", "region_yield", "text",
 )
 
 DERIVED_TABLES = (
@@ -616,6 +616,21 @@ TABLES: dict[str, str] = {
   housing REAL, workers REAL, cargo_max REAL, cargo_tags TEXT,
   unit_storage REAL
 )""",
+    # resource replenishment reference (regionyields.csv, T9): what a
+    # yield class refills to and how fast. respawn_min is MINUTES (the
+    # source unit — the CSV, the XSD and frames all use minutes; -1 =
+    # never respawns): anyone joining against resource.starttime
+    # (SECONDS) must convert ×60, and the column name says so (review
+    # X21 — a `respawn_s` name over minute values would hand SQL ETA
+    # arithmetic a silent 60× bug). Keyed by (level, ware), not a game
+    # id — deliberately no `_ref` suffix.
+    "region_yield": """CREATE TABLE IF NOT EXISTS region_yield (
+  level       TEXT NOT NULL,         -- verylow .. veryhigh
+  ware        TEXT NOT NULL,
+  capacity    REAL,                  -- full-area yield
+  respawn_min REAL,                  -- MINUTES (source unit); -1 = never
+  PRIMARY KEY (level, ware)
+)""",
     "text": """CREATE TABLE IF NOT EXISTS text (
   page INTEGER NOT NULL, tid INTEGER NOT NULL, text TEXT,
   PRIMARY KEY (page, tid)
@@ -951,6 +966,32 @@ JOIN component cf ON cf.id = fe.follower_id  AND cf.save_id = fe.save_id
 JOIN component cc ON cc.id = fe.commander_id AND cc.save_id = fe.save_id
 WHERE cf.owner = 'player' AND cc.owner = 'player'
   AND fe.save_id = (SELECT save_id FROM current_save)""",
+    # per-area resource status (T9): the confirmed timer/eligibility
+    # layer of the respawn model (docs/models/resource-depletion-model.md
+    # — starttime = depletion + delay, arm-at-zero, eligibility gating;
+    # starttime = 0 folds into <= since game_time > 0 always). An
+    # empty area past its starttime is respawned & full even though its
+    # stored yield reads 0 (it only "materializes" when mined). Caveats
+    # (review X21 / resource-model): 'full' reports the REFERENCE
+    # capacity — for nividium materializations as low as 4.4% of cap
+    # were measured (B11 tracks it); and respawn usually RELOCATES the
+    # area within its sector (B5), so nothing keyed on per-area position
+    # may be layered on this view — at the (sector, ware) grain it
+    # exposes, relocation is immaterial.
+    "v_resource_area": """CREATE VIEW v_resource_area AS
+SELECT r.sector_macro, r.ware, r.yield, r.level, r.speed, r.starttime,
+       ry.capacity, ry.respawn_min,
+       CASE WHEN r.yield > 0 THEN 'live'
+            WHEN ry.capacity IS NULL OR ry.capacity = 0 THEN 'unknown'
+            WHEN ry.respawn_min < 0 THEN 'never'
+            WHEN r.starttime <= (SELECT game_time FROM save
+                                 WHERE save_id = (SELECT save_id
+                                                  FROM current_save))
+                 THEN 'full'
+            ELSE 'respawning' END AS status
+FROM resource r
+LEFT JOIN region_yield ry ON ry.level = r.level AND ry.ware = r.ware
+WHERE r.save_id = (SELECT save_id FROM current_save)""",
     # built modules only (measure reality, not plans — CLAUDE.md gotcha)
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM module

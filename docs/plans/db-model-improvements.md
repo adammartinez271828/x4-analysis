@@ -939,6 +939,19 @@ status matches a verbatim reimplementation of `frames._classify`
 (`frames.py:228-240`) on **all 3,246 areas, 0 mismatches** (3,059 live /
 146 full / 41 respawning in this save).
 
+> **Shipped (2026-07-24, Phase 5 / M5).** As specced (minutes kept,
+> `respawn_min`). The load rides `write_reference` (rows rebuilt in
+> sorted order from refdata's dict; the reference digest covers them),
+> no schema bump needed. frames' resource block now reads
+> `v_resource_area` — the `_classify` closure retired; mineable/rate/
+> eta remain pandas dressing over the view's columns. The scripted
+> 0-mismatch check is a permanent test
+> (tests/test_views_parity.py::test_v_resource_area_matches_retired_classify,
+> self-contained via a TEMP region_yield built from the checked-out
+> CSV): 0 of 3,246 areas diverge on the real 8E0C DB, statuses
+> 3,048 live / 154 full / 44 respawning. **R5 cross-link:** re-run that
+> test after any B21 change to the regionyields extraction output.
+
 ### T10. Live-mode operations
 
 - **WAL**: `PRAGMA journal_mode=WAL` once at `open_db` (persistent in the
