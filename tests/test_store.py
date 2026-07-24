@@ -549,6 +549,70 @@ def test_stock_missing_level_is_zero(conn):
         == [(0.0,)]
 
 
+def test_coverage_rows_written_by_merges(conn):
+    # the fixture merge (one trade, one stock event, one upkeep entry)
+    # opens one epoch-0 coverage row per stream, stamped with the import
+    rows = {(r[0], r[1]): r[2:] for r in conn.execute(
+        "SELECT stream, epoch, t_min, t_max, window_start, updated_save_id"
+        " FROM coverage")}
+    assert rows[("trade_tx", 0)] == (10.5, 10.5, 10.5, 1)
+    assert rows[("stock_event", 0)] == (11.0, 11.0, 11.0, 1)
+    assert rows[("log:upkeep", 0)] == (100.0, 100.0, 100.0, 1)
+
+
+def test_coverage_extends_on_overlapping_window(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.execute("DELETE FROM coverage")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("200.0", "35"), stock_attrs("300.0", "60")]))
+    # same epoch, interval extended, window_start = the newest window's
+    assert conn.execute(
+        "SELECT epoch, t_min, t_max, window_start FROM coverage"
+        " WHERE stream = 'stock_event'").fetchall() \
+        == [(0, 100.0, 300.0, 200.0)]
+
+
+def test_coverage_epoch_matches_table_epoch_on_gap(conn):
+    conn.execute("DELETE FROM stock_event")
+    conn.execute("DELETE FROM coverage")
+    conn.commit()
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("100.0", "10"), stock_attrs("200.0", "30")]))
+    store.merge_events(conn, events_save(
+        trades=[stock_attrs("500.0", "90"), stock_attrs("600.0", "95")]))
+    assert conn.execute(
+        "SELECT epoch, t_min, t_max FROM coverage"
+        " WHERE stream = 'stock_event' ORDER BY epoch").fetchall() \
+        == [(0, 100.0, 200.0), (1, 500.0, 600.0)]
+    # coverage epochs join the E table's epoch column
+    assert conn.execute(
+        "SELECT DISTINCT epoch FROM stock_event ORDER BY epoch").fetchall() \
+        == [(0,), (1,)]
+
+
+def test_log_coverage_is_gap_aware_per_category(conn):
+    # log_entry has no epoch column: gap-awareness lives in coverage
+    conn.execute("DELETE FROM log_entry")
+    conn.execute("DELETE FROM coverage")
+    conn.commit()
+
+    def entry(time, title):
+        return {"time": time, "category": "upkeep", "title": title,
+                "text": "t"}
+
+    store.merge_events(conn, events_save(log=[entry("10.0", "a")]))
+    store.merge_events(conn, events_save(log=[entry("50.0", "b")]))
+    assert conn.execute(
+        "SELECT epoch, t_min, t_max FROM coverage"
+        " WHERE stream = 'log:upkeep' ORDER BY epoch").fetchall() \
+        == [(0, 10.0, 10.0), (1, 50.0, 50.0)]
+    # both entries kept — the gap epoch is bookkeeping, not a deletion
+    assert count(conn, "log_entry") == 2
+
+
 def test_removed_merge_appends_unseen(conn):
     store.merge_events(conn, events_save(removed=[
         {"id": "115", "owner": "teladi", "name": "TEL Trader",
@@ -904,7 +968,7 @@ def test_trade_tx_entity_linkage(conn, ref):
              comp("[0x30]", "SHP-001", "player", "My Trader",
                   clazz="ship_s", spawn="10.0"),
              comp("[0xB]", "NPC-001", "argon", "Buyer Co")]
-    save = snap(5000.0, comps)
+    save = snap(6000.0, comps)  # past the fixture merge's high-water mark
     save.commander_links = [("[0x30]", "[0xC1]")]
     save.subordinate_conns = [("[0x20]", "[0xC1]")]
     save.trades = [{"time": "50.0", "ware": "energycells", "buyer": "[0xB]",
@@ -928,12 +992,12 @@ def test_frames_prefers_entity_name(cfg, save_data, ref, conn):
     comps = [comp("[0x30]", "SHP-001", "player", "Old Name",
                   clazz="ship_s", spawn="10.0"),
              comp("[0xB]", "NPC-001", "argon", "Buyer Co")]
-    save = snap(5000.0, comps)
+    save = snap(6000.0, comps)  # past the fixture merge's high-water mark
     save.trades = [{"time": "50.0", "ware": "ice", "buyer": "[0xB]",
                     "seller": "[0x30]", "price": "1000", "v": "10"}]
     ents = store.update_entity_registry(conn, save, ref)
     store.merge_events(conn, save, ref, entities=ents)
-    store.update_entity_registry(conn, snap(6000.0, [
+    store.update_entity_registry(conn, snap(7000.0, [
         comp("[0x31]", "SHP-001", "player", "New Name",
              clazz="ship_s", spawn="10.0"),
         comp("[0xB]", "NPC-001", "argon", "Buyer Co")]), ref)

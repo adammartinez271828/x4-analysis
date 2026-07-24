@@ -34,7 +34,7 @@ readers and the writer coexist, which live/serve mode relies on.
 
 | Class | Tables | Rows live… | Rows die… |
 |---|---|---|---|
-| **P — persistent bookkeeping** | `meta`, `save` | per key / per import | never dropped, schema bumps included — `save` ids are the time dimension cross-run data keys into, `meta` carries flags the bump path itself reads (`meta` upserted; `save` accumulates one row per import) |
+| **P — persistent bookkeeping** | `meta`, `save`, `coverage` | per key / per import / per (stream, epoch) | never dropped, schema bumps included — `save` ids are the time dimension cross-run data keys into, `meta` carries flags the bump path itself reads, `coverage` records what the event history covers (`meta` upserted; `save` accumulates one row per import; `coverage` extended by every merge) |
 | **W — world state** | 22 tables (`component` …) | rebuilt on every import, stamped `save_id` | ALL rows deleted before each import — only the latest snapshot is retained |
 | **E — event history** | `trade_tx`, `stock_event`, `log_entry`, `removed_object`, `entity`, `entity_event` | merged across runs, windows stitched | never dropped, not even on schema resets; migrated by targeted `ALTER`s |
 | **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) when the reference data changed since the last import (`meta.reference_digest` guard; unchanged data skips the rewrite) |
@@ -83,6 +83,13 @@ erDiagram
     save {
         INTEGER save_id PK
         TEXT guid
+    }
+    coverage {
+        TEXT stream PK
+        INTEGER epoch PK
+        REAL t_min
+        REAL t_max
+        INTEGER updated_save_id FK
     }
 
     %% ================= world state (W) =================
@@ -277,6 +284,7 @@ erDiagram
     }
 
     %% ---- relationships ----
+    save ||..o{ coverage : "updated_save_id"
     save ||..o{ component : "save_id"
     component ||..o{ fleet_edge : "follower/commander"
     component ||..o{ module : "host_id"
@@ -322,6 +330,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are refused registry updates |
 | `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
 | `stock_event_window_start` | same for the stock-event window |
+| `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
 | `views_version` | fingerprint of the view definitions last created; views are recreated only when the code's fingerprint differs (plain connects perform no DDL writes) |
 | `reference_digest` | fingerprint of the reference data last loaded; `write_reference` skips its wholesale rewrite when unchanged |
 
@@ -348,6 +357,32 @@ savegame-structure.md § `<info>`.
 | `faction_name` | TEXT | custom player-faction name | `universe/factions/faction[@id="player"]/custom/name@name` |
 | `source_file` | TEXT | path of the parsed save file | derived: import parameter |
 | `imported_at` | TEXT | wall-clock import time, UTC ISO | derived: import time |
+
+### coverage
+
+Which time ranges the event history actually covers, per stream —
+"what stretches of the playthrough do I have trade data for?" is
+`SELECT * FROM coverage`. Maintained by the merges (P class, never
+dropped): each merge extends its stream's newest epoch row, or opens a
+new epoch row when the incoming window starts past everything stored
+(a coverage gap — the game discarded events in between).
+
+Streams: `trade_tx`, `stock_event` (epochs match those tables' `epoch`
+column) and `log:<category>` per logbook category — the logbook has no
+epoch column of its own, so its gap-awareness lives here. **Backfill
+pending**: rows describe only merges performed since the table existed
+(2026-07-24); the one-time backfill from the E tables, and the
+retirement of the two `meta` window keys this table supersedes, are a
+later migration (plan T3/M4).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `stream` | TEXT PK | `trade_tx` / `stock_event` / `log:<category>` | derived: merge bookkeeping |
+| `epoch` | INTEGER PK | coverage epoch (joins the E tables' `epoch` for the economylog streams) | derived: merge bookkeeping |
+| `t_min` | REAL | covered interval start, game seconds | derived: merged windows |
+| `t_max` | REAL | covered interval end, game seconds | derived: merged windows |
+| `window_start` | REAL | the most recent merged window's start (rate denominators); meaningful on the newest epoch | derived: merge bookkeeping |
+| `updated_save_id` | INTEGER, FK → `save.save_id` | the import that last extended this row | derived: merge bookkeeping |
 
 ## World state (W) — rebuilt per snapshot
 
@@ -690,6 +725,19 @@ snapshot's `component.id`. The `*_entity` columns are the durable join.
 All merge logic lives in `db/store.py`; one transaction per table, so a
 crash never half-merges, and **re-running on the same save adds nothing**:
 
+- **Stale-save guard** — a save *older* than the merged history is
+  skipped whole, with a warning, before any table is touched (mirrors
+  the entity registry's high-water guard): the incoming
+  `save.game_time` is compared against the high-water mark — the game
+  time of the last merged save (`meta.merge_events_time`), falling back
+  to the newest stored event time for DBs whose history predates the
+  guard. Without it, an older window's min-time cutoff would DELETE
+  every stored row newer than its start and replace it with the
+  shorter, older window (measured on a real DB copy, 2026-07-23: one
+  stale merge destroyed 606 trade_tx, 29,063 stock_event and 244
+  log_entry rows). Equal game time is not stale — re-analyzing the same
+  save merges normally and stays idempotent. A save with no game time
+  (synthetic test data) cannot be judged and merges normally.
 - **`log_entry`** — *per-category min-time replacement*: for each category
   present in the new window, stored rows at or after that category's oldest
   new timestamp are deleted and replaced by the window. (Categories scroll

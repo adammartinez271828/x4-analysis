@@ -600,12 +600,64 @@ def merge_events(conn: sqlite3.Connection, save: SaveData,
     `entities` (component id -> entity_id, from update_entity_registry)
     additionally stamps rows with the surrogate entity identity; parties
     it does not cover get NULL.
+
+    High-water guard (mirrors update_entity_registry's): a save OLDER
+    than the merged history is skipped whole, with a warning — its
+    windows would otherwise DELETE every stored row newer than their
+    start and replace it with the shorter, older window (measured on a
+    real DB: one stale merge destroyed 606 trade_tx / 29,063 stock_event
+    / 244 log_entry rows). A save with no game_time (synthetic test
+    data) cannot be judged and merges normally.
     """
+    t = save.game_time
+    if t:
+        high = _merge_high_water(conn)
+        if high is not None and t < high:
+            log(f"WARNING: save (game time {t:.0f}) predates the stored "
+                f"event history (high-water mark {high:.0f}); event merge "
+                "skipped — an older window would destroy newer history")
+            return
     ident = _identities(save, ref, stypes or {})
     _merge_log(conn, save.log_entries)
     _merge_trades(conn, save.trades, ident, _player_edges(save),
                   entities or {})
     _merge_removed(conn, save.removed_objects)
+    if t:
+        with conn:
+            conn.execute("INSERT OR REPLACE INTO meta VALUES"
+                         " ('merge_events_time', ?)", (str(t),))
+
+
+def _merge_high_water(conn: sqlite3.Connection) -> float | None:
+    """Newest game time the event history is authoritative for: the game
+    time of the last merged save (meta) — falling back, for DBs whose
+    history predates the guard, to the newest stored event time (a lower
+    bound: events never postdate their save)."""
+    row = conn.execute("SELECT value FROM meta"
+                       " WHERE key = 'merge_events_time'").fetchone()
+    if row is not None:
+        return float(row[0])
+    times = [conn.execute(f"SELECT MAX(time) FROM {table}").fetchone()[0]
+             for table in ("trade_tx", "stock_event", "log_entry")]
+    times = [t for t in times if t is not None]
+    return max(times) if times else None
+
+
+def _update_coverage(conn: sqlite3.Connection, stream: str, epoch: int,
+                     t_min: float, t_max: float,
+                     window_start: float) -> None:
+    """Extend (or open) a stream's coverage row for this merge; the
+    caller's transaction. updated_save_id = the current import (the
+    newest save row — merges run right after write_snapshot)."""
+    conn.execute(
+        "INSERT INTO coverage VALUES (?,?,?,?,?,"
+        " (SELECT MAX(save_id) FROM save))"
+        " ON CONFLICT(stream, epoch) DO UPDATE SET"
+        "  t_min = MIN(t_min, excluded.t_min),"
+        "  t_max = MAX(t_max, excluded.t_max),"
+        "  window_start = excluded.window_start,"
+        "  updated_save_id = excluded.updated_save_id",
+        (stream, epoch, t_min, t_max, window_start))
 
 
 def _identities(save: SaveData, ref: RefData | None, stypes: dict) -> dict:
@@ -688,15 +740,33 @@ def _merge_log(conn: sqlite3.Connection, entries: list[dict]) -> None:
     if not rows:
         return
     mintime: dict = {}
+    maxtime: dict = {}
     for r in rows:
         t, cat = r[0], r[1]
         if cat not in mintime or t < mintime[cat]:
             mintime[cat] = t
+        if cat not in maxtime or t > maxtime[cat]:
+            maxtime[cat] = t
     with conn:
         for cat, mt in mintime.items():
+            # per-category coverage: log_entry has no epoch column, so
+            # gap-awareness lives at the coverage level — a window that
+            # starts past everything stored for its category opens a new
+            # coverage epoch instead of extending the old one
+            prev_max = conn.execute(
+                "SELECT MAX(time) FROM log_entry WHERE category IS ?",
+                (cat,)).fetchone()[0]
+            gap = prev_max is not None and mt > prev_max
             conn.execute(
                 "DELETE FROM log_entry WHERE category IS ? AND time >= ?",
                 (cat, mt))
+            stream = f"log:{cat or ''}"
+            prev_epoch = conn.execute(
+                "SELECT MAX(epoch) FROM coverage WHERE stream = ?",
+                (stream,)).fetchone()[0]
+            epoch = (0 if prev_epoch is None
+                     else prev_epoch + 1 if gap else prev_epoch)
+            _update_coverage(conn, stream, epoch, mt, maxtime[cat], mt)
         conn.executemany(
             "INSERT INTO log_entry VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
 
@@ -773,6 +843,7 @@ def _merge_window(conn: sqlite3.Connection, table: str,
     if not rows:
         return
     mintime = min(r[0] for r in rows)
+    maxtime = max(r[0] for r in rows)
     boundary = [r for r in rows if r[0] == mintime]
     with conn:
         # coverage epoch: the rolling window is a global time suffix, so if
@@ -798,8 +869,13 @@ def _merge_window(conn: sqlite3.Connection, table: str,
         conn.executemany(
             f"INSERT INTO {table} ({','.join(cols)}, epoch)"
             f" VALUES ({ph})", rows)
+        # coverage row for this stream's current epoch (the window's full
+        # extent, before any boundary thinning above)
+        _update_coverage(conn, table, epoch, mintime, maxtime, mintime)
         # the dashboards' rate math needs the current window's extent —
-        # merged history would otherwise dilute every Cr/h denominator
+        # merged history would otherwise dilute every Cr/h denominator.
+        # (coverage.window_start supersedes these two meta keys; they stay
+        # until the frames reader moves over — plan T3/M4)
         conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
                      (f"{table}_window_start", str(mintime)))
 

@@ -35,9 +35,10 @@ EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object",
 # P tables: persistent bookkeeping, never dropped on a version bump. save
 # is the provenance log and the time dimension anything cross-run keys
 # into (its ids must not recycle); meta carries cross-run flags that the
-# bump path itself reads. Their DDL is version-stable — if their shape
-# ever must change, they migrate like E tables via EVENT_MIGRATIONS.
-PERSISTENT_TABLES = ("save", "meta")
+# bump path itself reads; coverage records what the event history covers.
+# Their DDL is version-stable — if their shape ever must change, they
+# migrate like E tables via EVENT_MIGRATIONS.
+PERSISTENT_TABLES = ("save", "meta", "coverage")
 
 # Event-history migrations: old version -> targeted ALTERs bringing the E
 # tables to the next version (everything else is dropped and recreated).
@@ -127,6 +128,26 @@ TABLES: dict[str, str] = {
   faction_name  TEXT,
   source_file   TEXT,
   imported_at   TEXT
+)""",
+    # coverage of the event history (P): which time ranges each stream
+    # actually covers, maintained by the merges. Streams: 'trade_tx',
+    # 'stock_event', 'log:<category>' (per-category, matching the
+    # per-category log windows). Epochs match the E tables' epoch column
+    # for the economylog streams; log streams get coverage-level epochs
+    # (log_entry itself has no epoch column). Rows describe only merges
+    # since this table existed — the historical backfill is a later,
+    # separate migration (plan T3/M4), as is retiring the two
+    # meta *_window_start keys it supersedes.
+    "coverage": """CREATE TABLE IF NOT EXISTS coverage (
+  stream       TEXT NOT NULL,
+  epoch        INTEGER NOT NULL,
+  t_min        REAL NOT NULL,    -- covered interval, game seconds
+  t_max        REAL NOT NULL,
+  window_start REAL,             -- most recent merged window's start
+                                 -- (rate denominators), newest epoch only
+  updated_save_id INTEGER,       -- FK save.save_id (doc only): the
+                                 -- import that last extended this row
+  PRIMARY KEY (stream, epoch)
 )""",
     # ---- world state (W) ---------------------------------------------------
     "component": """CREATE TABLE IF NOT EXISTS component (

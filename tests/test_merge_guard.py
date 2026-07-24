@@ -1,16 +1,14 @@
-"""Pins the older-save merge destruction (review backlog item 3 / db-schema
-F4): merging a save OLDER than the stored event history must not destroy
-rows newer than that save's window, but `merge_events` today deletes from
-the incoming window's mintime forward unconditionally
-(`_merge_window`/`_merge_log`). Verified against a real DB copy on
-2026-07-23: merging save_008 (t=66,772) into the 8E0C DB (window head
-t=71,874) destroyed 606 trade_tx, 29,063 stock_event and 244 log_entry
-rows. The xfail flips when T14's high-water guard lands in `merge_events`
-(H4) — remove the marker then.
+"""Pins the stale-save merge guard (T14/H4, review backlog item 3 /
+db-schema F4): merging a save OLDER than the stored event history must
+not destroy rows newer than that save's window. Before the guard,
+`merge_events` deleted from the incoming window's mintime forward
+unconditionally — verified against a real DB copy on 2026-07-23: merging
+save_008 (t=66,772) into the 8E0C DB (window head t=71,874) destroyed
+606 trade_tx, 29,063 stock_event and 244 log_entry rows. The high-water
+guard now skips the whole merge with a warning (originally pinned as
+xfail; flipped to a plain test when H4 landed).
 """
 import sqlite3
-
-import pytest
 
 from x4analyzer.db import store
 from x4analyzer.save.parser import parse_savegame
@@ -49,11 +47,6 @@ def make_save(tmp_path, name, time, trades, logs):
     return parse_savegame(p)
 
 
-@pytest.mark.xfail(
-    reason="merge_events has no high-water guard: an older save's window "
-           "deletes newer history from its mintime forward (db-schema F4; "
-           "fixed by T14/H4)",
-    strict=True)
 def test_older_save_merge_preserves_newer_history(tmp_path):
     newer = make_save(
         tmp_path, "newer.xml", 6000.0,
@@ -87,3 +80,51 @@ def test_older_save_merge_preserves_newer_history(tmp_path):
     assert survived == {"trade_tx": 1, "stock_event": 2, "log_entry": 1}, (
         "history newer than the merged older save was destroyed: "
         f"{survived}")
+    # the skip is whole-merge: nothing from the older save landed either
+    assert conn.execute("SELECT COUNT(*) FROM trade_tx WHERE time < 5000.0"
+                        ).fetchone() == (0,)
+    # and the high-water mark still belongs to the newer save
+    assert conn.execute("SELECT value FROM meta"
+                        " WHERE key = 'merge_events_time'").fetchone() \
+        == ("6000.0",)
+
+
+def test_guard_falls_back_to_event_times(tmp_path):
+    """DBs whose history predates the guard have no meta stamp: the
+    newest stored event time is the fallback high-water mark."""
+    newer = make_save(
+        tmp_path, "newer.xml", 6000.0,
+        trades=['<log time="5900.0" type="trade" ware="ice" owner="[0x20]"'
+                ' v="70"/>'],
+        logs=[])
+    older = make_save(
+        tmp_path, "older.xml", 5000.0,
+        trades=['<log time="4900.0" type="trade" ware="ice" owner="[0x20]"'
+                ' v="40"/>'],
+        logs=[])
+    conn = sqlite3.connect(":memory:")
+    store._ensure_schema(conn)
+    store.merge_events(conn, newer)
+    conn.execute("DELETE FROM meta WHERE key = 'merge_events_time'")
+    conn.commit()
+
+    store.merge_events(conn, older)
+    assert conn.execute("SELECT time FROM stock_event").fetchall() \
+        == [(5900.0,)]
+
+
+def test_same_save_remerge_proceeds(tmp_path):
+    """Equal game time is NOT stale: re-analyzing the same save must
+    still merge (and stay idempotent via the window semantics)."""
+    save = make_save(
+        tmp_path, "save.xml", 6000.0,
+        trades=['<log time="5900.0" type="trade" ware="ice" owner="[0x20]"'
+                ' v="70"/>'],
+        logs=['<entry time="5500.0" category="upkeep" title="n" text="t"/>'])
+    conn = sqlite3.connect(":memory:")
+    store._ensure_schema(conn)
+    store.merge_events(conn, save)
+    store.merge_events(conn, save)
+    assert conn.execute("SELECT COUNT(*) FROM stock_event").fetchone() \
+        == (1,)
+    assert conn.execute("SELECT COUNT(*) FROM log_entry").fetchone() == (1,)
