@@ -370,17 +370,21 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"13"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"14"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
-| `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
-| `stock_event_window_start` | same for the stock-event window |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
 | `views_version` | fingerprint of the view definitions last created; views are recreated only when the code's fingerprint differs (plain connects perform no DDL writes) |
 | `reference_digest` | fingerprint of the reference data last loaded; `write_reference` skips its wholesale rewrite when unchanged |
 
 The two fingerprint stamps are deleted on a schema bump — `meta` survives
 the bump (P class) but the views and R tables it stamps do not.
+
+Retired keys: `trade_tx_window_start` / `stock_event_window_start` /
+`money_event_window_start` carried the most recent merged window's start
+per stream until v14 — superseded by `coverage.window_start`; the v14
+migration seeded their values into `coverage` where needed and deleted
+them, and the merge no longer writes them.
 
 ### save
 
@@ -414,11 +418,12 @@ new epoch row when the incoming window starts past everything stored
 
 Streams: `trade_tx`, `stock_event`, `money_event` (epochs match those tables' `epoch`
 column) and `log:<category>` per logbook category — the logbook has no
-epoch column of its own, so its gap-awareness lives here. **Backfill
-pending**: rows describe only merges performed since the table existed
-(2026-07-24); the one-time backfill from the E tables, and the
-retirement of the two `meta` window keys this table supersedes, are a
-later migration (plan T3/M4).
+epoch column of its own, so its gap-awareness lives here. The v14
+migration backfilled the pre-coverage history from the E tables (exact
+per-epoch bounds for the stamped economylog streams; per-category epoch
+0 for the epoch-less logbook) and retired the `meta` window keys this
+table supersedes — `window_start` of a stream's newest epoch is now the
+only source of the rate-denominator window.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
@@ -1222,7 +1227,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"13"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"14"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1235,7 +1240,8 @@ The E-table indices are applied through the idempotent
    (`EVENT_MIGRATIONS` in `db/schema.py` — v1→v2→v3→v4: identity columns,
    commander attribution, entity links; v11→v12: `trade_tx.kind`,
    `money_event` creation and the re-typing of mis-merged money-ledger
-   rows out of `stock_event`) — their history is irreplaceable. New
+   rows out of `stock_event`; v13→v14: the coverage backfill + meta
+   window-key retirement) — their history is irreplaceable. New
    columns always append at the end of the fresh DDL so ALTERed and
    fresh tables line up; even so, a migrated DB may carry a different
    *physical* column order than a fresh one, which is why inserts name

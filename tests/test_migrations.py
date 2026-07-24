@@ -100,6 +100,7 @@ def test_off_chain_v5_database_migrates(tmp_path):
     conn.execute(schema.TABLES["save"])
     conn.execute(schema.TABLES["trade_tx"])
     conn.execute(schema.TABLES["stock_event"])
+    conn.execute(schema.TABLES["log_entry"])
     # v5-era trade_tx predates the v12 `kind` column (the fresh DDL is
     # the stand-in, so strip what the 11->12 migration will re-add)
     conn.execute("ALTER TABLE trade_tx DROP COLUMN kind")
@@ -134,6 +135,7 @@ def test_v1_database_walks_full_chain(tmp_path):
     cfg = make_cfg(tmp_path)
     conn = sqlite3.connect(store.db_path(cfg, "V1"))
     conn.execute(schema.TABLES["meta"])
+    conn.execute(schema.TABLES["log_entry"])
     conn.execute("INSERT INTO meta VALUES ('schema_version', '1')")
     conn.execute("CREATE TABLE stock_event (time REAL NOT NULL,"
                  " owner_id TEXT NOT NULL, ware TEXT NOT NULL, level REAL,"
@@ -168,6 +170,7 @@ def test_v11_database_retypes_money_rows(tmp_path):
     conn.execute(schema.TABLES["save"])
     conn.execute(schema.TABLES["trade_tx"])
     conn.execute(schema.TABLES["stock_event"])
+    conn.execute(schema.TABLES["log_entry"])
     conn.execute("ALTER TABLE trade_tx DROP COLUMN kind")  # v11 shape
     conn.execute("INSERT INTO meta VALUES ('schema_version', '11')")
 
@@ -230,4 +233,57 @@ def test_v11_database_retypes_money_rows(tmp_path):
         == (4,)
     assert conn.execute("SELECT COUNT(*) FROM stock_event").fetchone() \
         == (1,)
+    conn.close()
+
+
+def test_v13_database_backfills_coverage(tmp_path):
+    """The v13->v14 step (plan T3/M4): historical event ranges are
+    backfilled into coverage from the epoch-stamped E rows (per-category
+    epoch 0 for the epoch-less log stream), hook-written rows are
+    extended rather than clobbered, the retiring meta *_window_start
+    values seed window_start where the hook never wrote one, and the
+    meta keys are gone afterwards."""
+    cfg = make_cfg(tmp_path)
+    conn = sqlite3.connect(store.db_path(cfg, "V13"))
+    for t in ("meta", "save", "trade_tx", "stock_event", "money_event",
+              "log_entry", "coverage"):
+        conn.execute(schema.TABLES[t])
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '13')")
+    # two trade epochs; the newer one already has a (partial) hook row
+    # whose window_start must survive and whose bounds must extend
+    conn.executemany(
+        "INSERT INTO trade_tx (time, ware, epoch) VALUES (?, 'ice', ?)",
+        [(10.0, 0), (50.0, 0), (200.0, 1), (300.0, 1)])
+    conn.execute("INSERT INTO coverage VALUES"
+                 " ('trade_tx', 1, 250.0, 300.0, 250.0, 7)")
+    conn.execute("INSERT INTO stock_event (time, owner_id, ware, level,"
+                 " epoch) VALUES (5.0, '[0x1]', 'ice', 1.0, 0)")
+    conn.execute("INSERT INTO money_event (time, owner_id, epoch)"
+                 " VALUES (7.5, '[0x1]', 0)")
+    conn.executemany(
+        "INSERT INTO log_entry (time, category, title)"
+        " VALUES (?, ?, 'x')",
+        [(1.0, None, ), (9.0, None), (4.0, "upkeep")])
+    conn.executemany("INSERT INTO meta VALUES (?, ?)", [
+        ("trade_tx_window_start", "250.0"),
+        ("stock_event_window_start", "5.0"),
+        ("money_event_window_start", "7.5")])
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "V13")
+    assert conn.execute(
+        "SELECT stream, epoch, t_min, t_max, window_start FROM coverage"
+        " ORDER BY stream, epoch").fetchall() == [
+        ("log:", 0, 1.0, 9.0, None),
+        ("log:upkeep", 0, 4.0, 4.0, None),
+        ("money_event", 0, 7.5, 7.5, 7.5),
+        ("stock_event", 0, 5.0, 5.0, 5.0),
+        ("trade_tx", 0, 10.0, 50.0, None),   # historical epoch: no window
+        ("trade_tx", 1, 200.0, 300.0, 250.0),  # extended, start preserved
+    ]
+    # the superseded meta keys are gone
+    assert conn.execute("SELECT COUNT(*) FROM meta"
+                        " WHERE key LIKE '%window_start%'").fetchone() \
+        == (0,)
     conn.close()

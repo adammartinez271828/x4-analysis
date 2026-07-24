@@ -476,6 +476,21 @@ table DDL and all three backfill INSERTs executed on the 8E0C copy —
 resulting coverage `trade_tx[961–71,852]`, `stock_event[83–71,875]`
 plus per-category `log:*` rows.
 
+> **Shipped (2026-07-24, in two stages).** The table + merge-side hook
+> landed with the v11 bump (Phase 2, folded into H4's merge-seam work
+> per roadmap R7), with a `money_event` stream the sketch predates. The
+> backfill + key retirement landed as **v14 (Phase 5 / M4)**, riding
+> the repaired chain as `EVENT_MIGRATIONS["13"]`. Deviations: **three**
+> meta window keys retired, not two (`money_event_window_start` was
+> born in Phase 3); backfill INSERTs are upsert-style (`ON CONFLICT …
+> t_min = MIN, t_max = MAX`) so hook-written rows extend instead of
+> clobbering; log-stream history lands in coverage epoch 0 per category
+> (exact whenever a stream has one coverage epoch — true in every
+> observed DB; the epoch-stamped E streams are exact always). On both
+> real DBs the hook's whole-history windows had already covered every
+> stored row, so the backfill changed no bounds there — it exists for
+> pre-coverage DBs walking the chain.
+
 ### T4. Aggregate history: the trend layer (A-class tables)
 
 The C1 fix. Not snapshot retention — small append-only aggregates written

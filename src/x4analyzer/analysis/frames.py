@@ -545,13 +545,14 @@ def build_frames(save: SaveData, ref: RefData,
     # and the Market rate denominators keep their meaning; the merged
     # multi-session history stays queryable in stock_event/v_stock_delta,
     # keyed by the save-stable identity resolved at merge time.
-    row = conn.execute("SELECT value FROM meta"
-                       " WHERE key = 'stock_event_window_start'").fetchone()
+    row = conn.execute(
+        "SELECT window_start FROM coverage WHERE stream = 'stock_event'"
+        " ORDER BY epoch DESC LIMIT 1").fetchone()
     gt = _read(conn, """
         SELECT owner_id AS owner, ware, time, level AS v,
                inflow AS dv, outflow AS dv_neg
         FROM v_stock_flow WHERE time >= ? ORDER BY time""",
-        params=(float(row[0]) if row else 0.0,))
+        params=(float(row[0]) if row and row[0] is not None else 0.0,))
     if not gt.empty:
         gt[["dv", "dv_neg"]] = gt[["dv", "dv_neg"]].fillna(0.0)
         uni_idx = universe.set_index("id")

@@ -481,6 +481,7 @@ def test_v1_database_migrates_keeping_history(cfg):
 
     conn = sqlite3.connect(store.db_path(cfg, "MIG"))
     conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute(schema.TABLES["log_entry"])
     conn.execute("INSERT INTO meta VALUES ('schema_version', '1')")
     conn.execute("CREATE TABLE stock_event (time REAL NOT NULL,"
                  " owner_id TEXT NOT NULL, ware TEXT NOT NULL, level REAL,"
@@ -1268,6 +1269,7 @@ def test_v2_database_migrates_keeping_trades(cfg):
 
     conn = sqlite3.connect(store.db_path(cfg, "MIG2"))
     conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute(schema.TABLES["log_entry"])
     conn.execute("INSERT INTO meta VALUES ('schema_version', '2')")
     conn.execute("CREATE TABLE trade_tx (time REAL NOT NULL,"
                  " ware TEXT NOT NULL, buyer_id TEXT, seller_id TEXT,"

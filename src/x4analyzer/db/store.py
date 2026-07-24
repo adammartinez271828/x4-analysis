@@ -1010,14 +1010,12 @@ def _merge_window(conn: sqlite3.Connection, table: str,
             f"INSERT INTO {table} ({','.join(cols)}, epoch)"
             f" VALUES ({ph})", rows)
         # coverage row for this stream's current epoch (the window's full
-        # extent, before any boundary thinning above)
+        # extent, before any boundary thinning above). Its window_start
+        # carries the current window's extent for the dashboards' rate
+        # math — merged history would otherwise dilute every Cr/h
+        # denominator. (Supersedes the retired meta *_window_start keys,
+        # plan T3/M4.)
         _update_coverage(conn, table, epoch, mintime, maxtime, mintime)
-        # the dashboards' rate math needs the current window's extent —
-        # merged history would otherwise dilute every Cr/h denominator.
-        # (coverage.window_start supersedes these two meta keys; they stay
-        # until the frames reader moves over — plan T3/M4)
-        conn.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
-                     (f"{table}_window_start", str(mintime)))
 
 
 def _merge_removed(conn: sqlite3.Connection, objects: list[dict]) -> None:

@@ -32,7 +32,11 @@ import hashlib
 #      (sector_presence, station_metric, market_stat), appended once per
 #      distinct snapshot, never dropped. (The roadmap penciled this phase
 #      in as "v12" before T15 took that number.)
-SCHEMA_VERSION = "13"
+# v14: coverage backfill (plan T3/M4): historical event ranges filled
+#      into the coverage table from the epoch-stamped E rows, and the
+#      three meta *_window_start keys it supersedes retired (the merge
+#      writes coverage.window_start instead)
+SCHEMA_VERSION = "14"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -53,6 +57,24 @@ PERSISTENT_TABLES = ("save", "meta", "coverage")
 # never dropped on a version bump. Like the E tables, their history is
 # irreplaceable: it spans saves the game has since overwritten.
 AGGREGATE_TABLES = ("sector_presence", "station_metric", "market_stat")
+
+# coverage's DDL is shared between TABLES and the v13->v14 backfill
+# migration: the migration walk runs BEFORE the CREATE loop at connect,
+# and its INSERT...SELECTs need the table to exist already. Streams:
+# 'trade_tx', 'stock_event', 'money_event', 'log:<category>'. Epochs
+# match the E tables' epoch column for the economylog streams; log
+# streams get coverage-level epochs (log_entry has no epoch column).
+_COVERAGE_DDL = """CREATE TABLE IF NOT EXISTS coverage (
+  stream       TEXT NOT NULL,
+  epoch        INTEGER NOT NULL,
+  t_min        REAL NOT NULL,    -- covered interval, game seconds
+  t_max        REAL NOT NULL,
+  window_start REAL,             -- most recent merged window's start
+                                 -- (rate denominators), newest epoch only
+  updated_save_id INTEGER,       -- FK save.save_id (doc only): the
+                                 -- import that last extended this row
+  PRIMARY KEY (stream, epoch)
+)"""
 
 # money_event's DDL is shared between TABLES and the v11->v12 migration:
 # the migration walk runs BEFORE the CREATE loop at connect, and its
@@ -147,6 +169,71 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
            WHERE ware = '' AND raw_attrs IS NOT NULL""",
         "DELETE FROM stock_event WHERE ware = '' AND raw_attrs IS NOT NULL",
     ),
+    # v14 backfills the coverage table from the event history (plan T3):
+    # the merge-side hook only records merges since the table existed
+    # (v11), so pre-coverage stretches were invisible to it. E-stream
+    # bounds come exactly from the epoch-stamped rows; log streams have
+    # no epoch column, so their history lands in coverage epoch 0 per
+    # category (precise whenever a stream has a single coverage epoch —
+    # true in every observed DB; with real gaps the old range is folded
+    # into epoch 0, a known imprecision the stamped E streams don't
+    # share). Existing hook-written rows are extended, never clobbered.
+    # The three meta *_window_start keys retire: their value seeds
+    # coverage.window_start where the hook never wrote one, then the
+    # keys are deleted and the merge stops writing them.
+    "13": (
+        _COVERAGE_DDL,
+        """INSERT INTO coverage (stream, epoch, t_min, t_max)
+           SELECT 'trade_tx', epoch, MIN(time), MAX(time)
+           FROM trade_tx WHERE true GROUP BY epoch
+           ON CONFLICT(stream, epoch) DO UPDATE SET
+             t_min = MIN(t_min, excluded.t_min),
+             t_max = MAX(t_max, excluded.t_max)""",
+        """INSERT INTO coverage (stream, epoch, t_min, t_max)
+           SELECT 'stock_event', epoch, MIN(time), MAX(time)
+           FROM stock_event WHERE true GROUP BY epoch
+           ON CONFLICT(stream, epoch) DO UPDATE SET
+             t_min = MIN(t_min, excluded.t_min),
+             t_max = MAX(t_max, excluded.t_max)""",
+        """INSERT INTO coverage (stream, epoch, t_min, t_max)
+           SELECT 'money_event', epoch, MIN(time), MAX(time)
+           FROM money_event WHERE true GROUP BY epoch
+           ON CONFLICT(stream, epoch) DO UPDATE SET
+             t_min = MIN(t_min, excluded.t_min),
+             t_max = MAX(t_max, excluded.t_max)""",
+        """INSERT INTO coverage (stream, epoch, t_min, t_max)
+           SELECT 'log:' || COALESCE(category, ''), 0, MIN(time), MAX(time)
+           FROM log_entry WHERE true GROUP BY category
+           ON CONFLICT(stream, epoch) DO UPDATE SET
+             t_min = MIN(t_min, excluded.t_min),
+             t_max = MAX(t_max, excluded.t_max)""",
+        """UPDATE coverage SET window_start =
+             (SELECT CAST(value AS REAL) FROM meta
+               WHERE key = 'trade_tx_window_start')
+           WHERE stream = 'trade_tx' AND window_start IS NULL
+             AND epoch = (SELECT MAX(epoch) FROM coverage
+                           WHERE stream = 'trade_tx')
+             AND EXISTS (SELECT 1 FROM meta
+                          WHERE key = 'trade_tx_window_start')""",
+        """UPDATE coverage SET window_start =
+             (SELECT CAST(value AS REAL) FROM meta
+               WHERE key = 'stock_event_window_start')
+           WHERE stream = 'stock_event' AND window_start IS NULL
+             AND epoch = (SELECT MAX(epoch) FROM coverage
+                           WHERE stream = 'stock_event')
+             AND EXISTS (SELECT 1 FROM meta
+                          WHERE key = 'stock_event_window_start')""",
+        """UPDATE coverage SET window_start =
+             (SELECT CAST(value AS REAL) FROM meta
+               WHERE key = 'money_event_window_start')
+           WHERE stream = 'money_event' AND window_start IS NULL
+             AND epoch = (SELECT MAX(epoch) FROM coverage
+                           WHERE stream = 'money_event')
+             AND EXISTS (SELECT 1 FROM meta
+                          WHERE key = 'money_event_window_start')""",
+        """DELETE FROM meta WHERE key IN ('trade_tx_window_start',
+             'stock_event_window_start', 'money_event_window_start')""",
+    ),
 }
 
 # The complete version chain: every historical version steps to the next
@@ -194,25 +281,11 @@ TABLES: dict[str, str] = {
   imported_at   TEXT
 )""",
     # coverage of the event history (P): which time ranges each stream
-    # actually covers, maintained by the merges. Streams: 'trade_tx',
-    # 'stock_event', 'log:<category>' (per-category, matching the
-    # per-category log windows). Epochs match the E tables' epoch column
-    # for the economylog streams; log streams get coverage-level epochs
-    # (log_entry itself has no epoch column). Rows describe only merges
-    # since this table existed — the historical backfill is a later,
-    # separate migration (plan T3/M4), as is retiring the two
-    # meta *_window_start keys it supersedes.
-    "coverage": """CREATE TABLE IF NOT EXISTS coverage (
-  stream       TEXT NOT NULL,
-  epoch        INTEGER NOT NULL,
-  t_min        REAL NOT NULL,    -- covered interval, game seconds
-  t_max        REAL NOT NULL,
-  window_start REAL,             -- most recent merged window's start
-                                 -- (rate denominators), newest epoch only
-  updated_save_id INTEGER,       -- FK save.save_id (doc only): the
-                                 -- import that last extended this row
-  PRIMARY KEY (stream, epoch)
-)""",
+    # actually covers — maintained by the merges, historical stretches
+    # backfilled by the v14 migration (which also retired the meta
+    # *_window_start keys this table supersedes). DDL above (shared with
+    # the migration).
+    "coverage": _COVERAGE_DDL,
     # ---- world state (W) ---------------------------------------------------
     "component": """CREATE TABLE IF NOT EXISTS component (
   save_id       INTEGER NOT NULL,
