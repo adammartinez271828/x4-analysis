@@ -647,6 +647,17 @@ FROM faction_relation
 WHERE save_id = (SELECT save_id FROM current_save)
   AND kind IN ('base', 'booster')
 GROUP BY faction, other""",
+    # distinct snapshots (T5): the save table logs one row per IMPORT, so
+    # dashboard-dev reruns pollute any series keyed on it. This view
+    # collapses the import log to distinct saves; its save_id (the first
+    # import of each snapshot) is the canonical id the A tables key on.
+    # SQLite's bare-column rule picks the remaining columns from the
+    # MIN(save_id) row.
+    "v_snapshot": """CREATE VIEW v_snapshot AS
+SELECT MIN(save_id) AS save_id, guid, game_time, save_date,
+       player_money_cr, player_name
+FROM save
+GROUP BY guid, game_time, save_date""",
     # resolved universe: names were resolved at load; adds sector display
     # name and faction shortname
     "v_universe": """CREATE VIEW v_universe AS

@@ -231,6 +231,19 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             return ref.resolve_name(name)
         return _s(name)
 
+    # rerun detection (T5): an import whose (game_time, save_date) is
+    # already recorded is a re-analysis of a known snapshot, not new
+    # history. The W rebuild below still runs (that is the point of a
+    # rerun); consumers of per-snapshot series key on snapshot_id() /
+    # v_snapshot instead of raw save rows, which makes reruns harmless.
+    rerun = conn.execute(
+        "SELECT 1 FROM save WHERE guid IS ? AND game_time IS ?"
+        " AND save_date IS ?",
+        (save.guid, save.game_time, _s(save.save_date))).fetchone()
+    if rerun:
+        log("Snapshot already recorded (rerun): world state rebuilds, "
+            "per-snapshot series gain nothing")
+
     with conn:
         cur = conn.execute(
             "INSERT INTO save (guid, game_version, game_time, save_date,"
@@ -431,6 +444,21 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for (f, typ, facs) in save.faction_licences])
 
     return save_id
+
+
+def snapshot_id(conn: sqlite3.Connection, save_id: int) -> int:
+    """Canonical snapshot id for an import: the FIRST save row recording
+    the same (guid, game_time, save_date) — i.e. v_snapshot's save_id.
+    Reruns of a known snapshot resolve to the original import's id, so
+    anything keyed on it (the A tables) is rerun-immune."""
+    row = conn.execute(
+        "SELECT guid, game_time, save_date FROM save WHERE save_id = ?",
+        (save_id,)).fetchone()
+    if row is None:
+        return save_id
+    return conn.execute(
+        "SELECT MIN(save_id) FROM save WHERE guid IS ? AND game_time IS ?"
+        " AND save_date IS ?", row).fetchone()[0]
 
 
 # ---- entity registry (E: surrogate identity across snapshots) ---------------

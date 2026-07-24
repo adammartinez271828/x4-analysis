@@ -1072,6 +1072,7 @@ references unknown ids).
 | View | Joins | Columns | Question it answers |
 |---|---|---|---|
 | `current_save` | `save` aggregate | `save_id` | the current snapshot, named — `WHERE save_id = (SELECT save_id FROM current_save)` replaces the repeated `MAX(save_id)` idiom in hand-written SQL |
+| `v_snapshot` | `save` grouped by (guid, game_time, save_date) | `save_id` (= the snapshot's FIRST import — the canonical id per-snapshot series key on), `guid`, `game_time`, `save_date`, `player_money_cr`, `player_name` | "which distinct saves were analyzed" — the import log collapsed to distinct snapshots, immune to dashboard-dev reruns (`store.snapshot_id()` is the store-side resolver) |
 | `v_faction_standing` | `faction_relation` pivoted | `faction`, `other`, `base`, `booster` (Σ), `effective` (= clamp(base + Σboosters, [−1, 1])) | "who stands where with whom" — reproduces the frames pivot; discount-only pairs emit no row (discounts stay a plain filter on `faction_relation`) |
 | `v_universe` | `component` + `sector_ref` + `faction` | all `component` columns + `sector_name`, `owner_code` (faction shortname) | "what exists right now, with display names" |
 | `v_fleet` | recursive over `fleet_edge` | `ship`, `cmdr`, `depth`, `is_root_edge` (1 on the edge to the top commander) | "who ultimately commands this ship" — transitive fleet membership |

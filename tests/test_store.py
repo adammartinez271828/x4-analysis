@@ -686,6 +686,32 @@ def test_current_save_view(conn, save_data, ref):
         == (2,)
 
 
+def test_v_snapshot_collapses_reruns(conn, save_data, ref):
+    # second import of the SAME save: a rerun — one more save row, but
+    # still one distinct snapshot, resolving to the first import's id
+    store.write_snapshot(conn, save_data, ref, "save.xml")
+    assert count(conn, "save") == 2
+    assert conn.execute(
+        "SELECT save_id FROM v_snapshot").fetchall() == [(1,)]
+    assert store.snapshot_id(conn, 2) == 1
+    assert store.snapshot_id(conn, 1) == 1
+
+    # a genuinely new save (different game_time) is a new snapshot
+    save_data.game_time = 6000.0
+    store.write_snapshot(conn, save_data, ref, "save2.xml")
+    assert sorted(conn.execute(
+        "SELECT save_id FROM v_snapshot").fetchall()) == [(1,), (3,)]
+    assert store.snapshot_id(conn, 3) == 3
+
+
+def test_v_snapshot_carries_min_row_columns(conn, save_data, ref):
+    store.write_snapshot(conn, save_data, ref, "save.xml")
+    row = conn.execute(
+        "SELECT save_id, guid, game_time, player_money_cr, player_name"
+        " FROM v_snapshot").fetchone()
+    assert row == (1, "ABCD-1234", 5000.5, 1234.56, "Test Pilot")
+
+
 def test_v_faction_standing(conn):
     conn.execute("DELETE FROM faction_relation")
     conn.executemany(
