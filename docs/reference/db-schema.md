@@ -11,8 +11,8 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 128 MB, `schema_version` 10, checked 2026-07-23:
-17,408 components, 375,015 stock events, 35,456 entities). Out of scope:
+(`x4_8E0C8E37-….sqlite`, 145 MB, `schema_version` 11, checked 2026-07-24:
+17,543 components, 383,778 stock events, 36,825 entities). Out of scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
@@ -928,8 +928,8 @@ current snapshot join the registry directly.
 | `old_value` | TEXT | the changed field's previous value | derived |
 | `new_value` | TEXT | the changed field's new value | derived |
 
-Reference DB scale: 35,456 entities (18,289 open, 15,338 disappeared,
-1,829 recycled), 62 events (27 captures, 35 renames).
+Reference DB scale (2026-07-24): 36,825 entities (18,458 open, 16,323
+disappeared, 2,044 recycled), 65 events.
 
 ## Reference (R) — game data, replaced wholesale
 
