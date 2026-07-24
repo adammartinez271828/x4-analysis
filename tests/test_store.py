@@ -965,9 +965,14 @@ def test_tradelog_renders_commander_and_proxy(cfg, save_data, ref, conn):
 
 
 def test_tradelog_rename_does_not_split_history(cfg, save_data, ref, conn):
-    """Names are display-only; the code is the identity. Trades merged under
-    an object's old name must show its latest name so per-object views don't
-    split a renamed ship in two."""
+    """Names are display-only; the identity is the entity. Trades merged
+    under an object's old name must show its latest name so per-object
+    views don't split a renamed ship in two. Since T6 (v_trade) the
+    healing runs through the entity registry — rows are stamped with
+    entity ids at merge and the view resolves the registry's CURRENT
+    name; the retired latest-name-per-code pandas fallback is gone, so
+    rows without registry identity keep their merge-time name (the
+    plan-F4 sanctioned degradation, pinned in test_views_parity)."""
     from x4analyzer.analysis.frames import build_frames
 
     conn.execute("DELETE FROM trade_tx")
@@ -976,31 +981,42 @@ def test_tradelog_rename_does_not_split_history(cfg, save_data, ref, conn):
              "price": "1000", "v": "10"}
     fleet = {"links": [("[0x30]", "[0xC1]")], "conns": [("[0x20]", "[0xC1]")]}
     # run 1: trade merged under the ship's (and commander's) original names
-    store.merge_events(conn, events_save(
+    s1 = events_save(
         trades=[{"time": "100.0", **trade}],
         components=[comp("[0x20]", "STA-001", "player", "Old Station"),
-                    comp("[0x30]", "SHP-001", "player", "Old Ship"),
+                    comp("[0x30]", "SHP-001", "player", "Old Ship",
+                         clazz="ship_s"),
                     comp("[0xB]", "NPC-001", "argon", "Buyer Co")],
-        **fleet), ref)
+        **fleet)
+    s1.game_time = 6000.0
+    store.merge_events(conn, s1, ref,
+                       entities=store.update_entity_registry(conn, s1, ref))
     # run 2: both renamed, new trade merged under the new names
-    store.merge_events(conn, events_save(
+    s2 = events_save(
         trades=[{"time": "200.0", **trade}],
         components=[comp("[0x20]", "STA-001", "player", "New Station"),
-                    comp("[0x30]", "SHP-001", "player", "New Ship"),
+                    comp("[0x30]", "SHP-001", "player", "New Ship",
+                         clazz="ship_s"),
                     comp("[0xB]", "NPC-001", "argon", "Buyer Co")],
-        **fleet), ref)
+        **fleet)
+    s2.game_time = 7000.0
+    store.merge_events(conn, s2, ref,
+                       entities=store.update_entity_registry(conn, s2, ref))
 
     tl = build_frames(save_data, ref, conn).tradelog
-    # both rows carry the latest observed names, keyed by code
+    # both rows carry the registry's current names
     assert list(tl["seller.name"]) == ["New Station", "New Station"]
     assert list(tl["seller.proxy.name"]) == ["New Ship", "New Ship"]
 
-    # a rename in the current snapshot wins over the trade history: the
-    # fixture ship [0x30] is SHP-001 — give it a name and re-snapshot
+    # a rename observed by a newer import wins over the trade history:
+    # the fixture ship [0x30] is (SHP-001, ship_s) — the same registry
+    # slot — so re-importing it renamed updates the entity's name
     save_data.components = [
         c[:3] + ("Current Ship",) + c[4:] if c[4] == "SHP-001" else c
         for c in save_data.components]
-    store.write_snapshot(conn, save_data, ref, "save.xml")
+    save_data.game_time = 8000.0
+    ents = store.update_entity_registry(conn, save_data, ref)
+    store.write_snapshot(conn, save_data, ref, "save.xml", ents)
     tl = build_frames(save_data, ref, conn).tradelog
     assert list(tl["seller.proxy.name"]) == ["Current Ship", "Current Ship"]
 

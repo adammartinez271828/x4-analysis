@@ -176,6 +176,56 @@ def station_types_from_db(conn: sqlite3.Connection, ref: RefData) -> dict:
     return dict(station_types(universe, module_list, ref))
 
 
+def tradelog_frame(conn: sqlite3.Connection, ref: RefData,
+                   faction_levels: list[str]) -> pd.DataFrame:
+    """The R-era dotted tradelog, read from v_trade (T6): priced real
+    trades, commander-redirected ("Executed by"), display names resolved
+    to the registry's current name in the view. Only display dressing
+    happens here — identity resolution lives in the view. Since v12 the
+    table also stores player-internal transfers (kind='transfer') and
+    the rare price-less trade rows for completeness; the dashboards
+    don't render them (yet), so they are filtered here like the historic
+    assembly did."""
+    tl = _read(conn, """
+        SELECT time, ware_name, price_cr, amount,
+               buyer_faction, buyer_id, buyer_entity, buyer_name,
+               buyer_code, buyer_exec_id, buyer_exec_entity,
+               buyer_exec_name, buyer_exec_code, buyer_proxied,
+               seller_faction, seller_id, seller_entity, seller_name,
+               seller_code, seller_exec_id, seller_exec_entity,
+               seller_exec_name, seller_exec_code, seller_proxied
+        FROM v_trade
+        WHERE (kind IS NULL OR kind = 'trade') AND price_cr IS NOT NULL
+        ORDER BY time""")
+    tradelog = pd.DataFrame({
+        "time": tl["time"],
+        "commodity": tl["ware_name"],
+        "price": tl["price_cr"],
+        "amount": tl["amount"].astype("Int64"),
+    })
+    tradelog["money"] = (tradelog["price"] * tradelog["amount"]).astype("Int64")
+    for side in ("seller", "buyer"):
+        fac = (tl[f"{side}_faction"].map(ref.faction_short)
+               .fillna(OTHER_FACTION))
+        proxied = tl[f"{side}_proxied"].astype(bool)
+        name = tl[f"{side}_name"]
+        tradelog[f"{side}.faction"] = pd.Categorical(
+            fac, categories=faction_levels, ordered=True)
+        tradelog[f"{side}.id"] = tl[f"{side}_id"]
+        # safety net for rows merged before display names were stored
+        # (main identity only, matching the historic assembly)
+        tradelog[f"{side}.name"] = name.mask(~proxied & name.isna(),
+                                             fac + " Station")
+        tradelog[f"{side}.code"] = tl[f"{side}_code"]
+        tradelog[f"{side}.proxy.id"] = tl[f"{side}_exec_id"]
+        tradelog[f"{side}.proxy.name"] = tl[f"{side}_exec_name"]
+        tradelog[f"{side}.proxy.code"] = tl[f"{side}_exec_code"]
+        tradelog[f"{side}.entity"] = tl[f"{side}_entity"].astype("Int64")
+        tradelog[f"{side}.proxy.entity"] = \
+            tl[f"{side}_exec_entity"].astype("Int64")
+    return tradelog
+
+
 def build_frames(save: SaveData, ref: RefData,
                  conn: sqlite3.Connection) -> Frames:
     faction_levels = _faction_levels(ref)
@@ -434,88 +484,13 @@ def build_frames(save: SaveData, ref: RefData,
     log("Preparing entity registry -> entities")
     entities = _read(conn, """
         SELECT entity_id, code, class, macro, spawntime, owner, name,
-               first_seen, last_seen, gone_time, gone_reason
-        FROM entity ORDER BY entity_id""")
+               first_seen, last_seen, gone_time, gone_reason,
+               observed_span_s, alive, component_id, sector_macro
+        FROM v_entity_life ORDER BY entity_id""")
 
-    # ---- tradelog (R 559-647) -------------------------------------------------
-    # the merged trade_tx history; parties were resolved to display-ready
-    # identities at merge time (the only moment their runtime ids are
-    # unambiguous), commander attribution included — reassemble the R-era
-    # dotted columns: main = commander when a subordinate executed the
-    # trade, proxy.* = the executing ship ("Executed by" in Trade History)
+    # ---- tradelog (R 559-647; assembly moved into v_trade, T6) --------------
     log("Preparing economylog -> tradelog")
-    # priced real trades only: since v12 the table also stores player-
-    # internal transfers (kind='transfer') and the rare price-less trade
-    # rows for completeness — the dashboards don't render them (yet)
-    tl = _read(conn, """
-        SELECT time, ware, price_cr, amount,
-               buyer_id, buyer_faction, buyer_code, buyer_name,
-               buyer_cmdr_id, buyer_cmdr_name, buyer_cmdr_code,
-               seller_id, seller_faction, seller_code, seller_name,
-               seller_cmdr_id, seller_cmdr_name, seller_cmdr_code,
-               buyer_entity, seller_entity,
-               buyer_cmdr_entity, seller_cmdr_entity
-        FROM trade_tx
-        WHERE (kind IS NULL OR kind = 'trade') AND price_cr IS NOT NULL
-        ORDER BY time""")
-    # A rename must not split an object's history: names are display-only
-    # and trade_tx keeps whatever name each row was merged under.
-    # Re-resolve display names, best evidence first: the entity registry's
-    # current name (exact surrogate identity), else per code — the current
-    # save's name when the object still exists, otherwise the latest name
-    # the history recorded for that code (codes are unique among the
-    # living but recycled after death; entity ids never are).
-    if not tl.empty:
-        ent_name = entities.dropna(subset=["name"]) \
-            .set_index("entity_id")["name"]
-        seen = pd.concat(
-            [tl[["time", f"{side}{k}_code", f"{side}{k}_name"]]
-             .set_axis(["time", "code", "name"], axis=1)
-             for side in ("buyer", "seller") for k in ("", "_cmdr")],
-            ignore_index=True).dropna(subset=["code", "name"])
-        seen = seen[(seen["code"] != "") & (seen["name"] != "")]
-        seen = seen.sort_values("time", kind="stable")
-        name_by_code = dict(zip(seen["code"], seen["name"]))
-        alive = universe[(universe["code"] != "") & (universe["name"] != "")]
-        name_by_code.update(zip(alive["code"], alive["name"]))
-        for col in ("buyer_name", "seller_name",
-                    "buyer_cmdr_name", "seller_cmdr_name"):
-            codes = tl[col.replace("_name", "_code")]
-            eids = tl[col.replace("_name", "_entity")]
-            tl[col] = (eids.map(ent_name)
-                       .fillna(codes.map(name_by_code))
-                       .fillna(tl[col]))
-    tradelog = pd.DataFrame({
-        "time": tl["time"],
-        "commodity": tl["ware"].map(ref.ware_name).fillna(tl["ware"]),
-        "price": tl["price_cr"],
-        "amount": tl["amount"].astype("Int64"),
-    })
-    tradelog["money"] = (tradelog["price"] * tradelog["amount"]).astype("Int64")
-    for side in ("seller", "buyer"):
-        fac = (tl[f"{side}_faction"].map(ref.faction_short)
-               .fillna(OTHER_FACTION))
-        # safety net for rows merged before display names were stored
-        name = tl[f"{side}_name"].fillna(fac + " Station")
-        proxied = tl[f"{side}_cmdr_id"].notna()
-        tradelog[f"{side}.faction"] = fac
-        tradelog[f"{side}.id"] = tl[f"{side}_id"].where(
-            ~proxied, tl[f"{side}_cmdr_id"])
-        tradelog[f"{side}.name"] = name.where(
-            ~proxied, tl[f"{side}_cmdr_name"])
-        tradelog[f"{side}.code"] = tl[f"{side}_code"].where(
-            ~proxied, tl[f"{side}_cmdr_code"])
-        tradelog[f"{side}.proxy.id"] = tl[f"{side}_id"].where(proxied)
-        tradelog[f"{side}.proxy.name"] = tl[f"{side}_name"].where(proxied)
-        tradelog[f"{side}.proxy.code"] = tl[f"{side}_code"].where(proxied)
-        tradelog[f"{side}.entity"] = tl[f"{side}_entity"].where(
-            ~proxied, tl[f"{side}_cmdr_entity"]).astype("Int64")
-        tradelog[f"{side}.proxy.entity"] = \
-            tl[f"{side}_entity"].where(proxied).astype("Int64")
-    tradelog["seller.faction"] = pd.Categorical(
-        tradelog["seller.faction"], categories=faction_levels, ordered=True)
-    tradelog["buyer.faction"] = pd.Categorical(
-        tradelog["buyer.faction"], categories=faction_levels, ordered=True)
+    tradelog = tradelog_frame(conn, ref, faction_levels)
 
     # ---- sales & buys (R 650-727) ----------------------------------------------
     log("Gathering sales -> sales; buys -> buys")
@@ -571,8 +546,9 @@ def build_frames(save: SaveData, ref: RefData,
     row = conn.execute("SELECT value FROM meta"
                        " WHERE key = 'stock_event_window_start'").fetchone()
     gt = _read(conn, """
-        SELECT owner_id AS owner, ware, time, level AS v, dv, dv_neg
-        FROM v_stock_delta WHERE time >= ? ORDER BY time""",
+        SELECT owner_id AS owner, ware, time, level AS v,
+               inflow AS dv, outflow AS dv_neg
+        FROM v_stock_flow WHERE time >= ? ORDER BY time""",
         params=(float(row[0]) if row else 0.0,))
     if not gt.empty:
         gt[["dv", "dv_neg"]] = gt[["dv", "dv_neg"]].fillna(0.0)

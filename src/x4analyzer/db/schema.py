@@ -736,27 +736,112 @@ SELECT ship, cmdr, depth,
        depth = (SELECT MAX(depth) FROM chain c2 WHERE c2.ship = chain.ship)
          AS is_root_edge
 FROM chain""",
-    # market traded volume: positive stock deltas between consecutive
-    # owner-only snapshots (level/dv_neg beyond the schema doc: frames'
-    # Market actual-flows mode needs stock leaving the station too).
-    # (The pre-v12 `ware != ''` guard is gone: ware-less rows were the
-    # mis-typed money-ledger family, re-typed into money_event.)
-    "v_stock_delta": """CREATE VIEW v_stock_delta AS
-SELECT owner_id, owner_faction, owner_code, owner_name, ware, time, level,
-       epoch,
-       MAX(level - LAG(level) OVER w, 0) AS dv,
-       MAX(LAG(level) OVER w - level, 0) AS dv_neg
+    # trades in domain terms (T6): commander-redirected ("Executed by"
+    # rule), current display names via the registry, ware names resolved.
+    # Redirection keys on cmdr_id — frames' rule is cmdr_id.notna(), and
+    # the csv-import path writes cmdr ids with NULL entities, so an
+    # entity-keyed redirect would silently diverge on those rows (review
+    # plan-F3). Executor DISPLAY columns (exec_*) survive because
+    # viz/history.py renders them ({side}.proxy.name/.code) and entity
+    # ids alone cannot recover them for NULL-entity rows; they are
+    # registry-resolved like the main names. What this view deliberately
+    # does NOT keep from the frames-era assembly: the latest-name-per-code
+    # fallback — parties without registry identity degrade to the stored
+    # merge-time name (permanent, not transitional: NULL-entity parties
+    # are minted at every merge for removed-object-resolved and
+    # registry-missed parties; they have no registry identity to resolve
+    # against, so the stored name is the best available either way).
+    "v_trade": """CREATE VIEW v_trade AS
+SELECT t.time, t.ware, COALESCE(w.name, t.ware) AS ware_name,
+       t.price_cr, t.amount, t.price_cr * t.amount AS total_cr,
+       t.kind, t.epoch,
+       t.buyer_faction, t.seller_faction,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL
+            THEN t.buyer_cmdr_id     ELSE t.buyer_id      END AS buyer_id,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL
+            THEN t.buyer_cmdr_entity ELSE t.buyer_entity  END AS buyer_entity,
+       COALESCE(be.name, CASE WHEN t.buyer_cmdr_id IS NOT NULL
+            THEN t.buyer_cmdr_name   ELSE t.buyer_name    END) AS buyer_name,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL
+            THEN t.buyer_cmdr_code   ELSE t.buyer_code    END AS buyer_code,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL
+            THEN t.seller_cmdr_id     ELSE t.seller_id     END AS seller_id,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL
+            THEN t.seller_cmdr_entity ELSE t.seller_entity END AS seller_entity,
+       COALESCE(se.name, CASE WHEN t.seller_cmdr_id IS NOT NULL
+            THEN t.seller_cmdr_name   ELSE t.seller_name   END) AS seller_name,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL
+            THEN t.seller_cmdr_code   ELSE t.seller_code   END AS seller_code,
+       -- the executing ship when a subordinate traded, display identity
+       -- included; present only when proxied
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL THEN t.buyer_id END
+         AS buyer_exec_id,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL THEN t.buyer_entity END
+         AS buyer_exec_entity,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL
+            THEN COALESCE(bx.name, t.buyer_name) END AS buyer_exec_name,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL THEN t.buyer_code END
+         AS buyer_exec_code,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL THEN t.seller_id END
+         AS seller_exec_id,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL THEN t.seller_entity END
+         AS seller_exec_entity,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL
+            THEN COALESCE(sx.name, t.seller_name) END AS seller_exec_name,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL THEN t.seller_code END
+         AS seller_exec_code,
+       t.buyer_cmdr_id IS NOT NULL  AS buyer_proxied,
+       t.seller_cmdr_id IS NOT NULL AS seller_proxied
+FROM trade_tx t
+LEFT JOIN ware w    ON w.id = t.ware
+LEFT JOIN entity be ON be.entity_id = CASE WHEN t.buyer_cmdr_id IS NOT NULL
+       THEN t.buyer_cmdr_entity ELSE t.buyer_entity END
+LEFT JOIN entity se ON se.entity_id = CASE WHEN t.seller_cmdr_id IS NOT NULL
+       THEN t.seller_cmdr_entity ELSE t.seller_entity END
+LEFT JOIN entity bx ON bx.entity_id = t.buyer_entity
+LEFT JOIN entity sx ON sx.entity_id = t.seller_entity""",
+    # stock flows partitioned by durable identity (T6; renames
+    # v_stock_delta, kept below as an alias for one release). The
+    # entity-first partition heals a station's series across renames and
+    # captures where the registry resolved it; text identity (faction|
+    # code) and raw owner_id remain the fallbacks for pre-registry rows —
+    # verified delta-identical to the text-first keying on both real DBs
+    # at introduction (tests/test_views_parity.py pins it). No ware
+    # guard: the pre-v12 `ware != ''` rows were the mis-typed money-
+    # ledger family, re-typed into money_event by the v12 migration.
+    "v_stock_flow": """CREATE VIEW v_stock_flow AS
+SELECT owner_entity, owner_id, owner_faction, owner_code, owner_name,
+       ware, time, level, epoch,
+       MAX(level - LAG(level) OVER w, 0) AS inflow,
+       MAX(LAG(level) OVER w - level, 0) AS outflow
 FROM stock_event
-WINDOW w AS (PARTITION BY COALESCE(owner_faction || '|' || owner_code,
+WINDOW w AS (PARTITION BY COALESCE('e' || owner_entity,
+                                   owner_faction || '|' || owner_code,
                                    owner_id),
              ware, epoch ORDER BY time, rowid)""",
-    # Partitioning by the save-stable identity heals a station's series
-    # across game sessions (ids drift, faction|code doesn't; unresolvable
-    # rows degrade to per-id, today's behavior); the epoch term stops LAG
-    # from computing a delta across a coverage gap. rowid breaks time ties
-    # in save order: stations log several stock levels within the same
-    # second, and an arbitrary tie order would reshuffle which deltas
-    # count as positive.
+    # the epoch term stops LAG from computing a delta across a coverage
+    # gap; rowid breaks time ties in save order: stations log several
+    # stock levels within the same second, and an arbitrary tie order
+    # would reshuffle which deltas count as positive.
+    # compat alias (one release): the pre-T6 name and column spellings
+    "v_stock_delta": """CREATE VIEW v_stock_delta AS
+SELECT owner_id, owner_faction, owner_code, owner_name, ware, time, level,
+       epoch, inflow AS dv, outflow AS dv_neg
+FROM v_stock_flow""",
+    # entity biographies (T6): lifespan + liveness + where the entity is
+    # in the current snapshot (component join NULL when absent from it)
+    "v_entity_life": """CREATE VIEW v_entity_life AS
+SELECT e.*,
+       COALESCE(e.gone_time,
+                (SELECT game_time FROM save
+                 WHERE save_id = (SELECT save_id FROM current_save)))
+         - e.first_seen                        AS observed_span_s,
+       e.gone_time IS NULL                     AS alive,
+       c.id                                    AS component_id,
+       c.sector_macro
+FROM entity e
+LEFT JOIN component c ON c.entity_id = e.entity_id
+  AND c.save_id = (SELECT save_id FROM current_save)""",
     # built modules only (measure reality, not plans — CLAUDE.md gotcha)
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM module

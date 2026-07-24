@@ -865,10 +865,11 @@ Save-side: savegame-structure.md § `<economylog>`.
 The cargo ledger's trade-caused rows (`<entries type="cargo">`,
 `type="trade"` only): the owner's **stock level after a trade touched
 that ware** — a snapshot, not an amount. Traded volume comes from
-positive deltas between consecutive snapshots (`v_stock_delta`); summing
-levels directly overcounts ~40×. Before v12 the merge also shunted
-money-ledger rows in here as `ware=''` fake snapshots (their `v` is
-cents, not units — the reason `v_stock_delta` used to guard
+positive deltas between consecutive snapshots (`v_stock_flow`, whose
+pre-T6 spelling `v_stock_delta` survives as an alias for one release);
+summing levels directly overcounts ~40×. Before v12 the merge also
+shunted money-ledger rows in here as `ware=''` fake snapshots (their
+`v` is cents, not units — the reason the delta view used to guard
 `WHERE ware != ''`); the v12 migration re-typed them into `money_event`
 and dropped the guard.
 
@@ -1178,7 +1179,10 @@ references unknown ids).
 | `v_faction_standing` | `faction_relation` pivoted | `faction`, `other`, `base`, `booster` (Σ), `effective` (= clamp(base + Σboosters, [−1, 1])) | "who stands where with whom" — reproduces the frames pivot; discount-only pairs emit no row (discounts stay a plain filter on `faction_relation`) |
 | `v_universe` | `component` + `sector_ref` + `faction` | all `component` columns + `sector_name`, `owner_code` (faction shortname) | "what exists right now, with display names" |
 | `v_fleet` | recursive over `fleet_edge` | `ship`, `cmdr`, `depth`, `is_root_edge` (1 on the edge to the top commander) | "who ultimately commands this ship" — transitive fleet membership |
-| `v_stock_delta` | window functions over `stock_event` | `owner_id`, `owner_faction`, `owner_code`, `owner_name`, `ware`, `time`, `level`, `epoch`, `dv` (positive delta), `dv_neg` (negative delta) | "how much did this station actually trade" — LAG deltas partitioned by save-stable identity (`faction\|code`, falling back to `owner_id`) and by `epoch` so no delta spans a coverage gap; `rowid` breaks same-second ties in save order |
+| `v_trade` | `trade_tx` + `ware` + 4× `entity` | `time`, `ware`, `ware_name`, `price_cr`, `amount`, `total_cr`, `kind`, `epoch`; per side: `{side}_faction`, `{side}_id`/`_entity`/`_name`/`_code` (commander-redirected — the "Executed by" rule), `{side}_exec_id`/`_exec_entity`/`_exec_name`/`_exec_code` (the executing ship, present only when proxied), `{side}_proxied` | "who traded what with whom, in domain terms" — commander redirection keys on `cmdr_id` (frames' rule; the csv-import path writes cmdr ids with NULL entities), display names resolve to the registry's CURRENT name, falling back to the stored merge-time name (the frames-era latest-name-per-code fallback is retired — parties without registry identity keep their merge-time name, permanently) |
+| `v_stock_flow` | window functions over `stock_event` | `owner_entity`, `owner_id`, `owner_faction`, `owner_code`, `owner_name`, `ware`, `time`, `level`, `epoch`, `inflow` (positive delta), `outflow` (negative delta) | "how much did this station actually trade" — LAG deltas partitioned by durable identity (`entity`, falling back to `faction\|code`, then `owner_id` for pre-registry rows) and by `epoch` so no delta spans a coverage gap; `rowid` breaks same-second ties in save order. Verified delta-identical to the retired text-first keying on both real DBs at introduction |
+| `v_stock_delta` | `v_stock_flow` renamed | the pre-T6 spelling: `dv` = `inflow`, `dv_neg` = `outflow` (no `owner_entity`) | compat alias, kept for one release |
+| `v_entity_life` | `entity` + `component` (current snapshot) | `entity.*` + `observed_span_s` (gone_time − first_seen, or now − first_seen while alive), `alive`, `component_id` (NULL when not in the current snapshot), `sector_macro` | "entity biographies" — lifespan, liveness and current whereabouts in one row |
 | `v_built_module` | `module` filtered | `module.*` where `built = 1` | "what is physically built" (plans excluded — the capacity-overcount gotcha) |
 | `v_npc` | `npc` + pivoted `npc_skill` | `npc.*` + `piloting`, `engineering`, `boarding`, `management`, `morale` | "crew skills as a wide table" |
 | `v_station_storage` | `station_storage` + `component` + `sector_ref` + `ware` | model columns + `station_code`, `station_name`, `sector_name`, `ware_name` | "what does this station stock and how much room did it allocate" |
