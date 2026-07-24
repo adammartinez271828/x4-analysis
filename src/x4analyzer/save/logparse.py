@@ -89,25 +89,38 @@ def parse_ship_services(df_log: pd.DataFrame, title: str, split_text: str,
 
 
 def parse_destroyed(df_log: pd.DataFrame) -> pd.DataFrame:
+    """v9 wording (harvested from both playthroughs' archived history,
+    2026-07-24; 323/323 rows): title "<name> (<CODE>) was destroyed.",
+    text "Location: <sector>" plus optional "[\\012]Commander: <name>
+    (<CODE>)" and "[\\012]Destroyed by: <killer> (<CODE>)" lines (12/323
+    rows carry no killer). The v5.10 one-line title form ("<object> in
+    sector <s> was destroyed by <k>.") has zero archived instances and
+    is no longer parsed."""
     cols = ["time", "object", "location", "killer"]
     df = df_log[
         (df_log["category"] == "upkeep")
-        & df_log["title"].str.contains("was destroyed by", na=False)
+        & df_log["title"].str.endswith(" was destroyed.", na=False)
     ]
     if df.empty:
         return _empty(cols)
     df = df.copy()
-    ok = df["title"].str.contains(" in sector ", regex=False)
-    _dump_unparsed("destroyed-object log entries", df.loc[~ok, "title"])
-    df = df[ok]
+    text = (df["text"] if "text" in df
+            else pd.Series("", index=df.index)).fillna("")
+    ok = text.str.contains("Location: ", regex=False)
+    _dump_unparsed("destroyed-object log entries",
+                   (df["title"].fillna("") + " :: " + text)[~ok])
+    df, text = df[ok], text[ok]
     if df.empty:
         return _empty(cols)
-    p1 = df["title"].str.split(" in sector ", n=1, expand=True)
-    p2 = p1[1].str.split(" was destroyed by ", n=1, expand=True)
-    p3 = p2[1].str.split(".", n=1, expand=True)
+    # "[" opens the [\012] newline token, so a line's payload is [^[]*
     return pd.DataFrame({
-        "time": df["time"].values, "object": p1[0].values,
-        "location": p2[0].values, "killer": p3[0].values,
+        "time": df["time"].values,
+        "object": df["title"].str.replace(
+            r" was destroyed\.$", "", regex=True).values,
+        "location": text.str.extract(
+            r"Location: ([^[]+)", expand=False).str.strip().values,
+        "killer": text.str.extract(
+            r"Destroyed by: ([^[]+)", expand=False).str.strip().values,
     })
 
 

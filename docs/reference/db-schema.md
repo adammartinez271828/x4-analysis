@@ -1161,4 +1161,4 @@ when inspecting older databases.
 | `log_entry.interaction` | attribute-name mismatch: the save writes `interact`, the loader reads `interaction`; the value is recoverable from `raw_attrs` |
 | `removed_object.time` | v9 removed-object elements carry no `time` attribute |
 | `datavault.blueprints` | populated only while uncollected Erlking blueprints exist; this playthrough collected them all |
-| `event_destroyed`, `event_construction`, `event_transfer` | zero rows: no matching log entries in this playthrough, and their v9 wording is unverified |
+| `event_construction`, `event_transfer` | `event_construction` fills only when construction/repair/resupply log events exist (one v9 resupply row in the 559 h DB); `event_transfer` has zero archived surplus-transfer instances anywhere and its v5.10-ported wording remains unverifiable. (`event_destroyed` left this list 2026-07-24: the events existed all along in the new v9 wording — the parser was rewritten and the archived rows now populate it, 6 in the reference DB / 157 in the 559 h DB.) |

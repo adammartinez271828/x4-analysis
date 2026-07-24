@@ -77,17 +77,32 @@ def test_ship_construction_sale():
     assert row["commodity"] == "Ship construction"
 
 
-def test_destroyed():
-    df = log_df([{
-        "time": 50.0, "category": "upkeep",
-        "title": ("Your ship TM-01-Boa in sector Grand Exchange IV was "
-                  "destroyed by XEN K."),
-    }])
+def test_destroyed_v9_wording():
+    # verbatim v9 shapes from the reference playthrough's archived
+    # history: plain, with a Commander line, and killer-less
+    df = log_df([
+        {"time": 50.0, "category": "upkeep",
+         "title": "RS-PE (GDV-373) was destroyed.",
+         "text": (r"Location: Litany of Fury IX[\012]"
+                  r"Destroyed by: XEN Raiding Party F (GZM-478)")},
+        {"time": 60.0, "category": "upkeep",
+         "title": "PE (NOZ-570) was destroyed.",
+         "text": (r"Location: Matrix #598[\012]Commander: PE (JVC-254)"
+                  r"[\012]Destroyed by: XEN Raiding Party F (BRK-198)")},
+        {"time": 70.0, "category": "upkeep",
+         "title": "Buzzard Sentinel (JQX-111) was destroyed.",
+         "text": "Location: Getsu Fune"},
+    ])
     out = logparse.parse_destroyed(df)
-    assert len(out) == 1
-    assert out.iloc[0]["object"] == "Your ship TM-01-Boa"
-    assert out.iloc[0]["location"] == "Grand Exchange IV"
-    assert out.iloc[0]["killer"] == "XEN K"
+    assert len(out) == 3
+    assert list(out["object"]) == ["RS-PE (GDV-373)", "PE (NOZ-570)",
+                                   "Buzzard Sentinel (JQX-111)"]
+    assert list(out["location"]) == ["Litany of Fury IX", "Matrix #598",
+                                     "Getsu Fune"]
+    assert out.iloc[0]["killer"] == "XEN Raiding Party F (GZM-478)"
+    # the Commander line must not be mistaken for the killer
+    assert out.iloc[1]["killer"] == "XEN Raiding Party F (BRK-198)"
+    assert pd.isna(out.iloc[2]["killer"])
 
 
 def test_ship_resupply_v9_details_in_text():
@@ -147,7 +162,8 @@ def test_ship_services_unmatched_wording_skips_and_dumps(capsys):
 def test_destroyed_unmatched_wording_skips_and_dumps(capsys):
     df = log_df([{
         "time": 50.0, "category": "upkeep",
-        "title": "Your ship was destroyed by something unspeakable",
+        "title": "Doomed Ship (AAA-000) was destroyed.",
+        "text": "Somewhere unspeakable, no Location line",
     }])
     out = logparse.parse_destroyed(df)
     assert out.empty

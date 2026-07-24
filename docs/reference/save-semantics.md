@@ -30,11 +30,17 @@ where it still matters.
   commander's `<connection connection="subordinates" id="[X]">`. The flat
   `<subordinate>` elements in saves are the NPC job system — NOT player
   fleets. (Structure: savegame-structure.md § Fleet hierarchy.)
-- **Log-text parsers**: ship construction/repair/resupply, destroyed-object
-  and surplus-transfer parsing is ported verbatim from R but **unverified
-  against v9 wording** (the test save contains no such events). If those
-  dashboards stay empty on a save that should have them, check the actual
-  log text first.
+- **Log-text parsers** (wording status per the 2026-07-24 harvest of both
+  playthroughs' archived history): destroyed-object parsing uses the v9
+  form — title `<name> (<CODE>) was destroyed.`, text
+  `Location:`/`Commander:`/`Destroyed by:` lines — verified against all
+  323 archived events (the earlier "no such events in this playthrough"
+  claim conflated regex mismatch with absence; the events were there in
+  the new wording all along). Resupply and pirate/police are v9-verified.
+  Ship construction/repair and surplus-transfer have **zero archived
+  instances** anywhere, so their v5.10-ported wording remains
+  unverifiable — if those dashboards stay empty on a save that should
+  have them, check the actual log text first.
 - **Faction short codes** come from game data; player is special-cased to
   `PLA`, ownerless to `NIL`, unknown/visitor factions bucket to `OTH`.
   Colours keep the R palette for legacy factions, game colours for new

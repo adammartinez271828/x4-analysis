@@ -60,10 +60,15 @@ Regexes over English log text (`[\012]` = the literal newline marker).
 Localization/version sensitive; every parser returns an empty frame when
 nothing matches and downstream skips. Rows whose title matches a parser but
 whose text does not fit the expected wording are skipped with a warning
-that dumps sample strings — report those so the parser can be fixed. The
-ship construction/repair/resupply, destroyed-object, and surplus-transfer
-parsers are ported verbatim from R but **unverified against v9 wording**
-(see [save-semantics.md](save-semantics.md)).
+that dumps sample strings — report those so the parser can be fixed.
+Wording status after the 2026-07-24 corpus harvest (both playthroughs'
+archived history + cache logs): destroyed-object rewritten to the v9
+form and verified (323/323 archived rows parse); resupply and
+pirate/police verified v9; ship construction/repair and surplus-transfer
+have **zero archived instances**, so their (v5.10-ported) wording remains
+unverifiable — if those dashboards stay empty on a save that should have
+them, check the actual log text first (see
+[save-semantics.md](save-semantics.md)).
 
 ## analysis/frames.py — the dataframe layer
 

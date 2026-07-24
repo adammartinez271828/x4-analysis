@@ -1002,8 +1002,9 @@ sparse union — each category uses what it needs:
 | `money` | credits involved, **cents** |
 | `entity` / `faction` | actor display refs |
 | `component` | runtime id of the subject object |
-| `interact` | UI action hint (`showonmap`, …) |
+| `interact` | UI action hint (`showonmap`, `showlocationonmap`, …) |
 | `highlighted` | `"1"` on emphasized entries (e.g. under-attack alerts) |
+| `x` / `y` / `z` | event position (destroyed-object entries) |
 
 ```xml
 <entry time="21.4454" category="upkeep" title="Assigned Individual Charles Antonov to Falx." interact="showonmap" component="[0x39aa0]"/>
@@ -1016,19 +1017,26 @@ sparse union — each category uses what it needs:
 `text` embeds newlines as the **literal five-character sequence `[\012]`**
 (and color codes as `[\033]#RRGGBBAA#…[\033]X`). Titles/texts are
 localization-dependent; the wordings below are the English v9 forms that
-carry machine-readable data (v9-verified only where the save contains such
-events — construction/repair/resupply/destroyed/surplus wording is ported
-from v5.10 observations and **(unverified against v9)**):
+carry machine-readable data (verified against the 2026-07-24 harvest of
+both playthroughs' archived history where events exist):
 
 - Ship construction / repair / resupply (`category="upkeep"`):
   `<FAC> <ship> (<CODE>) finished <verb> at station: <station> (<CODE>).
-  They have paid <N> Cr.` — details moved from `title` to `text` in v9 for
-  resupply.
-- Destroyed objects (`category="upkeep"`, title):
-  `<object> in sector <sector> was destroyed by <killer>.`
+  They have paid [the station] <N> Cr.` — details moved from `title` to
+  `text` in v9 for resupply (v9-verified for resupply; construction and
+  repair have zero archived instances, wording still v5.10-ported).
+- Destroyed objects (`category="upkeep"`; v9-verified, 323/323 archived
+  rows): title `<name> (<CODE>) was destroyed.`, text
+  `Location: <sector>[\012]` + optional `Commander: <name> (<CODE>)[\012]`
+  + optional `Destroyed by: <killer> (<CODE>)` (12/323 rows have no
+  killer line); carries `x`/`y`/`z` position attrs and
+  `interact="showlocationonmap"`. (The v5.10 one-line form
+  `<object> in sector <sector> was destroyed by <killer>.` no longer
+  occurs.)
 - Station manager surplus transfers (`category="upkeep"`, two wordings,
   changed ~v4→v5): `Received surplus of <N> Credits from <manager>` /
-  `Received surplus from <station> in <sector>`.
+  `Received surplus from <station> in <sector>` — zero archived
+  instances in either playthrough; **(unverified against v9)**.
 - Pirate harassment (title `Pirate Harassment`, text):
   `<ship> <CODE> in <sector>[\012]Accosted by <faction> pirate ship
   [\012]<FAC> <pirate> <CODE>.[\012]Response: <response>`
