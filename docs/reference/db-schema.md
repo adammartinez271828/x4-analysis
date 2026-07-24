@@ -403,7 +403,9 @@ them, and the merge no longer writes them.
 
 One row per import (`INSERT`, never replaced) — the record that an import
 happened and of the save's identity card. Persistent: survives schema
-bumps (P class), so `save_id`s never recycle. Save-side structure:
+bumps (P class), so `save_id`s never recycle. (True since the v11
+machinery repair — earlier bumps DID drop the table, so the import log
+effectively begins at v11; review X13/F3.) Save-side structure:
 savegame-structure.md § `<info>`.
 
 | Column | Type | Meaning | Provenance |
@@ -474,7 +476,7 @@ component tree.
 | `owner` | TEXT, FK → `faction.id` | owning faction id | `component@owner` |
 | `knownto` | TEXT | `player` = discovered | `component@knownto` |
 | `contested` | INTEGER | contested-sector flag | `component@contested` |
-| `spawntime` | REAL | creation game time (NULL = at world creation) | `component@spawntime` |
+| `spawntime` | REAL | creation game time; **0 = existed at world creation** (review X1 — an earlier revision said NULL means that; the data sides with 0: no NULL spawntimes exist in the registry domain), NULL = attribute absent | `component@spawntime` |
 | `parent_id` | TEXT, FK → `component.id` | nearest ancestor that is itself a component row (containment: ship docked at station, station in sector) | derived: ancestor stack |
 | `cluster_id` | TEXT, FK → `component.id` | enclosing cluster's runtime id | derived: ancestor stack |
 | `cluster_macro` | TEXT, FK → `cluster_ref.macro` | enclosing cluster's macro | derived: ancestor stack |
@@ -730,9 +732,13 @@ savegame-structure.md § Anomalies / wormholes.
 
 ### faction_relation / faction_meta / faction_licence
 
-The diplomacy block, flattened. Relations are directional; unlisted pair =
-neutral. Save-side: savegame-structure.md § `<factions>` (and
-docs/models/faction-relations-model.md for the semantics).
+The diplomacy block, flattened. Relations are stored **per direction**
+(each pair appears once under each faction's block), but in the measured
+save every one of the 486 base-relation pairs is exactly reciprocal
+(review X4) — treat asymmetry as unobserved, not impossible: the storage
+allows it, and whether the game ever produces it is unconfirmed.
+Unlisted pair = neutral. Save-side: savegame-structure.md § `<factions>`
+(and docs/models/faction-relations-model.md for the semantics).
 
 #### faction_relation
 
@@ -1022,7 +1028,7 @@ current snapshot join the registry directly.
 | `code` | TEXT | the slot, part 1 | `component@code` |
 | `class` | TEXT | the slot, part 2 | `component@class` |
 | `macro` | TEXT | asset macro | `component@macro` |
-| `spawntime` | REAL | the generation (NULL = world creation; only a slot's first generation can carry it) | `component@spawntime` |
+| `spawntime` | REAL | the generation (**0 = existed at world creation** — only a slot's first generation can carry it; review X1: 0, not NULL — the registry holds no NULL spawntimes) | `component@spawntime` |
 | `owner` | TEXT | **current** owner; history in `entity_event` | `component@owner` |
 | `name` | TEXT | **current** name; history in `entity_event` | `component@name` |
 | `first_seen` | REAL | game time of first observation | derived |
@@ -1229,7 +1235,7 @@ From `db/schema.py`; all `CREATE INDEX IF NOT EXISTS`:
 | `idx_tx_time` | `trade_tx(time)` | window merges and time-range queries |
 | `idx_tx_ware` | `trade_tx(ware)` | per-ware trade history |
 | `idx_money_time` | `money_event(time)` | window merges and time-range queries |
-| `idx_stock` | `stock_event(owner_id, ware, time)` | the `v_stock_delta` window scan |
+| `idx_stock` | `stock_event(owner_id, ware, time)` | ad-hoc owner-keyed stock reads. It does **not** serve the `v_stock_flow` window scan (the partition key is an expression — `EXPLAIN QUERY PLAN` shows SCAN) nor the merge's time-keyed queries (review X12) |
 | `idx_log_time` | `log_entry(category, time)` | per-category merges and reads |
 | `idx_recipe` | `recipe(ware, method)` | recipe lookups |
 | `idx_entity_slot` | `entity(code, class)` | registry slot matching |

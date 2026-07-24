@@ -143,13 +143,21 @@ knowledge, not yet a feature.
   plants. *Pending* = committed outbound sales, summed from
   `<trade partner= ware= amount=>` under `<order>` containers (seller =
   `partner` when `buyer` is present) — verified exact in-game.
-  *Target_level* is NOT stored — it is computed:
-  `target(ware) ≈ 6.105 h × workforce-ADJUSTED throughput (units/h)` for
-  every ware the station produces or consumes (incl. workforce food and
-  ammunition inputs); using base recipe rates instead of
-  workforce-adjusted ones is the classic error. Workforce bonus:
-  `actual_rate = base × (1 + staffing_ratio × recipe work_effect)`,
-  per-recipe, not per-station.
+  *Target_level* is NOT stored — it is computed from throughput. An
+  early single-station fit read it as a universal
+  `≈ 6.105 h × throughput` constant; the validated model
+  (`analysis/storage.py`, cross-checked against GDR-378 / PEJ-489 /
+  UBX-812 over all three transport pools — review X15) has **no
+  universal hour constant**: the hours factor `T` is **per station and
+  per transport pool** — the pool's capacity net of food buffers,
+  divided across the pool's production wares so each holds an equal
+  number of hours (`T = (pool_capacity − Σ food_volume) /
+  Σ(throughput × volume)`), with workforce food fixed at
+  `FOOD_HOURS = 4.0` h of consumption. Throughput must be
+  workforce-ADJUSTED — using base recipe rates is the classic error.
+  Workforce bonus: `actual_rate = base × (1 + staffing_ratio × recipe
+  work_effect)`, per-recipe, not per-station (output only; inputs stay
+  at base).
 - **Layer 3 — player-facing price** = `economy_price × (1 − tier% −
   event%)`. Reputation tier discounts: Known Associate 5% (relation
   ≥0.01), Prized Investor 15% (≥0.1), Partnership Agreement 25% (≥1.0);
@@ -175,12 +183,16 @@ share ONE pool — the engine property `units.maxcount`, no per-type caps
 (confirmed in-game). Actual counts live in the station's own
 `<ammunition><available>` block (which also holds turret munitions and
 deployables — separate inventories, flagged `is_unit=0` in the census).
-Capacity formula: `cap = Σ modcap.unit_storage (dock/pier/build/defence
-modules) + 10 × built production modules` — the `+10/production` term is
-fit from one data point, so only the readable floor
-(Σ `unit_storage`) is persisted (`capacity_floor`, exact for
-non-production stations; validated in-game: ABR-398 40, EBT-957 92,
-QJI-262 220, and MXH-411 310 incl. the production term). **Desired**
+Capacity formula: `cap = Σ module_cap.unit_storage (dock/pier/build/
+defence modules) + 10 × built production modules` — the `+10/production`
+term is FIT from a single data point (MXH-411: floor 40 vs true cap
+310), so only the readable floor (Σ `unit_storage`) is persisted
+(`capacity_floor`). The floor is validated in-game on ABR-398 40,
+EBT-957 92, QJI-262 220; MXH-411's 310 is the fit's source, **not** an
+independent validation of the production term (review X19 — an earlier
+revision listed it under "validated", which was circular; the term
+remains a one-point hypothesis, matching tests/test_drones.py's
+framing). **Desired**
 levels are not persisted anywhere in the save (the player auto-supply
 config `$config_supply_*` has zero hits) — the model records observable
 state only. Tables and views: db-schema.md § station_munition;

@@ -365,17 +365,24 @@ one `<area>` per minable sphere:
 ```
 
 - `yieldid` encodes the ware and levels: `sphere_<size>_<ware>_<yield
-  level>_<gatherspeed>` — both suffix tokens optional
-  (`sphere_medium_silicon_low` has no speed token). Wares seen: ore,
-  silicon, nividium, ice, hydrogen, helium, methane, rawscrap,
-  rawkhaakscrap, scrap.
+  level>_<gatherspeed>`. The grammar allows the suffix tokens to be
+  optional, but **in both analyzed playthroughs every area carries both**
+  (0 of ~6,000 areas lack a level or speed token — review X11; the
+  earlier `sphere_medium_silicon_low` example is not from these saves).
+  Wares seen in these playthroughs: ore, silicon, nividium, ice,
+  hydrogen, helium, methane, rawscrap, rawkhaakscrap (`scrap` appears in
+  the yieldid grammar but in no area of either save).
 - `yield` is the currently mineable amount (units of the ware).
 - `starttime` is the game time at which a depleted area becomes
-  respawn-eligible; `0` on live/never-depleted areas. **Trap:** an area past
-  its `starttime` still reads `yield="0"` in the save but is actually
-  respawned and full in-game — the save is not updated until something
-  interacts with it. (This v9 format replaced v5.10's per-ware `recharge`
-  attributes; there is no resource "recharge" number in v9 saves.)
+  respawn-eligible; `0` on live/never-depleted areas. **Trap:** on a
+  depleted area the `yield` attribute is **absent** (the game omits
+  default attributes; the parser reads it as 0 — review X11 corrected
+  an earlier claim that the save literally writes `yield="0"`), and an
+  area past its `starttime` is actually respawned and full in-game even
+  though its stored yield still reads as empty — the save is not updated
+  until something interacts with it. (This v9 format replaced v5.10's
+  per-ware `recharge` attributes; there is no resource "recharge" number
+  in v9 saves.)
 
 ### Stations
 

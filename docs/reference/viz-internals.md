@@ -208,13 +208,20 @@ only — excludes visitor###/civilian/ownerless).
 The `gamedata-dashboard` subcommand: a static GAME-FILE analysis page (no
 savegame involved), currently one tab comparing weapon mods per weapon at
 optimal rolls. Fully self-contained HTML (inline CSS/vanilla JS, no
-vendored libs). Simulation rules were validated in-game — a mod multiplies
-the stat field EXACTLY as stored (`reload rate` ×2 = twice the fire rate,
-so optimal roll is the range max; `reload time` would want the min), clip
-(`<ammunition>`) reload time is never modified, no cooling happens while
-firing, steady-state cycle fires reenable→overheat. Reference numbers in
-`tests/test_weaponsim.py` (EM Gun: 28.57 shots per heat bar, 20.41 s cold
-overheat). Weapon macros are deduped across DLCs in load order (timelines
+vendored libs). Simulation rules were validated in-game
+(`tests/test_weaponsim.py` is the source of truth — review X17 corrected
+this paragraph toward the tests): a reload mod always speeds fire up, in
+whichever encoding the weapon stores — it multiplies a stored `reload
+rate` and DIVIDES a stored `reload time` (S Plasma Cannon validation),
+so the optimal roll is the range max either way; clip (`<ammunition>`)
+reload time is never modified (cooling mods do nothing to it); cooling
+happens between shots once `cooldelay` elapses — a fast weapon like the
+EM Gun (0.71 s interval < 1.0 s cooldelay) never cools while firing, a
+slow one like the Plasma Cannon does; the heat cycle is DISCRETE
+(per-shot), which is why the EM Gun fires 29 shots per 10,000-heat bar
+(the 29th tips it over; 28 intervals ≈ 20.0 s from cold), not the
+continuous-rate 28.57/20.41 an earlier revision quoted; steady-state
+cycle fires reenable→overheat. Weapon macros are deduped across DLCs in load order (timelines
 re-issues terran weapons); `equipmentmods.xml` bonus blocks whose child
 count fits `max` at chance 1.0 are forced (applied at least-bad value),
 larger weighted pools are optional (detail-only).

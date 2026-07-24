@@ -93,9 +93,13 @@ files left on disk as backup, never read or written again).
 
 ## gamedata/ — game-file extraction
 
-`extract.py` + `catalog.py` + `textdb.py` (+ `engines.py`, `weapons.py`,
-`weaponsim.py`, `shields.py`, `shipmods.py` for the gamedata dashboard);
-`refdata.py` loads the CSVs. `extract-gamedata` reads the game's
+`extract.py` + `catalog.py` + `textdb.py`; `refdata.py` loads the CSVs.
+Of the equipment-model modules, only `weapons.py` + `weaponsim.py` feed
+the gamedata dashboard (`viz/weaponmods.py` — one tab, weapons only;
+review X16 corrected an earlier five-module attribution here):
+`engines.py`, `shields.py` and `shipmods.py` are extraction/model
+siblings that feed the external engine-mod rebalance harness, not this
+package's dashboards (each module's docstring says which). `extract-gamedata` reads the game's
 `.cat/.dat` archives (base + `ego_dlc_*` in load order, later wins; loose
 files override) and regenerates the reference CSVs including the full
 localization dump (`textdb.csv.gz`) used to resolve `{page,id}` refs in

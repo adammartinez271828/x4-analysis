@@ -194,7 +194,7 @@ arrive via the `<add sel>` diff mechanism above).
 ## modcaps.csv
 
 Station-module capacities. One row per module macro that declares
-workforce, cargo, or unit storage; key `macro`. Feeds the DB `modcap`
+workforce, cargo, or unit storage; key `macro`. Feeds the DB `module_cap`
 table.
 
 | Column | Meaning | Provenance |
