@@ -28,7 +28,11 @@ import hashlib
 # v12: economylog ingestion typed by ledger (plan T15 / review B1):
 #      money_event table, trade_tx.kind, money-block rows re-typed out of
 #      stock_event
-SCHEMA_VERSION = "12"
+# v13: the trend layer (plan T4/T5): A-class aggregate-history tables
+#      (sector_presence, station_metric, market_stat), appended once per
+#      distinct snapshot, never dropped. (The roadmap penciled this phase
+#      in as "v12" before T15 took that number.)
+SCHEMA_VERSION = "13"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -42,6 +46,13 @@ EVENT_TABLES = ("trade_tx", "stock_event", "money_event", "log_entry",
 # Their DDL is version-stable — if their shape ever must change, they
 # migrate like E tables via EVENT_MIGRATIONS.
 PERSISTENT_TABLES = ("save", "meta", "coverage")
+
+# A tables: accumulated aggregate history (the trend layer, plan T4) —
+# small per-snapshot aggregates appended once per DISTINCT snapshot
+# (keyed on v_snapshot's canonical save_id, so reruns append nothing),
+# never dropped on a version bump. Like the E tables, their history is
+# irreplaceable: it spans saves the game has since overwritten.
+AGGREGATE_TABLES = ("sector_presence", "station_metric", "market_stat")
 
 # money_event's DDL is shared between TABLES and the v11->v12 migration:
 # the migration walk runs BEFORE the CREATE loop at connect, and its
@@ -587,6 +598,51 @@ TABLES: dict[str, str] = {
   count          REAL,
   capacity_floor REAL,
   PRIMARY KEY (save_id, station_id, macro)
+)""",
+    # ---- aggregate history (A: appended per snapshot, never dropped) -------
+    # save_id is the CANONICAL snapshot id (v_snapshot / store.snapshot_id);
+    # joining save.game_time gives the time axis. Key columns that are NULL
+    # in the source (sector while in transit, ownerless objects) use the ''
+    # sentinel instead: SQLite treats NULL in a non-INTEGER PK column as
+    # distinct-from-everything, which would make the key decorative and
+    # duplicate appends succeed (plan review F6).
+    #
+    # territory & military presence: object counts per (sector, owner,
+    # class), ships/stations/buildstorages only (~1,500 rows / snapshot)
+    "sector_presence": """CREATE TABLE IF NOT EXISTS sector_presence (
+  save_id      INTEGER NOT NULL,   -- canonical snapshot id (v_snapshot)
+  sector_macro TEXT NOT NULL DEFAULT '',  -- '' = no sector (in transit)
+  owner        TEXT NOT NULL DEFAULT '',  -- '' = ownerless
+  class        TEXT NOT NULL,      -- station | ship_xl | ship_l | ...
+  n            INTEGER NOT NULL,
+  PRIMARY KEY (save_id, sector_macro, owner, class)
+)""",
+    # per-player-station economics: one row per station per snapshot.
+    # entity_id comes from the registry (never NULL there; stations the
+    # registry could not resolve are skipped)
+    "station_metric": """CREATE TABLE IF NOT EXISTS station_metric (
+  save_id       INTEGER NOT NULL,  -- canonical snapshot id (v_snapshot)
+  entity_id     INTEGER NOT NULL,  -- durable station identity (T2)
+  workforce     REAL,              -- Σ workforce.amount
+  modules_built INTEGER,           -- COUNT(module WHERE built=1)
+  cargo_value_cr REAL,             -- Σ cargo.amount × ware.price_avg
+  buy_open_cr   REAL,              -- Σ open buy offers × price
+  sell_open_cr  REAL,              -- Σ open sell offers × price
+  PRIMARY KEY (save_id, entity_id)
+)""",
+    # market history at sector granularity: per (sector, ware, side) price
+    # band + open volume over the whole offer book. The only obtainable
+    # NPC price signal over time — the save's economylog carries no
+    # NPC↔NPC transactions, but the offer book is complete every snapshot.
+    "market_stat": """CREATE TABLE IF NOT EXISTS market_stat (
+  save_id      INTEGER NOT NULL,   -- canonical snapshot id (v_snapshot)
+  sector_macro TEXT NOT NULL DEFAULT '',  -- '' = offer host has no sector
+  ware         TEXT NOT NULL,
+  side         TEXT NOT NULL,      -- buy | sell
+  n_offers     INTEGER NOT NULL,
+  units        REAL,               -- Σ amount
+  price_min_cr REAL, price_avg_cr REAL, price_max_cr REAL,
+  PRIMARY KEY (save_id, sector_macro, ware, side)
 )""",
 }
 

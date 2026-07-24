@@ -3,9 +3,11 @@
 The database (one per game GUID, in the user data dir next to the csv.gz
 caches) is a rebuildable artifact derived from save + game files — EXCEPT
 the event-history tables (schema.EVENT_TABLES), which preserve the
-rolling log/economylog windows the game has already discarded, and the
+rolling log/economylog windows the game has already discarded, the
 persistent bookkeeping tables (schema.PERSISTENT_TABLES: save/meta, the
-provenance log and cross-run flags); neither class is ever dropped.
+provenance log and cross-run flags), and the aggregate-history tables
+(schema.AGGREGATE_TABLES, the per-snapshot trend layer); none of these
+classes is ever dropped.
 Schema and conventions: docs/reference/db-schema.md.
 
 Load rules worth calling out:
@@ -73,7 +75,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         # Event tables carry irreplaceable history and save/meta carry
         # cross-run provenance; they get targeted statements instead,
         # walking the complete version chain so off-chain DBs migrate too.
-        keep = schema.EVENT_TABLES + schema.PERSISTENT_TABLES
+        keep = (schema.EVENT_TABLES + schema.PERSISTENT_TABLES
+                + schema.AGGREGATE_TABLES)
         with conn:
             step = version
             while (step != schema.SCHEMA_VERSION
@@ -459,6 +462,80 @@ def snapshot_id(conn: sqlite3.Connection, save_id: int) -> int:
     return conn.execute(
         "SELECT MIN(save_id) FROM save WHERE guid IS ? AND game_time IS ?"
         " AND save_date IS ?", row).fetchone()[0]
+
+
+# ---- aggregate history (A: the trend layer, appended per snapshot) ----------
+
+def write_aggregates(conn: sqlite3.Connection, save_id: int) -> bool:
+    """Append this import's per-snapshot aggregates (plan T4): small
+    INSERT…SELECTs over the W tables write_snapshot just wrote. Rows key
+    on the CANONICAL snapshot id (snapshot_id/v_snapshot), and each table
+    is appended only if that snapshot has no rows there yet — so reruns
+    add nothing, while a snapshot first imported before the A layer
+    existed still receives its rows on the next import. Key columns that
+    are NULL in the source COALESCE to '' (schema comment / plan F6).
+    Returns True when anything was appended."""
+    snap = snapshot_id(conn, save_id)
+    appended = False
+    with conn:
+        have = {table: conn.execute(
+                    f"SELECT 1 FROM {table} WHERE save_id = ? LIMIT 1",
+                    (snap,)).fetchone() is not None
+                for table in schema.AGGREGATE_TABLES}
+        if not have["sector_presence"]:
+            conn.execute(
+                """INSERT INTO sector_presence
+                   SELECT ?, COALESCE(sector_macro, ''),
+                          COALESCE(owner, ''), class, COUNT(*)
+                   FROM component
+                   WHERE save_id = ?
+                     AND (class LIKE 'ship_%'
+                          OR class IN ('station', 'buildstorage'))
+                   GROUP BY 2, 3, 4""", (snap, save_id))
+            appended = True
+        if not have["station_metric"]:
+            conn.execute(
+                """INSERT INTO station_metric
+                   SELECT ?, c.entity_id,
+                          (SELECT SUM(w.amount) FROM workforce w
+                            WHERE w.save_id = c.save_id
+                              AND w.station_id = c.id),
+                          (SELECT COUNT(*) FROM module m
+                            WHERE m.save_id = c.save_id
+                              AND m.host_id = c.id AND m.built = 1),
+                          (SELECT SUM(cg.amount * COALESCE(wr.price_avg, 0))
+                             FROM cargo cg
+                             LEFT JOIN ware wr ON wr.id = cg.ware
+                            WHERE cg.save_id = c.save_id
+                              AND cg.object_id = c.id),
+                          (SELECT SUM(o.amount * o.price_cr)
+                             FROM trade_offer o
+                            WHERE o.save_id = c.save_id
+                              AND o.object_id = c.id AND o.side = 'buy'),
+                          (SELECT SUM(o.amount * o.price_cr)
+                             FROM trade_offer o
+                            WHERE o.save_id = c.save_id
+                              AND o.object_id = c.id AND o.side = 'sell')
+                   FROM component c
+                   WHERE c.save_id = ? AND c.class = 'station'
+                     AND c.owner = 'player'
+                     AND c.entity_id IS NOT NULL""", (snap, save_id))
+            appended = True
+        if not have["market_stat"]:
+            conn.execute(
+                """INSERT INTO market_stat
+                   SELECT ?, COALESCE(c.sector_macro, ''), o.ware, o.side,
+                          COUNT(*), SUM(o.amount), MIN(o.price_cr),
+                          AVG(o.price_cr), MAX(o.price_cr)
+                   FROM trade_offer o
+                   LEFT JOIN component c
+                     ON c.save_id = o.save_id AND c.id = o.object_id
+                   WHERE o.save_id = ?
+                   GROUP BY 2, 3, 4""", (snap, save_id))
+            appended = True
+    if not appended:
+        log("Trend rows already recorded for this snapshot; append skipped")
+    return appended
 
 
 # ---- entity registry (E: surrogate identity across snapshots) ---------------

@@ -33,6 +33,9 @@ def run_analysis(cfg: Config) -> int:
         # snapshot (component.entity_id) and the merged event rows
         entities = store.update_entity_registry(conn, save, ref)
         save_id = store.write_snapshot(conn, save, ref, save_file, entities)
+        # trend layer: per-snapshot aggregates, appended once per distinct
+        # snapshot (reruns add nothing)
+        store.write_aggregates(conn, save_id)
         store.merge_events(conn, save, ref,
                            station_types_from_db(conn, ref), entities)
 

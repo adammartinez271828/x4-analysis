@@ -37,21 +37,26 @@ readers and the writer coexist, which live/serve mode relies on.
 | **P — persistent bookkeeping** | `meta`, `save`, `coverage` | per key / per import / per (stream, epoch) | never dropped, schema bumps included — `save` ids are the time dimension cross-run data keys into, `meta` carries flags the bump path itself reads, `coverage` records what the event history covers (`meta` upserted; `save` accumulates one row per import; `coverage` extended by every merge) |
 | **W — world state** | 22 tables (`component` …) | rebuilt on every import, stamped `save_id` | ALL rows deleted before each import — only the latest snapshot is retained |
 | **E — event history** | `trade_tx`, `stock_event`, `money_event`, `log_entry`, `removed_object`, `entity`, `entity_event` | merged across runs, windows stitched | never dropped, not even on schema resets; migrated by targeted `ALTER`s |
+| **A — aggregate history** | `sector_presence`, `station_metric`, `market_stat` | appended once per **distinct snapshot** (keyed on the canonical `v_snapshot` save_id; reruns append nothing) | never dropped — the trend layer's history spans saves the game has since overwritten |
 | **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) when the reference data changed since the last import (`meta.reference_digest` guard; unchanged data skips the rewrite) |
 | **D — derived** | 5 `event_*` tables + `station_storage`, `station_munition` | recomputed every run (log-text parsing / analysis models) | replaced wholesale every run |
 
 The **current snapshot** is `MAX(save_id)` — named by the `current_save`
 view; every snapshot-scoped view filters to it.
 Re-importing the same save appends a new `save` row and rewrites the W
-tables under the new `save_id` — W history is not kept (the `save` table is
-the only record that older imports happened).
+tables under the new `save_id` — W history is not kept. `save` is the
+per-*import* log; the `v_snapshot` view collapses it to distinct saves,
+and per-snapshot series (the A tables) key on its canonical `save_id`.
 
 ### Conventions
 
 - **NULL, not ""**: absent XML attributes load as SQL NULL (the parser's
-  empty-string convention is converted at load). One deliberate exception:
-  `trade_offer.object_id` keeps `''` for hostless offers so the NOT NULL
-  column always loads.
+  empty-string convention is converted at load). Two deliberate
+  exceptions: `trade_offer.object_id` keeps `''` for hostless offers so
+  the NOT NULL column always loads, and the A tables' text **key**
+  columns use `''` for absent (SQLite treats NULL in a non-INTEGER PK
+  column as distinct-from-everything, which would let duplicate appends
+  succeed — the sentinel keeps the key real).
 - **Money**: columns suffixed `_cr` are credits (save cents ÷ 100 at load).
   The one raw-cents column is `faction_meta.account` (verified: it equals
   `save.player_money_cr` × 100).
@@ -234,6 +239,27 @@ erDiagram
         TEXT event
     }
 
+    %% ================= aggregate history (A) =================
+    sector_presence {
+        INTEGER save_id PK
+        TEXT sector_macro PK
+        TEXT owner PK
+        TEXT class PK
+        INTEGER n
+    }
+    station_metric {
+        INTEGER save_id PK
+        INTEGER entity_id PK
+        REAL workforce
+        INTEGER modules_built
+    }
+    market_stat {
+        INTEGER save_id PK
+        TEXT sector_macro PK
+        TEXT ware PK
+        TEXT side PK
+    }
+
     %% ================= reference (R) =================
     ware {
         TEXT id PK
@@ -328,6 +354,12 @@ erDiagram
     entity ||..o{ component : "entity_id"
     component ||..o{ station_storage : "station_id"
     component ||..o{ station_munition : "station_id"
+    save ||..o{ sector_presence : "save_id"
+    save ||..o{ station_metric : "save_id"
+    save ||..o{ market_stat : "save_id"
+    entity ||..o{ station_metric : "entity_id"
+    sector_ref ||..o{ sector_presence : "sector_macro"
+    sector_ref ||..o{ market_stat : "sector_macro"
 ```
 
 ## Core dimension
@@ -338,7 +370,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"12"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"13"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are refused registry updates |
 | `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
@@ -980,6 +1012,71 @@ current snapshot join the registry directly.
 Reference DB scale (2026-07-24): 36,825 entities (18,458 open, 16,323
 disappeared, 2,044 recycled), 65 events.
 
+## Aggregate history (A) — appended per snapshot
+
+The trend layer (plan T4): small aggregates of the W tables, appended
+**once per distinct snapshot** and never dropped — history accrues with
+every analyzed save. All three key on the **canonical snapshot id**
+(`v_snapshot.save_id` = the snapshot's first import row, resolved by
+`store.snapshot_id()`), which makes them rerun-immune: `write_aggregates`
+appends a table's rows only when that snapshot has none there yet, so a
+re-import adds nothing, while a snapshot first imported *before* the A
+layer existed still receives its rows on its next import (how the
+archive seeding works). Joining `save.game_time` gives the time axis.
+
+Key columns that are NULL in the source use the `''` sentinel (see
+Conventions) — a NULL text PK column would let duplicate appends
+succeed.
+
+### sector_presence
+
+Territory and military presence: object counts per (sector, owner,
+class), covering stations, ships and build storages (~1,500 rows per
+snapshot).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save.save_id` | canonical snapshot id | derived: `snapshot_id()` |
+| `sector_macro` | TEXT PK | sector, `''` = no sector (in transit) | `component.sector_macro` |
+| `owner` | TEXT PK | owner faction, `''` = ownerless | `component.owner` |
+| `class` | TEXT PK | `station` / `ship_xl` / `ship_l` / … / `buildstorage` | `component.class` |
+| `n` | INTEGER | object count | derived: `COUNT(*)` |
+
+### station_metric
+
+Per-player-station economics, one row per station per snapshot, keyed on
+the registry's durable identity — a station's series survives renames
+and id drift. Stations the registry could not resolve (no `entity_id`)
+are skipped.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save.save_id` | canonical snapshot id | derived: `snapshot_id()` |
+| `entity_id` | INTEGER PK, FK → `entity.entity_id` | durable station identity | `component.entity_id` |
+| `workforce` | REAL | Σ `workforce.amount` | derived |
+| `modules_built` | INTEGER | built plan entries (`module.built = 1`) | derived |
+| `cargo_value_cr` | REAL | Σ `cargo.amount` × `ware.price_avg` | derived |
+| `buy_open_cr` | REAL | Σ open buy offers × price | derived from `trade_offer` |
+| `sell_open_cr` | REAL | Σ open sell offers × price | derived from `trade_offer` |
+
+### market_stat
+
+Market history at sector granularity: per (sector, ware, side) price
+band and open volume over the whole offer book (~3–6 k rows per
+snapshot). The only obtainable NPC price signal over time — the save's
+economylog carries no NPC↔NPC transactions, but the offer book is
+complete every snapshot.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save.save_id` | canonical snapshot id | derived: `snapshot_id()` |
+| `sector_macro` | TEXT PK | offer host's sector, `''` = none | `component.sector_macro` via `trade_offer.object_id` |
+| `ware` | TEXT PK | ware id | `trade_offer.ware` |
+| `side` | TEXT PK | `buy` / `sell` | `trade_offer.side` |
+| `n_offers` | INTEGER | offer count | derived |
+| `units` | REAL | Σ `trade_offer.amount` | derived |
+| `price_min_cr` / `price_avg_cr` / `price_max_cr` | REAL | price band, credits | derived |
+
 ## Reference (R) — game data, replaced wholesale
 
 Loaded from the extract-gamedata CSVs (packaged copies or the per-user
@@ -1114,7 +1211,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"12"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"13"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1134,10 +1231,15 @@ The E-table indices are applied through the idempotent
    their columns explicitly. The v11→v12 step stays in the chain
    indefinitely: any pre-v12 DB is corrected the first time it is
    opened, whenever that happens.
-3. **P tables (`save`, `meta`) are never dropped** — `save_id`s never
-   recycle and `meta` flags survive the code path that reads them. Their
-   DDL is version-stable; if their shape ever must change, they migrate
-   like E tables.
+3. **P tables (`save`, `meta`, `coverage`) and A tables
+   (`sector_presence`, `station_metric`, `market_stat`) are never
+   dropped** — `save_id`s never recycle, `meta` flags survive the code
+   path that reads them, and the aggregate history spans saves the game
+   has since overwritten. Their DDL is version-stable; if their shape
+   ever must change, they migrate like E tables. (The v12→v13 bump has
+   no `EVENT_MIGRATIONS` entry: the A tables are new and created by the
+   idempotent `CREATE TABLE IF NOT EXISTS` pass, so the step is an empty
+   walk.)
 4. **Everything else is dropped and recreated** — W/R/D tables rebuild
    from the save + CSVs in seconds, so no data migration is ever written
    for them.

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from x4analyzer.db import store
+from x4analyzer.db import store, schema
 from x4analyzer.config import Config
 from x4analyzer.gamedata.refdata import load_refdata
 from x4analyzer.save.parser import parse_savegame
@@ -710,6 +710,114 @@ def test_v_snapshot_carries_min_row_columns(conn, save_data, ref):
         "SELECT save_id, guid, game_time, player_money_cr, player_name"
         " FROM v_snapshot").fetchone()
     assert row == (1, "ABCD-1234", 5000.5, 1234.56, "Test Pilot")
+
+
+def test_aggregates_written_per_snapshot(cfg, save_data, ref):
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    ents = store.update_entity_registry(conn, save_data, ref)
+    sid = store.write_snapshot(conn, save_data, ref, "save.xml", ents)
+    assert store.write_aggregates(conn, sid) is True
+
+    # presence: the player station + player ship, per sector/owner/class
+    assert sorted(conn.execute(
+        "SELECT save_id, sector_macro, owner, class, n"
+        " FROM sector_presence")) == [
+        (1, "cluster_01_sector001_macro", "player", "ship_s", 1),
+        (1, "cluster_01_sector001_macro", "player", "station", 1)]
+
+    # station metrics: keyed on the registry's durable identity
+    (sm,) = conn.execute(
+        "SELECT save_id, entity_id, workforce, modules_built,"
+        " cargo_value_cr, buy_open_cr, sell_open_cr"
+        " FROM station_metric").fetchall()
+    assert sm[0] == 1
+    assert sm[1] == ents["[0x20]"]
+    assert sm[3] == 0                    # both plan entries are unbuilt
+    assert sm[5] == 500.0                # the open buy offer, 500 × 1.0 cr
+    assert sm[6] is None                 # no sell offers
+
+    # market band: the offer book aggregated per (sector, ware, side)
+    assert conn.execute(
+        "SELECT save_id, sector_macro, ware, side, n_offers, units,"
+        " price_min_cr, price_avg_cr, price_max_cr FROM market_stat"
+        ).fetchall() == [
+        (1, "cluster_01_sector001_macro", "energycells", "buy",
+         1, 500.0, 1.0, 1.0, 1.0)]
+    conn.close()
+
+
+def test_aggregates_rerun_adds_zero(cfg, save_data, ref):
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    ents = store.update_entity_registry(conn, save_data, ref)
+    sid = store.write_snapshot(conn, save_data, ref, "save.xml", ents)
+    store.write_aggregates(conn, sid)
+    before = {t: count(conn, t) for t in
+              ("sector_presence", "station_metric", "market_stat")}
+
+    # re-import the same save: new save row, zero new A rows
+    sid2 = store.write_snapshot(conn, save_data, ref, "save.xml", ents)
+    assert store.write_aggregates(conn, sid2) is False
+    for t, n in before.items():
+        assert count(conn, t) == n, t
+        # and every A row keys on the FIRST import (the canonical id)
+        assert conn.execute(
+            f"SELECT DISTINCT save_id FROM {t}").fetchall() == [(1,)], t
+    conn.close()
+
+
+def test_aggregates_backfill_pre_layer_snapshot(cfg, save_data, ref):
+    """A snapshot first imported before the A layer existed has save rows
+    but no A rows; a rerun must append them, keyed on the ORIGINAL
+    import's save_id — the case the archive seeding relies on."""
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    ents = store.update_entity_registry(conn, save_data, ref)
+    store.write_snapshot(conn, save_data, ref, "save.xml", ents)  # no A
+    sid2 = store.write_snapshot(conn, save_data, ref, "save.xml", ents)
+    assert store.write_aggregates(conn, sid2) is True
+    assert conn.execute(
+        "SELECT DISTINCT save_id FROM sector_presence").fetchall() == [(1,)]
+    conn.close()
+
+
+def test_aggregate_null_keys_stay_unique(conn):
+    """Plan F6: a NULL in a text PK column would be distinct-from-
+    everything, letting duplicate appends succeed — the '' sentinel keeps
+    the key real. A duplicate row-set must be rejected."""
+    import sqlite3
+    conn.execute(
+        "INSERT INTO sector_presence VALUES (99, '', '', 'ship_s', 1)")
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO sector_presence VALUES (99, '', '', 'ship_s', 2)")
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO market_stat VALUES"
+            " (99, '', 'ore', 'buy', 1, 1, 1, 1, 1),"
+            " (99, '', 'ore', 'buy', 2, 2, 2, 2, 2)")
+
+
+def test_schema_bump_spares_aggregate_tables(cfg, save_data, ref):
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    sid = store.write_snapshot(conn, save_data, ref, "save.xml")
+    store.write_aggregates(conn, sid)
+    rows = conn.execute("SELECT * FROM sector_presence ORDER BY 2,3,4"
+                        ).fetchall()
+    assert rows
+    conn.execute(
+        "UPDATE meta SET value = '12' WHERE key = 'schema_version'")
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, save_data.guid)   # v12 -> v13 bump path
+    assert conn.execute("SELECT value FROM meta WHERE key='schema_version'"
+                        ).fetchone() == (schema.SCHEMA_VERSION,)
+    assert conn.execute("SELECT * FROM sector_presence ORDER BY 2,3,4"
+                        ).fetchall() == rows
+    conn.close()
 
 
 def test_v_faction_standing(conn):
