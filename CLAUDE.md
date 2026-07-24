@@ -63,7 +63,7 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 
 ## Gotchas
 
-- **Identity**: none of the game's own fields is a GUID — runtime ids (`[0x..]`) remap on every load, names change on rename, owners on capture, and codes (`ABC-123`) are recycled after death. The entity registry (`entity` table) mints surrogate `entity_id`s; key cross-run analysis on those, fall back to codes only among simultaneously-alive same-faction objects, and never key on names. Full model: [db-schema.md](docs/reference/db-schema.md), [save-semantics.md](docs/reference/save-semantics.md).
+- **Identity**: none of the game's own fields is a GUID — runtime ids (`[0x..]`) remap on every load, names change on rename, owners on capture, and codes (`ABC-123`) are recycled after death. The entity registry (`entity` table) mints surrogate `entity_id`s; key cross-run analysis on those, treat a code fallback as a heuristic needing the full (code, class) slot — live collisions exist even among simultaneously-alive same-faction same-class ships — and never key on names. Full model: [db-schema.md](docs/reference/db-schema.md), [save-semantics.md](docs/reference/save-semantics.md).
 - Stations list their build plan TWICE in the save (construction sequence + expand queue repeat the same entry ids) and sequences include unbuilt entries: anything measuring existing capacity/storage/value must use `frames.built_modules` / `v_built_module`, never `station_modules` (pre-fix hull-parts "capacity" was nearly 2× reality).
 - pandas `itertuples()` mangles the dotted column names — use `iterrows()` or positional access when a loop touches columns like `sector.id`.
 - Money in save files is in cents; divide by 100 (trade `price`, log `money`, player money).

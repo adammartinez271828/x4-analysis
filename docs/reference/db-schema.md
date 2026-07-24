@@ -693,7 +693,15 @@ crash never half-merges, and **re-running on the same save adds nothing**:
 - **Coverage epochs** — if a new window starts *after* everything stored,
   the game discarded events in the gap; the merge increments `epoch` so
   stock-delta math never computes a delta across the gap. `epoch` is a
-  property of the merge, not of the save.
+  property of the merge, not of the save, and is global per table (one
+  counter across all owners, `MAX(epoch)` at merge time). CONFIRMED by
+  synthetic probe (2026-07-23): two disjoint windows merged into a scratch
+  copy incremented `epoch` 0→1→2, and `v_stock_delta` returned `dv = NULL`
+  for the first row of each new epoch instead of a phantom cross-gap delta
+  (the same query without the epoch partition term reported a 150-unit
+  phantom). No real import has ever fired it — both populated DBs hold
+  `MAX(epoch) = 0` — so gap behavior on real data remains unexercised in
+  production, but the mechanism itself is verified.
 - **Identity resolution happens at merge time** — the only moment a
   window's runtime ids are unambiguous (they remap on every load). Each
   party is stamped with its display identity (`*_faction`, `*_code`,
@@ -815,8 +823,14 @@ evidence:
   instead of duplicating it (objects drift in and out of the universe
   tree, so registration ignores the `@connection` filter that `component`
   applies).
-- Live same-slot collisions (cross-faction code reuse happens in long
-  saves) are resolved by preferring matching macro, then owner.
+- Live same-slot collisions happen both cross-faction and **same-faction
+  same-class** (CONFIRMED: save_001/save_002 each contain two
+  simultaneously-alive terran `ship_ter_s_fighter_01_a` both coded
+  XPU-790 — two physical ships in different clusters, identical code,
+  class, macro, owner *and* spawntime; entities 5318/11691). Matching
+  prefers matching macro, then owner; fully indistinguishable candidates
+  fall to deterministic entity_id order, which keeps each entity's
+  timeline self-consistent but can swap which physical ship is which.
 - Snapshots older than `meta.entity_registry_time` are refused — stale
   observations would corrupt newer lifecycle history.
 

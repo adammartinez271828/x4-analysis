@@ -47,13 +47,19 @@ where it still matters.
 None of the game's own fields identifies a ship/station across sessions:
 runtime ids (`[0x..]`) remap on every load, names change on rename, owners
 on capture, and codes (`ABC-123`) are recycled after death (measured: 163
-recycles in 21 game-minutes of NPC churn; live cross-faction code
-collisions exist in 600h saves). The **entity registry**
-(db-schema.md § entity) mints surrogate `entity_id`s from the evidence
-(code+class = slot, spawntime = generation, capture/rename tracked in
-`entity_event`); trade rows carry `*_entity` columns resolved at merge
-time. Key cross-run analysis on entity ids where available; codes are safe
-as a fallback only among simultaneously-alive same-faction objects. Names
+recycles in 21 game-minutes of NPC churn). Live code collisions exist and
+are not limited to cross-faction reuse: a code can be held simultaneously
+by objects of different classes (RYJ-686 is at once a xenon corvette and a
+xenon lasertower), and CONFIRMED even by two same-faction same-class ships
+(save_001 holds two live terran `ship_ter_s_fighter_01_a` both coded
+XPU-790 — verified as two physical components in the save XML). The
+**entity registry** (db-schema.md § entity) mints surrogate `entity_id`s
+from the evidence (code+class = slot, spawntime = generation,
+capture/rename tracked in `entity_event`); trade rows carry `*_entity`
+columns resolved at merge time. Key cross-run analysis on entity ids where
+available; a code fallback needs at least the full (code, class) slot and
+even then is only a heuristic — same-slot collisions among
+simultaneously-alive same-faction objects are real. Names
 are display-only, never keys: `frames` re-resolves tradelog display names
 (entity name first, then per-code current-save/latest-history) so renamed
 objects don't split in per-object views.
