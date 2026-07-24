@@ -155,7 +155,7 @@ FIXTURE = """<?xml version="1.0"?>
     </removed>
   </economylog>
   <log>
-    <entry time="100.0" category="upkeep" title="Test entry" text="text"/>
+    <entry time="100.0" category="upkeep" title="Test entry" text="text" interact="showlocation"/>
   </log>
 </savegame>
 """

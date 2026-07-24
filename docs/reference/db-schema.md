@@ -381,7 +381,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"15"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"16"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
@@ -949,7 +949,7 @@ The player logbook, all categories. Save-side: savegame-structure.md §
 | `text` | TEXT | localized body text (`[\012]` newlines preserved) | `log/entry@text` |
 | `faction` | TEXT | actor ref — kept **raw**, including `{page,id}` refs | `log/entry@faction` |
 | `money_cr` | REAL | credits involved | `log/entry@money` ÷ 100 |
-| `interaction` | TEXT | **defined but never populated** — the save spells the attribute `interact`, the loader reads `interaction`; the value survives only inside `raw_attrs` | `log/entry@interact` (missed) |
+| `interact` | TEXT | interaction verb offered by the entry (e.g. a show-location link). Named `interaction` before v16 and never populated (the loader read an attribute the save doesn't write); the v15→v16 migration renamed it and backfilled history from `raw_attrs` (plan T12) | `log/entry@interact` |
 | `component_id` | TEXT | subject object runtime id | `log/entry@component` |
 | `highlighted` | TEXT | `"1"` on emphasized entries | `log/entry@highlighted` |
 | `raw_attrs` | TEXT | full source element as JSON | derived |
@@ -1246,7 +1246,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"15"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"16"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1262,7 +1262,9 @@ The E-table indices are applied through the idempotent
    rows out of `stock_event`; v13→v14: the coverage backfill + meta
    window-key retirement; v14→v15: dropping the renamed `module`/
    `modcap` tables, which the current-names-only drop path would
-   otherwise leave as zombies) — their history is irreplaceable. New
+   otherwise leave as zombies; v15→v16: `log_entry.interaction` →
+   `interact`, backfilled from `raw_attrs` — the loader had read an
+   attribute the save never writes) — their history is irreplaceable. New
    columns always append at the end of the fresh DDL so ALTERed and
    fresh tables line up; even so, a migrated DB may carry a different
    *physical* column order than a fresh one, which is why inserts name
@@ -1299,7 +1301,6 @@ when inspecting older databases.
 | Column | Why |
 |---|---|
 | `build_entry.build_method` | sequence entries never sit under a `<build method=…>` element in observed saves — always NULL |
-| `log_entry.interaction` | attribute-name mismatch: the save writes `interact`, the loader reads `interaction`; the value is recoverable from `raw_attrs` |
 | `removed_object.time` | v9 removed-object elements carry no `time` attribute |
 | `datavault.blueprints` | populated only while uncollected Erlking blueprints exist; this playthrough collected them all |
 | `event_construction`, `event_transfer` | `event_construction` fills only when construction/repair/resupply log events exist (one v9 resupply row in the 559 h DB); `event_transfer` has zero archived surplus-transfer instances anywhere and its v5.10-ported wording remains unverifiable. (`event_destroyed` left this list 2026-07-24: the events existed all along in the new v9 wording — the parser was rewritten and the archived rows now populate it, 6 in the reference DB / 157 in the 559 h DB.) |

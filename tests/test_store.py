@@ -305,9 +305,11 @@ def test_event_values(conn):
         " owner_faction, owner_code FROM money_event").fetchall() \
         == [(10.7, "[0x20]", "[0x77]", "trade", 1, 160000.0,
              "player", "STA-001")]
+    # interact reads the save's attribute name (v16, plan T12 — the old
+    # `interaction` read was never populated)
     assert conn.execute(
-        "SELECT time, category, title FROM log_entry").fetchall() == [
-        (100.0, "upkeep", "Test entry")]
+        "SELECT time, category, title, interact FROM log_entry"
+        ).fetchall() == [(100.0, "upkeep", "Test entry", "showlocation")]
     assert conn.execute(
         "SELECT id, name, owner FROM removed_object").fetchall() == [
         ("115", "TEL Trader", "teladi")]
@@ -482,6 +484,8 @@ def test_v1_database_migrates_keeping_history(cfg):
     conn = sqlite3.connect(store.db_path(cfg, "MIG"))
     conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
     conn.execute(schema.TABLES["log_entry"])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact TO interaction")
     conn.execute("INSERT INTO meta VALUES ('schema_version', '1')")
     conn.execute("CREATE TABLE stock_event (time REAL NOT NULL,"
                  " owner_id TEXT NOT NULL, ware TEXT NOT NULL, level REAL,"
@@ -811,6 +815,9 @@ def test_schema_bump_spares_aggregate_tables(cfg, save_data, ref):
     assert rows
     conn.execute(
         "UPDATE meta SET value = '12' WHERE key = 'schema_version'")
+    # v12-shape log_entry so the 15->16 step of the walk applies cleanly
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact"
+                 " TO interaction")
     conn.commit()
     conn.close()
 
@@ -1271,6 +1278,8 @@ def test_v2_database_migrates_keeping_trades(cfg):
     conn = sqlite3.connect(store.db_path(cfg, "MIG2"))
     conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
     conn.execute(schema.TABLES["log_entry"])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact TO interaction")
     conn.execute("INSERT INTO meta VALUES ('schema_version', '2')")
     conn.execute("CREATE TABLE trade_tx (time REAL NOT NULL,"
                  " ware TEXT NOT NULL, buyer_id TEXT, seller_id TEXT,"

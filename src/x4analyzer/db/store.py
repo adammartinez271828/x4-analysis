@@ -856,7 +856,7 @@ def _merge_log(conn: sqlite3.Connection, entries: list[dict]) -> None:
     rows = list(dict.fromkeys(  # dedupe on the full natural row
         (_time_of(e), _s(e.get("category")), _s(e.get("title")),
          _s(e.get("text")), _s(e.get("faction")), _cents(e.get("money")),
-         _s(e.get("interaction")), _s(e.get("component")),
+         _s(e.get("interact")), _s(e.get("component")),
          _s(e.get("highlighted")), json.dumps(e, sort_keys=True))
         for e in entries if _time_of(e) is not None))
     if not rows:
@@ -1102,7 +1102,7 @@ def _import_log_cache(conn: sqlite3.Connection,
     with conn:
         conn.executemany(
             "INSERT INTO log_entry (time, category, title, text, faction,"
-            " money_cr, interaction, component_id, highlighted, raw_attrs)"
+            " money_cr, interact, component_id, highlighted, raw_attrs)"
             " VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
     return len(rows)
 

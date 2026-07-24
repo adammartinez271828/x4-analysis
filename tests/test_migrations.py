@@ -101,6 +101,8 @@ def test_off_chain_v5_database_migrates(tmp_path):
     conn.execute(schema.TABLES["trade_tx"])
     conn.execute(schema.TABLES["stock_event"])
     conn.execute(schema.TABLES["log_entry"])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact TO interaction")
     # v5-era trade_tx predates the v12 `kind` column (the fresh DDL is
     # the stand-in, so strip what the 11->12 migration will re-add)
     conn.execute("ALTER TABLE trade_tx DROP COLUMN kind")
@@ -136,6 +138,8 @@ def test_v1_database_walks_full_chain(tmp_path):
     conn = sqlite3.connect(store.db_path(cfg, "V1"))
     conn.execute(schema.TABLES["meta"])
     conn.execute(schema.TABLES["log_entry"])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact TO interaction")
     conn.execute("INSERT INTO meta VALUES ('schema_version', '1')")
     conn.execute("CREATE TABLE stock_event (time REAL NOT NULL,"
                  " owner_id TEXT NOT NULL, ware TEXT NOT NULL, level REAL,"
@@ -171,6 +175,8 @@ def test_v11_database_retypes_money_rows(tmp_path):
     conn.execute(schema.TABLES["trade_tx"])
     conn.execute(schema.TABLES["stock_event"])
     conn.execute(schema.TABLES["log_entry"])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact TO interaction")
     conn.execute("ALTER TABLE trade_tx DROP COLUMN kind")  # v11 shape
     conn.execute("INSERT INTO meta VALUES ('schema_version', '11')")
 
@@ -245,6 +251,10 @@ def test_v14_database_drops_renamed_tables(tmp_path):
     conn = sqlite3.connect(store.db_path(cfg, "V14"))
     conn.execute(schema.TABLES["meta"])
     conn.execute(schema.TABLES["save"])
+    conn.execute(schema.TABLES["log_entry"])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact"
+                 " TO interaction")
     conn.execute("INSERT INTO meta VALUES ('schema_version', '14')")
     # v14-shape tables under the old names (+ the old index)
     conn.execute("CREATE TABLE module (save_id INTEGER, host_id TEXT,"
@@ -264,6 +274,42 @@ def test_v14_database_drops_renamed_tables(tmp_path):
     conn.close()
 
 
+def test_v15_database_backfills_and_renames_interact(tmp_path):
+    """The v15->v16 step (plan T12): `interaction` was read from an
+    attribute the save never writes, so it is NULL everywhere while the
+    real value sits in raw_attrs. The migration backfills it via
+    json_extract and renames the column to the save's `interact`."""
+    cfg = make_cfg(tmp_path)
+    conn = sqlite3.connect(store.db_path(cfg, "V15"))
+    conn.execute(schema.TABLES["meta"])
+    conn.execute(schema.TABLES["save"])
+    # v15-shape log_entry: the old column name
+    conn.execute("CREATE TABLE log_entry (time REAL NOT NULL,"
+                 " category TEXT, title TEXT, text TEXT, faction TEXT,"
+                 " money_cr REAL, interaction TEXT, component_id TEXT,"
+                 " highlighted TEXT, raw_attrs TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '15')")
+    conn.executemany(
+        "INSERT INTO log_entry (time, title, raw_attrs) VALUES (?,?,?)", [
+            (1.0, "with attr", '{"interact": "showlocation", "time": "1"}'),
+            (2.0, "without attr", '{"time": "2"}'),
+            (3.0, "csv legacy", None),
+        ])
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "V15")
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(log_entry)")]
+    assert "interact" in cols and "interaction" not in cols
+    assert conn.execute("SELECT title, interact FROM log_entry"
+                        " ORDER BY time").fetchall() == [
+        ("with attr", "showlocation"),
+        ("without attr", None),
+        ("csv legacy", None),
+    ]
+    conn.close()
+
+
 def test_v13_database_backfills_coverage(tmp_path):
     """The v13->v14 step (plan T3/M4): historical event ranges are
     backfilled into coverage from the epoch-stamped E rows (per-category
@@ -276,6 +322,9 @@ def test_v13_database_backfills_coverage(tmp_path):
     for t in ("meta", "save", "trade_tx", "stock_event", "money_event",
               "log_entry", "coverage"):
         conn.execute(schema.TABLES[t])
+    # pre-v16 shape: the column was still named `interaction`
+    conn.execute("ALTER TABLE log_entry RENAME COLUMN interact"
+                 " TO interaction")
     conn.execute("INSERT INTO meta VALUES ('schema_version', '13')")
     # two trade epochs; the newer one already has a (partial) hook row
     # whose window_start must survive and whose bounds must extend

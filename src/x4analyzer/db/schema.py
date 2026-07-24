@@ -42,7 +42,11 @@ import hashlib
 #      class), modcap -> module_cap, faction_meta.account -> account_cr
 #      (credits at load, the last raw-cents column), trade_offer.object_id
 #      '' -> NULL (the last empty-string exception)
-SCHEMA_VERSION = "15"
+# v16: log_entry.interact fix (plan T12): the save's attribute is
+#      `interact`, the loader read `interaction` — never populated; the
+#      column is renamed to match the save and history is backfilled
+#      from raw_attrs
+SCHEMA_VERSION = "16"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -249,6 +253,19 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
     "14": (
         "DROP TABLE IF EXISTS module",
         "DROP TABLE IF EXISTS modcap",
+    ),
+    # v16 fixes the log_entry.interaction defect (plan T12 / review C11):
+    # the loader read an attribute the save never writes (`interaction`
+    # vs the save's `interact`), so the column was NULL everywhere while
+    # the value survived in raw_attrs. Backfill from the JSON, then
+    # rename the column to the save's spelling (the loader reads
+    # `interact` from v16 on). json_extract is NULL for rows without the
+    # attr, so the backfill only fills what the save actually carried.
+    "15": (
+        """UPDATE log_entry
+           SET interaction = json_extract(raw_attrs, '$.interact')
+           WHERE interaction IS NULL AND raw_attrs IS NOT NULL""",
+        "ALTER TABLE log_entry RENAME COLUMN interaction TO interact",
     ),
 }
 
@@ -556,7 +573,8 @@ TABLES: dict[str, str] = {
   text        TEXT,
   faction     TEXT,
   money_cr    REAL,
-  interaction TEXT,
+  interact    TEXT,             -- the save's attribute name (was the
+                                -- never-populated `interaction`, v16)
   component_id TEXT,
   highlighted TEXT,
   raw_attrs   TEXT
