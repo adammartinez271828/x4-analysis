@@ -28,6 +28,13 @@ SCHEMA_VERSION = "10"
 EVENT_TABLES = ("trade_tx", "stock_event", "log_entry", "removed_object",
                 "entity", "entity_event")
 
+# P tables: persistent bookkeeping, never dropped on a version bump. save
+# is the provenance log and the time dimension anything cross-run keys
+# into (its ids must not recycle); meta carries cross-run flags that the
+# bump path itself reads. Their DDL is version-stable — if their shape
+# ever must change, they migrate like E tables via EVENT_MIGRATIONS.
+PERSISTENT_TABLES = ("save", "meta")
+
 # Event-history migrations: old version -> targeted ALTERs bringing the E
 # tables to the next version (everything else is dropped and recreated).
 # v2 adds save-stable identity + coverage epochs to the economylog tables:
@@ -72,7 +79,13 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
         "ALTER TABLE stock_event ADD COLUMN owner_entity INTEGER",
     ),
 }
-NEXT_VERSION = {"1": "2", "2": "3", "3": "4"}
+
+# The complete version chain: every historical version steps to the next
+# so a DB parked at ANY version — including ones whose bump only touched
+# W/R/D tables and so has no EVENT_MIGRATIONS entry — walks all the way
+# to SCHEMA_VERSION. (The old hand-written map stopped at 4 and stranded
+# off-chain DBs: a real v5 database skipped every later migration.)
+NEXT_VERSION = {str(v): str(v + 1) for v in range(1, int(SCHEMA_VERSION))}
 
 WORLD_TABLES = (
     "component", "fleet_edge", "module", "module_upgrade", "workforce",

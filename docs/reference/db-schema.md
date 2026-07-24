@@ -29,7 +29,7 @@ and are therefore irreplaceable.
 
 | Class | Tables | Rows live… | Rows die… |
 |---|---|---|---|
-| **Core** | `meta`, `save` | per key / per import | `meta` upserted; `save` accumulates one row per import |
+| **P — persistent bookkeeping** | `meta`, `save` | per key / per import | never dropped, schema bumps included — `save` ids are the time dimension cross-run data keys into, `meta` carries flags the bump path itself reads (`meta` upserted; `save` accumulates one row per import) |
 | **W — world state** | 22 tables (`component` …) | rebuilt on every import, stamped `save_id` | ALL rows deleted before each import — only the latest snapshot is retained |
 | **E — event history** | `trade_tx`, `stock_event`, `log_entry`, `removed_object`, `entity`, `entity_event` | merged across runs, windows stitched | never dropped, not even on schema resets; migrated by targeted `ALTER`s |
 | **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) on every import |
@@ -319,7 +319,8 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 ### save
 
 One row per import (`INSERT`, never replaced) — the record that an import
-happened and of the save's identity card. Save-side structure:
+happened and of the save's identity card. Persistent: survives schema
+bumps (P class), so `save_id`s never recycle. Save-side structure:
 savegame-structure.md § `<info>`.
 
 | Column | Type | Meaning | Provenance |
@@ -986,17 +987,27 @@ From `db/schema.py`; all `CREATE INDEX IF NOT EXISTS`:
 `SCHEMA_VERSION` (currently `"10"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
-1. **Event tables** get targeted `ALTER TABLE … ADD COLUMN` chains
+1. **The version walk is complete**: `NEXT_VERSION` chains every
+   historical version to the next, up to the current one, so a DB parked
+   at *any* version — including ones whose bump only touched W/R/D
+   tables and so has no `EVENT_MIGRATIONS` entry (the real case: a v5
+   database) — walks all the way forward, applying whatever
+   E-migrations it passes.
+2. **Event tables** get targeted `ALTER TABLE … ADD COLUMN` chains
    (`EVENT_MIGRATIONS` in `db/schema.py`, v1→v2→v3→v4: identity columns,
    commander attribution, entity links) — their history is irreplaceable.
    New columns always append at the end of the fresh DDL so ALTERed and
    fresh tables line up; even so, a migrated DB may carry a different
    *physical* column order than a fresh one, which is why inserts name
    their columns explicitly.
-2. **Everything else is dropped and recreated** — W/R/D tables rebuild
+3. **P tables (`save`, `meta`) are never dropped** — `save_id`s never
+   recycle and `meta` flags survive the code path that reads them. Their
+   DDL is version-stable; if their shape ever must change, they migrate
+   like E tables.
+4. **Everything else is dropped and recreated** — W/R/D tables rebuild
    from the save + CSVs in seconds, so no data migration is ever written
    for them.
-3. **Views are dropped and recreated on every connect**, mismatch or not.
+5. **Views are dropped and recreated on every connect**, mismatch or not.
 
 Known artifact of this scheme: the drop list is *the current code's* table
 names, so a table that a newer version renamed or removed is never dropped

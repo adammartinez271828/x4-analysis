@@ -3,8 +3,10 @@
 The database (one per game GUID, in the user data dir next to the csv.gz
 caches) is a rebuildable artifact derived from save + game files — EXCEPT
 the event-history tables (schema.EVENT_TABLES), which preserve the
-rolling log/economylog windows the game has already discarded and are never
-dropped. Schema and conventions: docs/reference/db-schema.md.
+rolling log/economylog windows the game has already discarded, and the
+persistent bookkeeping tables (schema.PERSISTENT_TABLES: save/meta, the
+provenance log and cross-run flags); neither class is ever dropped.
+Schema and conventions: docs/reference/db-schema.md.
 
 Load rules worth calling out:
 - "" from the parser becomes NULL (SQL predicates read better); macros are
@@ -59,16 +61,20 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             "SELECT value FROM meta WHERE key='schema_version'").fetchone()
         version = row[0] if row else None
     if version is not None and version != schema.SCHEMA_VERSION:
-        # everything but event history is rebuilt from the save in seconds:
-        # migration = drop and recreate. Event tables carry irreplaceable
-        # history and get targeted ALTERs instead.
+        # everything but event history and persistent bookkeeping is
+        # rebuilt from the save in seconds: migration = drop and recreate.
+        # Event tables carry irreplaceable history and save/meta carry
+        # cross-run provenance; they get targeted statements instead,
+        # walking the complete version chain so off-chain DBs migrate too.
+        keep = schema.EVENT_TABLES + schema.PERSISTENT_TABLES
         with conn:
-            while version in schema.EVENT_MIGRATIONS:
-                for stmt in schema.EVENT_MIGRATIONS[version]:
+            while (version != schema.SCHEMA_VERSION
+                   and version in schema.NEXT_VERSION):
+                for stmt in schema.EVENT_MIGRATIONS.get(version, ()):
                     conn.execute(stmt)
                 version = schema.NEXT_VERSION[version]
             for name in schema.TABLES:
-                if name not in schema.EVENT_TABLES:
+                if name not in keep:
                     conn.execute(f"DROP TABLE IF EXISTS {name}")
             for name in schema.VIEWS:
                 conn.execute(f"DROP VIEW IF EXISTS {name}")
