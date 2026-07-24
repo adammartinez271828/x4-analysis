@@ -310,9 +310,10 @@ def test_event_values(conn):
     assert conn.execute(
         "SELECT time, category, title, interact FROM log_entry"
         ).fetchall() == [(100.0, "upkeep", "Test entry", "showlocation")]
+    # first_save_id = the import that first merged the row (T13, v17)
     assert conn.execute(
-        "SELECT id, name, owner FROM removed_object").fetchall() == [
-        ("115", "TEL Trader", "teladi")]
+        "SELECT id, name, owner, first_save_id FROM removed_object"
+        ).fetchall() == [("115", "TEL Trader", "teladi", 1)]
 
 
 def test_merge_idempotent(conn, save_data, ref):
@@ -815,9 +816,10 @@ def test_schema_bump_spares_aggregate_tables(cfg, save_data, ref):
     assert rows
     conn.execute(
         "UPDATE meta SET value = '12' WHERE key = 'schema_version'")
-    # v12-shape log_entry so the 15->16 step of the walk applies cleanly
+    # v12-shape E tables so the 15->16/16->17 steps apply cleanly
     conn.execute("ALTER TABLE log_entry RENAME COLUMN interact"
                  " TO interaction")
+    conn.execute("ALTER TABLE removed_object DROP COLUMN first_save_id")
     conn.commit()
     conn.close()
 

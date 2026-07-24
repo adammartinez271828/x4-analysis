@@ -310,6 +310,52 @@ def test_v15_database_backfills_and_renames_interact(tmp_path):
     conn.close()
 
 
+def test_v16_database_drops_zombies_and_adds_first_save_id(tmp_path):
+    """The v16->v17 step (plan T13): removed_object gains arrival
+    provenance, and the bump drops zombie tables — names the DB managed
+    under an older version (stored inventory + the LEGACY_TABLES seed)
+    that the current code no longer knows. E/A/P tables and unknown
+    user tables are never touched."""
+    import json
+
+    cfg = make_cfg(tmp_path)
+    conn = sqlite3.connect(store.db_path(cfg, "V16"))
+    conn.execute(schema.TABLES["meta"])
+    conn.execute(schema.TABLES["save"])
+    conn.execute(schema.TABLES["trade_tx"])
+    conn.execute(schema.TABLES["log_entry"])  # v16 shape == current
+    # v16-shape removed_object: no first_save_id yet
+    conn.execute("CREATE TABLE removed_object (time REAL, id TEXT,"
+                 " name TEXT, code TEXT, owner TEXT, raw_attrs TEXT)")
+    conn.execute("INSERT INTO removed_object (id, name) VALUES"
+                 " ('115', 'TEL Trader')")
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '16')")
+    # the pre-inventory zombie, an inventory-recorded zombie, a user table
+    conn.execute("CREATE TABLE station_drones (station_id TEXT)")
+    conn.execute("CREATE TABLE old_widget (x TEXT)")
+    conn.execute("CREATE TABLE user_notes (note TEXT)")
+    # a stored inventory listing the zombie AND an E table: the E table
+    # must survive (keep-guard), the zombie must not
+    conn.execute("INSERT INTO meta VALUES ('managed_tables', ?)",
+                 (json.dumps(["old_widget", "trade_tx"]),))
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "V16")
+    names = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "station_drones" not in names and "old_widget" not in names
+    assert "user_notes" in names and "trade_tx" in names
+    # the pre-v17 row stays, with unknown (NULL) arrival
+    assert conn.execute("SELECT id, first_save_id FROM removed_object"
+                        ).fetchall() == [("115", None)]
+    # the inventory now records what the current version manages
+    assert json.loads(conn.execute(
+        "SELECT value FROM meta WHERE key = 'managed_tables'"
+    ).fetchone()[0]) == sorted(schema.TABLES)
+    conn.close()
+
+
 def test_v13_database_backfills_coverage(tmp_path):
     """The v13->v14 step (plan T3/M4): historical event ranges are
     backfilled into coverage from the epoch-stamped E rows (per-category

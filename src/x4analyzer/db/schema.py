@@ -46,7 +46,14 @@ import hashlib
 #      `interact`, the loader read `interaction` — never populated; the
 #      column is renamed to match the save and history is backfilled
 #      from raw_attrs
-SCHEMA_VERSION = "16"
+# v17: migration-machinery hygiene (plan T13): the managed-table
+#      inventory in meta('managed_tables') lets bumps drop tables a
+#      newer version renamed or removed (zombies — retroactively drops
+#      station_drones via the LEGACY_TABLES seed), and
+#      removed_object.first_save_id records the import that first merged
+#      each graveyard row (its only obtainable timestamp: the save-side
+#      time attr does not exist in v9)
+SCHEMA_VERSION = "17"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -60,6 +67,13 @@ EVENT_TABLES = ("trade_tx", "stock_event", "money_event", "log_entry",
 # Their DDL is version-stable — if their shape ever must change, they
 # migrate like E tables via EVENT_MIGRATIONS.
 PERSISTENT_TABLES = ("save", "meta", "coverage")
+
+# Former managed-table names from before the managed-table inventory
+# existed (meta 'managed_tables', v17): pre-v17 DBs carry no inventory to
+# consult, so the known zombies are seeded here and dropped on the next
+# bump. Never list E/A/P names. (module/modcap need no entry: their
+# rename's own migration drops them on the 14->15 step.)
+LEGACY_TABLES = ("station_drones",)
 
 # A tables: accumulated aggregate history (the trend layer, plan T4) —
 # small per-snapshot aggregates appended once per DISTINCT snapshot
@@ -266,6 +280,22 @@ EVENT_MIGRATIONS: dict[str, tuple[str, ...]] = {
            SET interaction = json_extract(raw_attrs, '$.interact')
            WHERE interaction IS NULL AND raw_attrs IS NOT NULL""",
         "ALTER TABLE log_entry RENAME COLUMN interaction TO interact",
+    ),
+    # v17 adds arrival provenance to the graveyard (plan T13): rows
+    # merged from here on record the import that first saw them. The
+    # save-side `time` attr does not exist in v9 (the existing column is
+    # NULL everywhere), so the DB-side arrival save is the only
+    # obtainable timestamp. Historical rows stay NULL — their arrival
+    # import was never recorded.
+    # (the guard CREATE matches the pre-v17 shape — same pattern as the
+    # v12/v14 steps, whose DDL must exist before their statements run)
+    "16": (
+        """CREATE TABLE IF NOT EXISTS removed_object (
+  time  REAL,
+  id    TEXT, name TEXT, code TEXT, owner TEXT,
+  raw_attrs TEXT
+)""",
+        "ALTER TABLE removed_object ADD COLUMN first_save_id INTEGER",
     ),
 }
 
@@ -579,10 +609,15 @@ TABLES: dict[str, str] = {
   highlighted TEXT,
   raw_attrs   TEXT
 )""",
+    # the graveyard: the save's cumulative removed-objects catalog.
+    # time is NULL everywhere in v9 saves (the attr no longer exists);
+    # first_save_id (v17) is the import that first merged the row — the
+    # only obtainable arrival timestamp (NULL for rows merged pre-v17)
     "removed_object": """CREATE TABLE IF NOT EXISTS removed_object (
   time  REAL,
   id    TEXT, name TEXT, code TEXT, owner TEXT,
-  raw_attrs TEXT
+  raw_attrs TEXT,
+  first_save_id INTEGER          -- FK save.save_id (doc only)
 )""",
     # entity registry: one row per physical ship/station/buildstorage ever
     # observed in a snapshot. entity_id is a surrogate key WE mint — the

@@ -78,6 +78,17 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         keep = (schema.EVENT_TABLES + schema.PERSISTENT_TABLES
                 + schema.AGGREGATE_TABLES)
         with conn:
+            # drop ALL views before the walk, not after: views are
+            # code-owned (recreated below via the views_version path),
+            # and a stale view referencing a table a migration step
+            # drops/renames would fail SQLite's whole-schema validation
+            # on any later ALTER ... RENAME in the walk (seen live: the
+            # v14 v_station referenced `module`, dropped at step 14→15,
+            # breaking step 15→16's RENAME COLUMN)
+            for (name,) in conn.execute(
+                    "SELECT name FROM sqlite_master"
+                    " WHERE type = 'view'").fetchall():
+                conn.execute(f'DROP VIEW IF EXISTS "{name}"')
             step = version
             while (step != schema.SCHEMA_VERSION
                    and step in schema.NEXT_VERSION):
@@ -87,8 +98,20 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             for name in schema.TABLES:
                 if name not in keep:
                     conn.execute(f"DROP TABLE IF EXISTS {name}")
-            for name in schema.VIEWS:
-                conn.execute(f"DROP VIEW IF EXISTS {name}")
+            # zombie drop (T13): tables the DB managed under an older
+            # version that the current code no longer knows are dropped
+            # too — the loop above only knows CURRENT names, so renames/
+            # removals would otherwise linger forever. The candidate set
+            # is what a previous version RECORDED as managed (its
+            # meta 'managed_tables' inventory) plus the known pre-
+            # inventory zombies (LEGACY_TABLES); user-created tables are
+            # in neither, and E/A/P tables are excluded by `keep`.
+            stored = conn.execute("SELECT value FROM meta"
+                                  " WHERE key = 'managed_tables'").fetchone()
+            inventory = set(json.loads(stored[0])) if stored else set()
+            for name in sorted(inventory | set(schema.LEGACY_TABLES)):
+                if name not in schema.TABLES and name not in keep:
+                    conn.execute(f"DROP TABLE IF EXISTS {name}")
             # meta survives the bump (P class), so cache stamps describing
             # objects the bump just dropped must not: stale stamps would
             # skip recreating the views / repopulating the R tables
@@ -103,6 +126,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)",
                 (schema.SCHEMA_VERSION,))
+            # record what this version manages, so a FUTURE version can
+            # drop whatever it renames or removes (the zombie drop above)
+            conn.execute(
+                "INSERT OR REPLACE INTO meta VALUES ('managed_tables', ?)",
+                (json.dumps(sorted(schema.TABLES)),))
         # views are recreated only when their definitions changed
         # (meta 'views_version'), so plain connects stay write-free and
         # read-only consumers always see current views
@@ -1036,8 +1064,15 @@ def _merge_removed(conn: sqlite3.Connection, objects: list[dict]) -> None:
              json.dumps(o, sort_keys=True))
             for o in objects]
     with conn:
+        # first_save_id = the current import (merges run right after
+        # write_snapshot): arrival provenance for new graveyard rows,
+        # their only obtainable timestamp (T13). Existing rows are never
+        # restamped — the row's first arrival is the point.
         conn.executemany(
-            "INSERT INTO removed_object SELECT ?,?,?,?,?,? WHERE NOT EXISTS"
+            "INSERT INTO removed_object"
+            " (time, id, name, code, owner, raw_attrs, first_save_id)"
+            " SELECT ?,?,?,?,?,?, (SELECT MAX(save_id) FROM save)"
+            " WHERE NOT EXISTS"
             " (SELECT 1 FROM removed_object"
             "  WHERE id IS ? AND name IS ? AND code IS ? AND owner IS ?)",
             [r + (r[1], r[2], r[3], r[4]) for r in rows])

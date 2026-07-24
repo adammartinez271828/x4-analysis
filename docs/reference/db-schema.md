@@ -230,6 +230,7 @@ erDiagram
     }
     removed_object {
         TEXT id
+        INTEGER first_save_id FK
     }
     entity {
         INTEGER entity_id PK
@@ -381,12 +382,13 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"16"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"17"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
 | `views_version` | fingerprint of the view definitions last created; views are recreated only when the code's fingerprint differs (plain connects perform no DDL writes) |
 | `reference_digest` | fingerprint of the reference data last loaded; `write_reference` skips its wholesale rewrite when unchanged |
+| `managed_tables` | JSON array of the table names this schema version manages (v17, plan T13) — on the next bump, names in the stored inventory that the newer code no longer lists are dropped as zombies (E/A/P and user tables never qualify) |
 
 The two fingerprint stamps are deleted on a schema bump — `meta` survives
 the bump (P class) but the views and R tables it stamps do not.
@@ -968,6 +970,7 @@ rows still resolve to a name. Save-side: savegame-structure.md §
 | `code` | TEXT | last display code | `…object@code` |
 | `owner` | TEXT | last owning faction | `…object@owner` |
 | `raw_attrs` | TEXT | full source element as JSON (incl. the unexplained `offer` attr) | derived |
+| `first_save_id` | INTEGER, FK → `save.save_id` | the import that first merged this row (v17, plan T13) — its only obtainable arrival timestamp, since the save-side `time` attr does not exist in v9. NULL for rows merged before v17 | derived: `MAX(save_id)` at merge |
 
 ### entity / entity_event — the entity registry
 
@@ -1246,7 +1249,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"16"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"17"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1264,7 +1267,8 @@ The E-table indices are applied through the idempotent
    `modcap` tables, which the current-names-only drop path would
    otherwise leave as zombies; v15→v16: `log_entry.interaction` →
    `interact`, backfilled from `raw_attrs` — the loader had read an
-   attribute the save never writes) — their history is irreplaceable. New
+   attribute the save never writes; v16→v17:
+   `removed_object.first_save_id`) — their history is irreplaceable. New
    columns always append at the end of the fresh DDL so ALTERed and
    fresh tables line up; even so, a migrated DB may carry a different
    *physical* column order than a fresh one, which is why inserts name
@@ -1288,13 +1292,18 @@ The E-table indices are applied through the idempotent
    deletes the fingerprint stamps (`views_version`, `reference_digest`)
    so the surviving `meta` cannot vouch for objects the bump destroyed.
 
-Known artifact of this scheme: the drop list is *the current code's* table
-names, so a table that a newer version renamed or removed is never dropped
-from existing databases. The reference DB carries one such zombie —
-`station_drones` (5,953 stale rows) plus its `idx_station_drones` index,
-left behind when v10 renamed the model to `station_munition` (whose
-`v_station_drones` is now a view). Harmless, but expect unknown leftovers
-when inspecting older databases.
+The historic artifact of this scheme — the drop list is *the current
+code's* table names, so renamed/removed tables lingered as zombies — is
+retired in v17 (plan T13): every schema write records the managed-table
+inventory in `meta.managed_tables`, and a bump drops whatever the stored
+inventory lists that the newer code no longer does (E/A/P tables and
+unknown user tables never qualify). Pre-v17 DBs have no stored inventory,
+so the known pre-inventory zombie is seeded in code (`LEGACY_TABLES`):
+`station_drones` + its index, left behind when v10 renamed the model to
+`station_munition`, are dropped on the v17 bump (verified: 5,953 stale
+rows removed from the reference DB; the other real DB never had the
+table). The v15 rename's old names (`module`, `modcap`) are dropped by
+that step's own migration statements instead.
 
 ## Defined-but-never-populated columns (reference DB, 2026-07-23)
 
