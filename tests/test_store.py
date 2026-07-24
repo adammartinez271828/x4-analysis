@@ -1194,6 +1194,9 @@ def test_frames_prefers_entity_name(cfg, save_data, ref, conn):
     from x4analyzer.analysis.frames import build_frames
 
     conn.execute("DELETE FROM trade_tx")
+    # the merged synthetic save has no fleet; drop the fixture snapshot's
+    # edge so the DB-side commander map (v_player_fleet, T8) matches it
+    conn.execute("DELETE FROM fleet_edge")
     conn.commit()
     comps = [comp("[0x30]", "SHP-001", "player", "Old Name",
                   clazz="ship_s", spawn="10.0"),

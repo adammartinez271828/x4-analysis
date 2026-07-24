@@ -284,3 +284,82 @@ def test_v_entity_life_matches_entity_and_snapshot(conn):
     assert _eq(got["sector_macro"], exp["sector_macro"]).all()
     # the join is live: a healthy chunk of entities is on the map now
     assert view["component_id"].notna().sum() > 1000
+
+
+# ---- v_station vs the retired pandas rollups (T8 / M3) ----------------------
+
+_CUR = "(SELECT MAX(save_id) FROM save)"
+
+
+def test_v_station_matches_pandas_rollups(conn):
+    view = pd.read_sql(
+        "SELECT id, modules_built, workforce, cargo_volume_m3"
+        " FROM v_station", conn).set_index("id").sort_index()
+    stations = pd.read_sql(
+        f"SELECT id FROM component WHERE class = 'station'"
+        f" AND save_id = {_CUR}", conn)
+    assert len(view) == len(stations) > 1000
+
+    built = pd.read_sql(
+        f"SELECT host_id FROM module WHERE built = 1"
+        f" AND save_id = {_CUR}", conn) \
+        .groupby("host_id").size().reindex(view.index).fillna(0)
+    assert (view["modules_built"] == built).all()
+
+    wf = pd.read_sql(
+        f"SELECT station_id, amount FROM workforce"
+        f" WHERE save_id = {_CUR}", conn) \
+        .groupby("station_id")["amount"].sum().reindex(view.index)
+    assert _eq(view["workforce"], wf).all()
+
+    cargo = pd.read_sql(
+        f"SELECT cg.object_id, cg.amount * COALESCE(w.volume, 0) AS vol"
+        f" FROM cargo cg LEFT JOIN ware w ON w.id = cg.ware"
+        f" WHERE cg.save_id = {_CUR}", conn) \
+        .groupby("object_id")["vol"].sum().reindex(view.index)
+    diff = (view["cargo_volume_m3"] - cargo).abs()
+    assert _eq(view["cargo_volume_m3"], cargo).all() or diff.max() < 1e-6
+
+
+# ---- v_player_fleet vs the retired resolutions (T8 / M3) --------------------
+
+def test_v_player_fleet_matches_retired_wings_filter(conn):
+    """The view must reproduce the retired pandas re-filter (player-owned
+    station/ship on both sides) edge-for-edge."""
+    fe = pd.read_sql(
+        f"SELECT follower_id, commander_id FROM fleet_edge"
+        f" WHERE save_id = {_CUR}", conn)
+    uni = pd.read_sql(
+        f"SELECT id, owner, class FROM component WHERE save_id = {_CUR}",
+        conn)
+    owned = set(uni[(uni["owner"] == "player")
+                    & ((uni["class"] == "station")
+                       | uni["class"].str.startswith("ship_"))]["id"])
+    old = fe[fe["follower_id"].isin(owned) & fe["commander_id"].isin(owned)]
+    view = pd.read_sql(
+        "SELECT follower_id, follower_entity, commander_id,"
+        " commander_entity FROM v_player_fleet", conn)
+    assert len(view) > 50
+    assert set(map(tuple, old.values)) \
+        == set(map(tuple, view[["follower_id", "commander_id"]].values))
+    # both sides are registry-resolvable ships/stations
+    assert view["follower_entity"].notna().all()
+    assert view["commander_entity"].notna().all()
+
+
+def test_v_player_fleet_no_connectionless_fleet_members(conn):
+    """Pinned equivalence (plan-F10): the retired _player_edges resolved
+    owners over ALL parsed components, the view joins `component`, which
+    excludes connectionless ones — the two differ iff a fleet edge
+    touches a connectionless object. Assert none does today; if this
+    ever fails, a fleet edge lost commander attribution at merge and the
+    divergence must be re-examined, not silently absorbed."""
+    n = conn.execute(f"""
+        SELECT COUNT(*) FROM fleet_edge fe
+        WHERE fe.save_id = {_CUR}
+          AND (NOT EXISTS (SELECT 1 FROM component c
+                 WHERE c.save_id = fe.save_id AND c.id = fe.follower_id)
+            OR NOT EXISTS (SELECT 1 FROM component c
+                 WHERE c.save_id = fe.save_id AND c.id = fe.commander_id))
+    """).fetchone()[0]
+    assert n == 0

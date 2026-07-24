@@ -735,6 +735,26 @@ row-for-row (261 buyer / 2,038 seller proxied — identical to `COUNT(*)
 are non-NULL for all 2,038 proxied seller rows; `v_entity_life` returns
 35,456 entities, 18,289 alive.
 
+> **Shipped (2026-07-24, Phase 5 / M2).** Three deviations from the DDL
+> sketches above, all toward exact frames parity:
+> 1. `v_trade` redirects with `CASE WHEN {side}_cmdr_id IS NOT NULL`
+>    instead of `COALESCE` on the entity columns — a proxied row whose
+>    commander lacks a registry id must yield NULL, not fall back to the
+>    executor's identity (same rule as the proxied flags, review F3).
+> 2. `v_trade` additionally exposes redirected `{side}_id` and
+>    `{side}_exec_id` columns (the per-object views consume ids), and
+>    `_exec_name` is registry-resolved like the main names (frames
+>    re-resolved the executor column too).
+> 3. `v_stock_flow` ships **without** the `ware != ''` guard, per the
+>    T15 note above (dead code since v12).
+> Parity on the real 8E0C DB: v_trade reproduces the retired pandas
+> assembly on all 3,702 rows with **0** name divergences (the sanctioned
+> plan-F4 set is empty today) and proxied flags exact (288 buyer /
+> 2,438 seller); entity-first stock partitioning is delta-identical to
+> the text-first keying on both real DBs (0 of 400,482 / 469,522 rows);
+> equivalences pinned in tests/test_views_parity.py (read-only, TEMP
+> view clones). `v_stock_delta` alias kept for one release.
+
 ### T7. Diplomacy view
 
 ```sql
@@ -824,6 +844,21 @@ latter) or resolve edges in `write_snapshot` before the filter applies.
 *Migration:* views + deleting `_player_edges`. Depends on T2. Verified
 on the 8E0C copy (T2 column shimmed): both views execute; `v_station`
 1,771 rows, `v_player_fleet` 110 rows.
+
+> **Shipped (2026-07-24, Phase 5 / M3).** The equivalence route was
+> taken (not the pre-filter resolve): `_player_edges(save)` compared to
+> the view on the real newest save before deletion — 110 = 110 edges,
+> identical; the F10 invariant (no fleet edge touches a connectionless
+> component) is pinned in tests/test_views_parity.py alongside an
+> edge-for-edge recompute of the retired frames.wings filter.
+> `merge_events` now reads its commander map from `v_player_fleet`
+> (snapshots always precede merges in the pipeline). `frames.wings`
+> reads the view through an EXISTS filter on `fleet_edge` to keep the
+> commander insert order. The stations frame merges `v_station`'s
+> rollups (entity_id, sector_name, modules_built, workforce total,
+> cargo_volume_m3); the consumer-free R-era columns it used to pivot
+> (per-race `workforce.*`, max-index `modules`/`hull`/`mass`) retired
+> with the pandas block.
 
 ### T9. Load `region_yield` reference; resource status becomes SQL
 

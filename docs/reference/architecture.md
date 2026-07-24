@@ -83,8 +83,8 @@ Every parsed record also lands in `x4_<guid>.sqlite` (user data dir): world
 state rebuilt per snapshot, reference data replaced wholesale, event
 history (trade_tx / stock_event / log_entry / removed_object) merged across
 runs with save-stable identity and coverage epochs, plus the entity
-registry. Views (`v_universe`, `v_fleet`, `v_stock_delta`, …) are recreated
-at every connect. [db-schema.md](db-schema.md) is the complete reference —
+registry. Views (`v_universe`, `v_trade`, `v_stock_flow`, …) are recreated
+when their definitions change (`meta.views_version` fingerprint). [db-schema.md](db-schema.md) is the complete reference —
 tables, columns, the merge semantics (log = per-category min-time
 replacement; tradelog = min-time cutoff — ported from R and still the
 spec), idempotency, the entity identity model, and the retired csv.gz

@@ -340,14 +340,16 @@ def build_frames(save: SaveData, ref: RefData,
            | universe["class"].str.startswith("ship_"))
     ].copy()
 
-    # ---- fleet hierarchy (R 422-436) --------------------------------------
+    # ---- fleet hierarchy (R 422-436; player filter moved into
+    # v_player_fleet, T8) — EXISTS keeps fleet_edge's commander insert
+    # order, which the view's join would not guarantee
     log("Preparing fleet hierarchies -> wings")
     wings = _read(conn, f"""
         SELECT commander_id AS leader, follower_id AS follower
-        FROM fleet_edge WHERE save_id = {_CUR} ORDER BY rowid""")
-    owned = set(playerowned["id"])
-    wings = wings[wings["follower"].isin(owned) & wings["leader"].isin(owned)]
-    wings = wings[["leader", "follower"]].reset_index(drop=True)
+        FROM fleet_edge fe WHERE save_id = {_CUR}
+          AND EXISTS (SELECT 1 FROM v_player_fleet pf
+                      WHERE pf.follower_id = fe.follower_id)
+        ORDER BY rowid""")
 
     # ---- NPCs (R 438-454) --------------------------------------------------
     log("Preparing player employed NPCs -> npcs")
@@ -383,7 +385,7 @@ def build_frames(save: SaveData, ref: RefData,
     universe.loc[is_station, "hull"] = universe.loc[is_station, "modules"] * 250_000
     universe.loc[is_station, "mass"] = universe.loc[is_station, "hull"] / 300
 
-    # ---- stations (R 483-527) ----------------------------------------------
+    # ---- stations (R 483-527; rollups moved into v_station, T8) ------------
     log("Preparing player owned stations -> stations")
     stations = playerowned[playerowned["class"] == "station"].copy()
     stations = stations.drop(columns=["spawntime"])
@@ -399,20 +401,20 @@ def build_frames(save: SaveData, ref: RefData,
                 )
             else:
                 stations[f"{post}.id"] = pd.NA
-        if not workforce_all.empty:
-            wf = workforce_all.pivot_table(index="id", columns="race",
-                                           values="amount", aggfunc="sum",
-                                           fill_value=0)
-            wf.columns = [f"workforce.{race}" for race in wf.columns]
-            stations = stations.merge(wf, left_on="id", right_index=True,
-                                      how="left")
-        stations = stations.merge(modules, on="id", how="left")
-        stations["hull"] = stations["modules"] * 250_000
-        stations["mass"] = stations["hull"] / 300
+        # the SQL-assembled station concept: durable identity + the
+        # rollups the R port used to pivot in pandas (the per-race
+        # workforce pivot and the max-index hull/mass estimate had no
+        # consumers and retire with it; workforce_all stays raw for the
+        # storage model)
+        stations = stations.merge(_read(conn, """
+            SELECT id, entity_id, sector_name, modules_built, workforce,
+                   cargo_volume_m3
+            FROM v_station"""), on="id", how="left")
     else:
         log("-> No player owned stations found")
         for col in ("manager.id", "engineer.id", "shiptrader.id",
-                    "modules", "hull", "mass"):
+                    "entity_id", "sector_name", "modules_built",
+                    "workforce", "cargo_volume_m3"):
             stations[col] = pd.Series(dtype=object)
 
     # ---- ships (R 529-551) --------------------------------------------------

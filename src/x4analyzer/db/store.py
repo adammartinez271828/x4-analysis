@@ -736,9 +736,17 @@ def merge_events(conn: sqlite3.Connection, save: SaveData,
                 "skipped — an older window would destroy newer history")
             return
     ident = _identities(save, ref, stypes or {})
+    # commander map for trade attribution: the fleet resolution
+    # write_snapshot just stored, player-filtered (v_player_fleet) — the
+    # ONE fleet resolution in the pipeline (T8; snapshots always precede
+    # merges). Edges touching connectionless components are absent from
+    # the view; the retired save-side resolver (_player_edges) kept them
+    # — measured equivalent on the real DBs and pinned in
+    # tests/test_views_parity.py (plan-F10).
+    edges = dict(conn.execute(
+        "SELECT follower_id, commander_id FROM v_player_fleet"))
     _merge_log(conn, save.log_entries)
-    _merge_trades(conn, save, ident, _player_edges(save),
-                  entities or {})
+    _merge_trades(conn, save, ident, edges, entities or {})
     _merge_removed(conn, save.removed_objects)
     if t:
         with conn:
@@ -818,23 +826,6 @@ def _identities(save: SaveData, ref: RefData | None, stypes: dict) -> dict:
                 name = f"{faction_short.get(owner, OTHER_FACTION)} Station"
             ident[oid] = (owner, _s(o.get("code")), name)
     return ident
-
-
-def _player_edges(save: SaveData) -> dict:
-    """follower id -> commander id, player-owned on both sides (the same
-    resolution as fleet_edge, filtered like frames.wings)."""
-    owners = {c[0]: c[5] for c in save.components}
-    followers_by_conn: dict[str, list] = {}
-    for follower, conn_ref in save.commander_links:
-        followers_by_conn.setdefault(conn_ref, []).append(follower)
-    edges: dict[str, str] = {}
-    for leader, conn_id in save.subordinate_conns:
-        if owners.get(leader) != "player":
-            continue
-        for follower in followers_by_conn.get(conn_id, ()):
-            if owners.get(follower) == "player":
-                edges.setdefault(follower, leader)
-    return edges
 
 
 def _cents(v) -> float | None:

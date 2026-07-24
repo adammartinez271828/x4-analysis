@@ -842,6 +842,42 @@ SELECT e.*,
 FROM entity e
 LEFT JOIN component c ON c.entity_id = e.entity_id
   AND c.save_id = (SELECT save_id FROM current_save)""",
+    # the concept "station", assembled (T8): one row per station in the
+    # current snapshot, with the rollups frames used to build in pandas.
+    # modules_built counts BUILT plan entries (the capacity-overcount
+    # gotcha); correlated subqueries are index-served (idx_module_host,
+    # idx_offer_ware's cousins) and fine at ~1,800 stations.
+    "v_station": """CREATE VIEW v_station AS
+SELECT c.id, c.entity_id, c.name, c.basename, c.code, c.owner,
+       c.sector_macro, sec.name AS sector_name, c.sx, c.sz, c.knownto,
+       (SELECT COUNT(*) FROM module m
+         WHERE m.save_id = c.save_id AND m.host_id = c.id AND m.built = 1)
+         AS modules_built,
+       (SELECT SUM(w.amount) FROM workforce w
+         WHERE w.save_id = c.save_id AND w.station_id = c.id) AS workforce,
+       (SELECT SUM(cg.amount * COALESCE(wr.volume, 0)) FROM cargo cg
+         LEFT JOIN ware wr ON wr.id = cg.ware
+         WHERE cg.save_id = c.save_id AND cg.object_id = c.id)
+         AS cargo_volume_m3
+FROM component c
+LEFT JOIN sector_ref sec ON sec.macro = c.sector_macro
+WHERE c.class = 'station'
+  AND c.save_id = (SELECT save_id FROM current_save)""",
+    # player fleet edges, entity-keyed (T8): the ONE fleet resolution
+    # (write_snapshot's), filtered to player-owned on both sides — the
+    # commander map merge_events attributes trades with, and frames.wings'
+    # source. Joining component excludes edges touching connectionless
+    # objects; _player_edges resolved those from the raw save lists —
+    # measured equivalent (0 divergent edges) on the real DBs, pinned in
+    # tests/test_views_parity.py so divergence fails loudly (plan-F10).
+    "v_player_fleet": """CREATE VIEW v_player_fleet AS
+SELECT fe.follower_id, cf.entity_id AS follower_entity,
+       fe.commander_id, cc.entity_id AS commander_entity
+FROM fleet_edge fe
+JOIN component cf ON cf.id = fe.follower_id  AND cf.save_id = fe.save_id
+JOIN component cc ON cc.id = fe.commander_id AND cc.save_id = fe.save_id
+WHERE cf.owner = 'player' AND cc.owner = 'player'
+  AND fe.save_id = (SELECT save_id FROM current_save)""",
     # built modules only (measure reality, not plans — CLAUDE.md gotcha)
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM module
