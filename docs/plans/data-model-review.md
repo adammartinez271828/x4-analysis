@@ -724,14 +724,21 @@ less "designed path" than claimed.**
   T13's `managed_tables` meta key is dropped by the code path that would
   read it. No proposal promotes `save`/`meta` to never-dropped — a
   required precondition for half the design. Severity: wrong (premise) +
-  gap. Blast: T3, T4, T5, T13.
+  gap. Blast: T3, T4, T5, T13. **Disposition (2026-07-23): addressed in
+  plan** — new critique C12 + new item T0 promote `save`/`meta` to a
+  never-dropped P class; T3/T4/T5/T13 declare the T0 dependency; §4
+  sequences it first (H0).
 - **F2. The EVENT_MIGRATIONS chain has holes and a real DB sits
   off-chain.** `NEXT_VERSION` maps only 1→2→3→4; the 9406 DB is at
   schema v5 (TESTED), so a migration keyed at the current version never
   runs for it — T3's backfill, T12's UPDATE, and T13's ALTER would
   silently skip, then explicit-column INSERTs would crash. Severity:
   unsupported (migration mechanics). Blast: T2 (index half), T3, T12,
-  T13.
+  T13. **Disposition (2026-07-23): addressed in plan** — T0 part 2
+  completes the version chain (empty tuples for E-quiet versions) with a
+  regression test against an off-chain DB; T2's E-indices are rerouted to
+  the idempotent `INDEXES` path, off the chain entirely; T3/T12/T13 note
+  the T0 dependency.
 - **F3. T6's `v_trade` drops executor display columns the dashboard
   consumes.** viz/history.py renders `{side}.proxy.name/.code`; the view
   exposes only executor *entity ids*, unrecoverable for NULL-entity rows;
@@ -739,36 +746,65 @@ less "designed path" than claimed.**
   frames' `cmdr_id.notna()` (the csv-import path writes cmdr ids with
   NULL entities). TESTED (view executes; 0 divergent rows today).
   Severity: gap (DDL incomplete for its stated consumers).
+  **Disposition (2026-07-23): addressed in plan** — T6's `v_trade` gains
+  `{side}_exec_name`/`_exec_code` columns and keys both them and the
+  proxied flags on `cmdr_id`; re-verified on a copy of the 8E0C DB
+  (flags match frames' rule 261/2,038 exactly; exec columns populated
+  for every proxied row).
 - **F4. "Only ever applied to rows merged before schema v4 … a shrinking
   set" is wrong** — NULL-entity parties are minted at every merge
   (removed-object-resolved and registry-missed parties). TESTED (code
-  paths). Severity: wrong (minor).
+  paths). Severity: wrong (minor). **Disposition (2026-07-23): addressed
+  in plan** — T6 restates the claim: the degradation is permanent, not
+  transitional, and acceptable because those parties have no registry
+  identity to resolve against (with the confirming query noted inline).
 - **F5. "Eight occurrences of MAX(save_id)" is seven; "every view
   filters" is false** (two E-views correctly don't). TESTED (grep).
-  Severity: stale (trivial).
+  Severity: stale (trivial). **Disposition (2026-07-23): addressed in
+  plan** — C2 corrected to "seven occurrences across six of the eight
+  views", grep re-run to confirm.
 - **F6. T4's primary keys are decorative for NULL key columns.** SQLite
   permits duplicate rows when a PK column is NULL; NULL `sector_macro`
   occurs in practice. TESTED (duplicate insert succeeds on the sketched
   DDL). Uniqueness then rests entirely on the T5 guard — defeated
-  post-bump by F1. Severity: unsupported.
+  post-bump by F1. Severity: unsupported. **Disposition (2026-07-23):
+  addressed in plan** — T4's textual key columns are now `NOT NULL
+  DEFAULT ''` with `COALESCE(x,'')` at insert; re-verified on a copy of
+  the 8E0C DB (duplicate append now fails with `UNIQUE constraint
+  failed`; the old DDL's duplicate acceptance reproduced first).
 - **F7. "30 ms/station by durable identity" misquotes the spike** — the
   measurement was by owner_code (the text fallback). TESTED (branch doc).
-  Severity: stale (trivial).
+  Severity: stale (trivial). **Disposition (2026-07-23): addressed in
+  plan** — C5 restated: measured via the `owner_code` fallback, the
+  durable-identity variant never separately timed.
 - **F8. Missed critique: stale-save merges destroy E history** — the
   exact failure a live-mode watcher invites (out-of-order autosaves), and
   the doc's "no change below loses history" framing never notices the
   *current* model can lose history; no T-item adds a merge guard.
   UNTESTED (unambiguous code path; same finding as db-schema F4).
-  Severity: gap (high for goal 1).
+  Severity: gap (high for goal 1). **Disposition (2026-07-23): addressed
+  in plan** — new critique C13 + new item T14: a high-water guard
+  mirroring the registry's (skip-with-warning), sequenced into the first
+  bump (§4 H4); the plan's history-loss statement now admits the current
+  model's exposure. Backlog item 3 (proof-of-destruction) remains open
+  as the pre-implementation test.
 - **F9. Missed critique: `write_reference` rewrites every R table + full
   textdb on every run** — heavy write churn per autosave under a
-  watcher. TESTED (code). Severity: gap (minor).
+  watcher. TESTED (code). Severity: gap (minor). **Disposition
+  (2026-07-23): addressed in plan** — new critique C14; fix folded into
+  T10 as a `meta('reference_digest')` skip-when-unchanged guard.
 - **F10. T8's `v_player_fleet` ≠ `_player_edges` in theory** — the view
   JOINs `component` (excludes connectionless components); currently
   equivalent (0 divergent rows, TESTED) but the equivalence assumption is
-  unstated. Severity: unsupported (low).
+  unstated. Severity: unsupported (low). **Disposition (2026-07-23):
+  addressed in plan** — T8 states the assumption and requires either an
+  equivalence test before `_player_edges` is deleted or resolving edges
+  pre-filter in `write_snapshot`.
 - **F11. T7 "verbatim" is off by one edge** — the view emits rows for
   discount-only pairs that frames excludes. TESTED. Severity: trivial.
+  **Disposition (2026-07-23): addressed in plan** — T7 adds
+  `AND kind IN ('base','booster')`; re-verified on the 8E0C copy (992
+  pairs, exactly frames' base∪booster key set).
 
 Also verified for this doc: `faction_meta.account` raw-cents exactly
 (80,545,951 = 100 × 805,459.51), owner_entity coverage 99.24%/99.28%,
@@ -793,7 +829,12 @@ from regionyields.csv under a name that says seconds.
   files (faction model, savegame-structure.md, db-schema.md,
   viz-internals.md, db-model-improvements.md T7) and rests entirely on
   the faction model's unsupported F1. One correction must propagate to
-  five places.
+  five places. **Disposition (2026-07-23): addressed in plan for the
+  db-model-improvements.md instance** — T7 no longer asserts the claim;
+  it states the decay question as unconfirmed (pointing at backlog
+  item 9) and notes the view is correct under any resolution. The other
+  four documents are out of this revision's scope and still carry the
+  claim.
 - **X4. "Relations are directional"** (faction model, db-schema.md) vs
   perfect reciprocity of all 486 pairs in the save.
 - **X5. Wormhole arrow direction.** The model doc, savegame-structure.md
@@ -825,8 +866,16 @@ from regionyields.csv under a name that says seconds.
   neither doc scopes its claim to a playthrough).
 - **X12. `idx_stock`.** db-schema.md claims it serves the v_stock_delta
   scan; db-model-improvements.md documents (correctly) that it can't.
+  **Disposition (2026-07-23): plan side already correct; strengthened**
+  — the plan's C5 additionally corrects its own "serves the merge" half
+  (`EXPLAIN QUERY PLAN` shows the merge's time-keyed queries SCAN too).
+  The db-schema.md half is out of this revision's scope.
 - **X13. `save` as accumulating provenance.** db-schema.md and
   db-model-improvements.md share the false premise; schema bumps drop it.
+  **Disposition (2026-07-23): addressed in plan for the
+  db-model-improvements.md instance** — see plan F1: C1/C8/§2 restated,
+  T0 makes the premise true going forward. The db-schema.md instance is
+  out of this revision's scope.
 - **X14. Stale one-off numbers duplicated across docs.** "~40×"
   (measured 26×/66×) and "163 recycles / 21 min" (unreproducible) appear
   in both save-semantics.md and db-schema.md.
@@ -852,7 +901,12 @@ from regionyields.csv under a name that says seconds.
   column `respawn_s` but its load source (regionyields.csv) is minutes —
   any SQL eta arithmetic against `starttime` (seconds) inherits a 60×
   bug; T9 also freezes the status model pre-relocation/nividium
-  corrections.
+  corrections. **Disposition (2026-07-23): addressed in plan** — T9's
+  column is now `respawn_min` (kept in source units, conversion duty
+  named), and T9 carries the nividium partial-refill and relocation
+  caveats with pointers to backlog items 5/11; the revised view was
+  re-verified against `frames._classify` on all 3,246 areas (0
+  mismatches).
 
 ---
 

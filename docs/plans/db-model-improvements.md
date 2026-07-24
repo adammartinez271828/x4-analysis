@@ -1,6 +1,12 @@
 # DB model improvements: critique and target design
 
-Status: **proposal** (2026-07-23). Review of the analysis-database model at
+Status: **proposal** (2026-07-23; revised same day after the adversarial
+review in [data-model-review.md](data-model-review.md) — the review's
+findings against this document, F1–F11 and X3/X12/X13/X21, are each
+either incorporated or explicitly deferred below, and every revised
+claim/DDL was re-verified against store.py/schema.py and a copy of the
+real 8E0C database on SQLite 3.53.3; per-item "Verified:" lines record
+the command or query). Review of the analysis-database model at
 schema/store/frames depth, and a target design reachable by incremental
 migration. Companion to [db-schema.md](../reference/db-schema.md) (what is)
 — this document is *what should change and why*. Nothing here is
@@ -34,9 +40,11 @@ pipeline and stop making sense for live mode.
 
 `store.write_snapshot` deletes **all** W-table rows before every import
 (`store.py:192-193`, comment: "phases 1-3 keep only the latest snapshot;
-retention is phase 5"). The `save` table accumulates one row per import,
-but it is the *only* record older imports happened — `DISTINCT save_id`
-in `component` is always one value. The live-db-spike inventory
+retention is phase 5"). The `save` table accumulates one row per import —
+but only until the next schema bump, which wipes it (C12/review F1); even
+between bumps it is the *only* record older imports happened —
+`DISTINCT save_id` in `component` is always one value. The live-db-spike
+inventory
 (`live-db-features.md` on branch `live-db-spike`) measured the
 consequence directly: 46 analyzed runs, zero cross-snapshot world data;
 every trend-shaped feature (territory pressure, fleet attrition, market
@@ -49,9 +57,13 @@ Full snapshot retention is the wrong fix (≈120 MB × N). The right fix is
 
 ### C2. The current-snapshot concept is a repeated idiom, not a name
 
-Every view filters with `(SELECT MAX(save_id) FROM save)`
-(`schema.py:518-598`, eight occurrences) and `frames.py` interpolates the
-same subquery as `_CUR` into ~20 query strings (`frames.py:124`).
+Every snapshot-scoped view filters with `(SELECT MAX(save_id) FROM save)`
+(`schema.py:518-598`, seven occurrences across six of the eight views —
+the two E-flavored views, `v_stock_delta` and `v_station_drones`,
+correctly don't; corrected per review F5, verified with
+`grep -n "MAX(save_id)" src/x4analyzer/db/schema.py`) and `frames.py`
+interpolates the same subquery as `_CUR` into ~20 query strings
+(`frames.py:124`).
 Hand-written SQL must know and repeat the trick; there is no
 `current_save` to join. Cosmetic, but it is the first thing every ad-hoc
 query trips over. See T1.
@@ -102,10 +114,16 @@ The view partitions its LAG by
 rows carry `owner_entity` (measured in `live-db-features.md`), the exact
 durable identity the registry mints. And the only stock index is
 `idx_stock ON stock_event(owner_id, ware, time)` (`schema.py:500`), which
-serves the *merge* but not the *analysis*: per-station history by durable
-identity was measured at 30 ms/station and the full delta scan at 888 ms
-— the one interactive-latency failure in the spike's endpoint table. See
-T6 + the index in T2.
+serves neither the analysis nor the merge — `EXPLAIN QUERY PLAN` shows
+`SCAN stock_event` for the delta view's window scan and for the merge's
+time-keyed `SELECT MAX(time)` / `DELETE … WHERE time >=` alike (verified
+on the 8E0C copy; this also corrects the review's X12 target,
+db-schema.md's claim that the index serves the view). Per-station history
+was measured at 30 ms/station in the spike — via the `owner_code` text
+fallback, not durable identity (corrected per review F7; the
+`owner_entity` variant was never separately timed) — and the full delta
+scan at 888 ms, the one interactive-latency failure in the spike's
+endpoint table. See T6 + the index in T2.
 
 ### C6. Frames re-derives in pandas what the schema already knows
 
@@ -162,7 +180,9 @@ one player-filtered view. See T2/T8.
 46 rows for 2 distinct saves. Any series keyed on `save` (the
 player-money series, and every aggregate-history table T4 proposes) is
 polluted by dashboard-dev reruns. There is no is-rerun signal and no
-distinct-snapshot view. See T5.
+distinct-snapshot view. And the pollution problem is the *lesser* defect
+of keying on `save` — the table doesn't even survive schema bumps (C12).
+See T5 (which now requires T0).
 
 ### C9. View lifecycle fights read-only consumers
 
@@ -209,6 +229,55 @@ needs the reference doc open. See T11.
   merged (their save-side `time` attr doesn't exist in v9, so the DB-side
   arrival save is the only timestamp obtainable). See T13.
 
+### C12. Schema bumps drop `save` and `meta`; the migration chain has holes
+
+(From review F1/F2/X13 — this critique was missing from the first draft
+and its absence broke half the target design.) `_ensure_schema` drops
+**every** table not in `EVENT_TABLES` on a `SCHEMA_VERSION` mismatch —
+`save` and `meta` included (`store.py:70-74`; `EVENT_TABLES` at
+`schema.py:28-29` lists six E tables only). So the import log resets on
+every bump: the 8E0C DB the spike measured at 46 `save` rows on
+2026-07-21 holds 2 today, both post-v10, while `entity.first_seen` still
+shows 13 distinct import times (verified:
+`SELECT COUNT(*) FROM save; SELECT COUNT(DISTINCT first_seen) FROM
+entity;` → 2 / 13). Anything that keys `save_id` into a table that
+outlives bumps — every A-table T4 proposes, T3's `updated_save_id`,
+T13's `first_save_id` — silently points into recycled ids after the
+first bump, and `meta` keys (T13's `managed_tables`, T3's seeded
+windows) are dropped by the very code path that would read them.
+
+Separately, the E-migration walk (`while version in EVENT_MIGRATIONS`,
+`store.py:66-69`) only works for DBs on the explicit chain:
+`NEXT_VERSION` maps 1→2→3→4 (`schema.py:75`) and nothing beyond, while
+`SCHEMA_VERSION` is "10". A DB at an off-chain version skips every
+migration — and one exists: the 559 h playthrough's DB is at v5
+(verified: `sqlite3 x4_94062A45….sqlite "SELECT value FROM meta WHERE
+key='schema_version'"` → 5). Any future E-migration keyed at the current
+version (T3's backfill, T12's UPDATE, T13's ALTER) would silently not
+run for it, after which explicit-column INSERTs crash. Fix: **T0**, a
+precondition for T3/T4/T5/T12/T13.
+
+### C13. Stale-save merges destroy event history — the current model CAN lose history
+
+(From review F8; same code finding as the review's db-schema F4.)
+`_merge_window` executes `DELETE FROM {table} WHERE time >= mintime`
+unconditionally (`store.py:736`): feeding an *older* save of the same
+playthrough — one `--save` typo, or exactly the out-of-order autosave
+delivery a live-mode watcher invites — wipes every event row newer than
+that save's window start and replaces it with the shorter window. Only
+the entity registry has a high-water guard (`store.py:412-417`). The
+first draft's framing "no change below loses history" never noticed the
+*current* model can. Fix: **T14**; empirical proof of the destruction is
+review backlog item 3.
+
+### C14. `write_reference` rewrites every R table + the full textdb every run
+
+(From review F9.) `write_reference` does `DELETE FROM {table}` + full
+re-insert for all nine R tables and `text` on every import
+(`store.py:157-167`) — irrelevant for a one-shot batch run, real write
+churn under a watcher analyzing every autosave (goal 1). Fix: folded
+into T10.
+
 ---
 
 ## 2. Ontology assessment
@@ -227,7 +296,7 @@ concept:
 | **Fleet hierarchy** | `fleet_edge` (runtime ids, snapshot), `v_fleet` closure, `*_cmdr_*` frozen into trade rows | **Snapshot-only and id-fragile.** No durable (entity-level) fleet membership; merge-time freezing into trade rows is the right call for attribution but is the *only* fleet history that exists. |
 | **Sector territory** | Nowhere. `component.sector_macro` + owner enables the 9.5 ms presence query (spike), but no table/view names the concept; the map computes it in Python per build | **Missing.** Highest-value absent concept, and the cheapest history to keep (T4). |
 | **Coverage/provenance of evidence** | `epoch` columns + `meta` strings + `save.source_file` | **Implicit** (C4). The model *has* the discipline (epochs, merge cutoffs, registry high-water mark) but no queryable representation of it. |
-| **Player empire over time** | `save.player_money_cr` per import | **Accidental.** One useful series exists because `save` happens to accumulate; polluted by reruns (C8). |
+| **Player empire over time** | `save.player_money_cr` per import | **Accidental and fragile.** One useful series exists because `save` accumulates between schema bumps — and is wiped by every bump (C12) on top of being polluted by reruns (C8). T0 + T5 make it real. |
 
 Summary: identity and event history — the hard parts — are genuinely well
 modeled. What's missing is (a) the *joins* that let the good parts reach
@@ -240,14 +309,56 @@ design is those three things.
 
 ## 3. Target design
 
-Ten changes, T1–T13, each with DDL sketch, rationale, and migration
-notes. Migration mechanics use the existing machinery: W/R/D tables are
-drop-and-recreate on a `SCHEMA_VERSION` bump (free — that is the designed
-path, `store.py:70-74`), E tables take targeted statements via
+Fifteen changes, T0–T14, each with DDL sketch, rationale, and migration
+notes. Migration mechanics use the existing machinery — with one repair
+first: W/R/D tables are drop-and-recreate on a `SCHEMA_VERSION` bump
+(free, `store.py:70-74`), and E tables take targeted statements via
 `EVENT_MIGRATIONS` (`schema.py:38-75`; the values are arbitrary SQL
-tuples, so `UPDATE`/`CREATE INDEX` work there too). New table classes
+tuples, so `UPDATE`/`CREATE INDEX` work there too) — but the migration
+walk currently strands off-chain DBs and the drop-everything-else rule
+catches `save`/`meta` too (C12), so **T0 must land before anything that
+keys into `save` or relies on a chained E-migration**. New table classes
 introduced: **A — accumulated aggregates** (append-only per snapshot,
-never dropped, migrated like E tables).
+never dropped, migrated like E tables) and **P — persistent
+bookkeeping** (`save`, `meta`, `coverage`: never dropped, T0).
+
+### T0. Make the migration machinery able to carry the design
+
+The C12 fix, and the precondition the first draft silently assumed
+(review F1/F2/X13). Two parts, no new DDL:
+
+1. **Promote `save` and `meta` to never-dropped.** Add a
+   `PERSISTENT_TABLES = ("save", "meta")` tuple in `schema.py`; the
+   drop loop in `_ensure_schema` spares `EVENT_TABLES + PERSISTENT_TABLES
+   + AGGREGATE_TABLES` instead of `EVENT_TABLES` alone. Rationale:
+   `save` is the provenance log and the time dimension every A-table
+   joins (T4), the rerun guard's evidence (T5), and the target of
+   `coverage.updated_save_id` (T3) and `removed_object.first_save_id`
+   (T13) — none of that can key into a table whose ids recycle on every
+   bump. `meta` carries cross-run bookkeeping (`entity_registry_time`,
+   `csv_caches_imported`, T13's `managed_tables`) that must not be
+   dropped by the code path that reads it. Both tables' DDL is
+   version-stable (append-only column adds at most), so preserving them
+   costs nothing; if their shape ever must change, they migrate like E
+   tables.
+2. **Repair the version walk so off-chain DBs migrate.** Replace the
+   `while version in EVENT_MIGRATIONS` walk (`store.py:66-69`) with a
+   complete chain: every historical version gets a `NEXT_VERSION` entry
+   up to the current one, with an empty migration tuple where the E/P
+   tables didn't change (v4→…→v10 were all W/R/D-side bumps, so those
+   entries are empty today). Future E/P migrations then reliably run for
+   every DB, whatever version it sits at. Add a regression test that (a)
+   a `SCHEMA_VERSION` bump preserves `save`/`meta` rows and (b) a DB
+   stamped at an off-chain version (the real case: v5) walks to current
+   — review backlog item 15 (re-importing the 559 h playthrough's v5 DB)
+   is the live end-to-end exercise of exactly this.
+
+*Migration:* pure code + one tuple; no data change. Independent; **T3,
+T4, T5, T12, and T13 depend on it**, and §4 sequences it first.
+Verified: the drop-loop and walk cites are `store.py:66-74` read
+directly; the v5 DB and the 2-row `save` table are the queries under
+C12; nothing else to execute until implementation (the regression test
+is the implementation-time proof).
 
 ### T1. Name the current snapshot
 
@@ -305,14 +416,21 @@ CREATE INDEX idx_tx_buyer  ON trade_tx(buyer_entity)  WHERE buyer_entity  IS NOT
 CREATE INDEX idx_tx_seller ON trade_tx(seller_entity) WHERE seller_entity IS NOT NULL;
 ```
 
-*Migration:* W rebuild (free) + `CREATE INDEX` on E tables via
-`EVENT_MIGRATIONS` (safe, no data touched). Fixes C3, C5's index half,
-and unblocks T4/T6/T8. **Independent; most other changes want it.**
+*Migration:* W rebuild (free) + the E-table `CREATE INDEX IF NOT
+EXISTS` statements added to the `INDEXES` tuple, which `_ensure_schema`
+applies idempotently at every connect (`store.py:78-79`) — **not** via
+`EVENT_MIGRATIONS`, whose broken chain would skip them for off-chain DBs
+(C12/review F2); routed this way, T2 does not depend on T0. Fixes C3,
+C5's index half, and unblocks T4/T6/T8. **Independent; most other
+changes want it.** Verified: all three component indices and the three
+E-table indices (partial indexes included) created cleanly on the 8E0C
+copy after `ALTER TABLE component ADD COLUMN entity_id INTEGER`
+(SQLite 3.53.3).
 
 ### T3. Coverage as a table
 
 ```sql
--- E-class: bookkeeping of what the event history covers; never dropped
+-- P-class: bookkeeping of what the event history covers; never dropped
 CREATE TABLE IF NOT EXISTS coverage (
   stream       TEXT NOT NULL,   -- 'trade_tx' | 'stock_event' | 'log:<category>'
   epoch        INTEGER NOT NULL,
@@ -321,6 +439,8 @@ CREATE TABLE IF NOT EXISTS coverage (
   window_start REAL,            -- most recent merged window's start
                                 -- (rate denominators), newest epoch only
   updated_save_id INTEGER,      -- provenance: which import last extended it
+                                -- (FK save.save_id — meaningful only once
+                                -- T0 makes save never-dropped)
   PRIMARY KEY (stream, epoch)
 );
 ```
@@ -348,22 +468,39 @@ INSERT INTO coverage (stream, epoch, t_min, t_max)
 ```
 
 then seed `window_start` from the two meta keys and delete them. No
-history loss. Independent (better with T5's rerun guard).
+history loss. **Depends on T0** twice over: the backfill is an
+E/P-migration and must ride the repaired chain to reach off-chain DBs
+(C12/review F2), and `updated_save_id` is only worth writing once `save`
+survives bumps (review F1). Better with T5's rerun guard. Verified: the
+table DDL and all three backfill INSERTs executed on the 8E0C copy —
+resulting coverage `trade_tx[961–71,852]`, `stock_event[83–71,875]`
+plus per-category `log:*` rows.
 
 ### T4. Aggregate history: the trend layer (A-class tables)
 
 The C1 fix. Not snapshot retention — small append-only aggregates written
 once per *distinct* snapshot (guard from T5), sized so a dense autosave
 stream is cheap. All rows carry `save_id`; joining `save.game_time` gives
-the time axis.
+the time axis — which is exactly why this whole item **requires T0**:
+without it, the first schema bump resets `save` and every accrued
+`save_id` silently points at the wrong (or no) import row (review F1).
+
+Key-column rule (review F6): SQLite treats a `NULL` in a non-INTEGER
+PRIMARY KEY column as distinct-from-everything, so a nullable PK column
+makes the key decorative — duplicate appends succeed. `sector_macro`
+and `owner` ARE null in practice (objects in transit / ownerless), so
+every textual key column below is `NOT NULL DEFAULT ''` and the
+`INSERT … SELECT` wraps them in `COALESCE(x, '')`. Uniqueness then holds
+in the table itself, not just in the T5 guard (which F1 showed can be
+defeated post-bump).
 
 ```sql
 -- territory & military presence: ~1,500 rows / snapshot (measured shape:
 -- the spike's 9.5 ms heatmap query), ≈60 KB per snapshot
 CREATE TABLE IF NOT EXISTS sector_presence (
   save_id      INTEGER NOT NULL,
-  sector_macro TEXT,
-  owner        TEXT,
+  sector_macro TEXT NOT NULL DEFAULT '',  -- '' = no sector (in transit)
+  owner        TEXT NOT NULL DEFAULT '',  -- '' = ownerless
   class        TEXT NOT NULL,       -- station | ship_xl | ship_l | ...
   n            INTEGER NOT NULL,
   PRIMARY KEY (save_id, sector_macro, owner, class)
@@ -389,7 +526,7 @@ CREATE TABLE IF NOT EXISTS station_metric (
 -- every snapshot.
 CREATE TABLE IF NOT EXISTS market_stat (
   save_id      INTEGER NOT NULL,
-  sector_macro TEXT,
+  sector_macro TEXT NOT NULL DEFAULT '',  -- '' = offer host has no sector
   ware         TEXT NOT NULL,
   side         TEXT NOT NULL,       -- buy | sell
   n_offers     INTEGER NOT NULL,
@@ -398,6 +535,10 @@ CREATE TABLE IF NOT EXISTS market_stat (
   PRIMARY KEY (save_id, sector_macro, ware, side)
 );
 ```
+
+(`station_metric` needs no sentinel: both its key columns are already
+`NOT NULL`, and `entity_id` comes from the registry, which never mints
+NULL.)
 
 All three are `INSERT … SELECT` from tables `write_snapshot` just wrote —
 no parser change, no new data source, single-digit milliseconds each.
@@ -409,10 +550,18 @@ wanted, add it as a change-only variant later; the A-class mechanics will
 already exist.
 
 *Migration:* three `CREATE TABLE`s, start empty — history accrues from
-the next run. Nothing to lose. **Depends on T2** (entity_id for
-`station_metric`) **and T5** (rerun guard so dev reruns don't append
+the next run. Nothing to lose. **Depends on T0** (never-dropped `save`,
+without which the time axis breaks on the first bump), **T2** (entity_id
+for `station_metric`) **and T5** (rerun guard so dev reruns don't append
 duplicate rows). Migrated like E tables (never dropped) — add an
-`AGGREGATE_TABLES` tuple beside `EVENT_TABLES` in `schema.py`.
+`AGGREGATE_TABLES` tuple beside `EVENT_TABLES` in `schema.py`; T0's
+drop-loop change spares it. Verified on the 8E0C copy: all three tables
+created; the prescribed `INSERT … SELECT` populates produced 1,703
+`sector_presence` rows and 4,529 `market_stat` rows (inside the 3–6 k
+predicted band) in well under a second; re-running the same
+`sector_presence` append fails with `UNIQUE constraint failed` — the
+review's F6 duplicate-insert reproduction succeeds against the *old*
+nullable DDL and is rejected by this one.
 
 ### T5. Separate "import run" from "snapshot"
 
@@ -434,8 +583,12 @@ rebuild (that's the point of a rerun), but A-table appends are skipped.
 The player-money series and every T4 series then read from `v_snapshot`
 density, immune to dashboard-dev reruns (C8).
 
-*Migration:* view + store guard; no data change. Independent; T4 wants
-it.
+*Migration:* view + store guard; no data change. **Depends on T0**: the
+EXISTS check reads `save`, and a schema bump that empties `save` (review
+F1) would make every prior snapshot look new — the guard would happily
+re-append A-rows it can no longer see. T4 wants this item. Verified:
+`v_snapshot` executed on the 8E0C copy — 2 `save` rows collapse to 1
+distinct snapshot, matching the known state (two imports of one save).
 
 ### T6. Event-history views: the domain read layer
 
@@ -443,7 +596,14 @@ Replaces the pandas re-derivations of C6 with connect-created views.
 
 ```sql
 -- trades in domain terms: commander-redirected ("Executed by" rule),
--- current display names via the registry, ware names resolved
+-- current display names via the registry, ware names resolved.
+-- Executor DISPLAY columns (exec_name/exec_code) survive because
+-- viz/history.py renders them ({side}.proxy.name/.code, history.py:59-66)
+-- and entity ids alone cannot recover them for NULL-entity rows
+-- (review F3). The proxied flag keys on cmdr_id, not cmdr_entity —
+-- frames' rule is cmdr_id.notna() (frames.py), and the csv-import path
+-- writes cmdr ids with NULL entities (store.py:867), so an entity-keyed
+-- flag would silently diverge on those rows.
 CREATE VIEW v_trade AS
 SELECT t.time, t.ware, COALESCE(w.name, t.ware) AS ware_name,
        t.price_cr, t.amount, t.price_cr * t.amount AS total_cr,
@@ -457,8 +617,16 @@ SELECT t.time, t.ware, COALESCE(w.name, t.ware) AS ware_name,
        COALESCE(t.seller_cmdr_code, t.seller_code) AS seller_code,
        t.buyer_entity  AS buyer_exec_entity,   -- the executing ship when
        t.seller_entity AS seller_exec_entity,  -- a subordinate traded
-       t.buyer_cmdr_entity IS NOT NULL  AS buyer_proxied,
-       t.seller_cmdr_entity IS NOT NULL AS seller_proxied
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL THEN t.buyer_name END
+         AS buyer_exec_name,                   -- executor display identity,
+       CASE WHEN t.buyer_cmdr_id IS NOT NULL THEN t.buyer_code END
+         AS buyer_exec_code,                   -- present only when proxied
+       CASE WHEN t.seller_cmdr_id IS NOT NULL THEN t.seller_name END
+         AS seller_exec_name,
+       CASE WHEN t.seller_cmdr_id IS NOT NULL THEN t.seller_code END
+         AS seller_exec_code,
+       t.buyer_cmdr_id IS NOT NULL  AS buyer_proxied,
+       t.seller_cmdr_id IS NOT NULL AS seller_proxied
 FROM trade_tx t
 LEFT JOIN ware w    ON w.id = t.ware
 LEFT JOIN entity be ON be.entity_id = COALESCE(t.buyer_cmdr_entity,  t.buyer_entity)
@@ -469,9 +637,16 @@ This keeps the frames-layer subtlety that matters (rename-proof current
 names via the registry; the proxy-attribution toggle stays possible
 because executor columns survive) and drops the one that doesn't: the
 latest-name-per-code pandas fallback (`frames.py:464-473`) degrades to
-the stored merge-time name — it only ever applied to rows merged before
-schema v4 stamped entities, a shrinking set. `frames.tradelog` becomes a
-thin `read_sql` + Categorical dressing.
+the stored merge-time name. (The first draft called the affected rows "a
+shrinking set" — wrong, per review F4: NULL-entity parties are minted at
+*every* merge, for removed-object-resolved and registry-missed parties;
+verified on the 8E0C copy, `SELECT COUNT(*) FROM trade_tx WHERE
+raw_attrs IS NOT NULL AND (buyer_entity IS NULL OR seller_entity IS
+NULL)` → 2 rows merged under the current schema. The degradation is
+still acceptable — those parties have no registry identity to resolve
+against, so the stored name is the best available either way — but it is
+permanent, not transitional.) `frames.tradelog` becomes a thin
+`read_sql` + Categorical dressing.
 
 ```sql
 -- stock flows partitioned by durable identity (renames v_stock_delta;
@@ -512,10 +687,18 @@ LEFT JOIN component c ON c.entity_id = e.entity_id
 *Migration:* views only (recreated at connect / on version bump per T10).
 `v_stock_delta` survives one release as `CREATE VIEW v_stock_delta AS
 SELECT *, inflow AS dv, outflow AS dv_neg FROM v_stock_flow` then goes.
-**Depends on T2** for its performance half; the views themselves work
-today. Which frames responsibilities move: `tradelog` assembly,
-`global_trades` identity enrichment (the removed-object dagger logic
-folds into `v_entity_life.alive`), stock-delta access.
+**Depends on T2** for its performance half and for `v_entity_life`'s
+`component.entity_id` join (which does not exist until T2 lands); the
+other views work today. Which frames responsibilities move: `tradelog`
+assembly, `global_trades` identity enrichment (the removed-object dagger
+logic folds into `v_entity_life.alive`), stock-delta access. Verified on
+the 8E0C copy (with T2's column shimmed in via `ALTER TABLE component
+ADD COLUMN entity_id`): all three views execute; `v_trade` returns
+exactly `trade_tx`'s 3,133 rows; its proxied flags match frames' rule
+row-for-row (261 buyer / 2,038 seller proxied — identical to `COUNT(*)
+… WHERE {side}_cmdr_id IS NOT NULL`); `{side}_exec_name`/`_exec_code`
+are non-NULL for all 2,038 proxied seller rows; `v_entity_life` returns
+35,456 entities, 18,289 alive.
 
 ### T7. Diplomacy view
 
@@ -524,18 +707,32 @@ CREATE VIEW v_faction_standing AS
 SELECT faction, other,
        SUM(CASE WHEN kind = 'base'    THEN value ELSE 0 END) AS base,
        SUM(CASE WHEN kind = 'booster' THEN value ELSE 0 END) AS booster,
-       MIN(1.0, MAX(-1.0,
-         SUM(CASE WHEN kind IN ('base','booster') THEN value ELSE 0 END)))
-         AS effective
+       MIN(1.0, MAX(-1.0, SUM(value))) AS effective
 FROM faction_relation
 WHERE save_id = (SELECT save_id FROM current_save)
+  AND kind IN ('base', 'booster')   -- frames keys on base ∪ booster only:
+                                    -- a discount-only pair must emit no row
 GROUP BY faction, other;
 ```
 
-Verbatim the `frames.py:624-651` pivot (boosters are stored pre-decayed,
-so SUM+clamp is the whole model per
-docs/models/faction-relations-model.md). Discounts stay a plain filter on
-`faction_relation`. *Migration:* view only. Independent.
+Reproduces the `frames.py:624-651` pivot: effective = clamp(base +
+Σboosters, [−1, 1]). The first draft called this "verbatim" while
+emitting rows for discount-only pairs that frames excludes (review F11)
+— the `kind` filter in the WHERE fixes that (and lets the effective SUM
+drop its CASE). The first draft also justified SUM-without-decay with
+"boosters are stored pre-decayed" — that claim is **unconfirmed**
+(review X3 / faction-model F1: zero decay observed across 4 saves, and
+every decaying `set_relation_boost` call site is object-level, not
+faction-pair). The view does not depend on it: it reproduces frames'
+arithmetic, which matches the save's stored values whether those are
+pre-decayed, never-decaying, or decayed-at-load. If review backlog
+item 9 ("booster decay: observe or kill") ever finds live decay, the fix
+is a view change here, not a schema change. Discounts stay a plain
+filter on `faction_relation`. *Migration:* view only. Independent.
+Verified on the 8E0C copy: view executes; 992 (faction, other) pairs —
+exactly the `SELECT DISTINCT` count of base∪booster pairs frames would
+key on; discount-only pairs in this save: 0 (the filter is still
+load-bearing for saves that have them).
 
 ### T8. Station and fleet assemblies
 
@@ -580,26 +777,36 @@ WHERE cf.owner = 'player' AND cc.owner = 'player'
 
 `merge_events` then takes its commander map from this view's underlying
 query instead of re-deriving from raw save lists, and `frames.wings`
-becomes a `read_sql`. *Migration:* views + deleting `_player_edges`.
-Depends on T2.
+becomes a `read_sql`. One equivalence assumption, stated explicitly
+(review F10): `_player_edges` resolves owners over **all** parsed
+components (`store.py:599`), while this view JOINs `component`, which
+excludes connectionless components (`store.py:207`, the `if connection`
+filter) — the two differ iff a fleet edge touches a connectionless
+player object. The review measured 0 divergent rows today; the
+implementation must either keep that invariant checked (a test comparing
+the view to `_player_edges` output on a real save before deleting the
+latter) or resolve edges in `write_snapshot` before the filter applies.
+*Migration:* views + deleting `_player_edges`. Depends on T2. Verified
+on the 8E0C copy (T2 column shimmed): both views execute; `v_station`
+1,771 rows, `v_player_fleet` 110 rows.
 
 ### T9. Load `region_yield` reference; resource status becomes SQL
 
 ```sql
 CREATE TABLE IF NOT EXISTS region_yield (
-  level     TEXT NOT NULL,           -- verylow … veryhigh
-  ware      TEXT NOT NULL,
-  capacity  REAL,                    -- full-area yield
-  respawn_s REAL,                    -- -1 = never respawns
+  level       TEXT NOT NULL,         -- verylow … veryhigh
+  ware        TEXT NOT NULL,
+  capacity    REAL,                  -- full-area yield
+  respawn_min REAL,                  -- MINUTES (source unit); -1 = never
   PRIMARY KEY (level, ware)
 );
 
 CREATE VIEW v_resource_area AS
 SELECT r.sector_macro, r.ware, r.yield, r.level, r.speed, r.starttime,
-       ry.capacity, ry.respawn_s,
+       ry.capacity, ry.respawn_min,
        CASE WHEN r.yield > 0 THEN 'live'
             WHEN ry.capacity IS NULL OR ry.capacity = 0 THEN 'unknown'
-            WHEN ry.respawn_s < 0 THEN 'never'
+            WHEN ry.respawn_min < 0 THEN 'never'
             WHEN r.starttime <= (SELECT game_time FROM save
                                  WHERE save_id = (SELECT save_id FROM current_save))
                  THEN 'full'
@@ -609,12 +816,43 @@ LEFT JOIN region_yield ry ON ry.level = r.level AND ry.ware = r.ware
 WHERE r.save_id = (SELECT save_id FROM current_save);
 ```
 
-Encodes the confirmed respawn model
-(docs/models/resource-depletion-model.md; the `starttime = 0` case folds
-into `<=` since game_time > 0 always) so "what can I mine right now,
-where" is a query. Frames keeps only the wide sector pivot for the map.
+The delay column is named for its actual unit (review X21): the source
+column `regionyields.csv:respawndelay` is **minutes** (`verylow,ore` =
+20; frames uses it as minutes throughout — `rate = cap/delay*60` per
+hour, `frames.py:241`; the depletion model's timer algebra is `starttime
+= depletion + respawndelay×60` seconds). The first draft's `respawn_s`
+would have loaded minute values under a seconds name, handing any SQL
+ETA arithmetic against `starttime` (seconds) a silent 60× bug. Keeping
+minutes (rather than converting ×60 at load) matches the CSV, the XSD,
+and frames — anyone joining against `starttime` must convert, and the
+name now says so.
+
+Status-model caveats inherited from the review's re-testing of the
+depletion model (X21's second half — the first draft froze the model
+pre-correction):
+
+- `'full'` reports the *reference capacity* as available. For nividium
+  the review found materializations as low as 4.4 % of cap
+  (resource-model F5), so `'full'` may overstate nividium availability;
+  the view reports the model's prediction, and the caveat belongs with
+  any consumer. Review backlog item 11 settles it.
+- Respawn *relocates* the area ~97 % of the time (resource-model F1), so
+  nothing keyed on per-area position may be layered on this view; at
+  the (sector, ware) granularity the view actually exposes, relocation
+  is immaterial (areas move within their sector). Review backlog item 5
+  is the model rewrite this view should track.
+
+Encodes the timer/eligibility layer of the respawn model that *did*
+survive review (starttime = depletion + delay, arm-at-zero, eligibility
+gating — confirmed 149/151 events; the `starttime = 0` case folds into
+`<=` since game_time > 0 always) so "what can I mine right now, where"
+is a query. Frames keeps only the wide sector pivot for the map.
 *Migration:* one more R-table load in `write_reference` from the already-
-packaged `regionyields.csv` + view. Independent.
+packaged `regionyields.csv` + view. Independent. Verified on the 8E0C
+copy: table + view execute; with the packaged CSV loaded, the view's
+status matches a verbatim reimplementation of `frames._classify`
+(`frames.py:228-240`) on **all 3,246 areas, 0 mismatches** (3,059 live /
+146 full / 41 respawning in this save).
 
 ### T10. Live-mode operations
 
@@ -628,6 +866,13 @@ packaged `regionyields.csv` + view. Independent.
   from the code's (bumping it is free — views are cheap DDL). Read-only
   connections then always see current views and the serve TEMP-view
   duplication dies.
+- **Reference-write churn** (C14/review F9): `write_reference` rewrites
+  all nine R tables + the full textdb on every run (`store.py:157-167`).
+  Under a watcher this is pointless write load on data that changes only
+  when `extract-gamedata` reruns. Fix: store a digest of the reference
+  CSVs (or their mtimes) in `meta('reference_digest')` and skip
+  `write_reference` when unchanged. One guard, same shape as the
+  `csv_caches_imported` flag.
 - **Analyzer split** (parse→DB vs DB→render) is the spike's P7 and out of
   scope here, but note the schema is already split-ready: everything the
   render phase needs is in the DB except four `SaveData` scalars, which
@@ -635,8 +880,10 @@ packaged `regionyields.csv` + view. Independent.
   `player_faction_name` belong as `save` columns (two W-side column adds)
   to close that gap.
 
-*Migration:* pragmas + meta key; no table changes. Independent. High
-leverage for goal 1.
+*Migration:* pragmas + meta keys; no table changes. Independent (the
+digest guard's meta key only survives bumps under T0, but losing it
+merely causes one redundant reference write — acceptable without T0).
+High leverage for goal 1.
 
 ### T11. Naming and convention cleanups (W/R rebuild = free renames)
 
@@ -674,49 +921,90 @@ WHERE interaction IS NULL AND raw_attrs IS NOT NULL;
 
 (`json_extract` is built into the sqlite3 Python ships.) Optionally
 rename the column to `interact` to match the save; the backfill is the
-part that matters. *Migration:* `EVENT_MIGRATIONS` entry. Independent.
+part that matters. *Migration:* `EVENT_MIGRATIONS` entry — which means
+**depends on T0**: without the repaired chain the entry never runs for
+off-chain DBs like the real v5 one (C12/review F2).
 
 ### T13. Migration-machinery hygiene
 
 - **Zombie tables** (C11): write the managed-table inventory to
   `meta('managed_tables', json array)` at every schema write; on a
   version bump, drop tables that are in the stored inventory but absent
-  from the current code's list (never touching E/A tables or unknown
+  from the current code's list (never touching E/A/P tables or unknown
   user tables). Retroactively drops `station_drones` on the next bump.
+  Requires T0: pre-T0, the bump path drops `meta` itself before the
+  inventory could be consulted (review F1).
 - **`removed_object.first_save_id`**: `ALTER TABLE removed_object ADD
   COLUMN first_save_id INTEGER` — stamp at merge so graveyard rows carry
   arrival provenance (their only obtainable timestamp; the save-side
   `time` attr does not exist in v9, so the existing always-NULL `time`
   column can be dropped from the fresh DDL while the ALTER path leaves it
-  in old DBs — harmless either way).
+  in old DBs — harmless either way). Requires T0 twice: the ALTER is an
+  `EVENT_MIGRATIONS` entry (needs the repaired chain to reach the v5
+  DB), and the stamped ids are provenance only if `save` stops being
+  reset (review F1/F2).
 
-*Migration:* meta bookkeeping + one E-table ALTER. Independent.
+*Migration:* meta bookkeeping + one E-table ALTER. **Depends on T0.**
+
+### T14. Stale-save merge guard: make "no history loss" actually true
+
+The C13 fix (review F8) — the one defect class where the *current*
+model destroys irreplaceable history, and the highest-stakes one for
+goal 1, since a live-mode watcher is exactly the component that will
+eventually feed saves out of order. Design: mirror the entity registry's
+high-water guard (`store.py:412-417`) at the top of `merge_events` —
+compare the incoming `save.game_time` against the stored high-water mark
+(per-stream `MAX(time)`, or T3's `coverage.t_max` once it exists) and
+**skip the merge with a warning** when the save is older, exactly as
+`update_entity_registry` already does for lifecycle edits. Skipping is
+deliberately conservative: an older save's window *could* in principle
+back-fill history older than everything stored (insert-only, no
+delete), but distinguishing safe back-fill from destructive overlap
+inside `_merge_window`'s boundary logic is subtle, and the guard's job
+is to make the destructive path (`DELETE FROM {table} WHERE time >=
+mintime`, `store.py:736`) unreachable first. A back-fill mode can be a
+later refinement if it ever matters.
+
+*Migration:* code only, no DDL. Independent (T3's coverage table makes
+the check cheaper but `MAX(time)` works today). Review backlog item 3 is
+the empirical proof-of-destruction on a scratch copy — worth running
+once before implementation to pin the failure in a test. Verified: the
+unconditional delete is `store.py:736` read directly; the registry
+guard pattern being mirrored is `store.py:412-417`.
 
 ---
 
 ## 4. Prioritized recommendations
 
 Impact is against the two goals (live mode, ad-hoc SQL). "Independent"
-means implementable and shippable alone.
+means implementable and shippable alone. This table is the *plan's*
+ordering; the review's P1/P2/P3 research backlog
+([data-model-review.md](data-model-review.md)) is a separate list —
+cross-references below name backlog items where one gates or exercises
+the other, but the lists stay distinct: T-items change the schema,
+backlog items settle evidence.
 
 | # | Change | Impact | Depends on | Notes |
 |---|---|---|---|---|
-| **H1** | T2 entity spine (`component.entity_id` + E-indices + pipeline reorder) | **High** | — | The keystone; do first. Unblocks H3, M2, M3 |
-| **H2** | T10 WAL + view-lifecycle fix | **High** (live mode) | — | Smallest diff of any high item |
-| **H3** | T4 aggregate history (`sector_presence`, `station_metric`, `market_stat`) | **High** | H1, M1 | The trend layer; value compounds with every analyzed save — start early |
-| **M1** | T5 snapshot-vs-rerun (`v_snapshot` + A-write guard) | Medium | — | Trivial alone; H3 needs it |
-| **M2** | T6 event views (`v_trade`, `v_stock_flow`, `v_entity_life`) | Medium-high | H1 (for perf; correct without) | Moves the biggest pandas blocks into SQL |
-| **M3** | T8 assemblies (`v_station`, `v_player_fleet`) + de-duplicate fleet resolution | Medium | H1 | Kills C6-rollups and C7 |
-| **M4** | T3 coverage table | Medium | — | Provenance made queryable; backfill preserves everything |
-| **M5** | T9 `region_yield` + `v_resource_area` | Medium | — | Closes the one reference gap forcing pandas |
-| **M6** | T1 `current_save` + T7 `v_faction_standing` | Medium (ergonomics) | — | Views only; can ride along with any bump |
+| **H0** | T0 migration machinery (never-dropped `save`/`meta`, repaired version chain) | **High** (precondition) | — | Do first: H3, H4's coverage variant, M1, M4, L2, L3 all key into it. Review backlog item 15 (re-import the v5 DB) is its live test |
+| **H1** | T2 entity spine (`component.entity_id` + E-indices + pipeline reorder) | **High** | — | The keystone. Unblocks H3, M2, M3. E-indices ride the idempotent `INDEXES` path, not the chain |
+| **H2** | T10 WAL + view-lifecycle fix + reference-write digest guard | **High** (live mode) | — | Smallest diff of any high item |
+| **H3** | T4 aggregate history (`sector_presence`, `station_metric`, `market_stat`) | **High** | H0, H1, M1 | The trend layer; value compounds with every analyzed save — start as soon as H0/H1 land |
+| **H4** | T14 stale-save merge guard | **High** (live mode; protects irreplaceable history) | — | Run review backlog item 3 (proof-of-destruction) first to pin the failure in a test |
+| **M1** | T5 snapshot-vs-rerun (`v_snapshot` + A-write guard) | Medium | H0 | Trivial alone; H3 needs it; guard is blind without H0 |
+| **M2** | T6 event views (`v_trade`, `v_stock_flow`, `v_entity_life`) | Medium-high | H1 (perf + `v_entity_life`'s join; other views correct without) | Moves the biggest pandas blocks into SQL |
+| **M3** | T8 assemblies (`v_station`, `v_player_fleet`) + de-duplicate fleet resolution | Medium | H1 | Kills C6-rollups and C7; verify the `_player_edges` equivalence invariant before deleting it |
+| **M4** | T3 coverage table | Medium | H0 | Provenance made queryable; backfill preserves everything; needs the repaired chain to reach off-chain DBs |
+| **M5** | T9 `region_yield` + `v_resource_area` | Medium | — | Closes the one reference gap forcing pandas; units corrected (minutes); track review backlog items 5/11 for the model caveats |
+| **M6** | T1 `current_save` + T7 `v_faction_standing` | Medium (ergonomics) | — | Views only; can ride along with any bump; T7 no longer presumes booster-decay semantics (review backlog item 9) |
 | **L1** | T11 naming cleanups | Low | — | Batch into whichever bump comes first |
-| **L2** | T12 `interact` backfill | Low | — | One migration statement |
-| **L3** | T13 zombie-drop hygiene + `removed_object.first_save_id` | Low | — | Migration-machinery debt |
+| **L2** | T12 `interact` backfill | Low | H0 | One migration statement — on the repaired chain |
+| **L3** | T13 zombie-drop hygiene + `removed_object.first_save_id` | Low | H0 | Migration-machinery debt |
 
-Suggested sequencing: **H1 + H2** in one schema bump (v11), **M1 + H3**
-next (v12, starts accruing history — the sooner the better), then M2–M6
-as view-mostly increments, L* batched opportunistically. Every step keeps
+Suggested sequencing: **H0 + H1 + H2 + H4** in one schema bump (v11 —
+H0 and H4 are code-only and protect everything after), **M1 + H3** next
+(v12, starts accruing history — the sooner the better), then M2–M6 as
+view-mostly increments, L* batched opportunistically. Every step keeps
 the DB consumable by the current frames.py; frames functions retire one
 at a time as their view replacements land.
 
@@ -725,4 +1013,8 @@ History-loss statement, explicitly: no proposal drops or rewrites rows in
 `entity_event`. The only discarded artifacts are derivable-and-rebuilt
 (W/R/D tables during version bumps — the designed path), the two
 `meta` window keys (superseded by a backfilled `coverage`), and the
-`v_stock_delta` view name (aliased for one release).
+`v_stock_delta` view name (aliased for one release). One correction the
+review forced on this statement (F8): the *current* model can lose
+history — a stale-save merge deletes newer E rows unconditionally — so
+"no change loses history" is only honest once T14's guard lands; until
+then the statement describes the proposals, not the status quo.
