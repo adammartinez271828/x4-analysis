@@ -185,6 +185,56 @@ def test_reference_loaded(conn):
     assert count(conn, "ware") == n
 
 
+# ---- live-mode operations (T10) ---------------------------------------------
+
+def test_wal_and_busy_timeout(cfg, save_data):
+    conn = store.open_db(cfg, save_data.guid)
+    assert conn.execute("PRAGMA journal_mode").fetchone() == ("wal",)
+    assert conn.execute("PRAGMA busy_timeout").fetchone() == (5000,)
+    conn.close()
+
+
+def test_views_recreated_only_on_definition_change(cfg, save_data):
+    conn = store.open_db(cfg, save_data.guid)
+    conn.close()
+    # simulate a hand-patched view: with an unchanged views_version the
+    # connect path must leave it alone (no per-connect DDL writes)
+    conn = store.open_db(cfg, save_data.guid)
+    conn.execute("DROP VIEW v_built_module")
+    conn.execute("CREATE VIEW v_built_module AS SELECT 1 AS marker")
+    conn.commit()
+    conn.close()
+    conn = store.open_db(cfg, save_data.guid)
+    assert [r[1] for r in conn.execute(
+        "PRAGMA table_info(v_built_module)")] == ["marker"]
+    # a definition change (stale stamp) triggers full recreation
+    conn.execute("UPDATE meta SET value = 'stale'"
+                 " WHERE key = 'views_version'")
+    conn.commit()
+    conn.close()
+    conn = store.open_db(cfg, save_data.guid)
+    assert "marker" not in [r[1] for r in conn.execute(
+        "PRAGMA table_info(v_built_module)")]
+    conn.close()
+
+
+def test_reference_write_skipped_when_unchanged(cfg, save_data, ref):
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    conn.execute("DELETE FROM ware WHERE id ="
+                 " (SELECT id FROM ware LIMIT 1)")
+    conn.commit()
+    n = count(conn, "ware")
+    store.write_reference(conn, ref)          # same data: skipped
+    assert count(conn, "ware") == n
+    conn.execute("UPDATE meta SET value = 'stale'"
+                 " WHERE key = 'reference_digest'")
+    conn.commit()
+    store.write_reference(conn, ref)          # changed: rewritten wholesale
+    assert count(conn, "ware") == n + 1
+    conn.close()
+
+
 def test_schema_version_reset_keeps_event_tables(cfg, save_data, ref):
     conn = store.open_db(cfg, save_data.guid)
     store.write_snapshot(conn, save_data, ref, "save.xml")

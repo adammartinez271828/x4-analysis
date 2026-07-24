@@ -64,6 +64,29 @@ def test_schema_bump_preserves_save_and_meta(tmp_path):
     conn.close()
 
 
+def test_schema_bump_invalidates_persistent_cache_stamps(tmp_path):
+    """meta survives bumps (P class), so stamps describing dropped
+    objects must not: a stale reference_digest would leave the R tables
+    empty forever, a stale views_version would skip view recreation."""
+    cfg = make_cfg(tmp_path)
+    conn = store.open_db(cfg, "STAMP")
+    conn.execute("INSERT OR REPLACE INTO meta VALUES"
+                 " ('reference_digest', 'd1')")
+    conn.execute("UPDATE meta SET value = '0' WHERE key = 'schema_version'")
+    conn.commit()
+    conn.close()
+
+    conn = store.open_db(cfg, "STAMP")
+    assert conn.execute("SELECT value FROM meta"
+                        " WHERE key = 'reference_digest'").fetchone() is None
+    # views were recreated and restamped with the current fingerprint
+    assert conn.execute("SELECT value FROM meta WHERE key = 'views_version'"
+                        ).fetchone() == (schema.VIEWS_VERSION,)
+    assert conn.execute("SELECT COUNT(*) FROM v_built_module").fetchone() \
+        == (0,)
+    conn.close()
+
+
 def test_off_chain_v5_database_migrates(tmp_path):
     """The real 559 h playthrough's DB sits at v5: versions 4-9 changed
     only W/R/D tables, so v5 has no EVENT_MIGRATIONS entry — the old walk

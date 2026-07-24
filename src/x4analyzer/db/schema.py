@@ -16,6 +16,8 @@ must load, never fail. FK comments are documentation only.
 
 from __future__ import annotations
 
+import hashlib
+
 # v6: resource rows carry the yieldid's level/speed tokens (replenishment)
 # v7: resource rows carry per-area starttime (respawn-eligibility clock)
 # v8: recipe.work_effect (workforce output bonus) + station_storage table
@@ -632,3 +634,10 @@ WHERE sm.save_id = (SELECT MAX(save_id) FROM save)""",
     "v_station_drones": """CREATE VIEW v_station_drones AS
 SELECT * FROM v_station_munition WHERE is_unit = 1""",
 }
+
+# Fingerprint of the view definitions, stored in meta('views_version'):
+# views are recreated only when it changes, so read-only connections (a
+# live-mode server) always see current views without every connect
+# performing DDL writes. Changing any view DDL above bumps it for free.
+VIEWS_VERSION = hashlib.sha256(
+    "\n".join(VIEWS.values()).encode()).hexdigest()[:16]

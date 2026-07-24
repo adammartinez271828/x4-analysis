@@ -19,6 +19,7 @@ Load rules worth calling out:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -47,6 +48,12 @@ def open_db(cfg: Config, guid: str) -> sqlite3.Connection:
     # FKs in the schema are documentation: modded saves reference macros/
     # factions/wares the reference tables have never heard of
     conn.execute("PRAGMA foreign_keys=OFF")
+    # live-mode coexistence: WAL (persistent in the file) lets readers and
+    # the writer overlap; NORMAL sync is safe under WAL (a crash loses at
+    # most the last transaction, never corrupts)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA synchronous=NORMAL")
     _ensure_schema(conn)
     return conn
 
@@ -68,27 +75,43 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         # walking the complete version chain so off-chain DBs migrate too.
         keep = schema.EVENT_TABLES + schema.PERSISTENT_TABLES
         with conn:
-            while (version != schema.SCHEMA_VERSION
-                   and version in schema.NEXT_VERSION):
-                for stmt in schema.EVENT_MIGRATIONS.get(version, ()):
+            step = version
+            while (step != schema.SCHEMA_VERSION
+                   and step in schema.NEXT_VERSION):
+                for stmt in schema.EVENT_MIGRATIONS.get(step, ()):
                     conn.execute(stmt)
-                version = schema.NEXT_VERSION[version]
+                step = schema.NEXT_VERSION[step]
             for name in schema.TABLES:
                 if name not in keep:
                     conn.execute(f"DROP TABLE IF EXISTS {name}")
             for name in schema.VIEWS:
                 conn.execute(f"DROP VIEW IF EXISTS {name}")
+            # meta survives the bump (P class), so cache stamps describing
+            # objects the bump just dropped must not: stale stamps would
+            # skip recreating the views / repopulating the R tables
+            conn.execute("DELETE FROM meta WHERE key IN"
+                         " ('views_version', 'reference_digest')")
     with conn:
         for ddl in schema.TABLES.values():
             conn.execute(ddl)
         for ddl in schema.INDEXES:
             conn.execute(ddl)
-        conn.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)",
-                     (schema.SCHEMA_VERSION,))
-        # views are recreated every connect so definition updates propagate
-        for name, ddl in schema.VIEWS.items():
-            conn.execute(f"DROP VIEW IF EXISTS {name}")
-            conn.execute(ddl)
+        if version != schema.SCHEMA_VERSION:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)",
+                (schema.SCHEMA_VERSION,))
+        # views are recreated only when their definitions changed
+        # (meta 'views_version'), so plain connects stay write-free and
+        # read-only consumers always see current views
+        stored = conn.execute("SELECT value FROM meta"
+                              " WHERE key = 'views_version'").fetchone()
+        if stored is None or stored[0] != schema.VIEWS_VERSION:
+            for name, ddl in schema.VIEWS.items():
+                conn.execute(f"DROP VIEW IF EXISTS {name}")
+                conn.execute(ddl)
+            conn.execute(
+                "INSERT OR REPLACE INTO meta VALUES ('views_version', ?)",
+                (schema.VIEWS_VERSION,))
 
 
 # ---- value coercion (parser "" convention -> SQL NULL convention) ----------
@@ -137,6 +160,11 @@ def _df_rows(df: pd.DataFrame, cols: list[str]) -> list[tuple]:
 # ---- reference data (R: replaced wholesale) ---------------------------------
 
 def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
+    """Load the reference tables + textdb, skipped entirely when the data
+    is unchanged since the last import (digest in meta('reference_digest')
+    — reference data only moves when extract-gamedata reruns, and a
+    watcher analyzing every autosave should not rewrite ten tables per
+    save)."""
     loads = (
         ("ware", ref.wares.rename(columns={"group": "grp"}),
          ["id", "name", "grp", "transport", "volume", "tags", "price_avg",
@@ -160,17 +188,30 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
          ["macro", "class", "housing", "workers", "cargo_max", "cargo_tags",
           "unit_storage"]),
     )
+    payload = [(table, cols, _df_rows(df, cols)) for table, df, cols in loads]
+    text_rows = list(ref.textdb.items())
+    digest = hashlib.sha256()
+    for table, cols, rows in payload:
+        digest.update(repr((table, cols, rows)).encode())
+    digest.update(repr(text_rows).encode())
+    digest = digest.hexdigest()[:16]
+    stored = conn.execute("SELECT value FROM meta"
+                          " WHERE key = 'reference_digest'").fetchone()
+    if stored is not None and stored[0] == digest:
+        return
+
     with conn:
-        for table, df, cols in loads:
+        for table, cols, rows in payload:
             conn.execute(f"DELETE FROM {table}")
-            rows = _df_rows(df, cols)
             if rows:
                 ph = ",".join("?" * len(cols))
                 conn.executemany(
                     f"INSERT OR REPLACE INTO {table} VALUES ({ph})", rows)
         conn.execute("DELETE FROM text")
         conn.executemany("INSERT OR REPLACE INTO text VALUES (?,?,?)",
-                         ref.textdb.items())
+                         text_rows)
+        conn.execute("INSERT OR REPLACE INTO meta VALUES"
+                     " ('reference_digest', ?)", (digest,))
 
 
 # ---- world state (W: one snapshot, replaced per import) ---------------------

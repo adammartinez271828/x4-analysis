@@ -25,6 +25,11 @@ derived from the save and the game-data CSVs — *except* the event-history
 tables, which preserve rolling log windows the game has already discarded
 and are therefore irreplaceable.
 
+The file runs in **WAL journal mode** (set persistently at first open;
+`-wal`/`-shm` sidecar files appear next to it), with
+`busy_timeout=5000` and `synchronous=NORMAL` on every connection —
+readers and the writer coexist, which live/serve mode relies on.
+
 ### Table classes (the ontology)
 
 | Class | Tables | Rows live… | Rows die… |
@@ -32,7 +37,7 @@ and are therefore irreplaceable.
 | **P — persistent bookkeeping** | `meta`, `save` | per key / per import | never dropped, schema bumps included — `save` ids are the time dimension cross-run data keys into, `meta` carries flags the bump path itself reads (`meta` upserted; `save` accumulates one row per import) |
 | **W — world state** | 22 tables (`component` …) | rebuilt on every import, stamped `save_id` | ALL rows deleted before each import — only the latest snapshot is retained |
 | **E — event history** | `trade_tx`, `stock_event`, `log_entry`, `removed_object`, `entity`, `entity_event` | merged across runs, windows stitched | never dropped, not even on schema resets; migrated by targeted `ALTER`s |
-| **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) on every import |
+| **R — reference** | 10 tables (`ware` …) | loaded from the extract-gamedata CSVs | replaced wholesale (`DELETE` + insert) when the reference data changed since the last import (`meta.reference_digest` guard; unchanged data skips the rewrite) |
 | **D — derived** | 5 `event_*` tables + `station_storage`, `station_munition` | recomputed every run (log-text parsing / analysis models) | replaced wholesale every run |
 
 The **current snapshot** is `MAX(save_id)`; every view filters to it.
@@ -317,6 +322,11 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are refused registry updates |
 | `trade_tx_window_start` | start time of the most recent merged trade window (rate math needs the current window's extent) |
 | `stock_event_window_start` | same for the stock-event window |
+| `views_version` | fingerprint of the view definitions last created; views are recreated only when the code's fingerprint differs (plain connects perform no DDL writes) |
+| `reference_digest` | fingerprint of the reference data last loaded; `write_reference` skips its wholesale rewrite when unchanged |
+
+The two fingerprint stamps are deleted on a schema bump — `meta` survives
+the bump (P class) but the views and R tables it stamps do not.
 
 ### save
 
@@ -950,11 +960,14 @@ savegame-structure.md § Stations (drones & munitions).
 | `count` | REAL | items currently aboard | `ammunition/available/item@amount` |
 | `capacity_floor` | REAL | readable lower bound on the drone pool: Σ `modcap.unit_storage` over built modules (production modules add ~10 each with no readable field) | derived + reference: `modcap.unit_storage` |
 
-## Views — recreated at every connect
+## Views — recreated when their definitions change
 
-Defined in `db/schema.py`, dropped and recreated on every connect so
-definition changes propagate without a schema bump. All filter to the
-current snapshot via `MAX(save_id)`; all joins are LEFT JOINs (dangling
+Defined in `db/schema.py`. A fingerprint of the definitions is stored in
+`meta('views_version')`; on connect, views are dropped and recreated only
+when the code's fingerprint differs — definition changes still propagate
+without a schema bump, but plain connects perform no DDL writes and
+read-only consumers always see current views. All filter to the current
+snapshot via `MAX(save_id)`; all joins are LEFT JOINs (dangling
 references are normal — event history outlives objects, modded content
 references unknown ids).
 
@@ -1022,7 +1035,10 @@ The E-table indices are applied through the idempotent
 4. **Everything else is dropped and recreated** — W/R/D tables rebuild
    from the save + CSVs in seconds, so no data migration is ever written
    for them.
-5. **Views are dropped and recreated on every connect**, mismatch or not.
+5. **Views are recreated when their definitions change**
+   (`meta.views_version` fingerprint); the bump path drops them and
+   deletes the fingerprint stamps (`views_version`, `reference_digest`)
+   so the surviving `meta` cannot vouch for objects the bump destroyed.
 
 Known artifact of this scheme: the drop list is *the current code's* table
 names, so a table that a newer version renamed or removed is never dropped
