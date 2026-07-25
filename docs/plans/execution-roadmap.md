@@ -311,6 +311,13 @@ finishes or hardens a research item when done.
   nividium area past eligibility, save before/after first pull.
   · unblocks/upgrades when done: resource-model F5; tightens the
   `'full'`-overstates-nividium caveat in T9/M5's view.
+  ✓ discharged 2026-07-24 — the item duplicated the already-performed
+  Pious Mists XI experiment (980 + 4,020 = 5,000 = cap), which the
+  player confirms as exactly this test and definitive. F5 resolved:
+  materialize-to-full holds for nividium, the sweep's below-cap tail is
+  drawdown between saves; nividium caveat retired
+  ([phase7-research-p1.md](../reports/phase7-research-p1.md) § B11
+  note).
 - **Play confirmations of research-track items** (same ids as above,
   not separate entries): B4's fly-both-ends test (definitive arrow),
   B10's timed-miner comparison, B14's stacking-bound check (0.5×min),

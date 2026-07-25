@@ -445,9 +445,20 @@ they are estimates, not direct measurements.)
 
 ## Open questions (unverified)
 
-1. ~~Does a respawn restore full capacity?~~ **RESOLVED — yes.** Saturn 2
-   silicon 0 → 998,453 (99.8%); Pious Mists XI nividium respawned to its
-   full 5,000 cap on miner contact. Respawn brings a fresh full area.
+1. ~~Does a respawn restore full capacity?~~ **RESOLVED — yes, nividium
+   included.** Saturn 2 silicon 0 → 998,453 (99.8%); Pious Mists XI
+   nividium respawned to its full 5,000 cap on miner contact. Respawn
+   brings a fresh full area. The 2026-07-23 review reopened the nividium
+   half (F5: of 117 sweep materializations only 18 reappeared ≥99.5% cap,
+   the low tail exclusively nividium, min 4.4%) — but the Pious Mists XI
+   protocol was **exactly** the test that discriminates (backlog B11:
+   depleted nividium past eligibility, save before/after first pull,
+   first-pull + stored = cap), and the player confirms it as performed
+   and definitive (2026-07-24). So materialize-to-full holds for
+   nividium; the sweep's below-cap tail is **post-materialization
+   drawdown between saves** (nividium caps are 500–50,000 — one miner
+   strips 95% of a small area in minutes), not an amount-scaling term.
+   **[EXP]**
 2. ~~Why do eligible areas not respawn — rate limit? attention?~~ **RESOLVED
    — respawn fires on a miner mining the area** (Pious Mists XI experiment,
    now backed at population scale by the reservation join: 66% of

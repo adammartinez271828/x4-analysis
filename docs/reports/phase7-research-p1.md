@@ -299,17 +299,15 @@ slots** (they persist; autosaves rotate) and note the slot names used.
    - Evidence settled: byte-diff of the same booster keys between A/B
      shows decay or its absence; clamp(base+Σboosters) vs the noted rep
      bars validates (or kills) the standing formula.
-3. **B11 — nividium respawn amount** (settles resource F5; tightens
-   the `'full'`-overstates-nividium caveat on `v_resource_area`).
-   - Find a **depleted nividium** area past its eligibility time (the
-     dashboard's resource view or `v_resource_area status='full'`,
-     ware nividium, can point at one; Pious Mists XI worked before).
-   - **Save before** sending anyone (slot A). Send one miner to mine
-     that area; as soon as it has made its first pull, **save again**
-     (slot B).
-   - Evidence settled: stored yield in B + miner hold = cap confirms
-     materialize-to-full for nividium; a lower total pins the
-     amount-scaling suspicion (18/117 full-cap tail, min 4.4%).
+3. ~~**B11 — nividium respawn amount**~~ — **DISCHARGED 2026-07-24,
+   no flight needed.** The item's protocol (depleted nividium past
+   eligibility, save before/after first pull) is exactly the Pious
+   Mists XI experiment already performed (980 + 4,020 = 5,000 = cap),
+   which the player confirms as that very test and definitive. F5
+   resolved: materialize-to-full holds for nividium; the sweep's
+   below-cap tail is drawdown between saves. The
+   `'full'`-overstates-nividium caveat is retired in db-schema.md and
+   plan T9.
 4. **B10 (optional play half) — gatherspeed timing** (with the agent
    half, settles X9/X10-remainder).
    - Pick two areas of the **same ware and level** but different speed

@@ -916,11 +916,12 @@ Status-model caveats inherited from the review's re-testing of the
 depletion model (X21's second half — the first draft froze the model
 pre-correction):
 
-- `'full'` reports the *reference capacity* as available. For nividium
-  the review found materializations as low as 4.4 % of cap
-  (resource-model F5), so `'full'` may overstate nividium availability;
-  the view reports the model's prediction, and the caveat belongs with
-  any consumer. Review backlog item 11 settles it.
+- `'full'` reports the *reference capacity* as available — **settled
+  correct, nividium included** (backlog item 11, confirmed 2026-07-24:
+  the Pious Mists XI protocol is exactly B11's test and pinned
+  materialize-to-full; the review's 4.4%-of-cap nividium tail
+  (resource-model F5) was post-materialization drawdown between saves,
+  not partial materialization).
 - *Depletion* relocates the area ~95 % of the time (resource-model F1;
   B5 settled it 2026-07-24: 123 moves vs 6 in-place depletions, per-axis
   20 km-lattice steps, position breaks at every full depletion), so
