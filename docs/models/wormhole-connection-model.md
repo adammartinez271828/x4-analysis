@@ -191,6 +191,21 @@ The intended (but not-yet-wired) ToA pairing is visible in the entry ids:
 `S2B_anomaly_01` (the one already linked) mates the `S3_anomaly_01` end in
 Unknown System, and the remaining `S2B_*` warps in Dead End are its siblings.
 
+## Scope: game-file claims are vanilla+DLC only (B13)
+
+Every game-file sweep behind this doc ("all 9,215 game XML files",
+"no script ever activates them") ran over the cat-indexed vanilla+DLC
+virtual filesystem — `GameFiles` loads 7 of the 74 installed extensions
+(see csv-reference.md's trust-scope note) — while the analyzed saves are
+`modified="1"`. **Save-side** facts (the 41-anomaly census, link rows,
+roles) see everything, mods included; **file-side** universal claims are
+vanilla+DLC-scoped. This is not hypothetical: the install carries a
+(currently disabled) mod, `new_anomaly_sbh_toa`, whose `ext_01.cat`
+patches `wormhole_v1_macro.xml` / `wormhole_v1_standalone_macro.xml` and
+adds a new anomaly asset — if the user enabled it, the macro-level facts
+above would need re-verification against the patched files, and a new
+anomaly could appear in saves with no vanilla explanation.
+
 ## Where it lives in the code
 
 - `save/parser.py` — collects every `class="anomaly"` in the single pass:
