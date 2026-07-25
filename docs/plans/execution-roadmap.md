@@ -324,6 +324,11 @@ finishes or hardens a research item when done.
   B17's stats-screen tie-breaker, B19's semantics halves, B21's Savage
   Spur hop validation. Each upgrades the corresponding doc fix from
   "probable" to confirmed when done.
+  ✓ B21's hop validation confirmed 2026-07-24 (player): Savage Spur
+  I → II is one-way, the reverse traversal impossible and intentionally
+  so (a story element relies on it) — X20's ground truth is settled;
+  the sectorgraph decision itself stays with B21's agent half
+  (csv-reference gates.csv row updated).
 
 ---
 

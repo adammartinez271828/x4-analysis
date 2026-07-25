@@ -180,7 +180,7 @@ the full file.
 | `sector_a`, `sector_b` | the joined sector macros | inter-cluster: `galaxy.xml` `connection[@ref="destination"]` — both endpoints' zone paths embed the sector connection names; intra-cluster accelerators: cluster macros' `sechighways` connections (entrypoint/exitpoint paths, same trick) |
 | `ax`, `az` / `bx`, `bz` | each gate's sector-local position, metres (0/0 when unresolved) | derived: zone offset (sector macro's `zones` connection) **plus** the gate object's offset inside the zone (`*zones.xml`, matched by gate connection name — one zone can host two gates tens of km apart, and zone centres alone sat up to 77 km off) |
 | `source` | contributing extension | derived: archive source |
-| `oneway` | empty = two-way; else the sector macro traffic flows **to** | derived: `sechighways` connections are directional (one per direction); a pair is one-way when its reverse connection is absent. Galaxy jump gates are stored once and inherently two-way, so the test applies to accelerators only. The galaxy's sole case: Savage Spur I → II (`cluster_112`) |
+| `oneway` | empty = two-way; else the sector macro traffic flows **to** | derived: `sechighways` connections are directional (one per direction); a pair is one-way when its reverse connection is absent. Galaxy jump gates are stored once and inherently two-way, so the test applies to accelerators only. The galaxy's sole case: Savage Spur I → II (`cluster_112`) — **in-game confirmed** (player, 2026-07-24): the reverse II → I traversal is impossible, intentionally (a story element relies on it). Consumer gotcha: `sectorgraph.py` still builds an undirected graph, so advisor routes may include the impossible reverse hop (X20, backlog B21) |
 
 ## highways.csv
 

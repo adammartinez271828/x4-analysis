@@ -263,7 +263,10 @@ present in all three docs; X7/X18 shipped with Phase 3.
   summed-rate gauge).
 - **X14** — gate **B16**: stale recycle-rate numbers in
   save-semantics.md + db-schema.md.
-- **X20** — gate **B21**: sectorgraph `oneway` handling.
+- **X20** — gate **B21**: sectorgraph `oneway` handling. (Play half
+  confirmed 2026-07-24: the one-way hop is real and intentional, so the
+  undirected sectorgraph is confirmed wrong for this edge; the
+  handling/doc decision remains B21's agent half.)
 
 ---
 
@@ -335,11 +338,14 @@ slots** (they persist; autosaves rotate) and note the slot names used.
      recovers; save before/after (two slots).
    - Evidence settled: what `locked` gates in the UI; tolerance decay
      parameters for the faction model.
-8. **B21 (optional play half) — Savage Spur hop validation**.
-   - Fly the **Savage Spur I → II** accelerator, then attempt the
-     reverse trip; note that the return needs a different route.
-   - Evidence settled: the one-way `oneway` encoding in gates.csv
-     matches in-game traversal (X20's ground truth).
+8. ~~**B21 (optional play half) — Savage Spur hop validation**~~ —
+   **DISCHARGED 2026-07-24, player-confirmed.** Savage Spur I → II is
+   one-way; the reverse traversal is impossible, and intentionally so
+   (a story element relies on it). gates.csv's `oneway` encoding is
+   ground-truth-correct; consequence recorded in csv-reference.md:
+   `sectorgraph.py`'s undirected graph is now confirmed wrong for this
+   edge (advisor routes may include the impossible reverse hop — the
+   handling decision remains B21's agent half).
 
 No main-sequence or research-track work waits on any of these; each
 upgrades its doc fix from "probable" to confirmed when done.
