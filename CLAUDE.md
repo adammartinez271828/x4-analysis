@@ -16,6 +16,7 @@ uv run x4-analyzer extract-gamedata      # regenerate game data (user dir; add -
 uv run x4-analyzer gamedata-dashboard    # game-file analysis (no savegame) -> output/gamedata_dashboard.html
 uv run x4-analyzer find                  # locate objects in a save (default: the 5 Erlking data vaults)
 uv run x4-analyzer find --macro '^landmarks_'   # any macro regex
+uv run x4-analyzer seed-trends               # import archived saves oldest-first (fills the trend layer; default: every save in the savegame dir)
 uv run pytest -q                         # run tests
 uv run pytest tests/test_store.py -q     # run one test file
 ```
@@ -33,7 +34,7 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 - **`save/parser.py`** — ONE streaming `lxml.iterparse` pass collects every record type (~18 s for a 73 MB .gz save), tracking ancestry with explicit stacks. New save data means a new handler here (see Conventions).
 - **`save/landmarks.py` + `save/find.py`** — the `find` subcommand: a small separate sweep that keeps the zone offset chain the main parser deliberately drops.
 - **`save/logparse.py`** — regexes over English log text; localization/version sensitive, empty frame when nothing matches.
-- **`db/`** — world snapshot + reference data + cross-run event history and the entity registry in `x4_<guid>.sqlite`; views recreated at connect.
+- **`db/`** — world snapshot + reference data + cross-run event history and the entity registry in `x4_<guid>.sqlite`; views recreated only when their definitions change (fingerprint in `meta`), so plain connects stay write-free.
 - **`analysis/frames.py`** — pandas frames mirroring the R `df.*` objects (same dotted column names); defensive joins throughout.
 - **`gamedata/`** — `.cat/.dat` extraction into the committed reference CSVs + the weapon/gamedata dashboard models.
 - **`viz/`** — per-widget HTML files in iframes under a dark, two-level tabbed dashboard; the sector map and diplomacy views are self-contained SVG/JS pages.
@@ -66,7 +67,7 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 - **Identity**: none of the game's own fields is a GUID — runtime ids (`[0x..]`) remap on every load, names change on rename, owners on capture, and codes (`ABC-123`) are recycled after death. The entity registry (`entity` table) mints surrogate `entity_id`s; key cross-run analysis on those, treat a code fallback as a heuristic needing the full (code, class) slot — live collisions exist even among simultaneously-alive same-faction same-class ships — and never key on names. Full model: [db-schema.md](docs/reference/db-schema.md), [save-semantics.md](docs/reference/save-semantics.md).
 - Stations list their build plan TWICE in the save (construction sequence + expand queue repeat the same entry ids) and sequences include unbuilt entries: anything measuring existing capacity/storage/value must use `frames.built_modules` / `v_built_module`, never `station_modules` (pre-fix hull-parts "capacity" was nearly 2× reality).
 - pandas `itertuples()` mangles the dotted column names — use `iterrows()` or positional access when a loop touches columns like `sector.id`.
-- Money in save files is in cents; divide by 100 (trade `price`, log `money`, player money).
+- Money in save files is in cents; divide by 100 (trade `price`, log `money`, player money). The DB's `_cr` columns (incl. `faction_meta.account_cr`) already store credits — don't divide twice.
 - Macros are lowercased at every boundary (save values vs game-file values differ in case).
 - ships.csv `cargo` is hold VOLUME in m³, not units: divide by the ware's `volume` (ore = 10 m³ ⇒ an 8,800 m³ Bolo carries 880 ore).
 - The game's log/economylog are rolling windows — history the game discarded survives only in the DB's event tables.
