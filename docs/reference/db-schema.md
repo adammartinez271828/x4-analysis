@@ -1205,6 +1205,13 @@ snapshot via `MAX(save_id)`; all joins are LEFT JOINs (dangling
 references are normal — event history outlives objects, modded content
 references unknown ids).
 
+Testing note: the views that replaced frames/pandas blocks are pinned
+against the retired code in `tests/test_views_parity.py` — those parity
+pins run **only where the real 8E0C analysis DB exists** (they open it
+read-only); on machines without it the module skips with a reason
+naming the missing DB path, so a green-but-skipping run is visible for
+what it is.
+
 | View | Joins | Columns | Question it answers |
 |---|---|---|---|
 | `current_save` | `save` aggregate | `save_id` | the current snapshot, named — `WHERE save_id = (SELECT save_id FROM current_save)` replaces the repeated `MAX(save_id)` idiom in hand-written SQL |

@@ -28,8 +28,13 @@ from x4analyzer.gamedata.refdata import OTHER_FACTION, load_refdata
 REAL_DB = (Path.home() / ".local/share/x4analyzer"
            / "x4_8E0C8E37-2192-49FD-BF4B-F535782A1C55.sqlite")
 
+# when skipped, say exactly what was not proven and why: these are the
+# parity pins for the retired pandas layer, and they only run where the
+# real analysis DB exists
 pytestmark = pytest.mark.skipif(
-    not REAL_DB.exists(), reason="real 8E0C analysis DB not present")
+    not REAL_DB.exists(),
+    reason=f"real-DB parity pins skipped — 8E0C analysis DB not present "
+           f"at {REAL_DB}")
 
 
 @pytest.fixture(scope="module")
