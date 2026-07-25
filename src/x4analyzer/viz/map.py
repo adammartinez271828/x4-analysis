@@ -623,13 +623,16 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
     wh_by_id: dict[str, dict] = {}
     conn_owner: dict[str, str] = {}
     linked_ids: set[str] = set()
-    origin_links: list[tuple] = []   # (from_id, target_conn)
+    entry_links: list[tuple] = []   # (from_id, target_conn)
     if wl is not None and len(wl):
         for _, r in wl.iterrows():
             conn_owner[str(r["own_conn"])] = str(r["id"])
             linked_ids.add(str(r["id"]))
-            if r["role"] == "origin":
-                origin_links.append((str(r["id"]), str(r["target_conn"])))
+            # the connection role names the PARTNER, not the owner: the
+            # enterable end owns the "destination"-role connection (it points
+            # at its exit) — see the model doc's B4 direction re-derivation
+            if r["role"] == "destination":
+                entry_links.append((str(r["id"]), str(r["target_conn"])))
     if wh is not None and len(wh):
         whv = wh[wh["sector.macro"].isin(index)]
         if cfg.spoilers_hide:
@@ -710,22 +713,22 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         vaults.append(rec)
 
     # wormhole markers (positions in-hex) + directional warp edges. An edge is
-    # drawn once per "origin" link whose partner is also visible; both markers
-    # carry it (dedup by the origin side). dir semantics match gates: the arrow
-    # points from the origin (entry) to the destination (exit) endpoint
+    # drawn once per "destination"-role link (the enterable end pointing at its
+    # exit) whose partner is also visible. The arrow points entry -> exit; a
+    # two-way pair holds a mirrored link per direction and draws two arrows.
+    # Only the entry end gets a "dest" (a pure exit is not enterable)
     wormholes: list[dict] = []
     for si, rec, off in wh_recs:
         rec["x"], rec["y"] = in_hex_pt(si, off) if off \
             else (sectors[si]["x"], sectors[si]["y"])
         wormholes.append(rec)
     wlinks: list[list] = []
-    for from_id, target_conn in origin_links:
+    for from_id, target_conn in entry_links:
         to_id = conn_owner.get(target_conn)
         a, b = wh_by_id.get(from_id), wh_by_id.get(to_id)
         if a is None or b is None:
             continue   # an endpoint is hidden (spoilers) or out of scene
         a["dest"] = b["sector"]
-        b["dest"] = a["sector"]
         wlinks.append([a["x"], a["y"], b["x"], b["y"]])
 
     hws = [[si] + [c for p in pts for c in in_hex_pt(si, p)]

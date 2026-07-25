@@ -354,15 +354,17 @@ def test_payload_wormholes(payload):
     assert ws["WRP-1"]["cat"] == "linked"
     assert ws["WRP-3"]["cat"] == "dormant"    # transition, no partner
     assert ws["WRP-4"]["cat"] == "inert"      # no transition, no partner
-    # linked pair resolves each other's sector as the destination
-    assert ws["WRP-1"]["dest"] == "Beta I"
+    # the role names the PARTNER (B4): WRP-2 owns the "destination"-role
+    # link, so it is the enterable end and resolves its exit's sector;
+    # WRP-1 is a pure exit and gets no dest
     assert ws["WRP-2"]["dest"] == "Alpha"
-    # one directed edge, from the origin (WRP-1) end to the destination
+    assert ws["WRP-1"]["dest"] == ""
+    # one directed edge, drawn entry (WRP-2) -> exit (WRP-1)
     (link,) = payload["wlinks"]
     assert [round(link[0], 2), round(link[1], 2)] == \
-        [ws["WRP-1"]["x"], ws["WRP-1"]["y"]]
-    assert [round(link[2], 2), round(link[3], 2)] == \
         [ws["WRP-2"]["x"], ws["WRP-2"]["y"]]
+    assert [round(link[2], 2), round(link[3], 2)] == \
+        [ws["WRP-1"]["x"], ws["WRP-1"]["y"]]
     # WRP-1 carries a sector-local offset (east, north) -> scaled inside its
     # hex (positive z is up on screen, i.e. a smaller y)
     a = next(s for s in payload["sectors"] if s["macro"] == "sec_a1")

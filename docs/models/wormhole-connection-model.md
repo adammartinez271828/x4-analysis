@@ -2,9 +2,14 @@
 
 Reference for the wormhole map-overlay feature. Assembled 2026-07-22 from a
 full-galaxy sweep of one 600h save (41 anomalies) plus the object structure in
-the save XML. Confidence tags:
+the save XML; revised 2026-07-24 (backlog B4): the direction rule was
+re-derived — and inverted — from the DLC script wiring plus a 13-save sweep,
+and the link census is now known to be tide-cycled (details in their
+sections). Confidence tags:
 
 - **[OBS]** — directly observed in save data (with evidence).
+- **[SCRIPT]** — read from the game's own mission scripts (authoritative for
+  intent, but the in-game traversal itself has not been play-tested).
 - **[INF]** — inferred/consistent-with, not independently verified.
 
 ## The one-paragraph model
@@ -28,9 +33,18 @@ Sweeping the test save found **41** anomalies, all `class="anomaly"`:
 
 | Tier | Count | `<transition>` | `<connections>` | Meaning |
 |------|-------|----------------|-----------------|---------|
-| **inert** | 30 | — | — | **Unstable Warp Anomaly**, one per base-game sector, permanently inactive. |
+| **inert** | 30 | — | — | **Unstable Warp Anomaly**, god-placed scenery, permanently inactive. |
 | **dormant** | 7 | `destination="0"` | — | Story warp, destination not yet assigned. All in Avarice (`cluster_500`, Tide of Avarice `S2A_/S2B_/S2C_` entries). |
 | **linked** | 4 | some | yes | Actively paired warp — the exit is resolvable. |
+
+The census is **stable across saves, except that the linked tier's *edge
+set* is tide-cycled** (see the tide-cycle section): during an Avarice wave
+window the WHT-407/IVC-752 pair temporarily gains a second, reverse link
+(4 rows instead of 2), reverting on deactivation. The tier of every
+anomaly — which of inert/dormant/linked it is — did not change in any
+observed save: a 13-save sweep (2026-07-24, game time 64,377–78,583 s,
+~3.9 game-hours) reproduced 30/7/4 with byte-identical link rows in every
+save, all calm-phase. [OBS]
 
 ### What the inert tier actually is [OBS]
 
@@ -49,13 +63,24 @@ game XML files finds those entry ids **only in `god.xml`** — **no script ever
 activates them.** They are permanent scenery: the "unstable" cousins of the
 functional warps, forever too unstable to be active.
 
-Every *functional* warp is a **different** object that a story script
-`create_object`s at runtime and pairs with `add_anomaly_destination`
-(renaming it `{20109,4911}` = **"Stable Warp Anomaly"**): Boso Ta's "The
-Anomalies" (`md/story_research_welfare_1.xml`), Tide of Avarice
-(`setup_dlc_pirate.xml` — the dormant Avarice tier), Timelines wave attacks,
-and the Freedom's Reach pair (`md/placedobjects.xml`). So the god-placed 30 and
-the script-placed warps never overlap.
+Every *functional* warp is a **different** object from the base-game 30 —
+but functional does **not** mean script-created (an earlier revision claimed
+that; the doc's own excerpts refute it). Two provenances exist among the 11
+functional warps of this galaxy:
+
+- **God-placed by a DLC's own `god.xml`** (`<source class="godobject">`):
+  all 8 Avarice warps (`S2A_/S2B_/S2C_` entries, including the *linked*
+  WHT-407) and Unknown System's IVC-752 (`S3_anomaly_01`). Scripts don't
+  create these — `setup_dlc_pirate.xml` only *wires* them, looking them up
+  by `godobjectentry` and calling `add_anomaly_destination`.
+- **Script-created at runtime** (`<source class="script">`): only the
+  Freedom's Reach pair (`md/placedobjects.xml`).
+
+What stays true is that the *base-game* god-placed 30 are never activated
+by any script; activation machinery (`add_anomaly_destination`, renaming to
+`{20109,4911}` = **"Stable Warp Anomaly"**) is also called from Boso Ta's
+"The Anomalies" (`md/story_research_welfare_1.xml`), Timelines scenario
+maps, and two further scripts (call-site sweep, 2026-07-23 review W6).
 
 ## How a link is encoded [OBS]
 
@@ -92,21 +117,57 @@ points at a **partner's** connection id:
 bidirectional — no arithmetic, no guessing:
 
 - `WHT-407` owns connection `[0x30185]`; its `<connected>` points at
-  `[0x88d11]`, which `IVC-752` owns → **WHT-407 ⟶ IVC-752**.
+  `[0x88d11]`, which `IVC-752` owns → **WHT-407 pairs with IVC-752**.
 - `IVC-752` owns `[0x88d11]`; its `<connected>` points at `[0x30185]`, which
   `WHT-407` owns → the reverse confirms the same pair.
 
-**Direction** comes from the `connection` role: the end labelled `origin` is
-the entry, the end labelled `destination` is the exit. So the flow is
-WHT-407 (origin, Dead End) → IVC-752 (destination, Unknown System). The map
-draws the arrow origin→destination.
+(This resolves *pairing* only — which anomaly mates which. Traversal
+direction is the role question below.)
+
+**Direction** comes from the `connection` role, and the role names the
+**partner**, not the owner: a wormhole owning a `destination`-role
+connection is an **entry** (its connection points at its destination — the
+exit); a wormhole owning an `origin`-role connection is an **exit** (its
+connection points back at its origin — the entry). So the flow is
+**IVC-752 (owns `destination`, Unknown System) → WHT-407 (owns `origin`,
+Dead End)**: you enter at IVC-752 and come out at WHT-407. The map draws
+the arrow from the `destination`-role owner to its target. [SCRIPT+OBS]
+
+An earlier revision read the roles the other way ("origin = entry") and had
+this arrow backwards. It calibrated on zero discriminating cases (Freedom's
+Reach is symmetric); the galaxy's only asymmetric pair settles it:
+`setup_dlc_pirate.xml` wires the permanent link with
+`add_anomaly_destination anomaly=<S3_anomaly_01 = IVC-752>
+destination=<S2B_anomaly_01 = WHT-407>`, comment *"exit from S3 into S2
+(not tied to the wave)"* — the `anomaly=` argument is the enterable end, and
+in every save that end (IVC-752) owns the `destination`-role connection
+(13/13 saves, byte-stable). The re-derived rule is **[SCRIPT]**-grade:
+definitive at the script/save level, but the fly-both-ends in-game
+confirmation (backlog B4's play half) is still pending.
 
 A **two-way** wormhole owns *both* roles and appears as a mirror pair. The
-galaxy's one active example is in **Freedom's Reach** (`cluster_714`):
+galaxy's one always-on example is in **Freedom's Reach** (`cluster_714`):
 `ZIT-073` and `IZL-415` each own an `origin` **and** a `destination`
 connection cross-linked to the other, so the pair is traversable both ways
-(rendered as two opposing arrows). These two are `<source class="script">`
-(placed at runtime), not godobjects, and both are `knownto="player"`.
+(rendered as two opposing arrows — under the corrected rule each
+`destination`-role link contributes one arrow). These two are
+`<source class="script">` (placed at runtime), not godobjects, and both are
+`knownto="player"`.
+
+### The Avarice link is tide-cycled [SCRIPT]
+
+The S3↔S2B pairing is wired at universe generation — no story condition —
+and only in the S3→S2 direction (the `add_anomaly_destination` call above).
+Each Avarice tide wave then **adds the reverse direction and removes it
+again**: `TheWave_Anomaly_Activate` calls `add_anomaly_destination
+anomaly=<WHT-407> destination=<IVC-752>` and `TheWave_Anomaly_Deactivate`
+removes exactly that link (setup_dlc_pirate.xml, cues at lines ~2514/2525).
+So during a wave window the pair is two-way (4 link rows); in a calm phase
+it is one-way S3→S2 (2 rows). All 13 archived saves are calm-phase — the
+4-row state has not yet been captured in a save. Tier assignments do not
+change with the tide (both ends stay "linked"); only the edge's
+one-way/two-way state does, so a map built from a wave-window save would
+show one extra arrow, not a different census.
 
 *(Incidental observation: a wormhole's own warp connection id is its component
 id + 1, and a two-way one also owns +2. This is just id-allocation order and
@@ -115,7 +176,10 @@ connections per wormhole cleanly.)*
 
 ## What is and isn't predictable
 
-- **Linked wormholes** → fully predictable from the save. [OBS]
+- **Linked wormholes** → fully predictable from the save — for the moment
+  the save was written; the Avarice pair's second (reverse) direction comes
+  and goes with the tide, so a link census is a snapshot, not a constant.
+  [OBS/SCRIPT]
 - **Dormant story warps** (`transition destination="0"`, no `<connections>`) →
   **not** predictable. The 7 Avarice `S2A_/S2B_/S2C_` warps have no partner in
   the save; the Tide of Avarice mission script assigns their destinations when
@@ -136,7 +200,8 @@ Unknown System, and the remaining `S2B_*` warps in Dead End are its siblings.
 - `db/schema.py` + `db/store.py` — `wormhole` + `wormhole_link` world tables.
 - `analysis/frames.py` — reads them into `frames.wormholes` / `wormhole_links`.
 - `viz/map.py` `_payload` — resolves partners via the ownership map, tiers each
-  wormhole, and emits `wormholes` (markers) + `wlinks` (directed edges),
+  wormhole, and emits `wormholes` (markers) + `wlinks` (directed edges, one per
+  `destination`-role link, arrow entry→exit per the corrected rule),
   spoiler-filtered (an edge is dropped if either endpoint is undiscovered).
 - `viz/map_page.js` — violet ring markers (solid = linked, dashed = dormant,
   dot = inert) and dashed arrowed link lines, one **Wormholes** legend toggle.

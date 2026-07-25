@@ -809,7 +809,14 @@ mission director at runtime, not resolvable from the save):
 
 Linked pair (a `<connections>` block; each end's `<connected>` names the
 partner's connection id — build a connection-id → owning-anomaly map to
-resolve pairs; `origin` is the entry, `destination` the exit):
+resolve pairs). The `connection` role names the **partner**, not the owner:
+the **entry** end owns the `destination`-role connection (pointing at its
+exit), the **exit** end owns the `origin`-role connection (pointing back at
+its entry) — so this pair traverses IVC-752 → WHT-407 (B4 re-derivation
+from `setup_dlc_pirate.xml`'s `add_anomaly_destination` wiring; in-game
+confirmation pending). During an Avarice tide wave the pair temporarily
+gains the reverse link (4 `<connection>` rows instead of 2); all archived
+saves so far are calm-phase:
 
 ```xml
 <component class="anomaly" macro="wormhole_v1_macro" connection="space" code="WHT-407" owner="ownerless" knownto="player" id="[0x2ff7b]">

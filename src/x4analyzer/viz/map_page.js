@@ -399,14 +399,15 @@
   // arrowed link), a "dormant" story warp (hollow dashed ring, transition
   // not yet wired up) and an "inert" Unstable Warp Anomaly (small dim dot,
   // god-placed scenery, permanently "too unstable to be active"). Links are
-  // [ax, ay, bx, by] with the arrow pointing origin -> destination
+  // [ax, ay, bx, by] with the arrow pointing entry -> exit (a is the
+  // enterable end, b where it drops you out)
   (D.wlinks || []).forEach(function (w) {
     el("line", {x1: w[0], y1: w[1], x2: w[2], y2: w[3],
                 "class": "warp-link"}, layers.wlinks);
     var dx = w[2] - w[0], dy = w[3] - w[1];
     var L = Math.sqrt(dx * dx + dy * dy) || 1; dx /= L; dy /= L;
     var s = 3.6, px = -dy, py = dx;
-    // arrowhead a short way back from the destination marker
+    // arrowhead a short way back from the exit marker
     var tx = w[2] - dx * 6, ty = w[3] - dy * 6;
     el("polygon", {points:
       (tx + dx * s).toFixed(1) + "," + (ty + dy * s).toFixed(1) + " " +

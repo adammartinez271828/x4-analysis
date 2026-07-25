@@ -15,6 +15,38 @@ row counts from the files, checked 2026-07-23). The committed copies were
 extracted from **game v9.0 + all official DLCs, no mods**. Out of scope: the
 retired legacy csv.gz caches, save-file structure, and the DB schema.
 
+**Trust scope on a modded install (B13, 2026-07-24).** `GameFiles`'
+default extension discovery is a folder-*name* filter: it loads only
+`extensions/ego_dlc_*` — on the reference machine that is 7 of 74
+installed extension folders (67 mods; Steam workshop and user-dir
+extension paths are empty, everything lives in the game dir). So every
+"swept all game files" claim in these docs means **the cat-indexed
+vanilla+DLC virtual filesystem**, while the analyzed saves are
+`modified="1"`. Three distinct blind spots, all verified:
+
+- **Enabled state is never consulted.** The game's per-playthrough
+  enable list (`~/.config/EgoSoft/X4/<id>/content.xml`, keyed by
+  `content.xml` *content id*, which differs from the folder name — e.g.
+  folder `vro` = id `ws_1696862840`) marks 14 of the 67 mods disabled.
+  Neither the default sweep nor `--include-mods` reads it.
+- **A save under-reports active mods.** The save's `<patches>` block
+  lists only *save-relevant* extensions (`content.xml` without
+  `save="0|false"`): here 9 entries = 7 DLCs + 2 mods (Habitat Capacity
+  Boost, Respectable Terran Crews). The other ~51 enabled mods are
+  runtime-active but unstamped.
+- **Mod content the extractor could not see even if pointed at it.**
+  8 of the 67 mods ship loose files only (no `ext_*.cat`) — invisible to
+  the catalog index; and mod changes are mostly attribute-level
+  `<diff><replace sel="…/@attr">` patches, which the tag-scanning
+  extractors read as empty documents. Live consequence in this
+  playthrough: Habitat Capacity Boost (enabled *and* save-stamped)
+  replaces `workforce/@capacity` on 20 habitat macros — e.g.
+  `hab_arg_s_01_macro` 250 → 2,500 — so `modcaps.csv`'s `housing`
+  values understate this playthrough's habitats ~5–10× (2,499 built
+  habitat modules affected). Fixing extraction (enable-list-aware
+  discovery, loose-file indexing, a diff-patch engine) is recorded as
+  follow-up work, not implemented.
+
 ## Extraction and override machinery
 
 Stated once here, not repeated per file:
@@ -26,9 +58,13 @@ Stated once here, not repeated per file:
 - **Load order, later wins.** Base-game numbered cats (`01.cat`, `02.cat`,
   …) in order, then each extension's `ext_*.cat` — official DLCs
   (`ego_dlc_*`, sorted) by default; `extract-gamedata --include-mods`
-  appends workshop mods after them. A later archive's copy of a path
-  replaces an earlier one, and **loose files on disk override everything**
-  (X4's own precedence rules).
+  appends **every other extension folder** after them (alphabetical — not
+  the game's dependency-resolved order, and including mods the user has
+  disabled; see the trust-scope note above). A later archive's copy of a
+  path replaces an earlier one, and **loose files on disk override
+  everything** (X4's own precedence rules — the analyzer honors this for
+  single-file reads but its catalog index, and hence every sweep/glob,
+  never sees loose-file-only extensions).
 - **Library merging.** For a library file (e.g. `libraries/wares.xml`) the
   extractor reads the base version plus each extension's version in load
   order. Extension versions are usually `<diff>` patches; scanning
@@ -212,6 +248,15 @@ drone pool — only dock/pier/build/defence modules declare it; the engine's
 `units.maxcount` adds an unexposed ~10 per production module, so summing
 this under-counts big factories (the `capacity_floor` caveat in
 db-schema.md § station_munition).
+
+Coverage (B13, 2026-07-24): the 96 built-module macros in the reference
+playthrough that have **no** row here were all checked against the
+vanilla+DLC files — every one exists there and declares no
+workforce/cargo/storage properties at all (landmarks, struct connectors,
+claim/khaak modules, …). Their absence is correct: they contribute 0 to
+`capacity_floor` because they declare 0, and none of them is mod content.
+The mod risk to this file is *value drift* on rows it **does** have, not
+missing rows — see the habitat example in the trust-scope note.
 
 ## ships.csv
 

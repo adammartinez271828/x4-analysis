@@ -140,8 +140,11 @@ Interactivity:
   "too unstable to be active" — save-specific census, B20 2026-07-24: 33
   of them across 30 sectors, up to 2 in one sector, so NOT one-per-sector
   as an earlier revision claimed — never script-activated); partners
-  resolved by the connection-id ownership map,
-  direction origin→destination, links spoiler-dropped if either endpoint is
+  resolved by the connection-id ownership map. Direction: one arrow per
+  `destination`-role link, drawn entry→exit — the role names the partner,
+  so the enterable end is the one owning the `destination`-role connection
+  (B4 re-derivation, 2026-07-24; the pre-B4 build had the one asymmetric
+  arrow backwards). Links spoiler-dropped if either endpoint is
   undiscovered — see
   [../models/wormhole-connection-model.md](../models/wormhole-connection-model.md).
 - Search/jump; sessionStorage view persistence.
