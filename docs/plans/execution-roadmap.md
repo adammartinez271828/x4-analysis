@@ -210,7 +210,10 @@ where noted.
 
 ## Parallel research track (agent; interleave with Phases 2–6, nothing in the main sequence waits on these)
 
-**Status: OPEN — this track and the play track are the remainder.**
+**Status: P1 tranche executed (Phase 7, 2026-07-24: B4, B5, B13 — see
+[phase7-research-p1.md](../reports/phase7-research-p1.md)); the
+remaining tranche (B8, B10, B14, B16, B17, B19, B21, B22) and the play
+track are the open remainder.**
 (Exceptions already executed with the main sequence: B15 twice, B20's
 number refresh ran as the post-Phase-6 close-out — see
 [b20-number-refresh.md](../reports/b20-number-refresh.md); DF-2's
@@ -223,15 +226,28 @@ schema work.
   saves for a tide-wave window; play confirmation is definitive but
   optional). · deps: — · agent (+play confirm, see play track) ·
   unblocks: X5/X6 doc fixes (DF-2); the map's one asymmetric arrow.
+  ✓ `9dd0f74` — role names the PARTNER; arrow inverted (no wave window
+  in 13 saves, but the script wiring is decisive); map fixed, X5/X6
+  applied; play fly-both-ends still pending
+  ([phase7-research-p1.md](../reports/phase7-research-p1.md) § B4).
 - **B5** (P1) — rewrite the resource trackability/relocation model
   (displacement clustering + per-area `<reservations>` join). · deps: —
   · agent · unblocks: resource-model rewrite, T9/M5 caveat refresh,
   X9-adjacent doc fixes; any future per-area mining feature.
+  ✓ `6307526` — relocation-on-depletion confirmed at scale (123 vs 6),
+  20 km-lattice displacements, reservations = miner claims, contact
+  trigger at population scale; model doc rewritten, T9/db-schema
+  caveats refreshed (phase7 report § B5).
 - **B13** (P2) — mod visibility end-to-end (why GameFiles sees 7 of ~60
   extensions; mod modcaps behind `capacity_floor`). Run before the
   remaining game-file research below — it sets the trust level of every
   "swept all game files" claim. · deps: — · agent · unblocks: B8/B10/B14
   interpretation, csv-reference fixes, wormhole W7.
+  ✓ `35da463` — ego_dlc_* name filter is the whole gap (7 of 74
+  folders); the 96 missing modcap macros are capacity-less vanilla
+  content (mod hypothesis refuted); the live error is habitat capacity
+  drift from an enabled mod; csv-reference trust scope + W7 recorded
+  (phase7 report § B13).
 - **B8** (P2) — full-galaxy Layer-2 pricing fit with pending trades.
   · deps: B13 (trust scope) · agent · unblocks: save-semantics pricing
   rewrite; X15 refinement beyond DF-1's restatement.
