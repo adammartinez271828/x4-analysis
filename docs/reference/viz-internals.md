@@ -137,8 +137,10 @@ Interactivity:
   arrowed link to its partner, **dormant** = violet dashed ring (a story
   `<transition>` whose exit is assigned in-mission, not in the save),
   **inert** = dim dot (a god-placed "Unstable Warp Anomaly", permanently
-  "too unstable to be active" — 30 of them, one per base-game sector, never
-  script-activated); partners resolved by the connection-id ownership map,
+  "too unstable to be active" — save-specific census, B20 2026-07-24: 33
+  of them across 30 sectors, up to 2 in one sector, so NOT one-per-sector
+  as an earlier revision claimed — never script-activated); partners
+  resolved by the connection-id ownership map,
   direction origin→destination, links spoiler-dropped if either endpoint is
   undiscovered — see
   [../models/wormhole-connection-model.md](../models/wormhole-connection-model.md).
@@ -194,10 +196,14 @@ Two self-contained pages (map.py `_PAGE`+external-JS pattern,
 DataTables table with diverging −30..+30 bars, rank band, discount, licence
 count, treasury; Relations = a hand-SVG directional heatmap (diverging
 red→grey→green by |uiv|/30, war/ally outlines, player row/col emphasized,
-hover shows both directions). Relations are **directional (NOT symmetric** —
-argon→scaleplate −0.32 vs antigone→scaleplate −0.1) and an unlisted pair =
-0.0 neutral, so the matrix comes from the save alone (no
-extract-gamedata/reference CSV). The −30..+30 rank value is a fixed log
+hover shows both directions). Relations are **stored per direction** —
+which is why the heatmap is drawn directional — but in the analyzed save
+every base pair is exactly reciprocal (0 of 486 pairs asymmetric, B20
+re-check 2026-07-24; review X4 — an earlier revision claimed "NOT
+symmetric" from an example that compared two *different* pairs,
+argon→scaleplate vs antigone→scaleplate, which shows pair variance, not
+asymmetry). An unlisted pair = 0.0 neutral, so the matrix comes from the
+save alone (no extract-gamedata/reference CSV). The −30..+30 rank value is a fixed log
 formula (`sign(r)·10·log10(|r|·1000)`, linear inside ±0.0032) kept as code
 constants. NO spoiler handling — relations are global state, not
 exploration-gated. Curated faction order/roster (`_ORDER`, real factions

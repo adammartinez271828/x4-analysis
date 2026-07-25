@@ -17,7 +17,8 @@ stages: `gamedata/` (game-file extraction + reference data) → `save/`
 ## save/parser.py — the single streaming pass
 
 ONE streaming `lxml.iterparse` pass over the (gzipped) save collects every
-record type (~18 s / 270 MB peak for a 73 MB .gz save). Component ancestry
+record type (~22 s / ~400 MB peak for an 85 MB .gz save; B20 re-measure
+2026-07-24). Component ancestry
 (cluster/sector/parent object) is tracked via explicit stacks; each stack
 frame also keeps the component's own `<offset><position>`, so stations and
 build plots get sector-local sx/sz (interposed zone offsets summed in — the
@@ -39,7 +40,7 @@ If you need new data from the save, add a handler here, not a second pass
 
 ## save/landmarks.py + save/find.py — the `find` subcommand
 
-A small SEPARATE iterparse sweep (~17 s) that locates components by macro
+A small SEPARATE iterparse sweep (~18 s; B20 re-measure 2026-07-24) that locates components by macro
 regex and reports sector-relative km coordinates — a reimplementation of the
 community "Erlking data vault locator" batch script (forum p5116566). It
 keeps its own offset chain because positions in a save are parent-relative

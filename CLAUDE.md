@@ -31,7 +31,7 @@ uv run pytest tests/test_store.py -q     # run one test file
 
 Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `analysis/frames.py` → `viz/*` + `viz/dashboard.py`. Subpackages mirror the stages: `gamedata/` → `save/` → `db/` → `analysis/` → `viz/`; `cli.py`/`config.py`/`analyze.py` stay top-level.
 
-- **`save/parser.py`** — ONE streaming `lxml.iterparse` pass collects every record type (~18 s for a 73 MB .gz save), tracking ancestry with explicit stacks. New save data means a new handler here (see Conventions).
+- **`save/parser.py`** — ONE streaming `lxml.iterparse` pass collects every record type (~22 s for an 85 MB .gz save), tracking ancestry with explicit stacks. New save data means a new handler here (see Conventions).
 - **`save/landmarks.py` + `save/find.py`** — the `find` subcommand: a small separate sweep that keeps the zone offset chain the main parser deliberately drops.
 - **`save/logparse.py`** — regexes over English log text; localization/version sensitive, empty frame when nothing matches.
 - **`db/`** — world snapshot + reference data + cross-run event history and the entity registry in `x4_<guid>.sqlite`; views recreated only when their definitions change (fingerprint in `meta`), so plain connects stay write-free.

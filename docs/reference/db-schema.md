@@ -11,8 +11,9 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 145 MB, `schema_version` 11, checked 2026-07-24:
-17,543 components, 383,778 stock events, 36,825 entities). Out of scope:
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 17, B20 re-census
+2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
+41,507 entities). Out of scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
