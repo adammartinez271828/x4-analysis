@@ -315,8 +315,10 @@ areas; full model in docs/models/resource-depletion-model.md). One row per
 | `yield` | the area's **capacity** — the amount a respawned area holds | `yield/ware@yield` |
 | `respawndelay` | **minutes** after depletion until the area respawns (refills to capacity in one step) | `yield/ware@respawndelay` |
 
-Max replenishment rate of an area = `yield ÷ respawndelay` — the ceiling
-if it were held permanently depleted.
+`yield ÷ respawndelay` is the single-area throughput **ceiling**, realized
+only if a miner continuously works that area (respawn is
+contact-triggered and the record relocates at each depletion — see the
+model doc); it is not a field-level regeneration rate.
 
 ## gatherspeeds.csv
 

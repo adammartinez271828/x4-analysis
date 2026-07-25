@@ -921,11 +921,14 @@ pre-correction):
   (resource-model F5), so `'full'` may overstate nividium availability;
   the view reports the model's prediction, and the caveat belongs with
   any consumer. Review backlog item 11 settles it.
-- Respawn *relocates* the area ~97 % of the time (resource-model F1), so
+- *Depletion* relocates the area ~95 % of the time (resource-model F1;
+  B5 settled it 2026-07-24: 123 moves vs 6 in-place depletions, per-axis
+  20 km-lattice steps, position breaks at every full depletion), so
   nothing keyed on per-area position may be layered on this view; at
   the (sector, ware) granularity the view actually exposes, relocation
-  is immaterial (areas move within their sector). Review backlog item 5
-  is the model rewrite this view should track.
+  is immaterial (areas move within their sector — confirmed for all 123
+  observed moves). The model rewrite this bullet used to track landed in
+  resource-depletion-model.md (B5).
 
 Encodes the timer/eligibility layer of the respawn model that *did*
 survive review (starttime = depletion + delay, arm-at-zero, eligibility

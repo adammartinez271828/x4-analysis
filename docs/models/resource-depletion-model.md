@@ -3,7 +3,14 @@
 Reference for the resource-extraction feature work. Assembled 2026-07-21
 from the game files (`libraries/regionyields.xml` + its `.xsd`), an
 empirical study of 13 saves, and a **live in-game experiment** (Pious Mists XI,
-below) that settled the respawn trigger. Each claim is tagged by confidence:
+below) that settled the respawn trigger. **Revised 2026-07-24 (backlog
+B5)**: a fresh 12-save sweep (11 consecutive transitions, game time
+64,377–78,583 s) reversed the relocation/trackability story — depleted
+areas *move* (the XSD's "at a random location" was right and our earlier
+in-place override was wrong), on a measurable 20 km lattice — and the
+respawn-on-contact trigger now rests on population-scale
+reservation-join evidence, not just the n=1 experiment. Each claim is
+tagged by confidence:
 
 - **[DOC]** — stated in the game's own XSD documentation (authoritative).
 - **[OBS]** — directly observed in save data (with the evidence).
@@ -14,17 +21,20 @@ below) that settled the respawn trigger. Each claim is tagged by confidence:
 
 A resource area holds a pool of one ware up to a fixed capacity. Mining
 draws that pool down. **Partial areas do not refill** — there is no gradual
-regeneration. When an area is fully **depleted**, it **respawns full**
-`respawndelay` **minutes** later — the ore is genuinely back and mineable at
-that point (the encyclopedia renders it at capacity). The subtlety is purely
-in the **stored representation**: the save's `yield` field lazily keeps
-reading **0** until a miner **actually mines the area**, at which point the
-stored value materializes to reflect the ore that was already there and the
-miner extracts from it. So a respawned-but-untouched area **is** full — the
-field value just doesn't show it until touched. A sector's "replenishment" is
-thus a series of discrete, whole-area respawns whose *stored* values catch up
-on a miner's mining contact. No mining → no depletion, so the area never
-enters this cycle at all.
+regeneration. When an area is fully **depleted**, its record **moves to a
+new position in the sector** (a random multiple-of-20 km offset per axis —
+the XSD's "at a random location") and is stored depleted with `starttime` =
+now + `respawndelay` **minutes**. Past that time the area **respawns full at
+its new position** — the ore is genuinely back and mineable (the
+encyclopedia renders it at capacity). The subtlety is purely in the
+**stored representation**: the save's `yield` field lazily keeps reading
+**0** until a miner **actually mines the area**, at which point the stored
+value materializes to reflect the ore that was already there and the miner
+extracts from it. So a respawned-but-untouched area **is** full — the field
+value just doesn't show it until touched. A sector's "replenishment" is
+thus a series of discrete, whole-area respawns whose *stored* values catch
+up on a miner's mining contact. No mining → no depletion, so the area never
+enters this cycle (or moves) at all.
 
 ## Source data
 
@@ -51,13 +61,35 @@ The XSD documents the two key attributes verbatim:
 per-**sector** in `mapdefaults.xml` under `<properties><resourceareas>`,
 referencing `regionyields.xml`. **[DOC]**
 
-**Caveat — "at a random location" is not what we observe.** Across every
-tracked case an `<area>` keeps its `<offset><position>` through depletion
-*and* respawn: it materializes full at its own fixed spot, it does not move
-(see the trackability note below). The XSD's "random location" most plausibly
-refers to where the physical asteroid rocks spawn *within* the area's boundary
-sphere, not the area record relocating — but at the `<area>` level respawn is
-**in place**. **[OBS overrides the literal DOC wording here.]**
+**The XSD's "at a random location" is real — and it happens at
+*depletion*, not respawn.** An earlier revision overrode the DOC wording
+with an "in place" claim; that was wrong (it had only ever watched the
+*materialization*, which is indeed in-place — relative to the record's
+already-moved position). The B5 sweep (11 consecutive transitions, all
+3,246 areas per save) caught the move itself, 123 times:
+
+- At full depletion the `<area>` record **disappears from its position and
+  reappears elsewhere in the sector, depleted, with a future
+  `starttime`**: 123 count-preserving position changes vs **6** in-place
+  live→depleted transitions; 0 creations, 0 destructions (3,246 areas in
+  every save). The moved-in record's `starttime − respawndelay×60` falls
+  inside the transition window in 120/121 cases — the move is stamped at
+  depletion time. **[OBS]**
+- **Displacements are steps on a 20 km lattice, per axis.** All 123
+  paired moves have dx, dy, dz that are multiples of 20 km (two show one
+  10 km component; a handful differ by float dust of ±0.01 m). Each
+  coordinate's *fractional residue survives the move* (166244.016 →
+  166244.016 or 146244.016…), and axes frequently step by 0 — which is
+  why moves "share" 1–2 coordinates (y most often: per-sector y domains
+  are tiny, median 4 values). Move distance: min 20, median 130,
+  max 520 km. **[OBS]**
+- The target is **not a fixed slot pool**: only 23/123 moved-to positions
+  had ever been occupied by any area of that sector earlier in the
+  window, and only 6/123 exactly re-landed on a previous position of the
+  same (sector, yieldid) group. **[OBS]**
+
+The physical `<fields>` (asteroid-region links) travel with the record;
+depletion remains representational, not structural.
 
 ### Save files — the `<resourceareas>` block
 
@@ -114,8 +146,28 @@ Two structural facts: **areas share physical regions** (one `region` id such
 as `[0x2ebb2]` appears in the `<fields>` of ore, silicon, ice *and* nividium
 areas — the `<area>` layer is accounting, the `region`/`macro` layer is the
 rocks), and **depletion is representational, not structural** — a mined-out
-area keeps its `<offset>` and `<fields>`, just drops `yield` and gains a
-`starttime`.
+area keeps its `<fields>` (at its new, post-move position), just drops
+`yield` and gains a `starttime`.
+
+**Per-area `<reservations>` — a miner's live claim on the area.** **[OBS]**
+An area being worked carries a `<reservations>` block between `<offset>`
+and `<fields>`, one self-closing row per claiming ship:
+
+```xml
+<reservations>
+  <reservation id="[0xa3f4]"/>
+</reservations>
+```
+
+The `id` is the **reserving mining ship's component id** (verified:
+`[0xa3f4]` resolves to `ship_par_m_miner_liquid_01_a_macro`, code
+FLF-530, a Paranid liquid miner, in the same save). The newest save holds
+517 reservation rows on 251 areas (of 3,246): **508 rows sit on live
+areas, 9 on depleted-*eligible* areas** (miners en route to a respawn
+about to be triggered), **0 on depleted-pending areas** — miners never
+claim an area whose timer hasn't run out. Counts per save in the window:
+446–522. (These rows are the review's F7 data source; `save/parser.py`
+still does not collect them — a candidate for the extraction backlog.)
 
 ### `starttime` = the respawn-*eligibility* time (not the depletion time, not when it fires)
 
@@ -142,9 +194,12 @@ the depletion time; that was wrong, and any "overdue" arithmetic built on
    values across 4+ saves. (The XSD's "after it was **depleted**" wording
    independently implies it: a pool only comes back via whole-area respawn on
    *full* depletion, never partially.)
-4. On full depletion the area drops its `yield` and is stamped with a
-   `starttime` = **now + `respawndelay` minutes**, its respawn-eligibility
-   time. It keeps its position and `<fields>`. **[OBS]**
+4. On full depletion the area drops its `yield`, is stamped with a
+   `starttime` = **now + `respawndelay` minutes** (its respawn-eligibility
+   time), and **moves to a new position in the sector** (per-axis
+   multiple-of-20 km offset — 123 observed moves vs 6 in-place
+   depletions; see the relocation section). It keeps its `<fields>`.
+   **[OBS]**
 5. Past `starttime` the area is **respawned** — the ore is back, full, and
    mineable (the encyclopedia shows it at capacity). But its *stored* `yield`
    lazily stays at 0 until a miner **actually mines it**, at which point the
@@ -184,46 +239,99 @@ The respawn cadence — sparse, large jumps hours apart — is itself evidence
 that `respawndelay` is **minutes, not seconds**: second-scale delays would
 make fields refill almost continuously, which is not what we see. **[OBS]**
 
-### Individual areas ARE trackable across saves — by position
+### Trackability: stable between depletions, broken by each one
 
 The area `id` (`[0x…]`) is a runtime id and remaps on every load, so it is
-**not** a stable key. But the area's `<offset><position>` **is** stable — it
-persists unchanged through mining, full depletion, and respawn — so an
-individual area can be followed across saves by **(position, yieldid)**.
-**[OBS]** We did this repeatedly: the Asteroid Belt's two permanently-0 ore
-areas held km(−250, −50) and (−130, 230) across 5 saves; Avarice's and Third
-Redemption's nividium areas held their spots; and the Pious Mists XI area
-materialized to full **in place** at (30, 70). Areas do not relocate on
-respawn (this corrects an earlier note that claimed only the (sector, ware)
-total was trackable — that was written before we started tracking by position
-and is superseded). The per-(sector, ware) aggregate is still convenient for
-sector-level trends, but it is a *choice*, not a limitation.
+**not** a stable key. The area's `<offset><position>` is stable **through
+mining and through materialization** — but it **changes at ~95% of full
+depletions** (123 moves vs 6 in-place across 11 transitions), so
+**(position, yieldid) is a valid key only between depletions**. An earlier
+revision claimed position-keyed tracking survives the full cycle; it does
+not — that revision had only ever watched areas that never fully depleted
+in-window (the Asteroid Belt's two permanently-0 areas, idle nividium
+spots) or the in-place *materialization* step (Pious Mists XI), never a
+depletion itself. **[OBS]**
 
-### Scrap looks frozen for the same reason as unmined sectors — reframed
+What the key is good for, precisely:
+
+- **Between depletions** (live areas being mined down, and
+  depleted/eligible areas waiting at their post-move spot): (sector,
+  yieldid, position) is stable and unique enough — but note **89
+  duplicate keys covering 196 areas** exist galaxy-wide (stacked areas,
+  including three depleted areas at one position with three starttimes),
+  so a tracker must tolerate multisets. **[OBS]**
+- **Across a depletion**: the position breaks, but the move preserves
+  each coordinate's **fractional residue mod 20 km** (all 123 observed
+  moves). For the ~24% of areas with fractional coordinates, (sector,
+  yieldid, residue triple) is a plausible cross-depletion identity;
+  grid-aligned areas (residue 0, ~76%) are indistinguishable from
+  same-group siblings this way. Residue tracking is an [OBS]-derived
+  *recipe*, but its uniqueness in practice is **[INF]** — untested at
+  population scale.
+- **Sector granularity is relocation-proof**: areas move within their
+  sector (all 123 moves stayed in-sector), so per-(sector, ware) totals
+  and the DB's `v_resource_area` view are unaffected by relocation.
+  **[OBS]**
+
+### Scrap participates in the cycle — just rarely
 
 `rawscrap` and `rawkhaakscrap` have the **same** respawndelay values as ore
-(20–180 min), **not** -1, and no per-area override exists in the save. **[OBS]**
-Across all 13 saves, scrap was never observed to respawn — but scrap was
-also **never observed to deplete**: the big scrap fields never fell below
-66–78% of their own max, and even the most-drawn-down (Silent Witness XII
-khaak scrap at ~4% of cap) sat flat without hitting zero. **[OBS]**
+(20–180 min), **not** -1, and no per-area override exists in the save.
+**[OBS]** An earlier revision claimed scrap "was never observed to deplete
+or respawn"; the save set refutes both halves:
 
-So scrap's flatness is consistent with the general rule (slow collection →
-no full depletion → no respawn), but whether scrap actually respawns when
-depleted is **[UNVERIFIED]** — we have zero observations of the triggering
-condition. Its other source, combat debris from destroyed ships, is a
-separate mechanic and was minor in this playthrough (one +799 event in the
-HQ combat sector). **[OBS]**
+- The 2026-07-23 review found depleted rawscrap in save_003 and one
+  `tiny_rawscrap` area completing a **full cycle** (depleted → re-armed at
+  depletion+20 min → live → re-depleted, ×3) inside its window. **[OBS]**
+- The current B5 window (11 transitions, 35 scrap groups) adds one
+  **in-place scrap materialization** (a depleted scrap area coming back at
+  its stable position) and holds 2 currently-depleted scrap areas in the
+  newest save; 0 scrap depletions and 0 scrap relocations occurred
+  in-window. **[OBS]**
 
-### The stored yield materializes when a miner mines the area — CONFIRMED by experiment
+So scrap follows the general lifecycle; its *flatness at scale* is still
+real (big scrap fields hold 66–78% of max — collection is too slow to
+fully deplete large areas, so the cycle fires only on tiny ones). Combat
+debris from destroyed ships is a separate mechanic and was minor in this
+playthrough (one +799 event in the HQ combat sector). **[OBS]**
+
+### The stored yield materializes when a miner mines the area — experiment + population evidence
 
 Past its `starttime` the area's ore is back and mineable (the encyclopedia
 shows it at capacity), but the **stored `yield` stays 0** until a **miner
 mines that specific area** — at which point the value materializes to full
 and the miner extracts. It never materializes on a timer, at any attention
-level. This was settled by a controlled in-game experiment.
+level. Two independent lines of evidence:
 
-**The Pious Mists XI experiment** **[EXP]**
+**1. Population scale: the reservation join** **[OBS]** — over the B5
+window's 11 transitions, every stable-position area was classified per
+transition and checked for miner reservations at either endpoint save:
+
+| transition class | n | with a reservation snapshot |
+|---|---:|---|
+| depleted → live (materialization) | 103 | **57** (41 gained one at the later save, 14 at both, 2 at the earlier only) |
+| eligible at both ends, stayed 0 | 1,383 | 30 |
+| live → depleted in place | 6 | 5 |
+
+An area seen with a reservation materialized in **66%** of cases
+(57/87 reservation-carrying area-transitions, depletions excluded) vs
+**3.3%** (46/1,399) without —
+a ~20× enrichment. The 46 no-reservation materializations are expected:
+saves are 20–40 min apart and a reservation exists only *while* a miner
+works the area, so touch-and-go contacts fall between snapshots. The
+9 reservations sitting on depleted-*eligible* areas in the newest save
+are the trigger caught mid-flight: miners already claiming areas whose
+stored value is still 0. This replaces the n=1 experiment as the primary
+evidence base.
+
+**2. The Pious Mists XI experiment** **[EXP]** — the controlled n=1 that
+originally settled the trigger. Honesty note (review F6): the two
+load-bearing in-flight observations ("stored 0 for the whole flight", the
+encyclopedia's 5,000) were in-game readings not captured in a save, and
+the two surviving saves (0.21 h apart) cannot by themselves distinguish
+materialize-on-mining-contact from on-approach/targeting — the
+reservation join above is what carries the contact framing at scale. The
+save-side arithmetic is exact and reproduces today:
 
 - **Baseline** (save_008, 18.55h): the sector's two nividium areas both stored
   **0**. One at (30, 70) km was **eligible** — 0.9 h past its `starttime`; the
@@ -341,9 +449,12 @@ they are estimates, not direct measurements.)
    silicon 0 → 998,453 (99.8%); Pious Mists XI nividium respawned to its
    full 5,000 cap on miner contact. Respawn brings a fresh full area.
 2. ~~Why do eligible areas not respawn — rate limit? attention?~~ **RESOLVED
-   — respawn fires on a miner mining the area** (Pious Mists XI experiment).
-   Not a timer, not attention, not a throttle. The "overdue backlog" is just
-   areas no miner has touched since becoming eligible.
+   — respawn fires on a miner mining the area** (Pious Mists XI experiment,
+   now backed at population scale by the reservation join: 66% of
+   reservation-carrying eligible areas materialized between saves vs 3.3%
+   of unreserved ones). Not a timer, not attention, not a throttle. The
+   "overdue backlog" is just areas no miner has touched since becoming
+   eligible.
 3. **What exactly does gatherspeed scale** — mining extraction rate,
    respawn amount, or both? Assumed extraction rate only. **[INF]**
 4. ~~Does depletion require exactly 0 to arm the timer?~~ **~Yes — arms at
@@ -354,21 +465,29 @@ they are estimates, not direct measurements.)
    prior full depletion, re-materialized by mining, timer uncleared). A
    nonzero threshold would leave areas mid-countdown *with* resource — none
    exist. So the timer arms only when the area hits 0.
-5. **Does scrap respawn when depleted?** Never observed depleted, but **[INF —
-   probably yes]**: `rawscrap`/`rawkhaakscrap` carry the same `respawndelay`
-   values and identical `<area>`/`<fields>` structure as other solids, and
-   nothing distinguishes them mechanically. No reason to expect different
-   behaviour; only never triggered (scrap is collected too slowly to fully
-   deplete an area). Would be *confirmed* by mining one scrap field to zero
-   and sending a miner back.
+5. ~~Does scrap respawn when depleted?~~ **RESOLVED — yes.** The save set
+   holds depleted rawscrap, one `tiny_rawscrap` full cycle (depleted →
+   re-armed → live → re-depleted ×3, 2026-07-23 review), and one in-place
+   scrap materialization in the B5 window. Only *large* scrap fields never
+   deplete (collection too slow), so the cycle fires rarely.
 6. **What decides which areas a miner AI touches?** This governs which areas
    ever respawn. **Not gatherspeed** **[OBS]**: the Asteroid Belt's two
    permanently-0 areas are `medium/fast` and `high/average` — *better* than
    the two `veryhigh/slow` areas that cycle fine there. Both dead areas sit at
    the sector's spatial **periphery** (km(−250, −50) far −x edge; (−130, 230)
    isolated corner), so the driver looks like **position / pathing** (proximity
-   to stations and the miners' working cluster), not field quality. The exact
-   selection logic is engine-side and unquantified.
+   to stations and the miners' working cluster), not field quality. The
+   per-area `<reservations>` rows are the direct observable of the
+   selection's *outcome* (which areas miners claim); the selection logic
+   itself is engine-side and unquantified.
+7. **Do depleted areas re-roll if left unclaimed?** Four depleted small
+   nividium records **moved again** in-window, arriving with a freshly
+   re-armed `starttime` (arithmetic reads as a new depletion inside the
+   transition). Two readings fit: an invisible full cycle between saves
+   (materialize → strip a 500-cap area → re-deplete — plausible for
+   nividium's tiny caps), or an eligible-unclaimed area re-rolling its
+   position and timer. **[UNRESOLVED — hypothesis only.]** All four are
+   nividium `verylow`; no other ware showed it.
 
 ## Appendix A — a complete ore-field definition, end to end
 
@@ -467,17 +586,19 @@ that coexist in the same field.
 ## Appendix B — one-pager
 
 **The rule:** resources deplete under mining and never refill gradually. A
-depleted area **respawns whole and full** `respawndelay` minutes later — the
-ore is genuinely back and mineable then (the encyclopedia shows it). But the
-save's *stored* `yield` lazily reads **0** until a miner actually mines the
-area, which materializes the value. So a respawned area **is** full; the field
-value just doesn't show it until touched.
+fully depleted area **moves to a new spot in its sector** (per-axis random
+multiple of 20 km) and **respawns whole and full there** `respawndelay`
+minutes later — the ore is genuinely back and mineable then (the
+encyclopedia shows it). But the save's *stored* `yield` lazily reads **0**
+until a miner actually mines the area, which materializes the value. So a
+respawned area **is** full; the field value just doesn't show it until
+touched.
 
 **Life cycle of one area**
 
 ```
-full ──mining──► partial ──mining──► EMPTY(0) ──wait respawndelay──► RESPAWNED (ore is back & full)
-                    │                          (starttime=now+delay)     but stored yield still reads 0
+full ──mining──► partial ──mining──► EMPTY: record MOVES ──wait respawndelay──► RESPAWNED at new spot
+                    │                (new pos, starttime=now+delay)   (ore back & full; stored yield reads 0)
                     └── never refills on its own ──────────────────────────────►      │ miner mines it
                                                                                        ▼
                                                                             stored value materializes to
@@ -487,7 +608,8 @@ full ──mining──► partial ──mining──► EMPTY(0) ──wait res
 The respawn (availability) happens on the `respawndelay` timer; only the
 **stored `yield`** waits for a miner's contact to catch up. In the save a
 respawned-but-untouched area has no `yield` attribute and a past `starttime`;
-it keeps its `<offset><position>` and `<fields>`.
+it sits at its post-move `<offset><position>` with its `<fields>`, and
+materialization happens **in place at that new position**.
 
 **A "field" is a bag of independent areas.** A sector's ore is ~12 separate
 asteroid areas of mixed size/level/speed, each with its own pool, position,
@@ -531,11 +653,14 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
   out full. The implication runs the *other* way — summing raw save `yield`s
   **understates** mineability, so a "mineable now" tool must add
   empty-but-eligible areas at full capacity.
-- **Individual areas are trackable across saves by position** — the `<area>`
-  `id` remaps on load, but the `<offset><position>` is stable through
-  depletion and respawn (areas materialize **in place**, they don't relocate).
-  Track by (position, yieldid); the per-(sector, ware) total is a convenience,
-  not the only option.
+- **Position-keyed tracking works only between depletions** — the `<area>`
+  `id` remaps on load, and the `<offset><position>` breaks at ~95% of full
+  depletions (the record moves 20–520 km, a 20 km-lattice step per axis).
+  Track live/waiting areas by (sector, yieldid, position), tolerate the
+  ~90 stacked duplicate keys, and treat every depletion as an identity
+  break (coordinate residues mod 20 km survive moves and *may* re-link
+  fractional-coordinate areas — untested at scale). The per-(sector, ware)
+  total is the relocation-proof granularity.
 
 **Consequences for measuring "extraction"**
 
@@ -547,18 +672,24 @@ veryfast ×5.0. `respawndelay = -1` = never respawns.
   areas it touches and how fast), never respawn throughput.
 
 **Mostly settled:** the timer arms at true empty (no nonzero area ever shows an
-active countdown); scrap almost certainly respawns like everything else (same
-delays/structure, just never depleted); and which areas respawn is gated by
-**which areas a miner paths to** — driven by position, *not* gatherspeed (the
-Asteroid Belt's two dead areas are `fast`/`average`, better than the `slow`
-ones that cycle). **Still open:** whether gatherspeed touches respawn *amount*,
-and the exact miner-AI area-selection logic.
+active countdown); scrap follows the same cycle (depleted rawscrap, one full
+tiny-area cycle, one in-place materialization all observed — only large
+fields never deplete); and which areas respawn is gated by **which areas a
+miner paths to** — driven by position, *not* gatherspeed (the Asteroid
+Belt's two dead areas are `fast`/`average`, better than the `slow` ones
+that cycle), with per-area `<reservations>` as the direct observable of
+miner claims. **Still open:** whether gatherspeed touches respawn *amount*,
+the exact miner-AI area-selection logic, and whether unclaimed depleted
+nividium areas re-roll (open question 7).
 
 ## One-line summary
 
-Resources deplete under mining and never refill gradually; a depleted area
-**respawns whole and full once past its `respawndelay`** (the ore is back and
-mineable), but the save's stored `yield` **reads 0 until a miner mines that
-area and materializes it** — so availability is timer-driven while the stored
-value is contact-driven and per-area: a save shows 0 for any respawned area no
-miner has touched, and a sector only *produces* from the areas miners work.
+Resources deplete under mining and never refill gradually; a fully depleted
+area **moves to a new in-sector position** (20 km-lattice step per axis) and
+**respawns whole and full there once past its `respawndelay`**, but the
+save's stored `yield` **reads 0 until a miner mines that area and
+materializes it** (population evidence: reserved areas materialize at ~20×
+the rate of unreserved ones) — so availability is timer-driven, position
+resets at depletion, and the stored value is contact-driven and per-area: a
+save shows 0 for any respawned area no miner has touched, and a sector only
+*produces* from the areas miners work.
