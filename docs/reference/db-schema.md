@@ -11,7 +11,7 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 19, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 20, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
 import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
@@ -386,7 +386,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"19"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"20"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
@@ -490,6 +490,7 @@ component tree.
 | `sz` | REAL | sector-local z in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
 | `faction_hq` | INTEGER | 1 = the faction representative sits here | `component@factionheadquarters` |
 | `entity_id` | INTEGER, FK → `entity.entity_id` | durable identity (the entity spine): NULL outside the registry domain (clusters, sectors) or when the registry skipped the import | derived: entity registry (which runs before the snapshot write) |
+| `known` | INTEGER | deeper discovery flag (v20); 1 when present. Attribute-wide it is broad (31,408 elements in save_008), but among KEPT classes it marks only 133 stations + 108 sectors + 103 clusters, 343/344 also `knownto` — i.e. nearly a subset of `knownto`, plausibly "visited/encyclopedia-known" **(semantics unverified)** | `component@known` |
 
 ### fleet_edge
 
@@ -819,6 +820,55 @@ yards store the price slider (up to 1.5) instead.
 | `save_id` | INTEGER PK, FK → `save` | snapshot | — |
 | `object_id` | TEXT PK, FK → `component.id` | the selling station | derived: nearest host of the `<trade>` block |
 | `factor` | REAL | the build price multiplier | `trade/prices@buildpricefactor` |
+
+### player_scan
+
+The player's permanent per-component module scan levels (v20) — the
+"scan a station's modules" progress. Targets are mostly `storage`
+modules; walk `component.parent_id` for the owning station. Save-side:
+savegame-structure.md § The player component (`<memory><scan>`).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the scanned component | `memory/scan/item@component` |
+| `level` | INTEGER | scan level 0–3 | same element `@level` |
+
+### station_trade_setting
+
+Trade-station / pirate-base ware whitelists (v20), one row per
+(setting, ware). `setting` ∈ `buy` / `sell` / `lockavgprice`.
+**`lockavgprice` (validated in-game 2026-07-27)**: the economy price is
+pegged at band average — sell = avg exactly, buy = avg − 1 Cr — the
+storage curve does not apply, but player-facing reputation/event
+discounts still stack on top. Price-prediction consumers must treat
+locked wares as flat-avg.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the trade station | derived: nearest host |
+| `setting` | TEXT PK | `buy` / `sell` / `lockavgprice` | `trade/settings/setting@name` |
+| `ware` | TEXT PK, FK → `ware.id` | whitelisted ware | split from same element `@wares` |
+
+### trade_active
+
+Escrow-stage in-flight trades (v20) — money committed and possibly
+partially delivered; the accounting gap between wallet and cargo.
+Distinct from save-side `<reservations>` (not captured).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `object_id` | TEXT, FK → `component.id` | the host station/ship | derived: nearest host |
+| `side` | TEXT | the host's side (`buy`/`sell`; NULL when host is only the partner) | derived: `@buyer`/`@seller` vs host id |
+| `ware` | TEXT, FK → `ware.id` | traded ware | `trade/active/trade@ware` |
+| `amount` | REAL | open quantity | same element `@amount` |
+| `transferred` | REAL | units already delivered | same element `@transferred` |
+| `desired` | REAL | total wanted | same element `@desired` |
+| `price_cr` | REAL | unit price, credits | same element `@price` ÷ 100 |
+| `escrow_cr` | REAL | money in escrow, credits | same element `@escrow` ÷ 100 |
+| `flags` | TEXT | raw `\|`-joined flag set | same element `@flags` |
 
 ## Event history (E) — merged across runs
 

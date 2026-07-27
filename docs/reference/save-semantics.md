@@ -182,6 +182,14 @@ knowledge, not yet a feature.
   need, not fill, and run above the band ceiling.
 - **Layer 5 — player-owned stations** use manual thresholds — off-model by
   design.
+- **Layer 6 — locked trade-station wares** (validated in-game 2026-07-27):
+  wares in a trade station's / pirate base's `lockavgprice` whitelist
+  (`station_trade_setting`, v20) are pegged at band average — sell = avg
+  exactly (588/588 offers in save_008, zero variance), buy = avg − 1 Cr —
+  regardless of stock; the supply curve does not apply. Layer-3 discounts
+  still stack on top (EBT-957 microlattice: 46.75 = 50 × (1 − 2.0% − 4.5%)),
+  so locked wares stay arbitrage-able with reputation. Their *unlocked*
+  wares at the same stations price off need as usual (Layer 4).
 - **Deployables** (satellites/mines/…) are not stocked; a facility builds
   them on demand at
   `base_price × (Σ recipe·E / Σ recipe·band_avg) × M` — and **no

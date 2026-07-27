@@ -302,16 +302,17 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
 
         conn.executemany(
             "INSERT OR REPLACE INTO component VALUES "
-            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [(save_id, cid, clazz, _low(macro), resolve(name),
               resolve(basename), _s(code), _s(owner), _s(knownto),
               _i(contested), _f(spawntime),
               _s(parent_id), _s(cluster_id), _low(cluster_macro),
               _s(sector_id), _low(sector_macro), sx, sz, _i(faction_hq),
-              entities.get(cid))
+              entities.get(cid), _i(known))
              for (cid, clazz, macro, name, code, owner, knownto, contested,
                   connection, spawntime, cluster_id, cluster_macro, sector_id,
-                  sector_macro, basename, parent_id, sx, sz, faction_hq)
+                  sector_macro, basename, parent_id, sx, sz, faction_hq,
+                  known)
              in save.components
              if connection])  # no @connection = not in the universe tree
 
@@ -441,6 +442,22 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             "INSERT OR REPLACE INTO build_price_factor VALUES (?,?,?)",
             [(save_id, oid, factor)
              for oid, factor in save.build_price_factors])
+
+        conn.executemany(
+            "INSERT OR REPLACE INTO player_scan VALUES (?,?,?)",
+            [(save_id, oid, level) for oid, level in save.player_scans])
+
+        conn.executemany(
+            "INSERT OR REPLACE INTO station_trade_setting VALUES (?,?,?,?)",
+            [(save_id, oid, setting, ware)
+             for oid, setting, ware in save.trade_settings])
+
+        conn.executemany(
+            "INSERT INTO trade_active VALUES (?,?,?,?,?,?,?,?,?,?)",
+            [(save_id, oid, _s(side), ware, amount, transferred, desired,
+              price_cr, escrow_cr, _s(flags))
+             for oid, side, ware, amount, transferred, desired, price_cr,
+             escrow_cr, flags in save.trade_active])
 
         # engines of player ships only (speed-from-loadout; NPC loadouts
         # would multiply the table size for no analysis value)

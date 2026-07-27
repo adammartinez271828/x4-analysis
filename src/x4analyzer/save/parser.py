@@ -98,6 +98,21 @@ class SaveData:
     # (wharf/shipyard/equipment dock) + player yards; the NPC value is the
     # engine's price variation in [0.9, 1.15] and DRIFTS between saves.
     build_price_factors: list = field(default_factory=list)
+    # the player's per-component module scan levels (<memory><scan>
+    # <item component= level=>): (component_id, level 0-3). Permanent --
+    # no expiry; targets are mostly storage modules.
+    player_scans: list = field(default_factory=list)
+    # trade-station/pirate-base ware whitelists (<trade><settings><setting
+    # name= wares=>): (object_id, setting, ware), one row per ware.
+    # setting in {buy, sell, lockavgprice}; lockavgprice pegs the economy
+    # price at band average (sell = avg, buy = avg - 1 Cr) instead of the
+    # storage curve -- player-facing discounts still apply on top.
+    trade_settings: list = field(default_factory=list)
+    # in-flight escrow-stage trades (<trade><active><trade>): (object_id,
+    # side, ware, amount, transferred, desired, price_cr, escrow_cr,
+    # flags). side is the HOST's side; escrow = money already committed,
+    # transferred = units already delivered.
+    trade_active: list = field(default_factory=list)
     # materials missing for builds (<insufficient>/<shortage> under
     # <build><resources>); host is "" for free-floating build storages.
     # kind: "insufficient" = station construction, "shortage" = shipyard
@@ -351,6 +366,14 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("component"),
                         float(t) if t else None,
                     ))
+                # player module scan levels: <memory><scan>
+                elif tag_stack[-2:] == ["memory", "scan"] \
+                        and elem.get("component") \
+                        and any(c[0] == "player" for c in comp_stack):
+                    d.player_scans.append((
+                        elem.get("component"),
+                        int(float(elem.get("level", 0) or 0)),
+                    ))
 
             elif tag == "prices":
                 # <trade><prices buildpricefactor=>: the station's build
@@ -429,6 +452,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         cluster_id, cluster_macro, sector_id, sector_macro,
                         elem.get("basename", ""), parent_id, sx, sz,
                         elem.get("factionheadquarters", ""),
+                        elem.get("known", ""),
                     ))
 
                 if vault_stack:
@@ -633,6 +657,35 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         float(elem.get("desired"))
                         if elem.get("desired") else None,
                     ))
+                # escrow-stage in-flight trades: <trade><active><trade>.
+                # (the same <active> tag also wraps other content elsewhere;
+                # requiring the trade-block ancestry disambiguates)
+                elif elem.get("ware") and tag_stack[-2:] == ["trade", "active"]:
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        d.trade_active.append((
+                            host,
+                            "buy" if elem.get("buyer") == host else
+                            "sell" if elem.get("seller") == host else "",
+                            elem.get("ware", ""),
+                            float(elem.get("amount", 0) or 0),
+                            float(elem.get("transferred", 0) or 0),
+                            float(elem.get("desired", 0) or 0),
+                            float(elem.get("price", 0) or 0) / 100.0,
+                            float(elem.get("escrow", 0) or 0) / 100.0,
+                            elem.get("flags", ""),
+                        ))
+
+            elif tag == "setting":
+                # trade-station ware whitelists: <trade><settings><setting
+                # name="buy|sell|lockavgprice" wares="a b c"/>
+                if tag_stack[-2:] == ["trade", "settings"] \
+                        and elem.get("name"):
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        for ware in (elem.get("wares", "") or "").split():
+                            d.trade_settings.append(
+                                (host, elem.get("name", ""), ware))
 
             elif tag == "area":
                 if sector_macro_stack and elem.get("yieldid"):

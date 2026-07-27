@@ -62,7 +62,12 @@ import hashlib
 #      absolute expiry, from <memory><subscriptions>) + build_price_factor
 #      (per-station <trade><prices buildpricefactor>, the deployable/ship
 #      pricing M — drifts between saves, so per-save capture)
-SCHEMA_VERSION = "19"
+# v20: player knowledge + trade-block completions: player_scan (permanent
+#      module scan levels, <memory><scan>), station_trade_setting
+#      (trade-station buy/sell/lockavgprice ware whitelists),
+#      trade_active (escrow-stage in-flight trades with transferred
+#      units), component.known (the broad discovery flag next to knownto)
+SCHEMA_VERSION = "20"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -322,6 +327,7 @@ WORLD_TABLES = (
     "datavault", "wormhole", "wormhole_link", "ship_engine",
     "faction_relation", "faction_meta", "faction_licence",
     "player_subscription", "build_price_factor",
+    "player_scan", "station_trade_setting", "trade_active",
 )
 
 REFERENCE_TABLES = (
@@ -381,6 +387,8 @@ TABLES: dict[str, str] = {
   entity_id     INTEGER,          -- FK entity.entity_id (doc only): NULL
                                   -- outside the registry domain (sectors,
                                   -- clusters) or when unresolvable
+  known         INTEGER,          -- component@known: broad discovery flag
+                                  -- (v20; superset of knownto='player')
   PRIMARY KEY (save_id, id)
 )""",
     "fleet_edge": """CREATE TABLE IF NOT EXISTS fleet_edge (
@@ -590,6 +598,42 @@ TABLES: dict[str, str] = {
   object_id TEXT NOT NULL,
   factor    REAL NOT NULL,
   PRIMARY KEY (save_id, object_id)
+)""",
+    # the player's permanent per-component module scan levels (v20):
+    # <memory><scan> under the player component. Levels 0-3; targets are
+    # mostly storage modules — join component.parent chain for the station.
+    "player_scan": """CREATE TABLE IF NOT EXISTS player_scan (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  level     INTEGER NOT NULL,
+  PRIMARY KEY (save_id, object_id)
+)""",
+    # trade-station / pirate-base ware whitelists (v20): <trade><settings>.
+    # setting in (buy, sell, lockavgprice). lockavgprice pegs the economy
+    # price at band average (sell = avg exactly, buy = avg - 1 Cr; verified
+    # 588/588 sell offers in save_008 + in-game) — the storage curve does
+    # not apply, but player-facing reputation/event discounts still do.
+    "station_trade_setting": """CREATE TABLE IF NOT EXISTS station_trade_setting (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  setting   TEXT NOT NULL,
+  ware      TEXT NOT NULL,
+  PRIMARY KEY (save_id, object_id, setting, ware)
+)""",
+    # escrow-stage in-flight trades (v20): <trade><active><trade> — money
+    # committed (escrow_cr), possibly partially delivered (transferred).
+    # side is the host's side ('' when the host is only the partner).
+    "trade_active": """CREATE TABLE IF NOT EXISTS trade_active (
+  save_id     INTEGER NOT NULL,
+  object_id   TEXT NOT NULL,
+  side        TEXT,
+  ware        TEXT NOT NULL,
+  amount      REAL,
+  transferred REAL,
+  desired     REAL,
+  price_cr    REAL,
+  escrow_cr   REAL,
+  flags       TEXT
 )""",
     # equipped engines of PLAYER ships (speed-from-loadout for the trade
     # opportunity travel times); n = mounted count of that engine macro

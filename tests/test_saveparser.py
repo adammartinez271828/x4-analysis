@@ -40,7 +40,8 @@ FIXTURE = """<?xml version="1.0"?>
           <offset><position x="1000" y="5" z="-2000"/></offset>
           <connections><connection connection="zone">
           <component class="station" macro="station_macro" id="[0x20]" owner="player"
-                     code="STA-001" factionheadquarters="1" connection="zone">
+                     code="STA-001" factionheadquarters="1" known="1"
+                     connection="zone">
             <offset><position x="500" y="0" z="250"/></offset>
             <control>
               <post id="manager" component="[0x99]"/>
@@ -59,7 +60,16 @@ FIXTURE = """<?xml version="1.0"?>
             </production></offers>
             <prices buildpricefactor="1.07">
               <reference><ware ware="energycells" buy="12" sell="0"/></reference>
-            </prices></trade>
+            </prices>
+            <settings>
+              <setting name="buy" wares="spaceweed majadust"/>
+              <setting name="lockavgprice" wares="spaceweed"/>
+            </settings>
+            <active>
+              <trade id="[0xT3]" seller="[0x20]" buyer="[0x77]" partner="[0x77]"
+                     ware="energycells" price="150" escrow="30000" amount="100"
+                     transferred="40" desired="140" flags="fixedprice"/>
+            </active></trade>
             <build><resources><insufficient>
               <ware ware="claytronics" amount="1000"/>
             </insufficient></resources></build>
@@ -218,6 +228,8 @@ def test_fixture_parse(save_file: Path) -> None:
     # enclosing zone's offset (y dropped); faction HQ flag captured
     assert (station[16], station[17]) == (1500.0, -1750.0)
     assert station[18] == "1"
+    assert station[19] == "1"      # known flag (v20)
+    assert ship[19] == ""          # absent known -> ""
     # ships don't get positions
     assert (ship[16], ship[17]) == (None, None)
     sector = next(c for c in d.components if c[1] == "sector")
@@ -249,12 +261,21 @@ def test_fixture_parse(save_file: Path) -> None:
 
     assert d.people == {("[0x30]", "service"): 2, ("[0x30]", "passenger"): 1}
 
-    # player trade-info subscriptions: absolute expiry, None = permanent;
-    # the <memory><scan> sibling block is not captured
+    # player trade-info subscriptions: absolute expiry, None = permanent
     assert d.player_subscriptions == [
         ("[0x20]", 9000.5), ("[0x30]", 1000.0), ("[0x40]", None)]
     # station build price factor from <trade><prices buildpricefactor=>
     assert d.build_price_factors == [("[0x20]", 1.07)]
+    # player module scan levels from <memory><scan> (v20)
+    assert d.player_scans == [("[0x20]", 2)]
+    # trade-station ware whitelists, one row per ware (v20)
+    assert d.trade_settings == [
+        ("[0x20]", "buy", "spaceweed"), ("[0x20]", "buy", "majadust"),
+        ("[0x20]", "lockavgprice", "spaceweed")]
+    # escrow-stage in-flight trade (v20): side is the host's side
+    assert d.trade_active == [
+        ("[0x20]", "sell", "energycells", 100.0, 40.0, 140.0, 1.5,
+         300.0, "fixedprice")]
 
     assert ("[0x20]", "buy", "energycells", 500.0, 1.0, "", 500.0) \
         in d.trade_offers

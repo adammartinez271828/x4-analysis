@@ -289,7 +289,8 @@ Common component attributes (all optional except `class`/`id` in practice):
 | `basename` | base display name, often a `{page,id}` ref |
 | `owner` | owning faction id (`player`, `argon`, `ownerless`, …) |
 | `knownto` | `"player"` when the player has discovered the object |
-| `known` / `read` | encyclopedia/UI flags **(semantics unverified)** |
+| `known` | discovery flag, always `"1"` when present (31,408 elements in save_008, mostly on zones/gates/modules the pipeline drops; among kept universe classes only stations 133 / sectors 108 / clusters 103, nearly all also `knownto` — a deeper "visited" tier, **semantics unverified**); captured on `component` since v20 |
+| `read` | encyclopedia/UI flag **(semantics unverified)** |
 | `contested` | `"1"` on contested sectors |
 | `spawntime` | game time the object was created (0 = at universe creation); 18,357 components carry it here |
 | `state` | e.g. `"wreck"`, `"construction"` (module still being built) |
@@ -585,15 +586,24 @@ craft, turret munitions (missiles, countermeasures) and deployables;
 - `<restrictions factions="…">` — station-wide counterparty restrictions
   (3,508 rows in save_008, always `factions="player"` in this save; pairs
   with the `shady`/`invertfactionrestriction` offer flags).
-- `<settings>` — ware whitelists of trade stations / pirate bases (62
-  stations): `<setting name="buy|sell|lockavgprice" wares="…"/>`, duplicated
-  by a `<trade wares="…">` attribute on the same element. `lockavgprice`
-  presumably pegs those wares at average price instead of the storage
-  curve **(hypothesis, not validated numerically)**.
+- `<settings>` — ware whitelists of trade stations / pirate bases (58
+  stations in save_008): `<setting name="buy|sell|lockavgprice"
+  wares="…"/>`, duplicated by a `<trade wares="…">` attribute on the same
+  element. **`lockavgprice` semantics VALIDATED** (save + in-game,
+  2026-07-27): the *economy* price is pegged at the ware's band average —
+  sell offers at exactly avg (588/588 in save_008, zero variance), buy
+  offers at avg − 1 Cr — regardless of stock; the storage curve does not
+  apply. The trade UI shows the ±1 Cr as tiny "Low/High Demand"
+  percentages, and **player-facing reputation/event discounts still stack
+  on top** (EBT-957 metallic microlattice: shown 46.75 = 50 × (1 − 2.0%
+  demand − 4.5% discount), player-verified) — locked wares remain
+  arbitrage-able with good rep. One anomaly in 1,181 offers (GMJ-316
+  smartchips buy at 1.105×avg). Parsed into `station_trade_setting` (v20).
 - `<active>` — in-flight trades where the host is one side (49 hosts /
   54 rows in save_008), distinct from `<reservations>`: same `<trade>`
   shape plus `escrow` (cents already paid into escrow) and `transferred`
   (units already delivered, e.g. `transferred="138" desired="263"`).
+  Parsed into `trade_active` (v20).
 - `<source class="…"/>` — provenance tag on offers/trades
   (`class="production"` dominates; constant across all offers in this
   save, so it discriminates nothing).
@@ -974,9 +984,11 @@ children in save_008 (2026-07 census):
   *lower* live rate). NPC stations/factions have **no** subscription
   state anywhere in the save — this block is the only one, and the
   concept is player-only. Parsed into `player_subscription` (v19).
+  The no-`time` permanent subscriptions come from **scanning a data
+  leak** on the station (player-confirmed on FEL-543, 2026-07-27).
 - **`<scan>`** (11,624 items) — permanent per-component module scan
   levels 0–3, overwhelmingly `class="storage"` modules (11,272); a
-  different id set from subscriptions. *(Not parsed yet.)*
+  different id set from subscriptions. Parsed into `player_scan` (v20).
 - **`<longrangescan>`** — note it keys `object=`, not `component=`.
 
 ## `<economylog>`

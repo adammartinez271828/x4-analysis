@@ -61,6 +61,9 @@ EXPECTED_COUNTS = {
     "trade_offer": 2,     # one production buy + one supplies-flagged buy
     "player_subscription": 3,   # timed + expired + permanent
     "build_price_factor": 1,
+    "player_scan": 1,
+    "station_trade_setting": 3,  # buy x2 wares + lockavgprice x1
+    "trade_active": 1,
     "build_resource": 1,
     "ship_order": 1,
     "resource": 4,
@@ -169,6 +172,22 @@ def test_world_details(conn):
     assert conn.execute(
         "SELECT object_id, factor FROM build_price_factor"
         ).fetchall() == [("[0x20]", 1.07)]
+    assert conn.execute(
+        "SELECT object_id, level FROM player_scan"
+        ).fetchall() == [("[0x20]", 2)]
+    assert conn.execute(
+        "SELECT setting, ware FROM station_trade_setting ORDER BY 1, 2"
+        ).fetchall() == [("buy", "majadust"), ("buy", "spaceweed"),
+                         ("lockavgprice", "spaceweed")]
+    assert conn.execute(
+        "SELECT object_id, side, ware, amount, transferred, desired,"
+        " price_cr, escrow_cr, flags FROM trade_active").fetchall() == [
+        ("[0x20]", "sell", "energycells", 100.0, 40.0, 140.0, 1.5,
+         300.0, "fixedprice")]
+    # component discovery flags round-trip (v20 known + existing knownto)
+    assert conn.execute(
+        "SELECT known FROM component WHERE id = '[0x20]'"
+        ).fetchone() == (1,)
     assert conn.execute(
         "SELECT npc_id, value FROM npc_skill JOIN npc ON npc.id = npc_id"
         " WHERE skill = 'piloting'").fetchall() == [("[0x99]", 9.0)]
