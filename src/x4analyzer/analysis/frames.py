@@ -110,6 +110,11 @@ class Frames:
     # "override" = hard manual override), ware, buy_cr, sell_cr — WHOLE
     # CREDITS (NaN = that side unset)
     price_settings: pd.DataFrame = None
+    # committed in-flight trades (v26): trade_id, ware, amount, desired,
+    # transferred, price_cr, escrow_cr, buyer.id, seller.id, ship.id,
+    # station.id, is_active, flags. Σ amount on the SELLER side is the
+    # supply curve's `pending` term (save-semantics.md § pricing Layer 2).
+    trade_pending: pd.DataFrame = None
     # manual per-ware limits from the station UI (v23): id, kind
     # ("max" = storage allocation, "buy" = buy up to this stock level,
     # "sell" = keep this much and sell the excess), ware, amount
@@ -721,6 +726,14 @@ def build_frames(save: SaveData, ref: RefData,
             SELECT object_id AS id, kind, ware, buy_cr, sell_cr
             FROM price_setting WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["ware"]),
+        trade_pending=_read(conn, f"""
+            SELECT trade_id, ware, amount, desired, transferred, price_cr,
+                   escrow_cr, buyer_id AS "buyer.id",
+                   seller_id AS "seller.id", ship_id AS "ship.id",
+                   station_id AS "station.id", is_active, flags
+            FROM trade_pending WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["ware", "buyer.id", "seller.id", "ship.id", "station.id",
+                  "flags"]),
         ware_limits=_read(conn, f"""
             SELECT object_id AS id, kind, ware, amount FROM ware_limit
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["ware"]),

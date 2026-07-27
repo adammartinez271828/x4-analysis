@@ -63,7 +63,8 @@ EXPECTED_COUNTS = {
     "build_price_factor": 1,
     "player_scan": 1,
     "station_trade_setting": 3,  # buy x2 wares + lockavgprice x1
-    "trade_active": 1,
+    "trade_pending": 2,   # one escrow-stage + one plain, each merged
+                          # from its order and reservation copies
     "build_resource": 1,
     "ship_order": 1,
     "resource": 4,
@@ -179,11 +180,18 @@ def test_world_details(conn):
         "SELECT setting, ware FROM station_trade_setting ORDER BY 1, 2"
         ).fetchall() == [("buy", "majadust"), ("buy", "spaceweed"),
                          ("lockavgprice", "spaceweed")]
+    # committed in-flight trades: one row per trade id, with the ship and
+    # station sides merged and <active> membership flagged (v26)
     assert conn.execute(
-        "SELECT object_id, side, ware, amount, transferred, desired,"
-        " price_cr, escrow_cr, flags FROM trade_active").fetchall() == [
-        ("[0x20]", "sell", "energycells", 100.0, 40.0, 140.0, 1.5,
-         300.0, "fixedprice")]
+        "SELECT trade_id, ware, amount, transferred, desired, price_cr,"
+        " escrow_cr, buyer_id, seller_id, ship_id, station_id, is_active,"
+        " expires_at, flags FROM trade_pending ORDER BY trade_id"
+        ).fetchall() == [
+        ("[0xT3]", "energycells", 100.0, 40.0, 140.0, 1.5, 300.0,
+         "[0x77]", "[0x20]", "[0x30]", "[0x20]", 1, None, "fixedprice"),
+        ("[0xT4]", "ore", 60.0, 0.0, 60.0, 50.0, 0.0,
+         "[0x20]", "[0x88]", "[0x30]", "[0x20]", 0, 9000.5, "fixedprice"),
+    ]
     # component discovery flags round-trip (v20 known + existing knownto)
     assert conn.execute(
         "SELECT known FROM component WHERE id = '[0x20]'"

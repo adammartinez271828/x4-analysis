@@ -82,7 +82,11 @@ import hashlib
 #      stock/buy/sell limits), not NULL/0 as v23 assumed
 # v25: ware.price_min / price_max — the economy price BAND, not just the
 #      average (the supply curve interpolates between them by fill)
-SCHEMA_VERSION = "25"
+# v26: trade_pending supersedes trade_active — ALL committed in-flight
+#      trades (the supply curve's `pending` term), merged from the two
+#      places the save keeps each one; the escrow subset keeps its own
+#      flag. trade_active dropped (it held 49 of these 2,510 rows).
+SCHEMA_VERSION = "26"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -342,7 +346,7 @@ WORLD_TABLES = (
     "datavault", "wormhole", "wormhole_link", "ship_engine",
     "faction_relation", "faction_meta", "faction_licence",
     "player_subscription", "build_price_factor",
-    "player_scan", "station_trade_setting", "trade_active",
+    "player_scan", "station_trade_setting", "trade_pending",
 )
 
 REFERENCE_TABLES = (
@@ -695,17 +699,29 @@ TABLES: dict[str, str] = {
     # escrow-stage in-flight trades (v20): <trade><active><trade> — money
     # committed (escrow_cr), possibly partially delivered (transferred).
     # side is the host's side ('' when the host is only the partner).
-    "trade_active": """CREATE TABLE IF NOT EXISTS trade_active (
+    # committed in-flight trades (v26) — the supply curve's PENDING term
+    # (economy_price = max - (max-min) x (stock - pending) / target_level).
+    # One row per trade id, merged from the executing ship's
+    # <orders><order><trade> and the counterpart station's
+    # <trade><reservations><reservation>: the save keeps every committed
+    # trade in BOTH places, attribute-identical (2,510/2,510 in save_009).
+    "trade_pending": """CREATE TABLE IF NOT EXISTS trade_pending (
   save_id     INTEGER NOT NULL,
-  object_id   TEXT NOT NULL,
-  side        TEXT,
-  ware        TEXT NOT NULL,
+  trade_id    TEXT NOT NULL,
+  ware        TEXT,
   amount      REAL,
-  transferred REAL,
   desired     REAL,
+  transferred REAL,
   price_cr    REAL,
   escrow_cr   REAL,
-  flags       TEXT
+  buyer_id    TEXT,
+  seller_id   TEXT,
+  ship_id     TEXT,
+  station_id  TEXT,
+  is_active   INTEGER NOT NULL DEFAULT 0,
+  expires_at  REAL,
+  flags       TEXT,
+  PRIMARY KEY (save_id, trade_id)
 )""",
     # equipped engines of PLAYER ships (speed-from-loadout for the trade
     # opportunity travel times); n = mounted count of that engine macro
@@ -1263,6 +1279,20 @@ FROM station_supply s
 LEFT JOIN component c ON c.id = s.object_id AND c.save_id = s.save_id
 LEFT JOIN ware w ON w.id = s.ware
 WHERE s.save_id = (SELECT save_id FROM current_save)""",
+    # committed in-flight trades, labeled (v26). `pending_out` on the
+    # seller side is the supply curve's numerator term.
+    "v_trade_pending": """CREATE VIEW v_trade_pending AS
+SELECT p.trade_id, p.ware, w.name AS ware_name, p.amount, p.desired,
+       p.transferred, p.price_cr, p.escrow_cr, p.is_active,
+       p.buyer_id, cb.code AS buyer_code, cb.owner AS buyer_faction,
+       p.seller_id, cs.code AS seller_code, cs.owner AS seller_faction,
+       p.ship_id, csh.code AS ship_code, p.station_id, p.expires_at, p.flags
+FROM trade_pending p
+LEFT JOIN ware w ON w.id = p.ware
+LEFT JOIN component cb ON cb.id = p.buyer_id AND cb.save_id = p.save_id
+LEFT JOIN component cs ON cs.id = p.seller_id AND cs.save_id = p.save_id
+LEFT JOIN component csh ON csh.id = p.ship_id AND csh.save_id = p.save_id
+WHERE p.save_id = (SELECT save_id FROM current_save)""",
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM build_entry
 WHERE built = 1 AND save_id = (SELECT MAX(save_id) FROM save)""",

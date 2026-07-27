@@ -80,7 +80,16 @@ FIXTURE = """<?xml version="1.0"?>
               <trade id="[0xT3]" seller="[0x20]" buyer="[0x77]" partner="[0x77]"
                      ware="energycells" price="150" escrow="30000" amount="100"
                      transferred="40" desired="140" flags="fixedprice"/>
-            </active></trade>
+            </active>
+            <reservations>
+              <reservation reserver="[0x30]" id="[0xT3]" seller="[0x20]"
+                     buyer="[0x77]" partner="[0x77]" ware="energycells"
+                     price="150" escrow="30000" amount="100" transferred="40"
+                     desired="140" flags="fixedprice"/>
+              <reservation reserver="[0x30]" id="[0xT4]" buyer="[0x20]"
+                     partner="[0x88]" ware="ore" price="5000" amount="60"
+                     desired="60" time="9000.5" flags="fixedprice"/>
+            </reservations></trade>
             <supplies>
               <wares><ware ware="metallicmicrolattice" amount="1200"/></wares>
               <orders>
@@ -113,7 +122,15 @@ FIXTURE = """<?xml version="1.0"?>
                   <person macro="char_pax_macro" role="passenger"/>
                 </people>
                 <orders>
-                  <order id="[0xA1]" default="1" order="Wait" state="started"/>
+                  <order id="[0xA1]" default="1" order="Wait" state="started">
+                    <trade id="[0xT3]" seller="[0x20]" buyer="[0x77]"
+                           partner="[0x77]" ware="energycells" price="150"
+                           escrow="30000" amount="100" transferred="40"
+                           desired="140" flags="fixedprice"/>
+                    <trade id="[0xT4]" buyer="[0x20]" partner="[0x88]"
+                           ware="ore" price="5000" amount="60" desired="60"
+                           flags="fixedprice"/>
+                  </order>
                 </orders>
                 <connections>
                   <connection connection="commander" id="[0xC9]">
@@ -329,10 +346,21 @@ def test_fixture_parse(save_file: Path) -> None:
     assert d.trade_settings == [
         ("[0x20]", "buy", "spaceweed"), ("[0x20]", "buy", "majadust"),
         ("[0x20]", "lockavgprice", "spaceweed")]
-    # escrow-stage in-flight trade (v20): side is the host's side
-    assert d.trade_active == [
-        ("[0x20]", "sell", "energycells", 100.0, 40.0, 140.0, 1.5,
-         300.0, "fixedprice")]
+    # committed in-flight trades (v26): the save keeps each in TWO places
+    # (the ship's order and the station's reservation) and the parser takes
+    # both, leaving the merge to the store. <active> contributes only ids.
+    assert d.trade_active_ids == ["[0xT3]"]
+    by_id = {}
+    for row in d.trade_pending:
+        by_id.setdefault(row[1], []).append(row)
+    assert sorted(by_id) == ["[0xT3]", "[0xT4]"]
+    assert {r[0] for r in by_id["[0xT3]"]} == {"order", "reservation"}
+    # order rows are hosted by the ship, reservations by the station
+    assert {r[2] for r in by_id["[0xT3]"]} == {"[0x30]", "[0x20]"}
+    # buyer= present and seller= absent -> seller is `partner` (the rule
+    # the pricing model's pending term depends on)
+    ore = by_id["[0xT4]"][0]
+    assert (ore[4], ore[5], ore[6]) == ("[0x20]", "[0x88]", "[0x88]")
 
     assert ("[0x20]", "buy", "energycells", 500.0, 1.0, "", 500.0) \
         in d.trade_offers

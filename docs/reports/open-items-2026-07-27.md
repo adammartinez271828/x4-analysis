@@ -135,10 +135,23 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   settings-stations trade arbitrary wares; the whitelist says which.
 - **P&L/net-worth: include `trade_active` escrow** (6.9M Cr in save_008
   currently invisible between wallet and cargo).
-- **Pending capture** (the supply-curve numerator): order-embedded
-  `<trade>` rows + `<reservations>` are still not persisted; needed
-  before any in-DB economy-price computation. (Mechanism known-exact
-  from the GMD-272 validation.)
+- ~~**Pending capture** (the supply-curve numerator)~~ — **DONE (v26,
+  2026-07-27)**: `trade_pending` + `v_trade_pending`. Both homes of a
+  committed trade turned out to be the same record (order-embedded
+  `<trade>` and station `<reservations>`, attribute-identical
+  2,510/2,510, the reservation's `@reserver` being the order's ship), so
+  the store merges by trade id rather than storing both; `trade_active`
+  (v20) is superseded — its 49 rows are the escrow subset, now the
+  `is_active` flag. Validated: on the 34 clean non-terran NPC solar
+  plants with pending, the term cuts mean sell-price error 1.185 →
+  0.515 Cr.
+- **NEW (found by that validation): the storage model's target level is
+  wrong for terran stations.** Every terran solar plant models to
+  ~990k units of energy-cell allocation against ~100–250k for comparable
+  non-terran plants, leaving a ~2.1 Cr price error that pending does not
+  touch. `analysis/storage.py`'s per-pool hours factor is the suspect
+  (terran pools/module capacities). Worth a look before any price
+  prediction ships.
 - ~~**Parse the build method**~~ — **DONE (v21, 2026-07-27)**:
   `faction_meta.build_method` + the `build_method` table (per-station
   override), resolved by `v_build_method` / `frames.build_methods`.

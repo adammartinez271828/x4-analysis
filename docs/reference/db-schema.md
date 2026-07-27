@@ -11,7 +11,7 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 25, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 26, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
 import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
@@ -953,24 +953,46 @@ locked wares as flat-avg.
 | `setting` | TEXT PK | `buy` / `sell` / `lockavgprice` | `trade/settings/setting@name` |
 | `ware` | TEXT PK, FK → `ware.id` | whitelisted ware | split from same element `@wares` |
 
-### trade_active
+### trade_pending
 
-Escrow-stage in-flight trades (v20) — money committed and possibly
-partially delivered; the accounting gap between wallet and cargo.
-Distinct from save-side `<reservations>` (not captured).
+Committed in-flight trades (v26, superseding v20's `trade_active`) — the
+supply curve's **pending** term: `economy_price = max − (max−min) ×
+(stock − pending) / target_level` (save-semantics.md § pricing Layer 2).
+
+The save keeps every committed trade in **two** places, attribute-identical
+(verified 2,510/2,510 on save_009): the executing ship's
+`<orders><order><trade>` and the counterpart station's
+`<trade><reservations><reservation>`, whose `@reserver` **is** that ship.
+The store merges them by trade id into one row — `ship_id` and `station_id`
+both populated, nothing double-counted. A third, strictly smaller home,
+`<trade><active>` (49 rows, all also here), marks the escrow stage as
+`is_active`.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
-| `save_id` | INTEGER, FK → `save` | snapshot | — |
-| `object_id` | TEXT, FK → `component.id` | the host station/ship | derived: nearest host |
-| `side` | TEXT | the host's side (`buy`/`sell`; NULL when host is only the partner) | derived: `@buyer`/`@seller` vs host id |
-| `ware` | TEXT, FK → `ware.id` | traded ware | `trade/active/trade@ware` |
-| `amount` | REAL | open quantity | same element `@amount` |
-| `transferred` | REAL | units already delivered | same element `@transferred` |
-| `desired` | REAL | total wanted | same element `@desired` |
-| `price_cr` | REAL | unit price, credits | same element `@price` ÷ 100 |
-| `escrow_cr` | REAL | money in escrow, credits | same element `@escrow` ÷ 100 |
-| `flags` | TEXT | raw `\|`-joined flag set | same element `@flags` |
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `trade_id` | TEXT PK | the trade's runtime id — the merge key | `@id` |
+| `ware` | TEXT, FK → `ware.id` | ware traded | `@ware` |
+| `amount` | REAL | committed units | `@amount` |
+| `desired` | REAL | wanted total | `@desired` |
+| `transferred` | REAL | units already delivered | `@transferred` |
+| `price_cr` | REAL | unit price, credits | `@price` ÷ 100 |
+| `escrow_cr` | REAL | money already in escrow, credits | `@escrow` ÷ 100 |
+| `buyer_id` | TEXT, FK → `component.id` | buying object | `@buyer`, else `@partner` when only `@seller` is present |
+| `seller_id` | TEXT, FK → `component.id` | selling object — **the side pending is measured on** | `@seller`, else `@partner` |
+| `ship_id` | TEXT, FK → `component.id` | the ship executing the trade | order host / `reservation@reserver` |
+| `station_id` | TEXT, FK → `component.id` | station hosting the reservation | reservation host |
+| `is_active` | INTEGER | 1 = also listed under `<trade><active>` (escrow stage) | derived |
+| `expires_at` | REAL | reservation expiry, game seconds (rare) | `reservation@time` |
+| `flags` | TEXT | raw `\|`-joined flag set | `@flags` |
+
+Pending outbound for a station is `SUM(amount) WHERE seller_id = <station>
+AND ware = <ware>`. Validated on save_009 against the 34 clean non-terran
+NPC solar plants that carry pending: including the term cuts the mean
+sell-price error from 1.185 Cr to **0.515 Cr**. Terran plants sit at
+~2.1 Cr either way — their modeled `station_storage` target level is
+~990k units against ~100–250k elsewhere, which is a target-level problem,
+not a pending one.
 
 ## Event history (E) — merged across runs
 
@@ -1418,6 +1440,7 @@ what it is.
 | `v_resource_area` | `resource` + `region_yield` | `sector_macro`, `ware`, `yield`, `level`, `speed`, `starttime`, `capacity`, `respawn_min`, `status` (`live`/`full`/`respawning`/`never`/`unknown`) | "what can I mine right now, where" — the confirmed timer/eligibility layer of the respawn model as SQL (an empty area past its `starttime` is respawned & full even though its stored yield reads 0). Caveats: `full` reports the *reference* capacity — correct for every ware incl. nividium (B11 confirmed materialize-to-full 2026-07-24; the review's below-cap nividium tail was drawdown between saves); depletion RELOCATES the area within its sector (B5 settled it: ~95% of full depletions move the record, a 20 km-lattice step per axis), so nothing position-keyed may be layered on it — the view's sector granularity is exactly the relocation-proof choice. Verified 0 status mismatches vs frames' classification on all areas (re-run the check if B21 changes the regionyields extraction) |
 | `v_build_method` | `component` + `build_method` + `faction_meta` | `object_id`, `owner`, `method`, `source` (`station` = own override, `faction` = inherited rule) | "which recipe variant does this station build with" — stations on their race default emit no row; per WARE a recipe lookup must still fall back to method `default` when the ware has no variant (the engine's own rule) |
 | `v_station_supply` | `station_supply` + `component` + `ware` | `object_id`, `station_code`, `station_name`, `owner`, `kind`, `ware`, `ware_name`, `amount` | "what is this station building for itself, and with what set aside" — join `station_munition` on `ware.component` = `macro` for target-vs-actual |
+| `v_trade_pending` | `trade_pending` + `ware` + 3× `component` | trade columns + `ware_name`, `buyer_code`/`buyer_faction`, `seller_code`/`seller_faction`, `ship_code` | "what is already committed but not yet delivered" — the supply curve's pending term, labeled |
 | `v_built_module` | `build_entry` filtered | `build_entry.*` where `built = 1` | "what is physically built" (plans excluded — the capacity-overcount gotcha; the view keeps its pre-v15 name, its meaning was always right) |
 | `v_npc` | `npc` + pivoted `npc_skill` | `npc.*` + `piloting`, `engineering`, `boarding`, `management`, `morale` | "crew skills as a wide table" |
 | `v_station_storage` | `station_storage` + `component` + `sector_ref` + `ware` | model columns + `station_code`, `station_name`, `sector_name`, `ware_name` | "what does this station stock and how much room did it allocate" |
@@ -1455,7 +1478,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"25"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"26"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every

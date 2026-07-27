@@ -128,11 +128,20 @@ class SaveData:
     # price at band average (sell = avg, buy = avg - 1 Cr) instead of the
     # storage curve -- player-facing discounts still apply on top.
     trade_settings: list = field(default_factory=list)
-    # in-flight escrow-stage trades (<trade><active><trade>): (object_id,
-    # side, ware, amount, transferred, desired, price_cr, escrow_cr,
-    # flags). side is the HOST's side; escrow = money already committed,
-    # transferred = units already delivered.
-    trade_active: list = field(default_factory=list)
+    # committed in-flight trades (v26) — the supply curve's PENDING term.
+    # ONE logical record with two homes in the save, verified identical on
+    # all 2,510 rows of save_009: the buying/selling ship's
+    # <orders><order><trade> and the counterpart station's
+    # <trade><reservations><reservation> (whose @reserver IS that ship).
+    # Collected from both and merged by trade id in the store, so a row
+    # missing one side still lands. A third, strictly smaller home,
+    # <trade><active> (49 rows, all of them also here), marks the ones
+    # that reached escrow — kept as the is_active flag.
+    # (source, trade_id, host_id, reserver, buyer, seller, partner, ware,
+    #  amount, desired, transferred, price_cr, escrow_cr, flags, time)
+    trade_pending: list = field(default_factory=list)
+    # trade ids the save lists under <trade><active> (escrow stage)
+    trade_active_ids: list = field(default_factory=list)
     # materials missing for builds (<insufficient>/<shortage> under
     # <build><resources>); host is "" for free-floating build storages.
     # kind: "insufficient" = station construction, "shortage" = shipyard
@@ -233,6 +242,27 @@ def peek_save_info(path: Path) -> tuple[str, float, str]:
             elif elem.tag == "save":
                 save_date = elem.get("date", "")
     return guid, game_time, save_date
+
+
+def _pending_row(source: str, host: str, elem) -> tuple:
+    """One committed in-flight trade, from either of its two homes.
+    Exactly one of buyer=/seller= may be absent, in which case `partner`
+    names that side (the save-semantics pricing rule: seller = partner
+    when buyer is present)."""
+    partner = elem.get("partner", "")
+    buyer = elem.get("buyer", "") or (partner if elem.get("seller") else "")
+    seller = elem.get("seller", "") or (partner if elem.get("buyer") else "")
+    return (
+        source, elem.get("id", ""), host, elem.get("reserver", ""),
+        buyer, seller, partner, elem.get("ware", ""),
+        float(elem.get("amount", 0) or 0),
+        float(elem.get("desired", 0) or 0),
+        float(elem.get("transferred", 0) or 0),
+        float(elem.get("price", 0) or 0) / 100.0,
+        float(elem.get("escrow", 0) or 0) / 100.0,
+        elem.get("flags", ""),
+        elem.get("time", ""),
+    )
 
 
 def _nearest_host(comp_stack: list) -> str:
@@ -743,20 +773,24 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 # (the same <active> tag also wraps other content elsewhere;
                 # requiring the trade-block ancestry disambiguates)
                 elif elem.get("ware") and tag_stack[-2:] == ["trade", "active"]:
-                    host = _nearest_host(comp_stack)
-                    if host:
-                        d.trade_active.append((
-                            host,
-                            "buy" if elem.get("buyer") == host else
-                            "sell" if elem.get("seller") == host else "",
-                            elem.get("ware", ""),
-                            float(elem.get("amount", 0) or 0),
-                            float(elem.get("transferred", 0) or 0),
-                            float(elem.get("desired", 0) or 0),
-                            float(elem.get("price", 0) or 0) / 100.0,
-                            float(elem.get("escrow", 0) or 0) / 100.0,
-                            elem.get("flags", ""),
-                        ))
+                    if elem.get("id"):
+                        d.trade_active_ids.append(elem.get("id"))
+                # a committed trade carried by the executing ship's order
+                elif elem.get("ware") and elem.get("id") \
+                        and tag_stack[-2:] == ["orders", "order"]:
+                    d.trade_pending.append(
+                        _pending_row("order", _nearest_host(comp_stack), elem))
+
+            elif tag == "reservation":
+                # the station side of the same committed trade. NB the tag
+                # is reused for spatial reservations (dock/build spots, on
+                # ships and resource areas) — the <trade> ancestry and a
+                # ware attribute are what make this a trade reservation.
+                if elem.get("ware") and elem.get("id") \
+                        and tag_stack[-2:] == ["trade", "reservations"]:
+                    d.trade_pending.append(
+                        _pending_row("reservation", _nearest_host(comp_stack),
+                                     elem))
 
             elif tag == "setting":
                 # trade-station ware whitelists: <trade><settings><setting

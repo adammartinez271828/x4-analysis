@@ -463,12 +463,28 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, oid, setting, ware)
              for oid, setting, ware in save.trade_settings])
 
+        # committed in-flight trades: the save keeps each one twice (the
+        # ship's order and the station's reservation, attribute-identical),
+        # so merge by trade id — the ship side supplies ship_id, the
+        # station side station_id, and either supplies the trade itself
+        active = set(save.trade_active_ids)
+        pending: dict[str, list] = {}
+        for (source, tid, host, reserver, buyer, seller, partner, ware,
+             amount, desired, transferred, price_cr, escrow_cr, flags,
+             time) in save.trade_pending:
+            row = pending.setdefault(tid, [
+                save_id, tid, _low(ware), amount, desired, transferred,
+                price_cr, escrow_cr, _s(buyer), _s(seller), None, None,
+                1 if tid in active else 0, _f(time), _s(flags)])
+            if source == "order":
+                row[10] = _s(host) or row[10]
+            else:
+                row[11] = _s(host) or row[11]
+                row[10] = row[10] or _s(reserver)
         conn.executemany(
-            "INSERT INTO trade_active VALUES (?,?,?,?,?,?,?,?,?,?)",
-            [(save_id, oid, _s(side), ware, amount, transferred, desired,
-              price_cr, escrow_cr, _s(flags))
-             for oid, side, ware, amount, transferred, desired, price_cr,
-             escrow_cr, flags in save.trade_active])
+            "INSERT OR REPLACE INTO trade_pending"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [tuple(r) for r in pending.values()])
 
         # engines of player ships only (speed-from-loadout; NPC loadouts
         # would multiply the table size for no analysis value)

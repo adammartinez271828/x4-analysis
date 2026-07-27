@@ -795,12 +795,27 @@ their buy offers):
   - Rare: 19 rows over 6 stations in save_009. Parsed into `ware_limit`
     (v23).
 
-- `<trade><reservations>` holds committed in-flight trades (reserver,
-  partner, ware, amount, price in cents) **(present in earlier saves of this
-  playthrough; not re-verified in this one)**. Note the *same element name*
-  `<reservations>` appears directly under components with spatial content
-  (`zone=`, `expiration=`, a position — a reserved build/dock spot) and
-  under resource `<area>` elements; context disambiguates.
+- **`<trade><reservations>`** holds committed in-flight trades
+  (`reserver`, `buyer`/`seller`, `partner`, `ware`, `amount`, `desired`,
+  `price` in cents, sometimes `escrow`/`transferred`/`time`) — 2,510 in
+  save_009. Note the *same element name* `<reservations>` appears directly
+  under components with spatial content (`zone=`, `expiration=`, a
+  position — a reserved build/dock spot) and under resource `<area>`
+  elements; the `<trade>` ancestry plus a `ware` attribute disambiguates.
+  Parsed into `trade_pending` (v26).
+
+  **Each committed trade is stored TWICE, attribute-identical**
+  (2,510/2,510 in save_009): here, on the counterpart station, and on the
+  executing ship as `<orders><order><trade>` — where the reservation's
+  `@reserver` is exactly that ship. The 49 rows the save also lists under
+  `<trade><active>` are a strict subset (escrow stage). Anything summing
+  committed volume must therefore dedupe by trade `@id`, which is what the
+  store's merge does.
+
+  Exactly one of `buyer=`/`seller=` may be absent; `partner` names that
+  missing side. This is the rule the pricing model's *pending* term
+  depends on — pending outbound for a station = Σ `amount` of committed
+  trades where that station is the seller (save-semantics.md § pricing).
 
 **New-station construction sites** are free-floating `buildstorage`
 components with **no station ancestor** (directly in a zone), holding the
