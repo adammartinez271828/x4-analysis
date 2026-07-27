@@ -152,38 +152,43 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   `is_active` flag. Validated: on the 34 clean non-terran NPC solar
   plants with pending, the term cuts mean sell-price error 1.185 →
   0.515 Cr.
-- **NEW: the storage model over-allocates once a station's storage is
-  large — an absolute cap it does not implement.** Found while validating
-  the v26 pending capture; diagnosed 2026-07-27 on save_009's clean
-  single-output NPC energy plants by inverting the Layer-2 curve for the
-  target level (`implied = (max−min)(stock−pending)/(max−price)`, taken
-  only where 12 ≤ price ≤ 20 so the inversion is well-conditioned):
+- **NEW: pricing Layer 2's `target_level` is NOT the storage allocation.**
+  Found while validating the v26 pending capture, and **corrected
+  2026-07-27 by in-game readings** — an earlier revision of this entry
+  blamed `analysis/storage.py` for over-allocating; that was wrong.
+  Player-read allocations match the model exactly (VVT-308 483k,
+  FXT-179 435k, GUX-488 994k, AXO-574 992k), so the storage model stands
+  as validated.
 
-  | modeled allocation | n | implied/modeled |
-  |---|---:|---:|
-  | under 250,000 units | 69 | 1.05 |
-  | 250,000–320,000 | ~7 | 1.00–1.05 |
-  | 435,744 / 483,962 | 2 | 0.73 / 0.65 |
-  | ~1,000,000 (an L container) | 15 | **0.32** |
+  What the data does show: inverting the curve for `target_level`
+  (`implied = (max−min)(stock−pending)/(max−price)`, restricted to the
+  middle 70% of each band so the inversion is well-conditioned) gives
+  implied/allocation ≈ **1.0 in the median over 500 station-wares** — but
+  a systematic shortfall wherever a station has **large allocation and
+  low fill**. The clearest cluster: Terran solar plants at ~15% fill
+  (992k allocated) price at 16–17 Cr where the linear model says ~20 Cr,
+  behaving as if their target were ~310k. Claytronics plants (implied
+  2.3 h of throughput vs 6.9 h allocated) and big silicon-wafer plants
+  show the same shape.
 
-  Every station modeled above ~320k units lands at an implied 296k–413k
-  regardless of how much bigger its pool is, while everything below
-  matches the model. **Not race-specific** — the first read called this a
-  Terran defect, but a teladi plant (GUX-488, 1M pool) saturates
-  identically at 0.30; Terran plants merely dominate the sample because
-  they pair 8 production modules with a full 1M L container (28.9 h of
-  storage vs 5–7 h elsewhere). The capacity data is not at fault
-  (`storage_ter_l_container_01` = 1,000,000 m³, same as the Argon and
-  Paranid L containers) and neither is throughput (the terran recipe's
-  50/60 s is correctly picked over the default 175/60 s).
+  Ruled out as causes, each with a measurement:
+  - a units cap (~300k) — non-1 m³ wares saturate at wildly different
+    unit counts (claytronics ~3k, refined metals ~34k, water uncapped);
+  - an m³ cap (~300k) — implied×volume is not constant either
+    (72k m³ claytronics … 620k m³ graphene), and QVL-220 holds 279k units
+    of water = 1.67M m³;
+  - an hours-of-throughput constant — implied hours vary 2.3–12.4 by ware;
+  - reputation discounts (Layer 3) — implied/allocation medians are flat
+    across all four discount tiers (1.03 / 1.01 / 1.00);
+  - the quote reflecting the offer's volume rather than spot stock —
+    an offer-midpoint price predicts *higher*, not lower.
 
-  So `analysis/storage.py`'s "a single-output station allocates its whole
-  pool to that ware" is right only up to a ceiling of ~300–360k units.
-  Open: whether the cap is denominated in units or m³ (energy cells are
-  1 m³, so this sample cannot separate them), and its exact value.
-  A second ware with a different volume would settle it. Until then any
-  price prediction on a big-storage station is ~2 Cr out, and
-  `station_storage.max_units` overstates those stations' allocation ~3×.
+  So the open question is the shape of the curve (or the definition of
+  its reference level) in the low-fill / oversized-storage regime, not
+  the allocation feeding it. Everything below ~300k allocation is
+  reproduced well, which is why the model looked right until stations
+  with an L container were examined. Any price prediction should carry
+  this caveat.
 - ~~**wares.csv `price_min`/`price_max`**~~ — **DONE (v25, 2026-07-27)**:
   extraction captures the band, committed CSVs regenerated, `ware` gains
   `price_min`/`price_max`. Two vanilla DLC wares ship a broken `min`
