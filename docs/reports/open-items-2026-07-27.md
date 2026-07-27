@@ -55,10 +55,14 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
 
 ### P3 — `<supplies>` semantics (play checklist from the v18 report)
 
-1. **Target vs outstanding orders**: on a full station (MXH-411, 50/50
-   drones), raise the target (cargo 30→40), save — orders reads 40 ⇒
-   target; 10 ⇒ outstanding. Then lower below stock: does the block
-   shrink without scrapping drones?
+1. **Target vs outstanding orders** — *mostly answered offline by the v22
+   import*: five full, idle player stations show order rows exactly equal
+   to their drone counts (JQR-498/MXH-411 30-10-10, QNF-337/TIH-455
+   15-5-5, MAL-475 30-10-9), which an outstanding-orders reading would put
+   at 0. Still worth the one-minute confirmation: on a full station raise
+   the target (cargo 30→40), save — orders reads 40 ⇒ target; 10 ⇒
+   outstanding. Then lower below stock: does the block shrink without
+   scrapping drones?
 2. **Block lifetime**: set a target on a station without the block, let
    it complete, save again — does the block persist (target) or clear
    (orders)?
@@ -149,10 +153,22 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
 - **wares.csv `price_min`/`price_max`**: extract-gamedata only captures
   `price_avg`; the supply curve needs the band. Small extraction change
   + committed-CSV regeneration.
-- **`<supplies><orders>`/`<wares>` persistence**: drone build targets
-  and set-aside inputs are documented but not parsed — natural v21 rider
-  alongside `<prices><override>` (manual overrides, 6 hosts/25 rows)
-  and possibly `<prices><reference>` (player price config, Layer 5).
+- ~~**`<supplies><orders>`/`<wares>` + `<prices><override>` persistence**~~
+  — **DONE (v22, 2026-07-27)**: `station_supply` (kind `order` = build
+  target, `ware` = set-aside inputs; stations/build storages only, since
+  a ship's identical block is its own ammo reserve) and `price_override`
+  (whole credits, NULL = side not overridden), plus `v_station_supply`.
+  save_009: 41 order rows / 2,444 ware rows over 1,048 stations, 22 price
+  overrides over 6 hosts. Two side findings: the order rows equal the
+  drone counts on five *full* player stations, which is hard to reconcile
+  with an outstanding-orders reading (P3.1 above is now mostly answered —
+  the raise-the-target check would close it); and a THIRD, previously
+  unnoticed block, `<overrides>` directly under the station component
+  (`<buy>`/`<sell>`/`<max>` ware lists with optional amounts, 6 stations)
+  — documented as **unverified**, not parsed, with a discriminating
+  in-game check noted in savegame-structure.md.
+- `<prices><reference>` (the player price config, Layer 5) is still not
+  parsed — the remaining piece of the price block.
 - **Deployable-pricing model doc** in `docs/models/` consolidating the
   formula, M, Layer 6, and the E gap (currently spread across
   save-semantics + this report + the subscription findings scratch file

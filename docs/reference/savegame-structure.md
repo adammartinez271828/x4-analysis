@@ -617,13 +617,24 @@ craft, turret munitions (missiles, countermeasures) and deployables;
   matches the drone build target shown in-game. So `<orders>` looks like
   the persisted build TARGET (contradicting the earlier "desired levels
   are not persisted" claim), but only ~21 stations universe-wide carry
-  the block at all — target-vs-outstanding-orders semantics are pinned
-  down in the report's play checklist.
+  the block at all. **Stronger evidence for TARGET (save_009, v22
+  import)**: five *full, idle* player stations carry order rows exactly
+  equal to their current drone counts (JQR-498/MXH-411 30-10-10,
+  QNF-337/TIH-455 15-5-5, MAL-475 30-10-9 with one fighting drone lost) —
+  outstanding orders on a full station would read 0. The residual
+  ambiguity is a station whose stock is zero (ABR-398 keeps a 50-drone
+  block with no `<ammunition>` block at all, where target and outstanding
+  coincide numerically), so the report's play check — raise the target on
+  a FULL station, look for 40 vs 10 — still discriminates cleanly.
+  Parsed into `station_supply` (kind `order`, v22).
 - `<wares>` — supply inputs already set aside (ABR-398: exactly the
   25,000 energy cells its 50 drone builds need at the terran recipe).
   Missing inputs the station cannot source internally become
-  `supplies`-flagged buy offers (above). Ships (carriers/auxiliaries)
-  carry `<supplies><wares>` too — their ammo/drone reserves.
+  `supplies`-flagged buy offers (above). Parsed into `station_supply`
+  (kind `ware`, v22) — **stations and build storages only**: ships
+  (carriers/auxiliaries) carry an identical `<supplies><wares>` block
+  holding their own ammo/drone reserves, which is a different concept and
+  is deliberately not loaded into that table.
 
 **Trade block** — `<trade>` children observed:
 
@@ -730,8 +741,24 @@ their buy offers):
   the clamp bounds (50 of 67), and **drift between saves** (12 of 67
   changed between save_006 and save_008) — always a snapshot, never a
   station constant. A player-owned yard stores the price slider instead
-  (observed 1.5 = the `<factor max>` bound). A `<prices><override>`
-  variant holds manual per-ware price overrides (6 hosts / 25 ware rows).
+  (observed 1.5 = the `<factor max>` bound).
+
+- **`<prices><override>`** holds manual per-ware price overrides —
+  `<ware ware= buy= sell=>` in **whole credits** like `<reference>`, with
+  `0` meaning "this side is not overridden". Rare and player-and-NPC
+  alike: 22 ware rows over 6 hosts in save_009 (player MXH-411 buy 42
+  microlattice / 22 energycells and JQR-498 buy 10 energycells; xenon
+  DZQ-914 sells ore 43 / silicon 111; three NPC build storages sell their
+  construction wares). Parsed into `price_override` (v22).
+- **`<overrides>`** directly under the *component* (not under `<prices>`)
+  is a different block again: `<buy>`/`<sell>`/`<max>` each listing
+  `<ware ware= [amount=]>` — 6 player/NPC stations in save_009 (e.g.
+  MXH-411 `<max><ware ware="energycells" amount="739800"/>`, JQR-498
+  `<sell><ware ware="energycells" amount="37920"/>`). Almost certainly the
+  station-config per-ware trade/storage limits, but the exact meaning of
+  the amounts, and of `<ware>` entries with **no** amount, is
+  **(unverified)** — not parsed. Discriminating check: set a known
+  per-ware buy limit in the station UI and re-read the block.
 
 - `<trade><reservations>` holds committed in-flight trades (reserver,
   partner, ware, amount, price in cents) **(present in earlier saves of this

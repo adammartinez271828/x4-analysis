@@ -71,7 +71,10 @@ import hashlib
 #      .build_method (<faction><buildrules>) + build_method (per-station
 #      <build method=> override). build_entry.build_method dropped — it
 #      was never populated and its name invited confusion with these.
-SCHEMA_VERSION = "21"
+# v22: station self-supply bookkeeping (station_supply: <supplies><orders>
+#      build targets + <wares> set-aside inputs) and manual per-ware price
+#      overrides (price_override: <trade><prices><override>, whole credits)
+SCHEMA_VERSION = "22"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -607,6 +610,32 @@ TABLES: dict[str, str] = {
   object_id TEXT NOT NULL,
   method    TEXT NOT NULL,
   PRIMARY KEY (save_id, object_id)
+)""",
+    # station self-supply bookkeeping (v22): what a station is building for
+    # ITSELF (drones/munitions) and what it has already set aside for those
+    # builds. kind 'order' = <supplies><orders> (the build TARGET per
+    # product ware), 'ware' = <supplies><wares> (inputs held back).
+    # Stations/build storages only — a ship's <supplies> is its own ammo
+    # reserve, a different concept, deliberately not loaded here.
+    "station_supply": """CREATE TABLE IF NOT EXISTS station_supply (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  kind      TEXT NOT NULL,
+  ware      TEXT NOT NULL,
+  amount    REAL,
+  PRIMARY KEY (save_id, object_id, kind, ware)
+)""",
+    # manual per-ware price overrides (v22): <trade><prices><override>.
+    # WHOLE CREDITS in the save (like <prices><reference>, unlike every
+    # other price) — stored as credits, no /100. NULL = that side is not
+    # overridden (the save writes 0).
+    "price_override": """CREATE TABLE IF NOT EXISTS price_override (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  ware      TEXT NOT NULL,
+  buy_cr    REAL,
+  sell_cr   REAL,
+  PRIMARY KEY (save_id, object_id, ware)
 )""",
     "build_price_factor": """CREATE TABLE IF NOT EXISTS build_price_factor (
   save_id   INTEGER NOT NULL,
@@ -1197,6 +1226,16 @@ LEFT JOIN faction_meta fm
 WHERE c.class IN ('station', 'buildstorage')
   AND c.save_id = (SELECT save_id FROM current_save)
   AND COALESCE(bm.method, fm.build_method) IS NOT NULL""",
+    # station self-supply, labeled (v22): build targets and set-aside
+    # inputs with station/ware display names. Join station_munition on
+    # (station, ware) to compare a drone target against the actual count.
+    "v_station_supply": """CREATE VIEW v_station_supply AS
+SELECT s.object_id, c.code AS station_code, c.name AS station_name,
+       c.owner, s.kind, s.ware, w.name AS ware_name, s.amount
+FROM station_supply s
+LEFT JOIN component c ON c.id = s.object_id AND c.save_id = s.save_id
+LEFT JOIN ware w ON w.id = s.ware
+WHERE s.save_id = (SELECT save_id FROM current_save)""",
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM build_entry
 WHERE built = 1 AND save_id = (SELECT MAX(save_id) FROM save)""",

@@ -11,15 +11,17 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 21, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 22, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
 import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
 subscription/price-factor tables verified on the save_008 import
 2026-07-27: 10,705 subscriptions, 68 build price factors; v21 build
 method verified on the save_009 import 2026-07-27: 3 faction rules,
-3 station overrides, 104 stations resolved by `v_build_method`). Out of
-scope:
+3 station overrides, 104 stations resolved by `v_build_method`; v22
+self-supply/price-override tables verified on the same import: 2,485
+supply rows over 1,048 stations — 41 `order`, 2,444 `ware` — and 22
+price overrides over 6 hosts). Out of scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
@@ -840,6 +842,51 @@ resolved value for its host, including ABR-398's module construction
 switching to `closedloop` while the player's other five tasks stayed
 `terran`.
 
+### station_supply
+
+Station self-supply bookkeeping (v22): what a station is building for
+**itself** (drones, munitions) and what it has already set aside for
+those builds. Save-side: savegame-structure.md § Stations (supply state).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | station / build storage | the hosting component |
+| `kind` | TEXT PK | `order` = build target per product ware; `ware` = inputs already set aside for those builds | `<supplies><orders>` / `<supplies><wares>` |
+| `ware` | TEXT PK, FK → `ware.id` | product ware (`order`) or input ware (`ware`) | `ware@ware` |
+| `amount` | REAL | units | `ware@amount` |
+
+**Ships are excluded on purpose**: a ship's identical `<supplies><wares>`
+block is its own ammo/drone reserve, a different concept.
+
+Joining a drone target to its actual count goes through the ware's
+component macro, not the ware id:
+
+```sql
+SELECT s.station_code, s.ware, s.amount AS target, m.count AS actual
+FROM v_station_supply s
+LEFT JOIN ware w ON w.id = s.ware
+LEFT JOIN station_munition m
+       ON m.save_id = (SELECT save_id FROM current_save)
+      AND m.station_id = s.object_id AND m.macro = w.component
+WHERE s.kind = 'order';
+```
+
+### price_override
+
+Manual per-ware price overrides (v22) — `<trade><prices><override>`.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | station / build storage | derived: nearest host of the `<trade>` block |
+| `ware` | TEXT PK, FK → `ware.id` | the ware | `ware@ware` |
+| `buy_cr` | REAL | override buy price in **whole credits** (NOT cents — this block and `<prices><reference>` are the exceptions); NULL = that side not overridden (the save writes 0) | `ware@buy` |
+| `sell_cr` | REAL | same, sell side | `ware@sell` |
+
+22 rows / 6 hosts in save_009 — a rarity, but any price model must check
+it before assuming an economy price applies.
+
 ### build_price_factor
 
 Per-station build price factor (v19) — the deployable/ship pricing `M`
@@ -1350,6 +1397,7 @@ what it is.
 | `v_player_fleet` | `fleet_edge` + 2× `component` | `follower_id`, `follower_entity`, `commander_id`, `commander_entity` | "the player's fleet edges, entity-keyed" — the ONE fleet resolution (write_snapshot's), player-filtered; `merge_events` takes its commander-attribution map from here and `frames.wings` reads it. Edges touching connectionless components are absent (the retired save-side `_player_edges` kept them — measured equivalent, 0 divergent edges, pinned in `test_views_parity.py`) |
 | `v_resource_area` | `resource` + `region_yield` | `sector_macro`, `ware`, `yield`, `level`, `speed`, `starttime`, `capacity`, `respawn_min`, `status` (`live`/`full`/`respawning`/`never`/`unknown`) | "what can I mine right now, where" — the confirmed timer/eligibility layer of the respawn model as SQL (an empty area past its `starttime` is respawned & full even though its stored yield reads 0). Caveats: `full` reports the *reference* capacity — correct for every ware incl. nividium (B11 confirmed materialize-to-full 2026-07-24; the review's below-cap nividium tail was drawdown between saves); depletion RELOCATES the area within its sector (B5 settled it: ~95% of full depletions move the record, a 20 km-lattice step per axis), so nothing position-keyed may be layered on it — the view's sector granularity is exactly the relocation-proof choice. Verified 0 status mismatches vs frames' classification on all areas (re-run the check if B21 changes the regionyields extraction) |
 | `v_build_method` | `component` + `build_method` + `faction_meta` | `object_id`, `owner`, `method`, `source` (`station` = own override, `faction` = inherited rule) | "which recipe variant does this station build with" — stations on their race default emit no row; per WARE a recipe lookup must still fall back to method `default` when the ware has no variant (the engine's own rule) |
+| `v_station_supply` | `station_supply` + `component` + `ware` | `object_id`, `station_code`, `station_name`, `owner`, `kind`, `ware`, `ware_name`, `amount` | "what is this station building for itself, and with what set aside" — join `station_munition` on `ware.component` = `macro` for target-vs-actual |
 | `v_built_module` | `build_entry` filtered | `build_entry.*` where `built = 1` | "what is physically built" (plans excluded — the capacity-overcount gotcha; the view keeps its pre-v15 name, its meaning was always right) |
 | `v_npc` | `npc` + pivoted `npc_skill` | `npc.*` + `piloting`, `engineering`, `boarding`, `management`, `morale` | "crew skills as a wide table" |
 | `v_station_storage` | `station_storage` + `component` + `sector_ref` + `ware` | model columns + `station_code`, `station_name`, `sector_name`, `ware_name` | "what does this station stock and how much room did it allocate" |
@@ -1387,7 +1435,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"21"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"22"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every

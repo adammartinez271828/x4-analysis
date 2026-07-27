@@ -102,6 +102,17 @@ class SaveData:
     # <item component= level=>): (component_id, level 0-3). Permanent --
     # no expiry; targets are mostly storage modules.
     player_scans: list = field(default_factory=list)
+    # station self-supply bookkeeping (<supplies>, v22), stations and build
+    # storages only — a SHIP's <supplies> is its own ammo/drone reserve and
+    # means something else: (object_id, kind, ware, amount). kind "order" =
+    # <orders>, the station's build TARGET per product ware (drones,
+    # munitions); kind "ware" = <wares>, inputs already set aside for those
+    # builds. The missing inputs surface as `supplies`-flagged buy offers.
+    station_supplies: list = field(default_factory=list)
+    # manual per-ware price overrides (<trade><prices><override>, v22):
+    # (object_id, ware, buy, sell) in WHOLE CREDITS like <reference>, not
+    # cents; 0 = that side is not overridden.
+    price_overrides: list = field(default_factory=list)
     # trade-station/pirate-base ware whitelists (<trade><settings><setting
     # name= wares=>): (object_id, setting, ware), one row per ware.
     # setting in {buy, sell, lockavgprice}; lockavgprice pegs the economy
@@ -611,6 +622,30 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         d.cargo.append((
                             host, elem.get("ware", ""),
                             float(elem.get("amount", 0) or 0),
+                        ))
+                elif gparent == "supplies" and parent in ("wares", "orders"):
+                    # the station's own supply bookkeeping: <orders> = build
+                    # targets per product ware, <wares> = inputs set aside
+                    # for them. <supplies> is a direct child of its
+                    # component, so comp_stack[-1] IS the host — and the
+                    # class test matters: the identical block on a SHIP is
+                    # that ship's ammo reserve, a different concept.
+                    if comp_stack and comp_stack[-1][0] in ("station",
+                                                            "buildstorage"):
+                        d.station_supplies.append((
+                            comp_stack[-1][1],
+                            "order" if parent == "orders" else "ware",
+                            elem.get("ware", ""),
+                            float(elem.get("amount", 0) or 0),
+                        ))
+                elif parent == "override" and gparent == "prices":
+                    # manual per-ware price overrides, whole credits
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        d.price_overrides.append((
+                            host, elem.get("ware", ""),
+                            float(elem.get("buy", 0) or 0),
+                            float(elem.get("sell", 0) or 0),
                         ))
                 elif parent == "wares":
                     # only genuinely collectable objects count as floating

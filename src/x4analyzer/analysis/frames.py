@@ -100,6 +100,14 @@ class Frames:
     # still fall back to method 'default' when the ware has no variant
     # under this method — that is the engine's own rule.
     build_methods: pd.DataFrame = None
+    # station self-supply bookkeeping (v22): id, kind ("order" = build
+    # target per product ware, "ware" = inputs set aside), ware, amount.
+    # The still-missing inputs are the `supplies`-flagged buy offers in
+    # trade_offers — these are the target and the stock behind them.
+    station_supplies: pd.DataFrame = None
+    # manual per-ware price overrides (v22): id, ware, buy_cr, sell_cr
+    # (whole credits; NaN = that side not overridden)
+    price_overrides: pd.DataFrame = None
 
     # storage-allocation model (analysis/storage.py): per (station id, ware)
     # max_units / max_volume / throughput / transport / role. Computed after
@@ -700,6 +708,12 @@ def build_frames(save: SaveData, ref: RefData,
             WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["build_method"]),
         build_methods=build_methods,
+        station_supplies=_read(conn, f"""
+            SELECT object_id AS id, kind, ware, amount FROM station_supply
+            WHERE save_id = {_CUR} ORDER BY rowid""", fill=["ware"]),
+        price_overrides=_read(conn, f"""
+            SELECT object_id AS id, ware, buy_cr, sell_cr FROM price_override
+            WHERE save_id = {_CUR} ORDER BY rowid""", fill=["ware"]),
         faction_licences=_read(conn, f"""
             SELECT faction, type, factions FROM faction_licence
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["factions"]),

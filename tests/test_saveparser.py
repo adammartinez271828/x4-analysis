@@ -61,6 +61,10 @@ FIXTURE = """<?xml version="1.0"?>
             </production></offers>
             <prices buildpricefactor="1.07">
               <reference><ware ware="energycells" buy="12" sell="0"/></reference>
+              <override>
+                <ware ware="energycells" buy="21" sell="0"/>
+                <ware ware="claytronics" buy="0" sell="1734"/>
+              </override>
             </prices>
             <settings>
               <setting name="buy" wares="spaceweed majadust"/>
@@ -71,6 +75,12 @@ FIXTURE = """<?xml version="1.0"?>
                      ware="energycells" price="150" escrow="30000" amount="100"
                      transferred="40" desired="140" flags="fixedprice"/>
             </active></trade>
+            <supplies>
+              <wares><ware ware="metallicmicrolattice" amount="1200"/></wares>
+              <orders>
+                <ware ware="ship_gen_xs_repairdrone_01_a" amount="10"/>
+              </orders>
+            </supplies>
             <build><resources><insufficient>
               <ware ware="claytronics" amount="1000"/>
             </insufficient></resources></build>
@@ -88,6 +98,9 @@ FIXTURE = """<?xml version="1.0"?>
               <component class="ship_s" macro="ship_test_macro" id="[0x30]"
                          owner="player" code="SHP-001" connection="dock">
                 <control><post id="aipilot" component="[0x99]"/></control>
+                <supplies>
+                  <wares><ware ware="missile_dumb_mk1" amount="8"/></wares>
+                </supplies>
                 <people>
                   <person macro="char_svc_macro" role="service"/>
                   <person macro="char_svc_macro" role="service"/>
@@ -255,6 +268,18 @@ def test_fixture_parse(save_file: Path) -> None:
     # them is the per-station override: the fixture carries all three — the
     # station's construction-progress block (no attributes), a build TASK
     # under a buildprocessor (method= AND order=), and the override itself.
+    # station self-supply (v22): build targets + set-aside inputs, stations
+    # only — the identical block on the docked ship is its ammo reserve
+    assert d.station_supplies == [
+        ("[0x20]", "ware", "metallicmicrolattice", 1200.0),
+        ("[0x20]", "order", "ship_gen_xs_repairdrone_01_a", 10.0),
+    ]
+    # manual price overrides: whole credits, 0 = that side not overridden
+    assert d.price_overrides == [
+        ("[0x20]", "energycells", 21.0, 0.0),
+        ("[0x20]", "claytronics", 0.0, 1734.0),
+    ]
+
     assert d.faction_build_rules == [("player", "terran")]
     assert d.station_build_methods == [("[0x20]", "closedloop")]
 

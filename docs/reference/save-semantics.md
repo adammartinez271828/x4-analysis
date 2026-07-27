@@ -247,14 +247,19 @@ by product ware, and the evidence says it IS the build target: in
 save_007, 37/40 order rows across 21 stations exactly equal the
 station's current drone count (zero exceed it), the 3 short rows are
 ABR-398 mid-gather, and ABR-398's orders sum (50) matches its in-game
-build target. Caveat: only ~21 of the universe's stations carry the
-block, so absence ≠ no target; whether the block survives a target
-change on a full station is a play-checklist item
+build target. Reinforced by the v22 import of save_009: five full, idle player
+stations carry order rows exactly equal to their drone counts — an
+*outstanding*-orders reading would put those at 0. Caveat: only ~21 of
+the universe's stations carry the block, so absence ≠ no target; whether
+the block survives a target change on a full station is a play-checklist
+item
 ([../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md)).
 The missing *inputs* for those orders surface as `supplies`-flagged buy
 offers with exact recipe math (Market data above), and inputs already
-set aside sit in `<supplies><wares>`. Tables and views: db-schema.md
-§ station_munition; `tests/test_drones.py` carries the validation
+set aside sit in `<supplies><wares>`. Both are parsed since v22
+(`station_supply`, `v_station_supply`; stations/build storages only —
+a ship's identical block is its own ammo reserve). Tables and views:
+db-schema.md § station_munition, § station_supply; `tests/test_drones.py` carries the validation
 numbers.
 
 ## Build method: which recipe variant a station builds with
