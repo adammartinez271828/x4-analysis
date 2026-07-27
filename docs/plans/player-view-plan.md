@@ -3,6 +3,16 @@
 Status: **planned, not implemented**. This document is the design; nothing in
 it has been built yet.
 
+**Superseded assumption (2026-07-27):** the plan's "faction trade
+subscriptions via the player faction's `<licences>` block" is wrong.
+Subscriptions are *per object* in `<player><memory><subscriptions>` with an
+absolute expiry (5 game-hours), player-only — NPC factions have no
+subscription state at all — and they are already parsed into
+`player_subscription` (v19), alongside `player_scan` (v20). Wherever this
+document says "subscribed factions / subscription licence", read: join
+`player_subscription` per station and filter `expires_at > game_time`. See
+savegame-structure.md § The player component.
+
 ## Goal
 
 An opt-in `--player-view` mode that restricts every view to information the
@@ -20,15 +30,19 @@ global state:
 
 ## What the save provides (feasibility findings, 2026-07-05)
 
-- `knownto="player"` / `known` attributes are the **only** persisted player
-  knowledge. In the reference save: 1,342/1,736 stations, 125/152 sectors,
-  8,090/14,420 NPC ships revealed.
-- **No** per-offer timestamps, price snapshots, station scan state, or any
-  staleness data exist anywhere in the save (verified by attribute sweep).
+- `knownto="player"` / `known` attributes carry the reveal state. In the
+  reference save: 1,342/1,736 stations, 125/152 sectors, 8,090/14,420 NPC
+  ships revealed. **Revised 2026-07-27:** they are *not* the only persisted
+  player knowledge — `<player><memory>` also holds per-object trade
+  subscriptions with absolute expiry and per-object module scan levels
+  (`player_subscription` v19, `player_scan` v20).
+- **No** per-offer timestamps or price snapshots exist anywhere in the save
+  (verified by attribute sweep), so no historical *values* are
+  recoverable — but subscription expiry does give real per-station
+  freshness, which is better than the sector-coverage approximation below.
 - Player intel sources are reconstructible: 343 deployed player satellites
   (`class="satellite" owner="player"`), player ships/stations (positions and
-  sector ancestry stored), and faction trade subscriptions via the player
-  faction's `<licences>` block.
+  sector ancestry stored), and the subscription/scan tables above.
 
 ## Scope
 
@@ -61,12 +75,11 @@ redesign of capacity columns (kept with a caveat banner for now).
 - Fixture test additions: one satellite component, one licence element;
   assert both collections.
 
-**Verification task:** confirm the licence `type` string the game uses for
-trade subscriptions (expected something like `tradesubscription`; the
-reference save's player has no such licence yet, so check
-`libraries/factions.xml` licence definitions or a save where the
-subscription rank has been reached). Until confirmed, treat the
-subscription set as possibly empty — the model degrades gracefully.
+**Verification task — CLOSED (2026-07-27):** there is no trade-subscription
+licence type. Subscriptions live per object in
+`<player><memory><subscriptions>` and are already parsed
+(`player_subscription`), so this step's licence collection is unnecessary;
+the `<licences>` sweep only remains useful for other licence kinds.
 
 ### 3. frames: visibility classification
 
@@ -76,10 +89,10 @@ New dataframe `Frames.station_visibility` (`id`, `known: bool`,
 - `known` = station `knownto == "player"`.
 - `covered_sectors` = set of `sector.macro` containing ANY of: player ships,
   player stations (from `playerowned`), or player satellites.
-- `subscribed_factions` = owner ids whose faction appears in a
-  trade-subscription licence.
-- `live` = `known and (sector in covered_sectors or owner in
-  subscribed_factions)`.
+- `subscribed` = the station's id has an unexpired row in
+  `player_subscription` (`expires_at IS NULL OR expires_at > game_time`) —
+  revised 2026-07-27, replacing the falsified faction-licence set.
+- `live` = `known and (sector in covered_sectors or subscribed)`.
 
 Also expose `Frames.visibility_counts` (known/live/stale/hidden totals) for
 logging and the dashboard header.
@@ -142,8 +155,8 @@ When `player_view` is on:
 ### 8. Docs
 
 - README: one paragraph + flag mention.
-- CLAUDE.md: visibility-model semantics bullet (knownto-only persistence,
-  coverage approximation, subscription licence caveat).
+- CLAUDE.md: visibility-model semantics bullet (reveal via `knownto`,
+  freshness via `player_subscription`, coverage approximation caveat).
 - Market info panel: as in steps 5/6.
 
 ## Phase 2 sketch (not in this plan's scope)
@@ -157,7 +170,8 @@ too coarse in practice.
 
 ## Risks / open questions
 
-- Trade-subscription licence type string unverified (step 2 note).
+- ~~Trade-subscription licence type string unverified~~ — closed
+  2026-07-27: no such licence exists; use `player_subscription` (step 2/3).
 - Sector-level coverage overstates vision in huge sectors (a satellite at
   one gate "covers" the whole sector) — acceptable for phase 1, motivates
   phase 2.

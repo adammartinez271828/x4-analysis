@@ -1264,7 +1264,7 @@ frames, so it is written after the pipeline's analysis stage.
 | `throughput` | REAL | modeled units/hour at full workforce (NULL on proxy and supply rows) | derived: recipes × module scale |
 | `max_units` | REAL | allocated maximum, units — except `supply` rows, where it is the outstanding self-supply need (`desired`, falling back to `amount`), NOT storage allocation | derived: throughput × time-horizon split of pool capacity / flagged offer |
 | `max_volume` | REAL | the same in m³ | derived: `max_units` × `ware.volume` |
-| `source` | TEXT | `computed` (throughput model, production stations) / `proxy` (stock + buy-offer proxy: build storages, wharfs, trade stations; excludes `supplies`-flagged buys since v18) / `offer` (supply rows, read straight off the flagged offers) | derived |
+| `source` | TEXT | `computed` (throughput model, production stations) / `proxy` (stock + buy-offer proxy: build storages, wharfs, trade stations; excludes `supplies`-flagged buys since v18 — the proxy is the final answer here, an exact per-order bill of materials is not reconstructible from the save, savegame-structure.md § Stations) / `offer` (supply rows, read straight off the flagged offers) | derived |
 
 ### station_munition
 

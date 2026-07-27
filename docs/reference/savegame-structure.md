@@ -316,7 +316,9 @@ Positions are metres relative to the parent component (see conventions).
 
 Other recurring child blocks of components, not detailed further:
 
-- `<listeners>` / `<events>` — event subscription/history bookkeeping.
+- `<listeners>` / `<events>` — MD-script event plumbing (which cue is
+  watching what). Investigated and **closed 2026-07-27: deliberately never
+  captured** — ~186 k rows, no analysis value; not a parser candidate.
 - `<movement>` — velocity + interpolation state.
 - `<physics>`, `<gravidar>`, `<boost>` — engine/flight state.
 - `<source>` — provenance: `class=` `godobject`/`script`/`job`/`drop`/
@@ -514,7 +516,11 @@ with the same `<ware>` children; in this save it appears only under
 production-module `<queue>` elements (shown below), the
 shipyard-ship-order form under `<build><resources>` is **(unverified in this
 save)**. `type="buildship"` builds at wharfs repeat one wharf-wide aggregate
-per queued order — meaningless to sum.
+per queued order — meaningless to sum. Consequently a per-order
+bill-of-materials model for wharf/shipyard construction demand is **closed,
+not a gap**: the save does not carry the quantities, and the stock +
+buy-offer proxy (`station_metric.source = 'proxy'`) is as accurate and far
+cheaper.
 
 **Production modules** — each `production` component carries live cycle
 state, an efficiency factor, and its queue (with the shortage form above):
@@ -987,7 +993,9 @@ children in save_008 (2026-07 census):
   subscription (falsified at sector granularity: covered sectors show a
   *lower* live rate). NPC stations/factions have **no** subscription
   state anywhere in the save — this block is the only one, and the
-  concept is player-only. Parsed into `player_subscription` (v19).
+  concept is player-only, so reconstructing what NPC factions "know" from
+  subscriptions is **closed: impossible, not pending**. Parsed into
+  `player_subscription` (v19).
   The no-`time` permanent subscriptions come from **scanning a data
   leak** on the station (player-confirmed on FEL-543, 2026-07-27).
 - **`<scan>`** (11,624 items) — permanent per-component module scan

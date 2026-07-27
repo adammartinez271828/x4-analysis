@@ -134,13 +134,26 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
 
 ## 3. Explicitly closed / not worth pursuing
 
+Each closure is now recorded at the place a future reader would look
+(2026-07-27), so nothing here needs re-deriving:
+
 - NPC trade subscriptions: do not exist in the save (1 block
   universe-wide, player-only) — no reconstruction possible.
+  → savegame-structure.md § The player component.
 - `<listeners>` capture: MD-script plumbing, 186k rows, no analysis
-  value.
+  value. → savegame-structure.md § The component tree (recurring child
+  blocks).
 - Full build bill-of-materials storage model for wharfs: rejected
   earlier (proxy is as accurate, far cheaper) — unchanged.
+  → savegame-structure.md § Stations (buildship warning) +
+  db-schema.md `station_metric.source`.
 - Per-type M constants ("wharf 1.15 / shipyard 1.067 / dock 0.90"):
-  retired; use `build_price_factor` per save.
+  retired; use `build_price_factor` per save. → save-semantics.md
+  § pricing, Layer/deployables.
 - "Calibrate M once per station": dead twice over (engine variation,
-  observed re-rolls).
+  observed re-rolls). → same place.
+
+Also cleaned up outside `docs/reference/`: `docs/plans/player-view-plan.md`
+carried the falsified "faction trade subscriptions via `<licences>`" model
+(steps 2/3, feasibility findings, risks) — rewritten to use
+`player_subscription`/`player_scan`.

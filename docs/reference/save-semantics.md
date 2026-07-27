@@ -208,7 +208,9 @@ knowledge, not yet a feature.
     save_006 and save_008) — read it per save, never calibrate it once.
     The old "M ≈ wharf 1.15 / shipyard 1.067 / dock 0.90 type constants"
     were a sampling coincidence (a shipyard at 0.9 exists), and the old
-    "M is unstable" anomaly was E varying, not M. Player yards store the
+    "M is unstable" anomaly was E varying, not M. Both of those routes —
+    per-station-type constants and calibrating M once per station — are
+    **closed**: use the per-save `build_price_factor` value. Player yards store the
     price slider here instead (up to 1.5, the `<factor>` bound).
   - **E — the per-ware valuation vector — is the open gap.** It is NOT
     persisted: not the station's own storage-curve prices, posted buy
