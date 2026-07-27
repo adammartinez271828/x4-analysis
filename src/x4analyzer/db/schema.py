@@ -58,7 +58,11 @@ import hashlib
 #      "supplies" marks station self-supply drone/munition-component buys)
 #      + trade_offer.desired (wanted total); station_storage grows
 #      role='supply' rows sourced from those offers, so its PK gains role
-SCHEMA_VERSION = "18"
+# v19: player_subscription (the player's trade-info subscriptions with
+#      absolute expiry, from <memory><subscriptions>) + build_price_factor
+#      (per-station <trade><prices buildpricefactor>, the deployable/ship
+#      pricing M — drifts between saves, so per-save capture)
+SCHEMA_VERSION = "19"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -317,6 +321,7 @@ WORLD_TABLES = (
     "build_resource", "ship_order", "resource", "floating_ware",
     "datavault", "wormhole", "wormhole_link", "ship_engine",
     "faction_relation", "faction_meta", "faction_licence",
+    "player_subscription", "build_price_factor",
 )
 
 REFERENCE_TABLES = (
@@ -562,6 +567,29 @@ TABLES: dict[str, str] = {
   faction  TEXT NOT NULL,
   type     TEXT NOT NULL,
   factions TEXT
+)""",
+    # the player's trade-info subscriptions (v19): <memory><subscriptions>
+    # under the player component. expires_at is an ABSOLUTE game-seconds
+    # expiry (duration constant: parameters.xml subscriptiondurations,
+    # 18,000 s); NULL = permanent. The game retains expired rows — filter
+    # on expires_at > the save's game_time (or expires_at IS NULL).
+    "player_subscription": """CREATE TABLE IF NOT EXISTS player_subscription (
+  save_id    INTEGER NOT NULL,
+  object_id  TEXT NOT NULL,
+  expires_at REAL,
+  PRIMARY KEY (save_id, object_id)
+)""",
+    # per-station build price factor (v19): <trade><prices buildpricefactor>,
+    # present only on ship/deployable-selling stations. The deployable/ship
+    # pricing M: NPC values are the engine variation clamped to [0.9, 1.15]
+    # and DRIFT between saves (12 of 67 changed across one save pair);
+    # player yards store the price slider (up to 1.5). Snapshot data — never
+    # treat as a station constant.
+    "build_price_factor": """CREATE TABLE IF NOT EXISTS build_price_factor (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  factor    REAL NOT NULL,
+  PRIMARY KEY (save_id, object_id)
 )""",
     # equipped engines of PLAYER ships (speed-from-loadout for the trade
     # opportunity travel times); n = mounted count of that engine macro

@@ -580,11 +580,23 @@ craft, turret munitions (missiles, countermeasures) and deployables;
 **Trade block** — `<trade>` children observed:
 
 - `<offers>` — open buy/sell offers (below).
-- `<prices>` — configured reference prices (below).
+- `<prices>` — configured reference prices + the build price factor (below).
 - `<reservations>` — committed in-flight trades (below).
-- `<restrictions>` — station-wide counterparty restrictions **(semantics
-  unverified)**.
-- `<source>`, `<active>`, `<settings>` — *(not yet documented)*.
+- `<restrictions factions="…">` — station-wide counterparty restrictions
+  (3,508 rows in save_008, always `factions="player"` in this save; pairs
+  with the `shady`/`invertfactionrestriction` offer flags).
+- `<settings>` — ware whitelists of trade stations / pirate bases (62
+  stations): `<setting name="buy|sell|lockavgprice" wares="…"/>`, duplicated
+  by a `<trade wares="…">` attribute on the same element. `lockavgprice`
+  presumably pegs those wares at average price instead of the storage
+  curve **(hypothesis, not validated numerically)**.
+- `<active>` — in-flight trades where the host is one side (49 hosts /
+  54 rows in save_008), distinct from `<reservations>`: same `<trade>`
+  shape plus `escrow` (cents already paid into escrow) and `transferred`
+  (units already delivered, e.g. `transferred="138" desired="263"`).
+- `<source class="…"/>` — provenance tag on offers/trades
+  (`class="production"` dominates; constant across all offers in this
+  save, so it discriminates nothing).
 
 Open offers sit under `<offers>`, wrapped in a grouping element (only
 `<production>` observed, 2,139 occurrences — other group names
@@ -639,13 +651,26 @@ their buy offers):
   16 Cr average, while offer prices are cents):
 
 ```xml
-<prices>
+<prices buildpricefactor="1.07">
   <reference>
     <ware ware="hullparts" buy="276" sell="0"/>
     <ware ware="energycells" buy="21" sell="0"/>
   </reference>
 </prices>
 ```
+
+- **`prices@buildpricefactor`** — the per-station build price factor, the
+  multiplier on everything the station builds and sells (ships,
+  deployables — see save-semantics.md § deployable pricing). Present on
+  exactly the ship/deployable-selling stations (68 of 4,429 price blocks
+  in save_008: every wharf/shipyard/equipment dock). NPC values are the
+  engine's price variation clamped to `[0.9, 1.15]`
+  (`libraries/parameters.xml` `<building><prices><variation>`), pile at
+  the clamp bounds (50 of 67), and **drift between saves** (12 of 67
+  changed between save_006 and save_008) — always a snapshot, never a
+  station constant. A player-owned yard stores the price slider instead
+  (observed 1.5 = the `<factor max>` bound). A `<prices><override>`
+  variant holds manual per-ware price overrides (6 hosts / 25 ware rows).
 
 - `<trade><reservations>` holds committed in-flight trades (reserver,
   partner, ware, amount, price in cents) **(present in earlier saves of this
@@ -912,8 +937,47 @@ A single `class="player"` component (the physical player character) sits
 somewhere in the tree (in whatever they currently pilot/stand on). Children:
 `inventory` (personal wares), `blueprints` (`<blueprint ware=…/>`),
 `research` (`<research ware=… method=…/>`), `known`, `unlocks`, `memory`
-(incl. per-object scan levels), `discovered` (fog-of-war quadtrees),
-`theme`, `spacesuit`, and more. *(Contents not yet documented.)*
+(below), `discovered` (fog-of-war quadtrees), `theme`, `spacesuit`, and
+more.
+
+**`<memory>`** — the player's per-object knowledge state; exactly three
+children in save_008 (2026-07 census):
+
+```xml
+<memory>
+  <subscriptions>
+    <item component="[0xe4a]" time="98321.118"/>
+    <item component="[0x5c7d]" time="72067.216"/>  <!-- already expired -->
+    <item component="[0x2f7b1]"/>                  <!-- no time = permanent -->
+  </subscriptions>
+  <scan>
+    <item component="[0xe4c]" level="2"/>
+  </scan>
+  <longrangescan>
+    <item object="[0x3b411]"/>
+  </longrangescan>
+</memory>
+```
+
+- **`<subscriptions>`** (10,705 items in save_008) — the player's
+  trade-info subscriptions. `time` is an **absolute expiry** in game
+  seconds; the duration constant is 18,000 s = 5 game-hours
+  (`parameters.xml <subscriptiondurations base="18000"
+  tradecompleted="18000"/>`; zero items exceed game_time + 18,000,
+  CONFIRMED over all 10,694 timed rows). Expired rows are **retained**
+  (28.7% in save_008) — consumers must filter `time > game_time`. Items
+  without `time` never expire (11 in save_008, all stations —
+  purchased/mission subscriptions, **hypothesis**). Subscription targets
+  are always `knownto="player"` (7,622/7,622 live), but "known" is ~3×
+  broader than subscribed. Satellite-in-sector does NOT imply a live
+  subscription (falsified at sector granularity: covered sectors show a
+  *lower* live rate). NPC stations/factions have **no** subscription
+  state anywhere in the save — this block is the only one, and the
+  concept is player-only. Parsed into `player_subscription` (v19).
+- **`<scan>`** (11,624 items) — permanent per-component module scan
+  levels 0–3, overwhelmingly `class="storage"` modules (11,272); a
+  different id set from subscriptions. *(Not parsed yet.)*
+- **`<longrangescan>`** — note it keys `object=`, not `component=`.
 
 ## `<economylog>`
 

@@ -56,7 +56,10 @@ FIXTURE = """<?xml version="1.0"?>
               <trade id="[0xT2]" buyer="[0x21]" ware="dronecomponents"
                      price="200" amount="0" desired="50"
                      flags="supplies|invertfactionrestriction"/>
-            </production></offers></trade>
+            </production></offers>
+            <prices buildpricefactor="1.07">
+              <reference><ware ware="energycells" buy="12" sell="0"/></reference>
+            </prices></trade>
             <build><resources><insufficient>
               <ware ware="claytronics" amount="1000"/>
             </insufficient></resources></build>
@@ -90,6 +93,20 @@ FIXTURE = """<?xml version="1.0"?>
                 <component class="npc" macro="char_macro" id="[0x99]" owner="player"
                            name="Jane Doe" code="NPC-001" connection="crew">
                   <skills piloting="9" morale="7" engineering="3"/>
+                </component>
+                <component class="player" macro="character_player_macro"
+                           id="[0x9A]" owner="player" name="Test Player"
+                           connection="player">
+                  <memory>
+                    <subscriptions>
+                      <item component="[0x20]" time="9000.5"/>
+                      <item component="[0x30]" time="1000.0"/>
+                      <item component="[0x40]"/>
+                    </subscriptions>
+                    <scan>
+                      <item component="[0x20]" level="2"/>
+                    </scan>
+                  </memory>
                 </component>
               </component>
               </connection>
@@ -231,6 +248,13 @@ def test_fixture_parse(save_file: Path) -> None:
     ]
 
     assert d.people == {("[0x30]", "service"): 2, ("[0x30]", "passenger"): 1}
+
+    # player trade-info subscriptions: absolute expiry, None = permanent;
+    # the <memory><scan> sibling block is not captured
+    assert d.player_subscriptions == [
+        ("[0x20]", 9000.5), ("[0x30]", 1000.0), ("[0x40]", None)]
+    # station build price factor from <trade><prices buildpricefactor=>
+    assert d.build_price_factors == [("[0x20]", 1.07)]
 
     assert ("[0x20]", "buy", "energycells", 500.0, 1.0, "", 500.0) \
         in d.trade_offers

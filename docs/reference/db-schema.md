@@ -11,10 +11,12 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 18, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 19, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
-import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged). Out of scope:
+import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
+subscription/price-factor tables verified on the save_008 import
+2026-07-27: 10,705 subscriptions, 68 build price factors). Out of scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
@@ -384,7 +386,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"18"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"19"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
@@ -786,6 +788,37 @@ value). Save-side: savegame-structure.md § Ships (equipment).
 | `object_id` | TEXT PK, FK → `component.id` | the player ship | derived: enclosing ship |
 | `macro` | TEXT PK | engine macro, lowercased | nested `component[@class="engine"]@macro` |
 | `n` | INTEGER | mounted count of that macro | derived: component count |
+
+### player_subscription
+
+The player's trade-info subscriptions (v19) — which objects the player
+currently has live trade data on, with expiry. Save-side:
+savegame-structure.md § The player component (`<memory><subscriptions>`).
+The game retains expired rows; consumers filter
+`expires_at > save.game_time OR expires_at IS NULL`. Duration constant:
+18,000 s (5 game-hours).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | subscribed object (ships, stations, build storages) | `memory/subscriptions/item@component` |
+| `expires_at` | REAL | absolute expiry, game seconds; NULL = permanent subscription | same element `@time` |
+
+### build_price_factor
+
+Per-station build price factor (v19) — the deployable/ship pricing `M`
+(save-semantics.md § deployable pricing). Present only on
+ship/deployable-selling stations (wharfs/shipyards/equipment docks; 68 in
+save_008). NPC values are the engine price variation clamped to
+`[0.9, 1.15]` and **drift between saves** — snapshot data, never a station
+constant (a "cheapest yard" ranking is valid only for its save). Player
+yards store the price slider (up to 1.5) instead.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the selling station | derived: nearest host of the `<trade>` block |
+| `factor` | REAL | the build price multiplier | `trade/prices@buildpricefactor` |
 
 ## Event history (E) — merged across runs
 

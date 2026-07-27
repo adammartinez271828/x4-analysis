@@ -87,6 +87,17 @@ class SaveData:
     # analysis/drones.py. NB: drones/police are the units; the rest are
     # separate inventories.
     ammunition: list = field(default_factory=list)
+    # the player's trade-info subscriptions (<component class="player">
+    # <memory><subscriptions><item component= time=>): (component_id,
+    # expires_at). time is an ABSOLUTE expiry (game seconds); None = a
+    # permanent subscription. Expired rows are retained by the game --
+    # consumers filter on expires_at > game_time.
+    player_subscriptions: list = field(default_factory=list)
+    # per-station build price factor (<trade><prices buildpricefactor=>):
+    # (object_id, factor). Present only on ship/deployable-selling stations
+    # (wharf/shipyard/equipment dock) + player yards; the NPC value is the
+    # engine's price variation in [0.9, 1.15] and DRIFTS between saves.
+    build_price_factors: list = field(default_factory=list)
     # materials missing for builds (<insufficient>/<shortage> under
     # <build><resources>); host is "" for free-floating build storages.
     # kind: "insufficient" = station construction, "shortage" = shipyard
@@ -330,6 +341,30 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     macro = elem.get("macro", "").lower()
                     if macro and amt:
                         d.ammunition.append((comp_stack[-1][1], macro, amt))
+                # player trade-info subscriptions: <memory><subscriptions>
+                # exists only under the player component (guarded anyway)
+                elif tag_stack[-2:] == ["memory", "subscriptions"] \
+                        and elem.get("component") \
+                        and any(c[0] == "player" for c in comp_stack):
+                    t = elem.get("time")
+                    d.player_subscriptions.append((
+                        elem.get("component"),
+                        float(t) if t else None,
+                    ))
+
+            elif tag == "prices":
+                # <trade><prices buildpricefactor=>: the station's build
+                # price factor (deployable/ship pricing M; NPC variation in
+                # [0.9, 1.15], player slider up to 1.5)
+                if tag_stack and tag_stack[-1] == "trade" \
+                        and elem.get("buildpricefactor"):
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        try:
+                            d.build_price_factors.append(
+                                (host, float(elem.get("buildpricefactor"))))
+                        except ValueError:
+                            pass
 
             elif tag == "component":
                 clazz, cid, macro, own_pos = comp_stack.pop()

@@ -59,6 +59,8 @@ EXPECTED_COUNTS = {
     "people": 2,
     "cargo": 0,
     "trade_offer": 2,     # one production buy + one supplies-flagged buy
+    "player_subscription": 3,   # timed + expired + permanent
+    "build_price_factor": 1,
     "build_resource": 1,
     "ship_order": 1,
     "resource": 4,
@@ -160,6 +162,13 @@ def test_world_details(conn):
     assert conn.execute(
         "SELECT object_id, order_name, is_default, state FROM ship_order"
         ).fetchall() == [("[0x30]", "Wait", 1, "started")]
+    assert conn.execute(
+        "SELECT object_id, expires_at FROM player_subscription ORDER BY 1"
+        ).fetchall() == [("[0x20]", 9000.5), ("[0x30]", 1000.0),
+                         ("[0x40]", None)]
+    assert conn.execute(
+        "SELECT object_id, factor FROM build_price_factor"
+        ).fetchall() == [("[0x20]", 1.07)]
     assert conn.execute(
         "SELECT npc_id, value FROM npc_skill JOIN npc ON npc.id = npc_id"
         " WHERE skill = 'piloting'").fetchall() == [("[0x99]", 9.0)]

@@ -430,6 +430,18 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, _low(sector), ware, amount)
              for sector, ware, amount in save.floating_wares])
 
+        # the game retains duplicate-free rows keyed on component; INSERT OR
+        # REPLACE guards against a malformed modded save repeating one
+        conn.executemany(
+            "INSERT OR REPLACE INTO player_subscription VALUES (?,?,?)",
+            [(save_id, oid, expires)
+             for oid, expires in save.player_subscriptions])
+
+        conn.executemany(
+            "INSERT OR REPLACE INTO build_price_factor VALUES (?,?,?)",
+            [(save_id, oid, factor)
+             for oid, factor in save.build_price_factors])
+
         # engines of player ships only (speed-from-loadout; NPC loadouts
         # would multiply the table size for no analysis value)
         player_ships = {c[0] for c in save.components

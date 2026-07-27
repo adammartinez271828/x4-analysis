@@ -184,11 +184,32 @@ knowledge, not yet a feature.
   design.
 - **Deployables** (satellites/mines/…) are not stocked; a facility builds
   them on demand at
-  `base_price × (Σ recipe·econ_price / Σ recipe·avg) × M_facility` with
-  M ≈ wharf 1.15 / shipyard 1.067 / dock 0.90 — and **no reputation
-  discount** (confirmed twice). *Hypothesis:* M is not a stable per-type
-  constant (one wharf implies ≈0.92); likely an engine-side per-station
-  term not derivable from saves — do not assume it is calibratable once.
+  `base_price × (Σ recipe·E / Σ recipe·band_avg) × M` — and **no
+  reputation discount** (confirmed twice). Revised 2026-07-27
+  (six-station, 9-deployable study on save_008; the linear recipe model
+  reproduces all quotes at 0.16–2.9% rms per station):
+  - **M is `<trade><prices buildpricefactor>` in the save — CONFIRMED**
+    (all four cross-station ratio constraints reproduced to ≤0.30% with
+    zero free parameters; `build_price_factor` table, v19). It is the
+    engine's price variation (`parameters.xml <building><prices>
+    <variation min="0.9" max="1.15"/>`), piles at the clamp bounds
+    (50 of 67 NPC stations), and **drifts** (12 of 67 changed between
+    save_006 and save_008) — read it per save, never calibrate it once.
+    The old "M ≈ wharf 1.15 / shipyard 1.067 / dock 0.90 type constants"
+    were a sampling coincidence (a shipyard at 0.9 exists), and the old
+    "M is unstable" anomaly was E varying, not M. Player yards store the
+    price slider here instead (up to 1.5, the `<factor>` bound).
+  - **E — the per-ware valuation vector — is the open gap.** It is NOT
+    persisted: not the station's own storage-curve prices, posted buy
+    prices, or `<prices><reference>`; not band averages (one station
+    matched exactly, others ±18%/ware); not offer-book or executed-trade
+    averages at any scope (global/faction/cluster/sector, all >5%
+    spread vs the required <1%). Stations share E vectors across sectors
+    and factions (three stations to 0.1%) while a co-sectored pair
+    differs — scope is provably not geographic or factional. NPC trade
+    subscriptions do not exist in the save (player-only concept), so E
+    is engine-runtime state; with E fitted from a handful of quotes,
+    every other deployable at that station predicts to ~1–3%.
 
 ## Station drone/unit pool
 
