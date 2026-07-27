@@ -402,11 +402,13 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for (oid, ware), amount in cg.items()])
 
         conn.executemany(
-            "INSERT INTO trade_offer VALUES (?,?,?,?,?,?)",
+            "INSERT INTO trade_offer VALUES (?,?,?,?,?,?,?,?)",
             # hostless offers are NULL like every other absent value (the
             # '' exception retired in v15, plan T11)
-            [(save_id, _s(oid), side, ware, amount, price_cr)
-             for oid, side, ware, amount, price_cr in save.trade_offers])
+            [(save_id, _s(oid), side, ware, amount, price_cr, _s(flags),
+              desired)
+             for oid, side, ware, amount, price_cr, flags, desired
+             in save.trade_offers])
 
         conn.executemany(
             "INSERT INTO build_resource VALUES (?,?,?,?,?)",

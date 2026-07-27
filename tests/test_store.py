@@ -58,7 +58,7 @@ EXPECTED_COUNTS = {
     "post": 2,
     "people": 2,
     "cargo": 0,
-    "trade_offer": 1,
+    "trade_offer": 2,     # one production buy + one supplies-flagged buy
     "build_resource": 1,
     "ship_order": 1,
     "resource": 4,
@@ -150,8 +150,13 @@ def test_world_details(conn):
         ("[0x20]", "[0x51]", 3, "mod_b_macro", 0),
     ]
     assert conn.execute(
-        "SELECT object_id, side, ware, amount, price_cr FROM trade_offer"
-        ).fetchall() == [("[0x20]", "buy", "energycells", 500.0, 1.0)]
+        "SELECT object_id, side, ware, amount, price_cr, flags, desired"
+        " FROM trade_offer ORDER BY ware"
+        ).fetchall() == [
+        ("[0x20]", "buy", "dronecomponents", 0.0, 2.0,
+         "supplies|invertfactionrestriction", 50.0),
+        ("[0x20]", "buy", "energycells", 500.0, 1.0, None, 500.0),
+    ]
     assert conn.execute(
         "SELECT object_id, order_name, is_default, state FROM ship_order"
         ).fetchall() == [("[0x30]", "Wait", 1, "started")]
@@ -744,11 +749,15 @@ def test_aggregates_written_per_snapshot(cfg, save_data, ref):
     assert sm[5] == 500.0                # the open buy offer, 500 × 1.0 cr
     assert sm[6] is None                 # no sell offers
 
-    # market band: the offer book aggregated per (sector, ware, side)
+    # market band: the offer book aggregated per (sector, ware, side).
+    # supplies-flagged offers are aggregated like any other (the A-table
+    # semantics predate the v18 flag and stay unchanged)
     assert conn.execute(
         "SELECT save_id, sector_macro, ware, side, n_offers, units,"
         " price_min_cr, price_avg_cr, price_max_cr FROM market_stat"
-        ).fetchall() == [
+        " ORDER BY ware").fetchall() == [
+        (1, "cluster_01_sector001_macro", "dronecomponents", "buy",
+         1, 0.0, 2.0, 2.0, 2.0),
         (1, "cluster_01_sector001_macro", "energycells", "buy",
          1, 500.0, 1.0, 1.0, 1.0)]
     conn.close()
@@ -875,7 +884,11 @@ def test_build_frames_from_db(cfg, save_data, ref, conn):
     assert frames.built_modules.empty
     assert list(frames.ships["crew.have"]) == [2]
     assert list(frames.orders["default"]) == [True]
-    assert list(frames.trade_offers["price"]) == [1.0]
+    assert list(frames.trade_offers["price"]) == [1.0, 2.0]
+    # v18 offer columns round-trip; NULL flags normalize to ""
+    assert list(frames.trade_offers["flags"]) \
+        == ["", "supplies|invertfactionrestriction"]
+    assert list(frames.trade_offers["desired"]) == [500.0, 50.0]
     # mineable-now: live 1000 + the eligible-empty area at its class capacity
     # (high/ore = 1,000,000; reads yield=0 in the save but is respawned & full)
     # + 0 for the area still on its respawn cooldown

@@ -543,8 +543,39 @@ state, an efficiency factor, and its queue (with the shortage form above):
 ```
 
 This one pool mixes drones (defence/repair/transport/build/mining), police
-craft, turret munitions (missiles, countermeasures) and deployables; only
-the *current* counts are stored — desired levels are not persisted.
+craft, turret munitions (missiles, countermeasures) and deployables;
+`<available>` holds the *current* counts.
+
+**Supply state** — the station's `<supplies>` block (sibling of
+`<ammunition>`) records the self-supply machinery behind those counts:
+
+```xml
+<supplies>
+  <wares>
+    <ware ware="energycells" amount="25000"/>
+  </wares>
+  <orders>
+    <ware ware="ship_gen_xs_cargodrone_empty_01_a" amount="30"/>
+    <ware ware="ship_gen_xs_repairdrone_01_a" amount="10"/>
+    <ware ware="ship_gen_s_fightingdrone_01_a" amount="10"/>
+  </orders>
+</supplies>
+```
+
+- `<orders>` — drone/munition build orders, by product ware. In save_007,
+  37 of 40 order rows across 21 stations exactly equal the station's
+  current `<ammunition>` count for that drone; the 3 short rows belong to
+  ABR-398, which is still gathering inputs — and its orders sum (50)
+  matches the drone build target shown in-game. So `<orders>` looks like
+  the persisted build TARGET (contradicting the earlier "desired levels
+  are not persisted" claim), but only ~21 stations universe-wide carry
+  the block at all — target-vs-outstanding-orders semantics are pinned
+  down in the report's play checklist.
+- `<wares>` — supply inputs already set aside (ABR-398: exactly the
+  25,000 energy cells its 50 drone builds need at the terran recipe).
+  Missing inputs the station cannot source internally become
+  `supplies`-flagged buy offers (above). Ships (carriers/auxiliaries)
+  carry `<supplies><wares>` too — their ammo/drone reserves.
 
 **Trade block** — `<trade>` children observed:
 
@@ -581,8 +612,26 @@ their buy offers):
 ```
 
 - `price` is **cents** per unit; `amount` the open quantity; `desired` the
-  wanted total **(interpretation unverified)**; `flags` a `|`-joined set
+  wanted total (open + already-reserved portion); `flags` a `|`-joined set
   (`shady` marks illegal-ware offers, `restrictions` limits counterparties).
+- **`flags="supplies|…"` marks station SELF-SUPPLY buys** — inputs for the
+  station's own drone/munition building, as opposed to production
+  resources. CONFIRMED sweep-wide (save_007: all 1,140 flagged offers of
+  15,418 are station buys of supply-recipe inputs, across all 17 factions;
+  replicated on save_006; zero counterexamples —
+  [../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md)).
+  On these buys `desired` is the outstanding input need for the station's
+  supply build orders (validated exact against ABR-398's drone orders ×
+  terran recipe: metallicmicrolattice 2,150, siliconcarbide 190). The same
+  station can hold a flagged and an unflagged buy for the SAME ware
+  (12 stations in save_007 do) — the two demands stay separate offers.
+  This is the save-side marker behind the trade menu's "box" icon.
+  Distinct third/fourth demand classes that are NOT flagged: build-storage
+  construction buys and wharf/shipyard ship-building buys (equipment,
+  missiles for ships under construction) — both plain offers.
+  Observed token inventory across both sweeps: `supplies`, `shady`,
+  `invertfactionrestriction`, `buyercargovirtual`, `buyermoneyvirtual`,
+  `skipbuyerownaccount`.
 - Ships carry the same `<trade>` block; idle traders often have just
   `<offers settings="buyintermediates|sellintermediates|blockoffers"/>`.
 - `<prices><reference>` holds the station's configured reference prices —

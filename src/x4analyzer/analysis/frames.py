@@ -57,7 +57,9 @@ class Frames:
     station_cargo: pd.DataFrame = None       # id, ware, amount
     workforce_all: pd.DataFrame = None       # id, race, amount
     build_demand: pd.DataFrame = None        # id, ware, amount, kind (missing)
-    trade_offers: pd.DataFrame = None        # id, side, ware, amount, price
+    trade_offers: pd.DataFrame = None        # id, side, ware, amount, price,
+    #   flags (raw |-joined set, "" = none; "supplies" = self-supply buy),
+    #   desired (wanted total, NaN if absent)
     orders: pd.DataFrame = None              # id, order, default, state
     built_refs: set = None                   # constructed sequence-entry ids
     module_upgrades: pd.DataFrame = None     # entry, macro (planned loadouts)
@@ -640,9 +642,10 @@ def build_frames(save: SaveData, ref: RefData,
             SELECT host_id AS id, ware, amount, kind FROM build_resource
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["id"]),
         trade_offers=_read(conn, f"""
-            SELECT object_id AS id, side, ware, amount, price_cr AS price
+            SELECT object_id AS id, side, ware, amount, price_cr AS price,
+                   flags, desired
             FROM trade_offer WHERE save_id = {_CUR} ORDER BY rowid""",
-            fill=["id"]),
+            fill=["id", "flags"]),
         orders=orders,
         built_refs=set(save.built_refs),
         has_highways=save.has_highways,

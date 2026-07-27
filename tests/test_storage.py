@@ -13,7 +13,7 @@ import pandas as pd
 from x4analyzer.analysis.storage import station_storage, FOOD_HOURS
 
 _CARGO = ["id", "ware", "amount"]
-_OFFERS = ["id", "side", "ware", "amount", "price"]
+_OFFERS = ["id", "side", "ware", "amount", "price", "flags", "desired"]
 
 
 def _ref():
@@ -97,9 +97,9 @@ def test_proxy_non_producer():
         built=[["w1", "buildmodule_ships", 1]],       # not in ref.modules
         universe=[["w1", "station"]],
         cargo=[["w1", "energy", 100], ["w1", "food1", 50], ["w1", "widget", 40]],
-        offers=[["w1", "buy", "energy", 200, 5],
-                ["w1", "buy", "food1", 30, 3],
-                ["w1", "sell", "widget", 25, 9]])
+        offers=[["w1", "buy", "energy", 200, 5, "", None],
+                ["w1", "buy", "food1", 30, 3, "", None],
+                ["w1", "sell", "widget", 25, 9, "", None]])
     rows = _run(frames)
     assert all(r.source == "proxy" for r in rows.values())
     assert rows["energy"].max_units == 300            # stock 100 + buy 200
@@ -108,6 +108,53 @@ def test_proxy_non_producer():
     assert rows["food1"].role == "food"               # workunit input -> food
     assert rows["widget"].max_units == 40             # sell-only: floor at stock
     assert rows["widget"].throughput is None
+
+
+# ---- supplies-flagged offers (self-supply demand, v18) ----------------------
+
+def test_supply_buys_excluded_from_proxy_and_emitted_as_supply_rows():
+    # non-producer buying energy for production AND for drone building: the
+    # flagged buy must not inflate the proxy max; it becomes a supply row
+    frames = _frames(
+        built=[["w1", "buildmodule_ships", 1]],
+        universe=[["w1", "station"]],
+        cargo=[["w1", "energy", 100]],
+        offers=[["w1", "buy", "energy", 200, 5, "", None],
+                ["w1", "buy", "energy", 0, 5, "supplies|invertfactionrestriction", 2150],
+                ["w1", "buy", "widget", 40, 9, "supplies", None]])
+    df = station_storage(frames, _ref())
+    by_role = {(r.ware, r.role): r for r in df.itertuples()}
+    assert by_role[("energy", "input")].max_units == 300   # proxy unchanged
+    sup = by_role[("energy", "supply")]
+    assert sup.max_units == 2150                     # desired wins over amount
+    assert sup.source == "offer" and sup.throughput is None
+    assert by_role[("widget", "supply")].max_units == 40   # no desired -> amount
+
+
+def test_supply_rows_on_producing_stations_too():
+    # ABR-398 pattern: computed path for production, supply row alongside
+    frames = _producer()
+    frames.station_cargo = pd.DataFrame([], columns=_CARGO)
+    frames.trade_offers = pd.DataFrame(
+        [["st1", "buy", "food1", 0, 2, "supplies", 190]], columns=_OFFERS)
+    df = station_storage(frames, _ref())
+    by_role = {(r.ware, r.role): r for r in df.itertuples()}
+    assert by_role[("food1", "supply")].max_units == 190
+    assert by_role[("food1", "food")].source == "computed"  # model untouched
+    assert by_role[("widget", "output")].source == "computed"
+
+
+def test_offers_without_flags_column_still_work():
+    # defensive: a hand-built frame without the v18 columns must not crash
+    frames = _frames(
+        built=[["w1", "buildmodule_ships", 1]],
+        universe=[["w1", "station"]],
+        cargo=[["w1", "energy", 100]])
+    frames.trade_offers = pd.DataFrame(
+        [["w1", "buy", "energy", 200, 5]],
+        columns=["id", "side", "ware", "amount", "price"])
+    rows = _run(frames)
+    assert rows["energy"].max_units == 300
 
 
 def test_empty_inputs_return_empty():

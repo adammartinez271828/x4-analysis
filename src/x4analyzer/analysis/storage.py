@@ -30,12 +30,18 @@ to Pearson r=0.9984 despite different fill). A full build bill-of-materials
 model would be far costlier and not meaningfully more accurate. Producing
 stations keep the exact throughput x T model (source='computed').
 
-Still not modeled: the separate ammunition/defence pool (drone energy, missile
-components, smart chips) on stations with drone/ammo production (e.g. PEJ-489
-energy); multi-stage internally-cycled wares (gross vs net flow); and a combined
-production+build station keeps the computed path only (its build inputs are
-omitted). Proxy caveats: excess stock over-states, and a pure trade station's
-*sold*-ware max is only a floor (the proxy reads the buy side).
+Supply offers (v18): buy offers whose save flags contain "supplies" are the
+station's SELF-SUPPLY demand -- inputs for building its own drones/munitions,
+delivered to the separate <supplies> inventory, not cargo storage (CONFIRMED
+sweep-wide, docs/reports/supply-offer-discriminator.md). They are excluded
+from the proxy's stock+buy max and emitted as separate role='supply' rows
+(source='offer', max = outstanding need: desired when present, else amount)
+for EVERY station, producing or not.
+
+Still not modeled: multi-stage internally-cycled wares (gross vs net flow); a
+combined production+build station keeps the computed path only (its build
+inputs are omitted). Proxy caveats: excess stock over-states, and a pure trade
+station's *sold*-ware max is only a floor (the proxy reads the buy side).
 """
 from __future__ import annotations
 
@@ -221,10 +227,22 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         for c in cargo.itertuples():
             if c.id not in producers and c.id in stations:
                 stock[c.id][c.ware] = stock[c.id].get(c.ware, 0.0) + c.amount
+    # supplies-flagged buys are self-supply (drone/munition build) demand:
+    # never part of the cargo-storage proxy, collected for every station
+    has_flags = offers is not None and not offers.empty \
+        and "flags" in offers.columns
     buy: dict[str, dict[str, float]] = defaultdict(dict)
+    supply: dict[str, dict[str, float]] = defaultdict(dict)
     if offers is not None and not offers.empty:
         for o in offers.itertuples():
-            if o.side == "buy" and o.id not in producers and o.id in stations:
+            if o.side != "buy" or o.id not in stations:
+                continue
+            if has_flags and isinstance(o.flags, str) \
+                    and "supplies" in o.flags:
+                need = o.desired if getattr(o, "desired", None) is not None \
+                    and pd.notna(o.desired) else o.amount
+                supply[o.id][o.ware] = supply[o.id].get(o.ware, 0.0) + need
+            elif o.id not in producers:
                 buy[o.id][o.ware] = buy[o.id].get(o.ware, 0.0) + o.amount
     for sid in set(stock) | set(buy):
         for ware in set(stock.get(sid, {})) | set(buy.get(sid, {})):
@@ -235,6 +253,18 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 "role": "food" if ware in food_wares else "input",
                 "throughput": None, "max_units": mx,
                 "max_volume": mx * volume.get(ware, 1.0), "source": "proxy",
+            })
+
+    # supply rows: open self-supply demand, read straight off the flagged
+    # offers -- outstanding drone/munition build inputs, not storage
+    for sid, wares_ in supply.items():
+        for ware, need in wares_.items():
+            rows.append({
+                "station_id": sid, "ware": ware,
+                "transport": transport.get(ware, ""), "role": "supply",
+                "throughput": None, "max_units": need,
+                "max_volume": need * volume.get(ware, 1.0),
+                "source": "offer",
             })
 
     return pd.DataFrame(rows, columns=_COLS)

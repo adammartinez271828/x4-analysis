@@ -53,7 +53,12 @@ import hashlib
 #      removed_object.first_save_id records the import that first merged
 #      each graveyard row (its only obtainable timestamp: the save-side
 #      time attr does not exist in v9)
-SCHEMA_VERSION = "17"
+# v18: supply-offer discriminator (docs/reports/supply-offer-discriminator
+#      .md): trade_offer.flags (the save's raw |-joined offer flags —
+#      "supplies" marks station self-supply drone/munition-component buys)
+#      + trade_offer.desired (wanted total); station_storage grows
+#      role='supply' rows sourced from those offers, so its PK gains role
+SCHEMA_VERSION = "18"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -442,13 +447,20 @@ TABLES: dict[str, str] = {
 )""",
     # object_id NULL = hostless offer (was '' before v15; plan T11 made it
     # follow the schema-wide absent-is-NULL convention)
+    # flags: the save's raw |-joined offer flag set (NULL = none). The
+    # "supplies" token marks station self-supply buys (drone/munition build
+    # inputs) as opposed to production resources — CONFIRMED sweep-wide, see
+    # docs/reports/supply-offer-discriminator.md. desired = wanted total
+    # (open amount + already-reserved portion).
     "trade_offer": """CREATE TABLE IF NOT EXISTS trade_offer (
   save_id   INTEGER NOT NULL,
   object_id TEXT,
   side      TEXT NOT NULL,
   ware      TEXT NOT NULL,
   amount    REAL,
-  price_cr  REAL
+  price_cr  REAL,
+  flags     TEXT,
+  desired   REAL
 )""",
     "build_resource": """CREATE TABLE IF NOT EXISTS build_resource (
   save_id INTEGER NOT NULL,
@@ -737,6 +749,10 @@ TABLES: dict[str, str] = {
     # amount of each ware a station allocates storage for, derived from its
     # production/consumption throughput at full workforce. Written after the
     # frames are built (store.write_station_storage), so grouped on its own.
+    # role 'supply' (source 'offer') rows are the station's open self-supply
+    # demand (supplies-flagged buy offers, v18) — outstanding drone/munition
+    # build inputs, NOT cargo-storage allocation. A ware can hold both a
+    # production-side row and a supply row, hence role in the PK.
     "station_storage": """CREATE TABLE IF NOT EXISTS station_storage (
   save_id    INTEGER NOT NULL,
   station_id TEXT NOT NULL,
@@ -747,7 +763,7 @@ TABLES: dict[str, str] = {
   max_units  REAL,
   max_volume REAL,
   source     TEXT,
-  PRIMARY KEY (save_id, station_id, ware)
+  PRIMARY KEY (save_id, station_id, ware, role)
 )""",
     # per-snapshot station munition census (analysis/drones.py): every item in
     # a station's own <ammunition><available> -- one row per macro with a

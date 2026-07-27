@@ -53,6 +53,9 @@ FIXTURE = """<?xml version="1.0"?>
             <trade><offers><production>
               <trade id="[0xT1]" buyer="[0x21]" ware="energycells"
                      price="100" amount="500" desired="500"/>
+              <trade id="[0xT2]" buyer="[0x21]" ware="dronecomponents"
+                     price="200" amount="0" desired="50"
+                     flags="supplies|invertfactionrestriction"/>
             </production></offers></trade>
             <build><resources><insufficient>
               <ware ware="claytronics" amount="1000"/>
@@ -229,7 +232,11 @@ def test_fixture_parse(save_file: Path) -> None:
 
     assert d.people == {("[0x30]", "service"): 2, ("[0x30]", "passenger"): 1}
 
-    assert ("[0x20]", "buy", "energycells", 500.0, 1.0) in d.trade_offers
+    assert ("[0x20]", "buy", "energycells", 500.0, 1.0, "", 500.0) \
+        in d.trade_offers
+    # supplies-flagged self-supply buy: raw flags and desired captured
+    assert ("[0x20]", "buy", "dronecomponents", 0.0, 2.0,
+            "supplies|invertfactionrestriction", 50.0) in d.trade_offers
     assert ("[0x30]", "Wait", True, "started") in d.orders
     assert ("[0x20]", "claytronics", 1000.0, "insufficient") \
         in d.build_resources

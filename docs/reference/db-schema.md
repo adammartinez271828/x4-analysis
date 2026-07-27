@@ -11,9 +11,10 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 17, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 18, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
-41,507 entities). Out of scope:
+41,507 entities; v18 supply-offer columns verified on the save_007
+import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged). Out of scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
@@ -383,7 +384,7 @@ Key–value bookkeeping (`db/schema.py`). Keys present in the reference DB:
 
 | Key | Meaning |
 |---|---|
-| `schema_version` | current schema version (`"17"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
+| `schema_version` | current schema version (`"18"`); mismatch at connect triggers the reset/migration path (see Schema versioning) |
 | `csv_caches_imported` | `"1"` once the retired csv.gz caches' history has been imported; the import never runs again for this DB |
 | `entity_registry_time` | game time of the newest snapshot the entity registry has processed — older saves are resolved read-only (a mapping is returned for stamping, but nothing is minted or edited) |
 | `merge_events_time` | game time of the newest save whose windows were merged — the stale-save guard's high-water mark (older saves are refused, see Merge semantics) |
@@ -612,8 +613,10 @@ components. Save-side: savegame-structure.md § Ships (`<cargo>`).
 ### trade_offer
 
 Open buy/sell offers, one row each. Build storages' buy offers are
-construction demand. Save-side: savegame-structure.md § Stations (trade
-block).
+construction demand; buys whose `flags` contain `supplies` are station
+self-supply demand (drone/munition build inputs) — CONFIRMED sweep-wide,
+[../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md).
+Save-side: savegame-structure.md § Stations (trade block).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
@@ -623,6 +626,8 @@ block).
 | `ware` | TEXT, FK → `ware.id` | ware id | `trade/offers//trade@ware` |
 | `amount` | REAL | open quantity | same element `@amount` |
 | `price_cr` | REAL | unit price, credits | same element `@price` ÷ 100 |
+| `flags` | TEXT | the save's raw `\|`-joined flag set (NULL = none; v18). `supplies` marks self-supply buys; other observed tokens: `shady`, `invertfactionrestriction`, `buyercargovirtual`, `buyermoneyvirtual`, `skipbuyerownaccount` | same element `@flags` |
+| `desired` | REAL | wanted total (open + already-reserved; NULL if absent; v18). On `supplies` buys this is the outstanding input need for the station's supply build orders — validated exact on ABR-398 | same element `@desired` |
 
 ### build_resource
 
@@ -1172,11 +1177,11 @@ frames, so it is written after the pipeline's analysis stage.
 | `station_id` | TEXT PK, FK → `component.id` | the modeled station | derived: model host |
 | `ware` | TEXT PK, FK → `ware.id` | modeled ware | derived: model over `component`/`build_entry`/`recipe` |
 | `transport` | TEXT | storage pool (`container`/`liquid`/`solid`) | reference: `ware.transport` |
-| `role` | TEXT | `output` / `input` / `food` (workforce supplies) | derived: recipe role |
-| `throughput` | REAL | modeled units/hour at full workforce (NULL on proxy rows) | derived: recipes × module scale |
-| `max_units` | REAL | allocated maximum, units | derived: throughput × time-horizon split of pool capacity |
+| `role` | TEXT PK | `output` / `input` / `food` (workforce rations) / `supply` (self-supply demand, v18 — in the PK because a ware can hold a production-side row AND a supply row on the same station) | derived: recipe role / offer `supplies` flag |
+| `throughput` | REAL | modeled units/hour at full workforce (NULL on proxy and supply rows) | derived: recipes × module scale |
+| `max_units` | REAL | allocated maximum, units — except `supply` rows, where it is the outstanding self-supply need (`desired`, falling back to `amount`), NOT storage allocation | derived: throughput × time-horizon split of pool capacity / flagged offer |
 | `max_volume` | REAL | the same in m³ | derived: `max_units` × `ware.volume` |
-| `source` | TEXT | `computed` (throughput model, production stations) / `proxy` (stock + buy-offer proxy: build storages, wharfs, trade stations) | derived |
+| `source` | TEXT | `computed` (throughput model, production stations) / `proxy` (stock + buy-offer proxy: build storages, wharfs, trade stations; excludes `supplies`-flagged buys since v18) / `offer` (supply rows, read straight off the flagged offers) | derived |
 
 ### station_munition
 

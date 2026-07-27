@@ -92,8 +92,11 @@ class SaveData:
     # kind: "insufficient" = station construction, "shortage" = shipyard
     # ship-order backlog
     build_resources: list = field(default_factory=list)  # (host, ware, amount, kind)
-    # open trade offers: (object_id, side, ware, amount, price_cr)
-    # side "buy" = station wants to buy `amount` at `price`; "sell" mirrors
+    # open trade offers: (object_id, side, ware, amount, price_cr, flags,
+    # desired). side "buy" = station wants to buy `amount` at `price`; "sell"
+    # mirrors. flags is the save's raw |-joined set ("" = none); "supplies"
+    # marks station self-supply buys (drone/munition build inputs) as opposed
+    # to production resources. desired is the wanted total (None if absent).
     trade_offers: list = field(default_factory=list)
     # free-floating ware objects in space (scrap cubes, dropped cargo)
     floating_wares: list = field(default_factory=list)  # (sector_macro, ware, amount)
@@ -591,6 +594,9 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("ware", ""),
                         float(elem.get("amount", 0) or 0),
                         float(elem.get("price", 0) or 0) / 100.0,
+                        elem.get("flags", ""),
+                        float(elem.get("desired"))
+                        if elem.get("desired") else None,
                     ))
 
             elif tag == "area":

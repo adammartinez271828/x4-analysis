@@ -103,6 +103,20 @@ only works against the same save that produced them.
   demand. New-station constructions sit on **free-floating build storages
   with no station ancestor** — don't require an object ancestor when
   collecting.
+- **Station buy offers split into distinguishable demand classes** (2026-07,
+  CONFIRMED sweep-wide on save_007 + save_006,
+  [../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md)):
+  *production inputs* (plain offers), *construction* (build-storage
+  hosts), *ship building* (wharf/shipyard hosts, plain), and
+  *self-supply* — inputs for the station's own drone/munition builds,
+  marked `flags="supplies|…"` (the trade menu's "box" icon). All 1,140
+  flagged offers in save_007 are station-hosted buys of supply-recipe
+  inputs; a station can hold a flagged and an unflagged buy for the same
+  ware simultaneously. On flagged buys `desired` = the outstanding input
+  need (exact against ABR-398's orders × terran drone recipe). Consumers
+  measuring production demand must exclude `supplies`-flagged offers
+  (`analysis/storage.py` does since v18; the market/advisor widgets still
+  count them — known conflation, small: 1,140 of 15,418 offers).
 - Construction-plan estimating (Audit tab, for sites with no funded
   orders): the plan lives on the build storage under
   `<queue><build type="expand"><sequence><entry>`; an existing station's
@@ -192,8 +206,19 @@ EBT-957 92, QJI-262 220; MXH-411's 310 is the fit's source, **not** an
 independent validation of the production term (review X19 — an earlier
 revision listed it under "validated", which was circular; the term
 remains a one-point hypothesis, matching tests/test_drones.py's
-framing). **Desired**
-levels are not persisted anywhere in the save (the player auto-supply
-config `$config_supply_*` has zero hits) — the model records observable
-state only. Tables and views: db-schema.md § station_munition;
-`tests/test_drones.py` carries the validation numbers.
+framing). **Desired levels**: the earlier claim that they are "not
+persisted anywhere" was wrong — `$config_supply_*` was the wrong needle.
+A station's `<supplies><orders>` block persists its drone build orders
+by product ware, and the evidence says it IS the build target: in
+save_007, 37/40 order rows across 21 stations exactly equal the
+station's current drone count (zero exceed it), the 3 short rows are
+ABR-398 mid-gather, and ABR-398's orders sum (50) matches its in-game
+build target. Caveat: only ~21 of the universe's stations carry the
+block, so absence ≠ no target; whether the block survives a target
+change on a full station is a play-checklist item
+([../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md)).
+The missing *inputs* for those orders surface as `supplies`-flagged buy
+offers with exact recipe math (Market data above), and inputs already
+set aside sit in `<supplies><wares>`. Tables and views: db-schema.md
+§ station_munition; `tests/test_drones.py` carries the validation
+numbers.
