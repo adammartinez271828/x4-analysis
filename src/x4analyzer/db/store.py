@@ -524,11 +524,16 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
              for (oid, kind, ware, amount) in save.station_supplies
              if oid and ware])
         conn.executemany(
-            # whole credits in the save already — the one price block that
-            # is not in cents (like <prices><reference>); 0 = not overridden
-            "INSERT OR REPLACE INTO price_override VALUES (?,?,?,?,?)",
-            [(save_id, oid, _low(ware), buy or None, sell or None)
-             for (oid, ware, buy, sell) in save.price_overrides
+            # whole credits in the save already — <trade><prices> is the one
+            # price block that is not in cents; 0 = that side unset
+            "INSERT OR REPLACE INTO price_setting VALUES (?,?,?,?,?,?)",
+            [(save_id, oid, kind, _low(ware), buy or None, sell or None)
+             for (oid, kind, ware, buy, sell) in save.price_settings
+             if oid and ware])
+        conn.executemany(
+            "INSERT OR REPLACE INTO ware_limit VALUES (?,?,?,?,?)",
+            [(save_id, oid, kind, _low(ware), amount)
+             for (oid, kind, ware, amount) in save.ware_limits
              if oid and ware])
         conn.executemany(
             "INSERT OR REPLACE INTO build_method VALUES (?,?,?)",

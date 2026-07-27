@@ -11,7 +11,7 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 22, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 23, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
 import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
@@ -21,7 +21,9 @@ method verified on the save_009 import 2026-07-27: 3 faction rules,
 3 station overrides, 104 stations resolved by `v_build_method`; v22
 self-supply/price-override tables verified on the same import: 2,485
 supply rows over 1,048 stations — 41 `order`, 2,444 `ware` — and 22
-price overrides over 6 hosts). Out of scope:
+price overrides over 6 hosts; v23 on the same import: 21,997 `reference`
++ 22 `override` price settings, 19 ware limits over 6 stations). Out of
+scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
@@ -872,20 +874,38 @@ LEFT JOIN station_munition m
 WHERE s.kind = 'order';
 ```
 
-### price_override
+### price_setting
 
-Manual per-ware price overrides (v22) — `<trade><prices><override>`.
+The station's configured per-ware prices — `<trade><prices>` (v22 as
+`price_override`, generalised in v23 when `<reference>` was added).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
 | `save_id` | INTEGER PK, FK → `save` | snapshot | — |
 | `object_id` | TEXT PK, FK → `component.id` | station / build storage | derived: nearest host of the `<trade>` block |
+| `kind` | TEXT PK | `reference` = the configured reference price (pricing Layer 5, near-universal: 21,997 rows / 4,433 hosts in save_009); `override` = a hard manual override (22 rows / 6 hosts) | `<prices><reference>` / `<prices><override>` |
 | `ware` | TEXT PK, FK → `ware.id` | the ware | `ware@ware` |
-| `buy_cr` | REAL | override buy price in **whole credits** (NOT cents — this block and `<prices><reference>` are the exceptions); NULL = that side not overridden (the save writes 0) | `ware@buy` |
+| `buy_cr` | REAL | price in **whole credits** — `<trade><prices>` is the save's one exception to the cents rule, so there is no ÷100 here; NULL = that side unset (the save writes 0) | `ware@buy` |
 | `sell_cr` | REAL | same, sell side | `ware@sell` |
 
-22 rows / 6 hosts in save_009 — a rarity, but any price model must check
-it before assuming an economy price applies.
+Any price model must check for an `override` row before assuming an
+economy price applies.
+
+### ware_limit
+
+The station-config UI's **manual per-ware limits** (v23) — the
+`<overrides>` block directly under the component. Confirmed against the
+engine's API names and arithmetically against live offers
+(savegame-structure.md § Stations). Rare: 19 rows / 6 stations in
+save_009.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the station | the hosting component |
+| `kind` | TEXT PK | `max` = stock (storage allocation) limit; `buy` = buy up to this stock level (buy offer = limit − stock, exact); `sell` = keep this much and sell the excess (sell offer = stock − limit, exact absent reservations) | `<overrides><max\|buy\|sell>` |
+| `ware` | TEXT PK, FK → `ware.id` | the ware | `ware@ware` |
+| `amount` | REAL | the limit, units. **NULL = the save omitted `amount`**, i.e. zero by the game's omit-defaults convention — kept NULL so "unset" stays distinguishable. Such wares still carry a 1-unit buy offer, which is not real demand | `ware@amount` |
 
 ### build_price_factor
 
@@ -1435,7 +1455,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"22"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"23"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every

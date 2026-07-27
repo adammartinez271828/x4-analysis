@@ -74,7 +74,11 @@ import hashlib
 # v22: station self-supply bookkeeping (station_supply: <supplies><orders>
 #      build targets + <wares> set-aside inputs) and manual per-ware price
 #      overrides (price_override: <trade><prices><override>, whole credits)
-SCHEMA_VERSION = "22"
+# v23: price_override generalised to price_setting (kind reference|override
+#      — <prices><reference> is the station's configured price, Layer 5 of
+#      the pricing model) and ware_limit (<overrides>: the manual per-ware
+#      stock/buy/sell limits set in the station UI)
+SCHEMA_VERSION = "23"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -625,17 +629,34 @@ TABLES: dict[str, str] = {
   amount    REAL,
   PRIMARY KEY (save_id, object_id, kind, ware)
 )""",
-    # manual per-ware price overrides (v22): <trade><prices><override>.
-    # WHOLE CREDITS in the save (like <prices><reference>, unlike every
-    # other price) — stored as credits, no /100. NULL = that side is not
-    # overridden (the save writes 0).
-    "price_override": """CREATE TABLE IF NOT EXISTS price_override (
+    # the station's configured per-ware prices (v22 as price_override,
+    # generalised in v23): <trade><prices><reference> (kind 'reference',
+    # the configured reference price = pricing Layer 5) and <override>
+    # (kind 'override', a hard manual override). WHOLE CREDITS in the save
+    # — this block is the one exception to the cents rule — so stored as
+    # credits with no /100. NULL = that side unset (the save writes 0).
+    "price_setting": """CREATE TABLE IF NOT EXISTS price_setting (
   save_id   INTEGER NOT NULL,
   object_id TEXT NOT NULL,
+  kind      TEXT NOT NULL,
   ware      TEXT NOT NULL,
   buy_cr    REAL,
   sell_cr   REAL,
-  PRIMARY KEY (save_id, object_id, ware)
+  PRIMARY KEY (save_id, object_id, kind, ware)
+)""",
+    # manual per-ware trade/storage limits (v23): the station-config UI's
+    # per-ware sliders, stored as <overrides><max|buy|sell><ware>.
+    # kind 'max'  = stock (storage allocation) limit for that ware
+    #      'buy'  = buy up to this stock level (offer = limit - stock)
+    #      'sell' = keep this much, sell the excess (offer = stock - limit)
+    # amount NULL = the save omitted it (its zero-default convention).
+    "ware_limit": """CREATE TABLE IF NOT EXISTS ware_limit (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  kind      TEXT NOT NULL,
+  ware      TEXT NOT NULL,
+  amount    REAL,
+  PRIMARY KEY (save_id, object_id, kind, ware)
 )""",
     "build_price_factor": """CREATE TABLE IF NOT EXISTS build_price_factor (
   save_id   INTEGER NOT NULL,

@@ -66,6 +66,12 @@ FIXTURE = """<?xml version="1.0"?>
                 <ware ware="claytronics" buy="0" sell="1734"/>
               </override>
             </prices>
+            <overrides>
+              <max><ware ware="energycells" amount="739800"/>
+                   <ware ware="weaponcomponents"/></max>
+              <buy><ware ware="energycells" amount="739800"/></buy>
+              <sell><ware ware="siliconcarbide" amount="5184"/></sell>
+            </overrides>
             <settings>
               <setting name="buy" wares="spaceweed majadust"/>
               <setting name="lockavgprice" wares="spaceweed"/>
@@ -274,10 +280,20 @@ def test_fixture_parse(save_file: Path) -> None:
         ("[0x20]", "ware", "metallicmicrolattice", 1200.0),
         ("[0x20]", "order", "ship_gen_xs_repairdrone_01_a", 10.0),
     ]
-    # manual price overrides: whole credits, 0 = that side not overridden
-    assert d.price_overrides == [
-        ("[0x20]", "energycells", 21.0, 0.0),
-        ("[0x20]", "claytronics", 0.0, 1734.0),
+    # configured prices: whole credits, 0 = that side unset. <reference>
+    # and <override> are the same shape, told apart by kind
+    assert d.price_settings == [
+        ("[0x20]", "reference", "energycells", 12.0, 0.0),
+        ("[0x20]", "override", "energycells", 21.0, 0.0),
+        ("[0x20]", "override", "claytronics", 0.0, 1734.0),
+    ]
+    # manual per-ware limits; a ware with no amount= is the game omitting
+    # a zero, kept as None so "unset" stays distinguishable from a real 0
+    assert d.ware_limits == [
+        ("[0x20]", "max", "energycells", 739800.0),
+        ("[0x20]", "max", "weaponcomponents", None),
+        ("[0x20]", "buy", "energycells", 739800.0),
+        ("[0x20]", "sell", "siliconcarbide", 5184.0),
     ]
 
     assert d.faction_build_rules == [("player", "terran")]

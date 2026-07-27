@@ -181,7 +181,15 @@ knowledge, not yet a feature.
 - **Layer 4 — buy side: NOT modeled** (open gap). Consumers price off
   need, not fill, and run above the band ceiling.
 - **Layer 5 — player-owned stations** use manual thresholds — off-model by
-  design.
+  design. The persisted inputs are now readable (v23): `price_setting`
+  (kind `reference` = the configured reference price, near-universal;
+  kind `override` = a hard per-ware price override, 6 hosts) and
+  `ware_limit`, the station-UI per-ware limits — `max` (storage
+  allocation), `buy` (buy up to this stock level) and `sell` (keep this
+  much, sell the excess). The last two are arithmetically exact against
+  live offers: on MXH-411, buy limit 739,800 − stock 488,215 = the offer's
+  251,585, and stock − sell limit reproduces all three sell offers to the
+  unit (savegame-structure.md § Stations).
 - **Layer 6 — locked trade-station wares** (validated in-game 2026-07-27):
   wares in a trade station's / pirate base's `lockavgprice` whitelist
   (`station_trade_setting`, v20) are pegged at band average — sell = avg

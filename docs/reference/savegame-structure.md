@@ -720,7 +720,10 @@ their buy offers):
   `<offers settings="buyintermediates|sellintermediates|blockoffers"/>`.
 - `<prices><reference>` holds the station's configured reference prices —
   in **whole credits**, unlike everything else (energycells `buy="21"` ≈ the
-  16 Cr average, while offer prices are cents):
+  16 Cr average, while offer prices are cents). Near-universal: 21,997 ware
+  rows over 4,433 hosts in save_009, i.e. essentially every trading object.
+  Parsed into `price_setting` (kind `reference`, v23) — the persisted side
+  of pricing Layer 5.
 
 ```xml
 <prices buildpricefactor="1.07">
@@ -751,14 +754,39 @@ their buy offers):
   DZQ-914 sells ore 43 / silicon 111; three NPC build storages sell their
   construction wares). Parsed into `price_override` (v22).
 - **`<overrides>`** directly under the *component* (not under `<prices>`)
-  is a different block again: `<buy>`/`<sell>`/`<max>` each listing
-  `<ware ware= [amount=]>` — 6 player/NPC stations in save_009 (e.g.
-  MXH-411 `<max><ware ware="energycells" amount="739800"/>`, JQR-498
-  `<sell><ware ware="energycells" amount="37920"/>`). Almost certainly the
-  station-config per-ware trade/storage limits, but the exact meaning of
-  the amounts, and of `<ware>` entries with **no** amount, is
-  **(unverified)** — not parsed. Discriminating check: set a known
-  per-ware buy limit in the station UI and re-read the block.
+  is the station-config UI's **manual per-ware limits** — CONFIRMED
+  2026-07-27, both by the engine's own API names
+  (`GetContainerStockLimitOverrides`, `SetContainerBuyLimitOverride`,
+  `SetContainerSellLimitOverride` in `menu_station_configuration.lua`) and
+  arithmetically against live offers:
+
+```xml
+<overrides>
+  <max><ware ware="energycells" amount="739800"/>
+       <ware ware="weaponcomponents"/></max>
+  <buy><ware ware="energycells" amount="739800"/>
+       <ware ware="fieldcoils" amount="12"/></buy>
+  <sell><ware ware="metallicmicrolattice" amount="34200"/></sell>
+</overrides>
+```
+
+  - `<max>` — the **stock (storage allocation) limit** per ware: the
+    amount the player set aside for that ware.
+  - `<buy>` — **buy up to this stock level**. MXH-411 in save_009: limit
+    739,800 − stock 488,215 = 251,585 = the live buy offer's `desired`,
+    exactly; fieldcoils 12 − 0 = 12, exactly.
+  - `<sell>` — **keep this much, sell the excess**. Same station:
+    83,773 − 34,200 = 49,573 microlattice offered, 3,867 − 2,646 = 1,221
+    computronic substrate, 9,814 − 5,184 = 4,630 silicon carbide — all
+    exact. Two other stations offer *less* than stock − limit, which is
+    consistent with in-flight reservations holding the rest back
+    **(not separately verified)**.
+  - A `<ware>` with **no `amount`** is the game omitting a zero (its
+    omit-defaults convention). Such wares still show a 1-unit buy offer
+    (`desired="1"`) rather than none — so a "desired 1" on a limit-zero
+    ware is not real demand. Why the engine posts it is **(unverified)**.
+  - Rare: 19 rows over 6 stations in save_009. Parsed into `ware_limit`
+    (v23).
 
 - `<trade><reservations>` holds committed in-flight trades (reserver,
   partner, ware, amount, price in cents) **(present in earlier saves of this

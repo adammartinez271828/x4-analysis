@@ -105,9 +105,15 @@ class Frames:
     # The still-missing inputs are the `supplies`-flagged buy offers in
     # trade_offers — these are the target and the stock behind them.
     station_supplies: pd.DataFrame = None
-    # manual per-ware price overrides (v22): id, ware, buy_cr, sell_cr
-    # (whole credits; NaN = that side not overridden)
-    price_overrides: pd.DataFrame = None
+    # the station's configured per-ware prices (v22/v23): id, kind
+    # ("reference" = configured reference price, pricing Layer 5;
+    # "override" = hard manual override), ware, buy_cr, sell_cr — WHOLE
+    # CREDITS (NaN = that side unset)
+    price_settings: pd.DataFrame = None
+    # manual per-ware limits from the station UI (v23): id, kind
+    # ("max" = storage allocation, "buy" = buy up to this stock level,
+    # "sell" = keep this much and sell the excess), ware, amount
+    ware_limits: pd.DataFrame = None
 
     # storage-allocation model (analysis/storage.py): per (station id, ware)
     # max_units / max_volume / throughput / transport / role. Computed after
@@ -711,8 +717,12 @@ def build_frames(save: SaveData, ref: RefData,
         station_supplies=_read(conn, f"""
             SELECT object_id AS id, kind, ware, amount FROM station_supply
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["ware"]),
-        price_overrides=_read(conn, f"""
-            SELECT object_id AS id, ware, buy_cr, sell_cr FROM price_override
+        price_settings=_read(conn, f"""
+            SELECT object_id AS id, kind, ware, buy_cr, sell_cr
+            FROM price_setting WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["ware"]),
+        ware_limits=_read(conn, f"""
+            SELECT object_id AS id, kind, ware, amount FROM ware_limit
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["ware"]),
         faction_licences=_read(conn, f"""
             SELECT faction, type, factions FROM faction_licence

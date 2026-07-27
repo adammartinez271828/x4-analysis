@@ -167,8 +167,17 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   (`<buy>`/`<sell>`/`<max>` ware lists with optional amounts, 6 stations)
   — documented as **unverified**, not parsed, with a discriminating
   in-game check noted in savegame-structure.md.
-- `<prices><reference>` (the player price config, Layer 5) is still not
-  parsed — the remaining piece of the price block.
+- ~~`<prices><reference>` + the `<overrides>` block~~ — **DONE (v23,
+  2026-07-27)**: `price_setting` gains kind `reference` (21,997 rows /
+  4,433 hosts — the persisted side of pricing Layer 5) and `ware_limit`
+  captures the station-UI per-ware limits. The `<overrides>` semantics
+  that v22 flagged unverified are now CONFIRMED, without a play
+  experiment: the engine's own API names
+  (`GetContainerStockLimitOverrides`, `Set(Buy|Sell)LimitOverride`) name
+  them, and the arithmetic is exact against live offers (buy limit −
+  stock = desired; stock − sell limit = offered). Residual unknown: a
+  ware listed with no `amount` (= zero) still carries a 1-unit buy
+  offer.
 - **Deployable-pricing model doc** in `docs/models/` consolidating the
   formula, M, Layer 6, and the E gap (currently spread across
   save-semantics + this report + the subscription findings scratch file

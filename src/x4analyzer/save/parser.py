@@ -109,10 +109,18 @@ class SaveData:
     # munitions); kind "ware" = <wares>, inputs already set aside for those
     # builds. The missing inputs surface as `supplies`-flagged buy offers.
     station_supplies: list = field(default_factory=list)
-    # manual per-ware price overrides (<trade><prices><override>, v22):
-    # (object_id, ware, buy, sell) in WHOLE CREDITS like <reference>, not
-    # cents; 0 = that side is not overridden.
-    price_overrides: list = field(default_factory=list)
+    # the station's configured per-ware prices (<trade><prices>, v22/v23):
+    # (object_id, kind, ware, buy, sell) in WHOLE CREDITS — this block and
+    # nothing else in the save quotes prices in credits, not cents. kind
+    # "reference" = <reference> (the station's configured reference price,
+    # pricing Layer 5), "override" = <override> (a hard manual override).
+    # 0 = that side is not set.
+    price_settings: list = field(default_factory=list)
+    # manual per-ware trade/storage limits (<overrides>, v23): (object_id,
+    # kind, ware, amount). kind "max" = stock (storage allocation) limit,
+    # "buy" = buy up to this stock level, "sell" = keep this much and sell
+    # the excess. A missing amount attribute means 0/unset (None here).
+    ware_limits: list = field(default_factory=list)
     # trade-station/pirate-base ware whitelists (<trade><settings><setting
     # name= wares=>): (object_id, setting, ware), one row per ware.
     # setting in {buy, sell, lockavgprice}; lockavgprice pegs the economy
@@ -638,14 +646,28 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                             elem.get("ware", ""),
                             float(elem.get("amount", 0) or 0),
                         ))
-                elif parent == "override" and gparent == "prices":
-                    # manual per-ware price overrides, whole credits
+                elif parent in ("override", "reference") \
+                        and gparent == "prices":
+                    # the station's configured prices, WHOLE CREDITS
                     host = _nearest_host(comp_stack)
                     if host:
-                        d.price_overrides.append((
-                            host, elem.get("ware", ""),
+                        d.price_settings.append((
+                            host, parent, elem.get("ware", ""),
                             float(elem.get("buy", 0) or 0),
                             float(elem.get("sell", 0) or 0),
+                        ))
+                elif gparent == "overrides" \
+                        and parent in ("max", "buy", "sell"):
+                    # manual per-ware limits set in the station UI. A ware
+                    # listed without an amount is the game omitting a zero
+                    # (its omit-defaults convention) — kept as NULL, not 0,
+                    # so "unset" stays distinguishable from a real 0.
+                    host = _nearest_host(comp_stack)
+                    if host:
+                        amt = elem.get("amount")
+                        d.ware_limits.append((
+                            host, parent, elem.get("ware", ""),
+                            float(amt) if amt else None,
                         ))
                 elif parent == "wares":
                     # only genuinely collectable objects count as floating
