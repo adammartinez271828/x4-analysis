@@ -11,7 +11,7 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 23, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 24, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
 import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
@@ -905,7 +905,7 @@ save_009.
 | `object_id` | TEXT PK, FK → `component.id` | the station | the hosting component |
 | `kind` | TEXT PK | `max` = stock (storage allocation) limit; `buy` = buy up to this stock level (buy offer = limit − stock, exact); `sell` = keep this much and sell the excess (sell offer = stock − limit, exact absent reservations) | `<overrides><max\|buy\|sell>` |
 | `ware` | TEXT PK, FK → `ware.id` | the ware | `ware@ware` |
-| `amount` | REAL | the limit, units. **NULL = the save omitted `amount`**, i.e. zero by the game's omit-defaults convention — kept NULL so "unset" stays distinguishable. Such wares still carry a 1-unit buy offer, which is not real demand | `ware@amount` |
+| `amount` | REAL | the limit, units. A **missing `amount=` means 1** (v24): the station UI floors all three limit kinds at 1 and the save omits the minimum, which is also why such wares carry a 1-unit buy offer — ordinary limit arithmetic, not a separate mechanism | `ware@amount`, defaulting to 1 |
 
 ### build_price_factor
 
@@ -1455,7 +1455,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"23"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"24"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every

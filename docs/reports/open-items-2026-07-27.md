@@ -175,9 +175,11 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   experiment: the engine's own API names
   (`GetContainerStockLimitOverrides`, `Set(Buy|Sell)LimitOverride`) name
   them, and the arithmetic is exact against live offers (buy limit −
-  stock = desired; stock − sell limit = offered). Residual unknown: a
-  ware listed with no `amount` (= zero) still carries a 1-unit buy
-  offer.
+  stock = desired; stock − sell limit = offered). The v23 residual — a
+  ware listed with no `amount` carrying a 1-unit buy offer — is resolved
+  in v24: the omitted amount is **1**, the floor the UI clamps all three
+  limits to (player-reported, then confirmed in `helper.lua`), so the
+  1-unit offer is just limit − stock.
 - **Deployable-pricing model doc** in `docs/models/` consolidating the
   formula, M, Layer 6, and the E gap (currently spread across
   save-semantics + this report + the subscription findings scratch file

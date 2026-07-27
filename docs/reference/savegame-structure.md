@@ -781,10 +781,17 @@ their buy offers):
     exact. Two other stations offer *less* than stock − limit, which is
     consistent with in-flight reservations holding the rest back
     **(not separately verified)**.
-  - A `<ware>` with **no `amount`** is the game omitting a zero (its
-    omit-defaults convention). Such wares still show a 1-unit buy offer
-    (`desired="1"`) rather than none — so a "desired 1" on a limit-zero
-    ware is not real demand. Why the engine posts it is **(unverified)**.
+  - A `<ware>` with **no `amount`** means **1**, not 0 — CONFIRMED
+    2026-07-27 (player-reported "I can't set it to 0", then found in the
+    UI code): every one of these limits is floored at 1 before it reaches
+    the engine — `if value == 0 then value = 1` in the buy/sell slider
+    handler, `SetContainerStockLimitOverride(container, ware,
+    math.max(1, currentlimit))` for the storage level
+    (`ui/addons/ego_detailmonitorhelper/helper.lua`) — so the save omits
+    the minimum as its default. This also explains the 1-unit buy offers
+    on those wares: limit 1 − stock 0 = 1, the same arithmetic as every
+    other limit, not a separate mechanism. (The wares appear on the
+    station's list at all because a build module needs them.)
   - Rare: 19 rows over 6 stations in save_009. Parsed into `ware_limit`
     (v23).
 

@@ -119,7 +119,8 @@ class SaveData:
     # manual per-ware trade/storage limits (<overrides>, v23): (object_id,
     # kind, ware, amount). kind "max" = stock (storage allocation) limit,
     # "buy" = buy up to this stock level, "sell" = keep this much and sell
-    # the excess. A missing amount attribute means 0/unset (None here).
+    # the excess. A missing amount attribute means 1, the game's floor for
+    # all three (v24 — see the handler).
     ware_limits: list = field(default_factory=list)
     # trade-station/pirate-base ware whitelists (<trade><settings><setting
     # name= wares=>): (object_id, setting, ware), one row per ware.
@@ -659,15 +660,20 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 elif gparent == "overrides" \
                         and parent in ("max", "buy", "sell"):
                     # manual per-ware limits set in the station UI. A ware
-                    # listed without an amount is the game omitting a zero
-                    # (its omit-defaults convention) — kept as NULL, not 0,
-                    # so "unset" stays distinguishable from a real 0.
+                    # listed with NO amount means 1, not 0: the UI floors
+                    # every one of these at 1 and the save omits the
+                    # minimum (`value == 0 then value = 1` in the buy/sell
+                    # slider handler, `math.max(1, currentlimit)` for the
+                    # storage level — ego_detailmonitorhelper/helper.lua).
+                    # This is why such wares still show a 1-unit buy offer:
+                    # limit 1 - stock 0 = 1, the same arithmetic as every
+                    # other limit, not a separate mechanism.
                     host = _nearest_host(comp_stack)
                     if host:
                         amt = elem.get("amount")
                         d.ware_limits.append((
                             host, parent, elem.get("ware", ""),
-                            float(amt) if amt else None,
+                            float(amt) if amt else 1.0,
                         ))
                 elif parent == "wares":
                     # only genuinely collectable objects count as floating

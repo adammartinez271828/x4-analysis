@@ -78,7 +78,9 @@ import hashlib
 #      — <prices><reference> is the station's configured price, Layer 5 of
 #      the pricing model) and ware_limit (<overrides>: the manual per-ware
 #      stock/buy/sell limits set in the station UI)
-SCHEMA_VERSION = "23"
+# v24: ware_limit.amount — a missing amount= means 1 (the UI's floor for
+#      stock/buy/sell limits), not NULL/0 as v23 assumed
+SCHEMA_VERSION = "24"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -649,7 +651,8 @@ TABLES: dict[str, str] = {
     # kind 'max'  = stock (storage allocation) limit for that ware
     #      'buy'  = buy up to this stock level (offer = limit - stock)
     #      'sell' = keep this much, sell the excess (offer = stock - limit)
-    # amount NULL = the save omitted it (its zero-default convention).
+    # amount: a missing amount= in the save means 1 — the UI floors all
+    # three limits at 1, so the minimum is the omitted default (v24).
     "ware_limit": """CREATE TABLE IF NOT EXISTS ware_limit (
   save_id   INTEGER NOT NULL,
   object_id TEXT NOT NULL,

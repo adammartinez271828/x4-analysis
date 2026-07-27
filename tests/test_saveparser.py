@@ -287,11 +287,11 @@ def test_fixture_parse(save_file: Path) -> None:
         ("[0x20]", "override", "energycells", 21.0, 0.0),
         ("[0x20]", "override", "claytronics", 0.0, 1734.0),
     ]
-    # manual per-ware limits; a ware with no amount= is the game omitting
-    # a zero, kept as None so "unset" stays distinguishable from a real 0
+    # manual per-ware limits; a ware with no amount= means 1, the floor the
+    # station UI clamps all three limit kinds to (it cannot store 0)
     assert d.ware_limits == [
         ("[0x20]", "max", "energycells", 739800.0),
-        ("[0x20]", "max", "weaponcomponents", None),
+        ("[0x20]", "max", "weaponcomponents", 1.0),
         ("[0x20]", "buy", "energycells", 739800.0),
         ("[0x20]", "sell", "siliconcarbide", 5184.0),
     ]
