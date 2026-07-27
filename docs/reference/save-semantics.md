@@ -292,5 +292,8 @@ drone recipe: the player faction's rule, not its terran storage modules.
 Anything joining `recipe` for player-built items should select
 `method = <player buildrules>` with a `default` fallback — the same
 `(ware, method) → (ware, "default")` pattern `analysis/storage.py`
-already uses on the production side. Not parsed yet (see the open-items
-report's implementation list).
+already uses on the production side. **Parsed since v21**:
+`faction_meta.build_method` + the `build_method` table, resolved by
+`v_build_method` / `frames.build_methods`, and `station_modules.method`
+now carries the resolved value (it was always empty before, so module
+build costs silently used the `default` recipe for every builder).

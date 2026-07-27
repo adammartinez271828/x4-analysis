@@ -67,7 +67,11 @@ import hashlib
 #      (trade-station buy/sell/lockavgprice ware whitelists),
 #      trade_active (escrow-stage in-flight trades with transferred
 #      units), component.known (the broad discovery flag next to knownto)
-SCHEMA_VERSION = "20"
+# v21: build method (which recipe variant gets built): faction_meta
+#      .build_method (<faction><buildrules>) + build_method (per-station
+#      <build method=> override). build_entry.build_method dropped — it
+#      was never populated and its name invited confusion with these.
+SCHEMA_VERSION = "21"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -407,7 +411,6 @@ TABLES: dict[str, str] = {
   entry_id     TEXT,
   idx          INTEGER,
   macro        TEXT,
-  build_method TEXT,
   built        INTEGER NOT NULL
 )""",
     "module_upgrade": """CREATE TABLE IF NOT EXISTS module_upgrade (
@@ -564,9 +567,10 @@ TABLES: dict[str, str] = {
     # (÷100 at load, renamed from raw-cents `account` in v15): the schema
     # convention is _cr everywhere money appears
     "faction_meta": """CREATE TABLE IF NOT EXISTS faction_meta (
-  save_id    INTEGER NOT NULL,
-  faction    TEXT NOT NULL,
-  account_cr REAL,
+  save_id      INTEGER NOT NULL,
+  faction      TEXT NOT NULL,
+  account_cr   REAL,
+  build_method TEXT,
   PRIMARY KEY (save_id, faction)
 )""",
     # rep-gated unlocks: which factions a licence type is granted for
@@ -593,6 +597,17 @@ TABLES: dict[str, str] = {
     # and DRIFT between saves (12 of 67 changed across one save pair);
     # player yards store the price slider (up to 1.5). Snapshot data — never
     # treat as a station constant.
+    # per-station build-method override (v21): <build method=> directly
+    # under a station/buildstorage component, absent when the station
+    # inherits its owner faction's rule (faction_meta.build_method).
+    # 3 rows universe-wide in save_009 — resolution order and the tag
+    # collision with build tasks are in v_build_method / parser.py.
+    "build_method": """CREATE TABLE IF NOT EXISTS build_method (
+  save_id   INTEGER NOT NULL,
+  object_id TEXT NOT NULL,
+  method    TEXT NOT NULL,
+  PRIMARY KEY (save_id, object_id)
+)""",
     "build_price_factor": """CREATE TABLE IF NOT EXISTS build_price_factor (
   save_id   INTEGER NOT NULL,
   object_id TEXT NOT NULL,
@@ -1164,6 +1179,24 @@ FROM resource r
 LEFT JOIN region_yield ry ON ry.level = r.level AND ry.ware = r.ware
 WHERE r.save_id = (SELECT save_id FROM current_save)""",
     # built modules only (measure reality, not plans — CLAUDE.md gotcha)
+    # effective build method per station (v21): the station's own override
+    # wins, else its owner faction's rule; stations with neither emit no
+    # row (they build on their race default, which the save never states).
+    # Per WARE the engine still falls back to the 'default' recipe when the
+    # ware has no variant under this method — join recipe accordingly.
+    "v_build_method": """CREATE VIEW v_build_method AS
+SELECT c.id AS object_id, c.owner,
+       COALESCE(bm.method, fm.build_method) AS method,
+       CASE WHEN bm.method IS NOT NULL THEN 'station' ELSE 'faction' END
+         AS source
+FROM component c
+LEFT JOIN build_method bm
+       ON bm.save_id = c.save_id AND bm.object_id = c.id
+LEFT JOIN faction_meta fm
+       ON fm.save_id = c.save_id AND fm.faction = c.owner
+WHERE c.class IN ('station', 'buildstorage')
+  AND c.save_id = (SELECT save_id FROM current_save)
+  AND COALESCE(bm.method, fm.build_method) IS NOT NULL""",
     "v_built_module": """CREATE VIEW v_built_module AS
 SELECT * FROM build_entry
 WHERE built = 1 AND save_id = (SELECT MAX(save_id) FROM save)""",

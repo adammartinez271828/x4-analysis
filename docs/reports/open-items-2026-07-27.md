@@ -107,7 +107,7 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   against `sectors.csv` (offline, minor; the committed data is
   unaffected).
 
-## 2. Suggested implementation todos (code, none started)
+## 2. Suggested implementation todos (code; one done — build method, v21)
 
 - **`buildpricefactor` history (trend layer).** v20 stores it per
   snapshot in a W table — wiped on every import. Since it drifts, a
@@ -135,16 +135,17 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   `<trade>` rows + `<reservations>` are still not persisted; needed
   before any in-DB economy-price computation. (Mechanism known-exact
   from the GMD-272 validation.)
-- **Parse the build method** (new, 2026-07-27): `<faction><buildrules
-  method>` (3 rows universe-wide → `faction_meta`) plus the per-station
-  `<build method>` override (3 stations → a station column). Together
-  they are the correct method key for every recipe join on player-built
-  items (drones, deployables, ships) — currently those joins have no
-  method at all, which silently uses the wrong recipe for a non-default
-  player. Two handler lines; natural v21 rider next to
-  `<supplies><orders>`. Keep the per-ware `default` fallback, and beware
-  the tag collision: `<build>` under a `buildprocessor` is a build *task*,
-  under a station/buildstorage with only `@method` it is this override.
+- ~~**Parse the build method**~~ — **DONE (v21, 2026-07-27)**:
+  `faction_meta.build_method` + the `build_method` table (per-station
+  override), resolved by `v_build_method` / `frames.build_methods`.
+  `station_modules.method` now carries the resolved value instead of the
+  always-empty `build_entry.build_method` (dropped), so module build
+  costs stop silently using the `default` recipe for a Terran or
+  Closed-Loop builder. Validated against the engine on save_009: every
+  in-flight build task's method equals the resolved value for its host.
+  Still open: recipe consumers that pick a method themselves
+  (`viz/market.py`, `analysis/storage.py` production side) are untouched
+  — they model production, not building.
 - **wares.csv `price_min`/`price_max`**: extract-gamedata only captures
   `price_avg`; the supply curve needs the band. Small extraction change
   + committed-CSV regeneration.

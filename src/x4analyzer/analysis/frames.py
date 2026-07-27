@@ -86,12 +86,20 @@ class Frames:
     # faction diplomacy (universe/factions):
     #   faction_relations: faction, other, base, booster, effective (clamped)
     #   faction_discounts: faction, other, discount (trade discount fraction)
-    #   faction_meta: faction, account_cr (treasury, credits)
+    #   faction_meta: faction, account_cr (treasury, credits), build_method
+    #     (the faction's preferred build method, "" when it uses its race
+    #     default — see build_methods for the resolved per-station answer)
     #   faction_licences: faction, type, factions (rep-gated unlocks)
     faction_relations: pd.DataFrame = None
     faction_discounts: pd.DataFrame = None
     faction_meta: pd.DataFrame = None
     faction_licences: pd.DataFrame = None
+    # effective build method per station/build storage (v21): id, method,
+    # resolved station-override → faction rule (v_build_method). Stations
+    # on their race default emit no row. Per WARE, a recipe lookup must
+    # still fall back to method 'default' when the ware has no variant
+    # under this method — that is the engine's own rule.
+    build_methods: pd.DataFrame = None
 
     # storage-allocation model (analysis/storage.py): per (station id, ware)
     # max_units / max_volume / throughput / transport / role. Computed after
@@ -362,10 +370,19 @@ def build_frames(save: SaveData, ref: RefData,
     # build-plan entries were deduped per (host, entry) at database load
     # (stations list their plan twice: construction sequence + expand queue)
     module_list = _read(conn, f"""
-        SELECT host_id AS id, idx AS "index", macro, entry_id AS entry,
-               build_method AS method, built
+        SELECT host_id AS id, idx AS "index", macro, entry_id AS entry, built
         FROM build_entry WHERE save_id = {_CUR} ORDER BY rowid""",
-        fill=["macro", "entry", "method"])
+        fill=["macro", "entry"])
+    # "method" is the RECIPE VARIANT the host builds with (v21): its own
+    # <build method=> override, else its owner faction's <buildrules>, else
+    # "" (race default). Until v21 this column came from build_entry, where
+    # it was always empty — every consumer silently costed modules with the
+    # default recipe even for a Terran/Closed-Loop builder.
+    build_methods = _read(conn, f"""
+        SELECT object_id AS id, method FROM v_build_method""")
+    method_map = dict(zip(build_methods["id"], build_methods["method"])) \
+        if not build_methods.empty else {}
+    module_list["method"] = module_list["id"].map(method_map).fillna("")
     modules = module_list.groupby("id", as_index=False)["index"].max()
     modules = modules.rename(columns={"index": "modules"})
 
@@ -679,8 +696,10 @@ def build_frames(save: SaveData, ref: RefData,
             FROM ship_engine WHERE save_id = {_CUR} ORDER BY rowid"""),
         faction_relations=faction_relations, faction_discounts=faction_discounts,
         faction_meta=_read(conn, f"""
-            SELECT faction, account_cr FROM faction_meta
-            WHERE save_id = {_CUR} ORDER BY rowid"""),
+            SELECT faction, account_cr, build_method FROM faction_meta
+            WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["build_method"]),
+        build_methods=build_methods,
         faction_licences=_read(conn, f"""
             SELECT faction, type, factions FROM faction_licence
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["factions"]),

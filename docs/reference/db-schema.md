@@ -11,12 +11,15 @@ explicit `derived:` or `reference:` marker instead.
 The schema is defined in `db/schema.py` (DDL, versioning, views) and
 populated by `db/store.py` (load, merge, entity registry). Everything below
 was verified against the real populated database of the current playthrough
-(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 20, B20 re-census
+(`x4_8E0C8E37-….sqlite`, 167 MB, `schema_version` 21, B20 re-census
 2026-07-24: 17,470 current-snapshot components, 412,385 stock events,
 41,507 entities; v18 supply-offer columns verified on the save_007
 import 2026-07-26: 15,418 offers, 1,140 `supplies`-flagged; v19
 subscription/price-factor tables verified on the save_008 import
-2026-07-27: 10,705 subscriptions, 68 build price factors). Out of scope:
+2026-07-27: 10,705 subscriptions, 68 build price factors; v21 build
+method verified on the save_009 import 2026-07-27: 3 faction rules,
+3 station overrides, 104 stations resolved by `v_build_method`). Out of
+scope:
 the `analysis/frames.py` layer and the dashboards — this document stops at
 the DB and its views.
 
@@ -521,7 +524,6 @@ savegame-structure.md § Stations.
 | `entry_id` | TEXT | sequence-entry id (NULL for entries without one) | `entry@id` |
 | `idx` | INTEGER | build-order index | `entry@index` |
 | `macro` | TEXT, FK → `module_ref.macro` / `module_cap.macro` | module macro, lowercased | `entry@macro` |
-| `build_method` | TEXT | enclosing build task's method — **defined but never populated** (sequence entries never sit under a `<build method=…>` in observed saves) | `build@method` |
 | `built` | INTEGER | 1 = a finished component exists for this entry (`state="construction"` still counts as unbuilt); entries without an id default to built | derived: `component@construction` back-references |
 
 Anything measuring existing capacity/value must filter `built = 1`
@@ -767,6 +769,10 @@ Unlisted pair = neutral. Save-side: savegame-structure.md § `<factions>`
 | `save_id` | INTEGER PK, FK → `save` | snapshot | — |
 | `faction` | TEXT PK, FK → `faction.id` | faction id, lowercased | `factions/faction@id` |
 | `account_cr` | REAL | treasury, credits (÷ 100 at load since v15; only the player faction carries one in this playthrough) | `faction/account@amount` ÷ 100 |
+| `build_method` | TEXT | the faction's preferred build method — which recipe variant its yards/stations build with (v21). NULL = the faction uses its race default; only 3 factions state one (`player` = the UI's *Default preferred build method*, `scavenger`/`loanshark` closedloop) | `faction/buildrules@method` |
+
+Rows are keyed on the **union** of the two sources: a faction may have a
+treasury, a build rule, or both.
 
 #### faction_licence
 
@@ -804,6 +810,35 @@ The game retains expired rows; consumers filter
 | `save_id` | INTEGER PK, FK → `save` | snapshot | — |
 | `object_id` | TEXT PK, FK → `component.id` | subscribed object (ships, stations, build storages) | `memory/subscriptions/item@component` |
 | `expires_at` | REAL | absolute expiry, game seconds; NULL = permanent subscription | same element `@time` |
+
+### build_method
+
+The per-**station** build-method override (v21): which recipe variant this
+station builds ships/drones/deployables/modules with, when it does not
+inherit its owner faction's rule (`faction_meta.build_method`). Save-side:
+savegame-structure.md § Stations. 3 rows in save_009 — the player's
+ABR-398 (set to Closed Loop in-game) and two alliance stations.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `object_id` | TEXT PK, FK → `component.id` | the station / build storage | the hosting component |
+| `method` | TEXT | recipe method, lowercased (`terran`, `closedloop`, `default`, …) | `component/build@method` |
+
+**Parser discriminator** (`<build>` is overloaded three ways): a build
+*task* lives under a `buildprocessor` and always carries `order=`;
+construction progress sits under a station/build storage with no
+attributes and `<resources>` children; this override is the one whose
+parent component is a station/`buildstorage` and which has **no** `order`.
+Do not key on "has only `@method`" — a yard's config element also carries
+a `<ship absolute="…"/>` child.
+
+Resolution (`v_build_method`): station override → faction rule → the
+race default (which the save never states, so no row). Validated against
+the engine on save_009: every in-flight build task's `method` equals the
+resolved value for its host, including ABR-398's module construction
+switching to `closedloop` while the player's other five tasks stayed
+`terran`.
 
 ### build_price_factor
 
@@ -1314,6 +1349,7 @@ what it is.
 | `v_station` | `component` (stations) + `sector_ref` + correlated rollups over `build_entry`/`workforce`/`cargo`+`ware` | `id`, `entity_id`, `name`, `basename`, `code`, `owner`, `sector_macro`, `sector_name`, `sx`, `sz`, `knownto`, `modules_built` (built plan entries only), `workforce` (Σ amount), `cargo_volume_m3` (Σ amount × ware volume) | "the concept *station*, assembled" — one row per station in the current snapshot with the rollups frames used to pivot in pandas |
 | `v_player_fleet` | `fleet_edge` + 2× `component` | `follower_id`, `follower_entity`, `commander_id`, `commander_entity` | "the player's fleet edges, entity-keyed" — the ONE fleet resolution (write_snapshot's), player-filtered; `merge_events` takes its commander-attribution map from here and `frames.wings` reads it. Edges touching connectionless components are absent (the retired save-side `_player_edges` kept them — measured equivalent, 0 divergent edges, pinned in `test_views_parity.py`) |
 | `v_resource_area` | `resource` + `region_yield` | `sector_macro`, `ware`, `yield`, `level`, `speed`, `starttime`, `capacity`, `respawn_min`, `status` (`live`/`full`/`respawning`/`never`/`unknown`) | "what can I mine right now, where" — the confirmed timer/eligibility layer of the respawn model as SQL (an empty area past its `starttime` is respawned & full even though its stored yield reads 0). Caveats: `full` reports the *reference* capacity — correct for every ware incl. nividium (B11 confirmed materialize-to-full 2026-07-24; the review's below-cap nividium tail was drawdown between saves); depletion RELOCATES the area within its sector (B5 settled it: ~95% of full depletions move the record, a 20 km-lattice step per axis), so nothing position-keyed may be layered on it — the view's sector granularity is exactly the relocation-proof choice. Verified 0 status mismatches vs frames' classification on all areas (re-run the check if B21 changes the regionyields extraction) |
+| `v_build_method` | `component` + `build_method` + `faction_meta` | `object_id`, `owner`, `method`, `source` (`station` = own override, `faction` = inherited rule) | "which recipe variant does this station build with" — stations on their race default emit no row; per WARE a recipe lookup must still fall back to method `default` when the ware has no variant (the engine's own rule) |
 | `v_built_module` | `build_entry` filtered | `build_entry.*` where `built = 1` | "what is physically built" (plans excluded — the capacity-overcount gotcha; the view keeps its pre-v15 name, its meaning was always right) |
 | `v_npc` | `npc` + pivoted `npc_skill` | `npc.*` + `piloting`, `engineering`, `boarding`, `management`, `morale` | "crew skills as a wide table" |
 | `v_station_storage` | `station_storage` + `component` + `sector_ref` + `ware` | model columns + `station_code`, `station_name`, `sector_name`, `ware_name` | "what does this station stock and how much room did it allocate" |
@@ -1351,7 +1387,7 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"17"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"21"`) is stored in `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every
@@ -1411,7 +1447,6 @@ that step's own migration statements instead.
 
 | Column | Why |
 |---|---|
-| `build_entry.build_method` | sequence entries never sit under a `<build method=…>` element in observed saves — always NULL |
 | `removed_object.time` | v9 removed-object elements carry no `time` attribute |
 | `datavault.blueprints` | populated only while uncollected Erlking blueprints exist; this playthrough collected them all |
 | `event_construction`, `event_transfer` | `event_construction` fills only when construction/repair/resupply log events exist (one v9 resupply row in the 559 h DB); `event_transfer` has zero archived surplus-transfer instances anywhere and its v5.10-ported wording remains unverifiable. (`event_destroyed` left this list 2026-07-24: the events existed all along in the new v9 wording — the parser was rewritten and the archived rows now populate it, 6 in the reference DB / 157 in the 559 h DB.) |

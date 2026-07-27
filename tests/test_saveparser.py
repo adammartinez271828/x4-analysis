@@ -15,6 +15,7 @@ FIXTURE = """<?xml version="1.0"?>
   <universe>
     <factions>
       <faction id="player">
+        <buildrules method="terran"/>
         <custom><name name="Testers"/></custom>
       </faction>
       <faction id="argon"/>
@@ -73,8 +74,16 @@ FIXTURE = """<?xml version="1.0"?>
             <build><resources><insufficient>
               <ware ware="claytronics" amount="1000"/>
             </insufficient></resources></build>
+            <build method="closedloop"/>
             <connections>
               <connection connection="subordinates" id="[0xC1]"/>
+              <connection connection="build">
+                <component class="buildprocessor" id="[0x25]" connection="build">
+                  <build method="argon" order="[0x9]" type="build" state="inprogress">
+                    <nextresources><ware ware="hullparts" amount="10"/></nextresources>
+                  </build>
+                </component>
+              </connection>
               <connection connection="dock">
               <component class="ship_s" macro="ship_test_macro" id="[0x30]"
                          owner="player" code="SHP-001" connection="dock">
@@ -240,7 +249,14 @@ def test_fixture_parse(save_file: Path) -> None:
     assert ("[0x20]", "argon", 50.0) in d.workforce
     # module count keeps max construction index; macro kept for market stats
     assert max(m[1] for m in d.modules if m[0] == "[0x20]") == 3
-    assert ("[0x20]", 1, "mod_a_macro", "[0x50]", "") in d.modules
+    assert ("[0x20]", 1, "mod_a_macro", "[0x50]") in d.modules
+
+    # build method (v21). <build> is overloaded three ways and only one of
+    # them is the per-station override: the fixture carries all three — the
+    # station's construction-progress block (no attributes), a build TASK
+    # under a buildprocessor (method= AND order=), and the override itself.
+    assert d.faction_build_rules == [("player", "terran")]
+    assert d.station_build_methods == [("[0x20]", "closedloop")]
 
     assert len(d.npcs) == 1
     npc = d.npcs[0]

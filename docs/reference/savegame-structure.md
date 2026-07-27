@@ -232,7 +232,8 @@ and identity:
   `<buildrules>`), each NPC faction on its own race method. The lone
   exception, `alliance` building `closedloop` without a faction rule, is
   explained by the per-station override below: its two build tasks sit at
-  exactly the two alliance stations that carry one.
+  exactly the two alliance stations that carry one. Parsed into
+  `faction_meta.build_method` (v21).
 - Per-**station** override (station configuration menu → *Preferred build
   method*, `SetContainerBuildMethod`; empty string = inherit the faction
   rule): serialized as `<build method="…"/>` directly under the station or
@@ -442,7 +443,8 @@ Direct children of a `station` component, in observed order:
   saves as `<build method="closedloop"/>`, between `<buildtasks>` and
   `<overrides>`. Only 3 exist in save_009 — ABR-398 plus alliance's
   YZJ-839 (on the `buildstorage` component) and GFG-641 (station, with
-  the `<ship>` list); absence = inherit the faction rule.
+  the `<ship>` list); absence = inherit the faction rule. Parsed into the
+  `build_method` table (v21); the `<ship>` list is not captured.
 - `<snapshot>` — repeats sequence-entry data. *(not yet documented)*
 - `<buildplot>` — the station's build-plot definition. *(not yet
   documented)*

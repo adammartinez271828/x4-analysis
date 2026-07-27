@@ -38,6 +38,16 @@ ids. Wormholes/anomalies are likewise collected here (every
 If you need new data from the save, add a handler here, not a second pass
 (the Conventions rule in CLAUDE.md).
 
+**Overloaded tags need a structural discriminator, not a shape guess.**
+`<build>` is the live example: a build *task* under a `buildprocessor`
+(always `order=`), construction progress under a station/build storage
+(no attributes, `<resources>` children), and the per-station build-method
+override (parent is a station/`buildstorage`, no `order=`) — the parser
+tests the parent component's class plus the absent attribute, never
+"carries only `@method`" (a yard's config element also holds a `<ship>`
+list). Same rule elsewhere: `<booster>` is disambiguated by its parent
+(`<relations>` vs `<discounts>`).
+
 ## save/landmarks.py + save/find.py — the `find` subcommand
 
 A small SEPARATE iterparse sweep (~18 s; B20 re-measure 2026-07-24) that locates components by macro

@@ -347,16 +347,16 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
         built = set(save.built_refs)
         seen: set[tuple] = set()
         entry_rows = []
-        for host, idx, macro, entry, method in save.modules:
+        for host, idx, macro, entry in save.modules:
             if entry:
                 if (host, entry) in seen:
                     continue
                 seen.add((host, entry))
             entry_rows.append(
-                (save_id, host, _s(entry), idx, _low(macro), _s(method),
+                (save_id, host, _s(entry), idx, _low(macro),
                  1 if (entry in built or not entry) else 0))
         conn.executemany(
-            "INSERT INTO build_entry VALUES (?,?,?,?,?,?,?)", entry_rows)
+            "INSERT INTO build_entry VALUES (?,?,?,?,?,?)", entry_rows)
 
         conn.executemany(
             "INSERT INTO module_upgrade VALUES (?,?,?)",
@@ -506,12 +506,22 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
                      for (a, b, v, t) in save.faction_discounts]
         conn.executemany(
             "INSERT INTO faction_relation VALUES (?,?,?,?,?,?)", rel_rows)
+        # faction_meta carries the treasury and the preferred build method;
+        # the two come from different blocks and neither is universal, so
+        # key on the union (most factions have an account and no build rule)
+        accounts = {_low(f): _cents(amount)
+                    for (f, amount) in save.faction_accounts}
+        rules = {_low(f): _low(m) for (f, m) in save.faction_build_rules}
         conn.executemany(
-            "INSERT OR REPLACE INTO faction_meta VALUES (?,?,?)",
+            "INSERT OR REPLACE INTO faction_meta VALUES (?,?,?,?)",
             # treasuries are cents in the save; account_cr is credits like
             # every other money column (v15, plan T11)
-            [(save_id, _low(f), _cents(amount))
-             for (f, amount) in save.faction_accounts])
+            [(save_id, f, accounts.get(f), rules.get(f))
+             for f in dict.fromkeys([*accounts, *rules])])
+        conn.executemany(
+            "INSERT OR REPLACE INTO build_method VALUES (?,?,?)",
+            [(save_id, oid, _low(method))
+             for (oid, method) in save.station_build_methods if oid])
         conn.executemany(
             "INSERT INTO faction_licence VALUES (?,?,?,?)",
             [(save_id, _low(f), _s(typ), _s(facs))

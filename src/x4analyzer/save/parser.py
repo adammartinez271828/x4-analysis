@@ -67,7 +67,7 @@ class SaveData:
     posts: list = field(default_factory=list)          # (object_id, post, npc_ref)
     workforce: list = field(default_factory=list)      # (station_id, race, amount)
     modules: list = field(default_factory=list)
-    # (host_id, index, macro, entry_id, build_method)
+    # (host_id, index, macro, entry_id)
     # sequence-entry ids that have a constructed component (module built)
     built_refs: list = field(default_factory=list)
     # equipment in planned module loadouts: (entry_id, equipment_macro)
@@ -173,6 +173,14 @@ class SaveData:
     faction_discounts: list = field(default_factory=list)  # (faction, other, amount, time)
     faction_accounts: list = field(default_factory=list)   # (faction, amount)
     faction_licences: list = field(default_factory=list)   # (faction, type, factions_csv)
+    # preferred build method, i.e. which recipe variant a faction's yards
+    # and stations build with (v21). Faction rule: <faction><buildrules
+    # method=>, written only when it differs from the race default (3 rows
+    # universe-wide; the player's is the UI's "Default preferred build
+    # method"). Station override: <build method=> directly under a station
+    # or buildstorage component, absent when the station inherits.
+    faction_build_rules: list = field(default_factory=list)   # (faction, method)
+    station_build_methods: list = field(default_factory=list)  # (id, method)
     # False when the save was started with local (ring) highways
     # disabled: such saves contain no class="highway" components
     has_highways: bool = False
@@ -232,7 +240,6 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     npc_stack: list[list] = []       # open npc records awaiting <skills>
     entry_stack: list[str] = []      # open construction sequence entries
     build_type_stack: list[str] = []  # type attr of open <build> elements
-    build_method_stack: list[str] = []  # method attr of open <build> elements
     sector_macro_stack: list[str] = []
     # open data-vault components awaiting their loot/unlock children
     vault_stack: list[list] = []
@@ -286,7 +293,23 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         ])
                 elif tag == "build":
                     build_type_stack.append(elem.get("type", ""))
-                    build_method_stack.append(elem.get("method", ""))
+                    # <build> is overloaded: a build TASK under a
+                    # buildprocessor (always carries order=), construction
+                    # progress under a station/buildstorage (no attributes,
+                    # <resources> children), or — this branch — the
+                    # station's build config, whose method= is the
+                    # per-station build-method override (v21). Discriminate
+                    # on the parent component's class + the absent order=,
+                    # never on "has only method" (the config element also
+                    # carries a <ship absolute=> list on yards).
+                    if (elem.get("method") and elem.get("order") is None
+                            and len(tag_stack) > 1
+                            and tag_stack[-2] == "component"
+                            and comp_stack
+                            and comp_stack[-1][0] in ("station",
+                                                      "buildstorage")):
+                        d.station_build_methods.append(
+                            (comp_stack[-1][1], elem.get("method", "")))
                 elif tag == "entry" and elem.get("index") \
                         and elem.get("macro"):
                     entry_stack.append(elem.get("id", ""))
@@ -569,8 +592,6 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                                 host, int(elem.get("index")),
                                 elem.get("macro", "").lower(),
                                 elem.get("id", ""),
-                                build_method_stack[-1]
-                                if build_method_stack else "",
                             ))
                         except ValueError:
                             pass
@@ -627,8 +648,6 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag == "build":
                 if build_type_stack:
                     build_type_stack.pop()
-                if build_method_stack:
-                    build_method_stack.pop()
 
             elif tag == "order":
                 if object_stack and elem.get("order"):
@@ -771,6 +790,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     d.faction_licences.append((
                         faction_id_stack[-1], elem.get("type", ""),
                         elem.get("factions", "")))
+
+            elif tag == "buildrules":
+                # a faction's preferred build method: <buildrules method=>
+                if faction_id_stack and elem.get("method"):
+                    d.faction_build_rules.append((
+                        faction_id_stack[-1], elem.get("method", "")))
 
             elif tag == "account":
                 # a faction's treasury: <account id= amount=>
