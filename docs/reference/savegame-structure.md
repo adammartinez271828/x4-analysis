@@ -224,18 +224,20 @@ and identity:
   (player-confirmed 2026-07-27: setting = Terran ⇔ `method="terran"`, and
   it is the only `<buildrules>` in the player's tree). Written only when
   a faction's rule differs from its library default — 3 elements in every
-  one of the 13 archived saves (`player` terran, `scavenger` and
-  `loanshark` closedloop); factions without one still build by their own
-  rule (`alliance` builds `closedloop`). CONFIRMED against every in-flight
-  build order in save_008: `build@method` is constant per *builder
-  faction* across all 499 tasks and never varies with the station's module
-  race — player 12/12 `terran` (matching its `<buildrules>`), the 15 NPC
-  factions each on their own race method (`alliance` on `closedloop`).
-- Per-**station** override: exists in the game (station configuration menu
-  → *Preferred build method*, `SetContainerBuildMethod` on the build
-  storage; empty string = inherit the faction rule), but no station in any
-  archived save has one set, so **its serialization is unobserved** —
-  presumably a `<buildrules>` under the station/build-storage component.
+  archived save (`player` terran, `scavenger` and `loanshark` closedloop);
+  factions without one build on their race's default method. CONFIRMED
+  against every in-flight build order in save_008: `build@method` is
+  constant per *builder faction* across all 499 tasks and never varies
+  with the station's module race — player 12/12 `terran` (matching its
+  `<buildrules>`), each NPC faction on its own race method. The lone
+  exception, `alliance` building `closedloop` without a faction rule, is
+  explained by the per-station override below: its two build tasks sit at
+  exactly the two alliance stations that carry one.
+- Per-**station** override (station configuration menu → *Preferred build
+  method*, `SetContainerBuildMethod`; empty string = inherit the faction
+  rule): serialized as `<build method="…"/>` directly under the station or
+  `buildstorage` component — **CONFIRMED** by a controlled change, see
+  § Stations. It is *not* a second `<buildrules>` element.
   Effective method per ware = the chosen method if that ware has a recipe
   under it, else `default` (the engine's own fallback, stated in
   `menu_station_configuration.lua`).
@@ -427,6 +429,20 @@ Direct children of a `station` component, in observed order:
 - `<economylog>` — self-closing per-station stub with attributes
   (`cargo="0" offer="0"`), not a structural variant of the top-level block.
 - `<buildtasks>` — in-progress build tasks (below, under build storages).
+- `<build>` — the station's **build configuration** (rare; not the build
+  *task* element of the same name, which lives under `buildprocessor`
+  components and carries `order`/`state`/`step`/… attributes). Written
+  only when the station deviates from its faction defaults:
+  `@method` = the per-station **build-method override**
+  (savegame-structure § factions, save-semantics.md § Build method), and
+  an optional `<ship absolute="…"/>` child lists the ship macros the yard
+  offers. CONFIRMED 2026-07-27 by a controlled in-game change: ABR-398
+  (player, faction rule `terran`) had no `<build>` element in save_008;
+  after setting *Preferred build method → Closed Loop* on that station it
+  saves as `<build method="closedloop"/>`, between `<buildtasks>` and
+  `<overrides>`. Only 3 exist in save_009 — ABR-398 plus alliance's
+  YZJ-839 (on the `buildstorage` component) and GFG-641 (station, with
+  the `<ship>` list); absence = inherit the faction rule.
 - `<snapshot>` — repeats sequence-entry data. *(not yet documented)*
 - `<buildplot>` — the station's build-plot definition. *(not yet
   documented)*

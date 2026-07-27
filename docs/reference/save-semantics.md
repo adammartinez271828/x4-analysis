@@ -274,10 +274,14 @@ customer's faction:
   preferred build method* — Terran / Universal (= `default`, everything
   non-terran) / Closed Loop (= `closedloop`, claytronics + hull parts).
   Stable across all 13 archived saves here (`terran`).
-- A per-station override exists in-game (station configuration menu,
-  `SetContainerBuildMethod` on the build storage; unset = inherit the
-  faction rule). None is set in any archived save, so how it serializes
-  is **not yet observed**.
+- A per-station override (station configuration menu; unset = inherit the
+  faction rule) serializes as `<build method="…"/>` directly under the
+  station / `buildstorage` component — **CONFIRMED 2026-07-27** by a
+  controlled change: ABR-398 carried no such element while inheriting the
+  player's `terran` rule, and gained `<build method="closedloop"/>` the
+  moment it was set to Closed Loop in-game (save_009). Three stations
+  universe-wide have one. Resolution order for anything that builds:
+  station override → faction `<buildrules>` → race default.
 - Per ware, the effective method is the chosen one *if that ware has a
   recipe under it*, else `default` — the engine's own fallback, so a
   Terran player still builds `default`-only items (e.g. laser towers)

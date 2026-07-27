@@ -74,11 +74,13 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
    over all 499 in-flight build tasks in save_008 and never tracks module
    race (player 12/12 terran); the element is byte-identical in all 13
    archived saves; NPC factions without one build on their own race rule
-   (`alliance` → closedloop). The per-station override is real but unset
-   here (`Get/SetContainerBuildMethod` in
-   `menu_station_configuration.lua`, empty string = inherit), so its
-   serialization is the only piece still unobserved — one save with an
-   override set would settle it. Per-ware fallback to `default` when the
+   (`alliance` → closedloop, which turned out to be per-station
+   overrides, not a faction default). The per-station override was then
+   settled the same day by a controlled in-game change: ABR-398 set to
+   Closed Loop → save_009 gains `<build method="closedloop"/>` as a direct
+   child of the station component (no such element while inheriting).
+   Resolution order: station override → faction `<buildrules>` → race
+   default. Per-ware fallback to `default` when the
    ware has no recipe under the chosen method is the engine's own rule.
    Written up in savegame-structure.md § factions and save-semantics.md
    § Build method.
@@ -133,12 +135,16 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   `<trade>` rows + `<reservations>` are still not persisted; needed
   before any in-DB economy-price computation. (Mechanism known-exact
   from the GMD-272 validation.)
-- **Parse `<faction><buildrules method>`** (new, 2026-07-27): three rows
-  universe-wide, one handler line, and it is the correct method key for
-  every recipe join on player-built items (drones, deployables, ships) —
-  currently those joins have no method at all. Natural v21 rider next to
-  `<supplies><orders>`; store on `faction_meta`, and keep the per-ware
-  `default` fallback.
+- **Parse the build method** (new, 2026-07-27): `<faction><buildrules
+  method>` (3 rows universe-wide → `faction_meta`) plus the per-station
+  `<build method>` override (3 stations → a station column). Together
+  they are the correct method key for every recipe join on player-built
+  items (drones, deployables, ships) — currently those joins have no
+  method at all, which silently uses the wrong recipe for a non-default
+  player. Two handler lines; natural v21 rider next to
+  `<supplies><orders>`. Keep the per-ware `default` fallback, and beware
+  the tag collision: `<build>` under a `buildprocessor` is a build *task*,
+  under a station/buildstorage with only `@method` it is this override.
 - **wares.csv `price_min`/`price_max`**: extract-gamedata only captures
   `price_avg`; the supply curve needs the band. Small extraction change
   + committed-CSV regeneration.
