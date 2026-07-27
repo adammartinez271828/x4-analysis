@@ -252,3 +252,44 @@ def test_identical_ships_roll_up():
     (s,) = player_trade_ships(frames, _ref())
     # same model/size/hold/speed (all engine-less): one entry, count 3
     assert s["l"] == "Boa ×3" and s["n"] == 3
+
+
+def test_lockavgprice_endpoints_are_tagged_and_supplies_are_exempt():
+    """Pricing Layer 6: a ware in a station's lockavgprice whitelist is
+    pegged at band average, so its quote does not slide as the trade
+    fills — the lane marks that endpoint `lk`. A supplies-flagged buy on
+    the SAME (station, ware) is exempt from the lock (it prices off need),
+    so it must stay unmarked even though the pair is whitelisted."""
+    offers = pd.DataFrame(
+        [("sell_npc", "sell", "silicon", 500.0, 171.0, ""),
+         ("buy_npc", "buy", "silicon", 300.0, 460.0, ""),
+         ("buy_que", "buy", "silicon", 300.0, 455.0,
+          "supplies|invertfactionrestriction")],
+        columns=["id", "side", "ware", "amount", "price", "flags"])
+    frames = _frames(offers)
+    frames.trade_settings = pd.DataFrame(
+        [("sell_npc", "lockavgprice", "silicon"),
+         ("buy_npc", "lockavgprice", "silicon"),
+         ("buy_que", "lockavgprice", "silicon"),
+         ("sell_npc", "buy", "advancedelectronics")],   # other settings ignored
+        columns=["id", "setting", "ware"])
+    rows = build_opportunities(frames, _ref(), _cfg())
+
+    by_buyer = {r["b"]["l"]: r for r in rows}
+    locked = by_buyer["Fab (BBB-222)"]
+    assert locked["s"].get("lk") == 1 and locked["b"].get("lk") == 1
+    # the supplies-flagged buy is on a locked pair but exempt from the lock
+    supply = by_buyer["Barter Post (QQQ-444)"]
+    assert "lk" not in supply["b"]
+    assert supply["s"].get("lk") == 1        # its seller side still locked
+
+
+def test_no_trade_settings_means_no_locked_tags():
+    """Frames without the whitelist (older DB, hand-built frames) must not
+    grow a lock flag — the tag is evidence, not a default."""
+    rows = build_opportunities(_frames(_offers([
+        ("sell_npc", "sell", "silicon", 500.0, 171.0),
+        ("buy_npc", "buy", "silicon", 300.0, 460.0),
+    ])), _ref(), _cfg())
+    (r,) = rows
+    assert "lk" not in r["s"] and "lk" not in r["b"]

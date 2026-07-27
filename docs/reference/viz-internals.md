@@ -36,7 +36,12 @@ transact at 0 Cr — one rule that makes own-origin lanes pure profit and
 drops NPC→player and player→player pairs on the positive-spread filter;
 Quettanauts (`kaori`, barter-only) are flagged and UI-excluded by default;
 depth (min of the two offer amounts) caps all totals since quoted prices
-move against large trades; spoilers hide undiscovered endpoints. Ship
+move against large trades — **except on `lockavgprice` endpoints**
+(pricing Layer 6), which are pegged at band average whatever their stock,
+tagged `lk` in the payload and badged *locked* in the table; a
+`supplies`-flagged buy on a locked ware is exempt from the lock and stays
+untagged (216 tagged endpoints in save_009). Spoilers hide undiscovered
+endpoints. Ship
 presets are the PLAYER's trade ships with loadout travel speed (save
 engines × engines.csv thrust·travel_mult ÷ ships.csv drag_forward — the
 in-game encyclopedia formula) and each lane carries its real route length

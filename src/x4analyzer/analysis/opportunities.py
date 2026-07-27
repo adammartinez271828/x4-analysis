@@ -22,6 +22,14 @@ Quoted prices are one point on the game's price curve — a large trade
 moves the price against the trader — so every pair carries its depth
 (min of the two offer amounts) and the client caps per-trip figures by
 hold size and depth rather than extrapolating the quote.
+
+The one documented exception is pricing **Layer 6**: wares in a trade
+station's / pirate base's `lockavgprice` whitelist are pegged at band
+average regardless of stock (CONFIRMED, save-semantics.md § pricing), so
+their quote does NOT slide as the trade fills — such endpoints are marked
+`lk` and the depth caveat does not apply to them. `supplies`-flagged
+self-supply buys are exempt from the lock even on a locked ware, so they
+are never marked.
 """
 
 from __future__ import annotations
@@ -193,6 +201,24 @@ def build_opportunities(frames: Frames, ref: RefData,
     if off.empty:
         return []
 
+    # pricing Layer 6: (station, ware) pairs pegged at band average. The
+    # lock is a property of the STATION's whitelist, but a supplies-flagged
+    # buy on a locked ware prices off need instead (v18 discriminator
+    # composing with the lock), so those offers stay unmarked.
+    locked: set[tuple[str, str]] = set()
+    ts = getattr(frames, "trade_settings", None)
+    if ts is not None and len(ts):
+        locked = {(str(r.id), str(r.ware))
+                  for r in ts[ts["setting"] == "lockavgprice"].itertuples(
+                      index=False)}
+    # `flags` is absent in hand-built frames (tests) — defensive by
+    # convention: no flags simply means no supplies exemption to apply
+    flags = off["flags"] if "flags" in off.columns else ""
+    off["locked"] = [
+        1 if ((str(i), str(w)) in locked and "supplies" not in str(f)) else 0
+        for i, w, f in zip(off["id"], off["ware"],
+                           flags if len(locked) else [""] * len(off))]
+
     vol_map = dict(zip(
         ref.wares["id"],
         pd.to_numeric(ref.wares["volume"], errors="coerce").fillna(0.0)))
@@ -265,6 +291,8 @@ def build_opportunities(frames: Frames, ref: RefData,
             d["qt"] = 1
         if r.get("bs"):
             d["c"] = 1   # construction site buyer
+        if r.get("locked"):
+            d["lk"] = 1  # price pegged at band average (Layer 6)
         return d
 
     rows: list[dict] = []

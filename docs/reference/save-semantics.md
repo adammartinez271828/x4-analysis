@@ -196,7 +196,15 @@ knowledge, not yet a feature.
   exactly (588/588 offers in save_008, zero variance), buy = avg − 1 Cr —
   regardless of stock; the supply curve does not apply. Layer-3 discounts
   still stack on top (EBT-957 microlattice: 46.75 = 50 × (1 − 2.0% − 4.5%)),
-  so locked wares stay arbitrage-able with reputation. Their *unlocked*
+  so locked wares stay arbitrage-able with reputation. Re-confirmed on
+  save_009: all 588 locked sell offers sit exactly at band average (zero
+  variance), all 587 locked non-supply buys at exactly avg − 1 Cr, and
+  the 13 supplies-flagged buys on locked wares price at 1.07–1.222× avg.
+  **Consumers**: `frames.trade_settings` carries the whitelist and
+  `analysis/opportunities.py` honours it (locked endpoints are exempt
+  from the moves-against-you depth caveat, supplies-flagged offers
+  excluded from the marking); any future storage-curve price model must
+  skip locked (station, ware) pairs entirely. Their *unlocked*
   wares at the same stations price off need as usual (Layer 4), and so do
   `supplies`-flagged self-supply buys even ON locked wares (all 7 in
   save_008 at 1.105–1.222×avg, beside the locked regular pair — the v18

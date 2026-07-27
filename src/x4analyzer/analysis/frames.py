@@ -100,6 +100,12 @@ class Frames:
     # still fall back to method 'default' when the ware has no variant
     # under this method — that is the engine's own rule.
     build_methods: pd.DataFrame = None
+    # trade-station/pirate-base ware whitelists (v20): id, setting
+    # ("buy"/"sell"/"lockavgprice"), ware. lockavgprice wares are pegged
+    # at band average regardless of stock — the storage curve does NOT
+    # apply to them (pricing Layer 6), though `supplies`-flagged
+    # self-supply buys on the same ware are exempt from the lock.
+    trade_settings: pd.DataFrame = None
     # station self-supply bookkeeping (v22): id, kind ("order" = build
     # target per product ware, "ware" = inputs set aside), ware, amount.
     # The still-missing inputs are the `supplies`-flagged buy offers in
@@ -719,6 +725,10 @@ def build_frames(save: SaveData, ref: RefData,
             WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["build_method"]),
         build_methods=build_methods,
+        trade_settings=_read(conn, f"""
+            SELECT object_id AS id, setting, ware
+            FROM station_trade_setting WHERE save_id = {_CUR}
+            ORDER BY rowid""", fill=["setting", "ware"]),
         station_supplies=_read(conn, f"""
             SELECT object_id AS id, kind, ware, amount FROM station_supply
             WHERE save_id = {_CUR} ORDER BY rowid""", fill=["ware"]),

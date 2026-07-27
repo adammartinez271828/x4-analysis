@@ -125,10 +125,17 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
 - **Advisor/market widgets: exclude `supplies`-flagged offers from
   demand.** Known conflation left deliberately in v18 (1,140 of 15,418
   offers); flags are in `frames.trade_offers` now, so it's a filter.
-- **Price-prediction consumers: respect Layer 6.** Locked wares
-  (`station_trade_setting`, setting='lockavgprice') are flat-avg — the
-  storage-curve model must not be applied to them (and supplies-flagged
-  buys are exempt from the lock).
+- ~~**Price-prediction consumers: respect Layer 6.**~~ — **DONE
+  (2026-07-27)**: `frames.trade_settings` exposes the whitelist and
+  `analysis/opportunities.py` tags locked endpoints (`lk`), which the
+  Trade Opportunities table badges *locked* and explains — their quote
+  does not slide as the trade fills, so the depth/slippage caveat that
+  governs every other lane does not apply. `supplies`-flagged buys are
+  excluded from the marking (exempt from the lock). 216 tagged endpoints
+  in save_009; pinned by `tests/test_opportunities.py`, including the
+  no-whitelist case so the tag stays evidence rather than a default.
+  Note there is still no storage-curve *predictor* in the code — when one
+  ships it must skip locked pairs outright (recorded in save-semantics).
 - **`spoilers_hide` at object granularity** using
   `component.knownto`/`known` instead of sector-level hiding.
 - **Opportunities view: trade-station whitelists** — only the 58

@@ -1113,6 +1113,12 @@ modelled — check the factions column before dispatching. Construction
 sites appear as buyers (tagged); Xenon are excluded throughout;
 Quettanauts barter instead of trading credits, so their lanes are
 excluded unless you untick the box.</p>
+<p>An endpoint tagged <span class='pos'>locked</span> prices that ware at
+the band average no matter its stock (trade stations and pirate bases can
+lock wares this way), so unlike every other quote it does not slide
+against you as the trade fills — the depth cap still limits how many
+units are on offer, but the price holds. Reputation discounts still stack
+on top, which is what keeps locked wares arbitrage-able.</p>
 </div>
 </details>
 <div class='oppcards'>
@@ -1306,6 +1312,9 @@ function endLabel(e) {{
   if (e.c) h += " <span class='warn' title='construction site'>site</span>";
   if (e.qt) h += " <span class='warn' title='Quettanauts barter instead"
     + " of trading credits'>barter</span>";
+  if (e.lk) h += " <span class='pos' title='price locked at the band"
+    + " average: this quote does not slide as the trade fills, so the"
+    + " depth caveat does not apply here'>locked</span>";
   return h;
 }}
 // min-lane-total slider: cubic curve up to the largest lane total
