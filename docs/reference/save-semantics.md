@@ -157,21 +157,42 @@ knowledge, not yet a feature.
   plants. *Pending* = committed outbound sales, summed from
   `<trade partner= ware= amount=>` under `<order>` containers (seller =
   `partner` when `buyer` is present) — verified exact in-game.
-  *Target_level* is NOT stored — it is computed from throughput. An
-  early single-station fit read it as a universal
-  `≈ 6.105 h × throughput` constant; the validated model
-  (`analysis/storage.py`, cross-checked against GDR-378 / PEJ-489 /
-  UBX-812 over all three transport pools — review X15) has **no
-  universal hour constant**: the hours factor `T` is **per station and
-  per transport pool** — the pool's capacity net of food buffers,
-  divided across the pool's production wares so each holds an equal
-  number of hours (`T = (pool_capacity − Σ food_volume) /
-  Σ(throughput × volume)`), with workforce food fixed at
-  `FOOD_HOURS = 4.0` h of consumption. Throughput must be
-  workforce-ADJUSTED — using base recipe rates is the classic error.
-  Workforce bonus: `actual_rate = base × (1 + staffing_ratio × recipe
-  work_effect)`, per-recipe, not per-station (output only; inputs stay
-  at base).
+  *Target_level* is NOT stored, and — **corrected 2026-07-27** — it is
+  **not the storage allocation** either. The two were conflated: a
+  station's allocation (`analysis/storage.py`, per-pool hours factor) is
+  validated and matches the in-game UI exactly (player-read: VVT-308
+  483k, FXT-179 435k, GUX-488 994k, AXO-574 992k), but the price curve
+  runs over a much narrower span.
+
+  Measured by *synthesising a curve from a cohort* — stations sharing
+  ware, allocation and owner differ only in fill, so the cross-section IS
+  the curve (the idea that cracked this; a single station gives one
+  point). Fits are essentially exact, which also settles that the curve
+  is linear:
+
+  | cohort | n | R² | span | = hours of production | span / allocation |
+  |---|---:|---:|---:|---:|---:|
+  | energycells / terran (alloc 992,397) | 14 | 0.999 | 226,038 | 6.6 h | 0.23 |
+  | energycells / teladi (alloc 98,618) | 12 | 0.996 | 78,515 | 5.2 h | 0.80 |
+  | graphene / teladi (alloc 12,019) | 7 | 0.998 | 9,068 | 4.3 h | 0.75 |
+  | computronicsubstrate / terran (alloc 5,376) | 6 | 0.982 | 626 | 1.0 h | 0.12 |
+  | computronicsubstrate / pioneers (alloc 5,376) | 7 | 0.999 | 538 | 0.8 h | 0.10 |
+
+  The Terran solar cohort resolves to: **band max up to ~43,000 units
+  (4.4% of allocation), falling linearly to band min at ~269,000 (27.1%),
+  flat at min above that** — three Mercury plants sitting at 100% fill and
+  exactly 10.00 Cr anchor the tail. So `span/allocation` is not a
+  constant, but `span` in *hours of production* is 4–7 h for the bulk
+  wares, which is strikingly close to the early single-station fit of
+  `≈ 6.105 h × throughput` that was retired when the allocation model
+  landed. That fit was probably right about *this* quantity all along —
+  it was measuring the price reference, not the storage allocation.
+
+  Caveats before this becomes a feature: offer prices are player-facing,
+  so a reputation discount scales the fitted slope (terran 15%, teladi 5%
+  here) and inflates the measured span by 1/(1−d); the computronic
+  substrate cohorts sit at ~1 h and fit no pattern yet; and the two knee
+  positions have only been measured on one cohort.
 - **Layer 3 — player-facing price** = `economy_price × (1 − tier% −
   event%)`. Reputation tier discounts: Known Associate 5% (relation
   ≥0.01), Prized Investor 15% (≥0.1), Partnership Agreement 25% (≥1.0);

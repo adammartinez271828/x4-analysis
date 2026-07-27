@@ -183,12 +183,19 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   - the quote reflecting the offer's volume rather than spot stock —
     an offer-midpoint price predicts *higher*, not lower.
 
-  So the open question is the shape of the curve (or the definition of
-  its reference level) in the low-fill / oversized-storage regime, not
-  the allocation feeding it. Everything below ~300k allocation is
-  reproduced well, which is why the model looked right until stations
-  with an L container were examined. Any price prediction should carry
-  this caveat.
+  **Resolved 2026-07-27 by cohort synthesis** (player's idea: stations
+  sharing ware + allocation + owner differ only in fill, so the
+  cross-section is the curve). The curve is exactly linear (R² 0.982–
+  0.999 across five cohorts) but spans far less than the allocation:
+  Terran solar holds band max to ~43k units, falls to band min at ~269k,
+  and is flat at min over the remaining 700k+ of allocation. Span in
+  hours of production is 4–7 h for bulk wares (energy cells 6.6 h terran
+  / 5.2 h teladi), matching the retired `≈6.105 h × throughput` fit —
+  which was measuring the price reference, not the allocation. Details
+  and caveats in save-semantics.md § pricing Layer 2. Remaining work:
+  correct for the player-facing discount scaling the slope, explain the
+  ~1 h computronic-substrate cohorts, and confirm the two knee positions
+  on a second cohort.
 - ~~**wares.csv `price_min`/`price_max`**~~ — **DONE (v25, 2026-07-27)**:
   extraction captures the band, committed CSVs regenerated, `ware` gains
   `price_min`/`price_max`. Two vanilla DLC wares ship a broken `min`
