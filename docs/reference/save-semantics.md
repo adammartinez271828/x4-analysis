@@ -189,7 +189,10 @@ knowledge, not yet a feature.
   regardless of stock; the supply curve does not apply. Layer-3 discounts
   still stack on top (EBT-957 microlattice: 46.75 = 50 × (1 − 2.0% − 4.5%)),
   so locked wares stay arbitrage-able with reputation. Their *unlocked*
-  wares at the same stations price off need as usual (Layer 4).
+  wares at the same stations price off need as usual (Layer 4), and so do
+  `supplies`-flagged self-supply buys even ON locked wares (all 7 in
+  save_008 at 1.105–1.222×avg, beside the locked regular pair — the v18
+  discriminator composing with the lock; zero counterexamples).
 - **Deployables** (satellites/mines/…) are not stocked; a facility builds
   them on demand at
   `base_price × (Σ recipe·E / Σ recipe·band_avg) × M` — and **no

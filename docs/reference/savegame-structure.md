@@ -597,8 +597,12 @@ craft, turret munitions (missiles, countermeasures) and deployables;
   percentages, and **player-facing reputation/event discounts still stack
   on top** (EBT-957 metallic microlattice: shown 46.75 = 50 × (1 − 2.0%
   demand − 4.5% discount), player-verified) — locked wares remain
-  arbitrage-able with good rep. One anomaly in 1,181 offers (GMJ-316
-  smartchips buy at 1.105×avg). Parsed into `station_trade_setting` (v20).
+  arbitrage-able with good rep. **`supplies`-flagged self-supply buys are
+  exempt** from the lock: all 7 such offers on locked wares in save_008
+  price off-average (1.105–1.222×, Layer-4 need pricing), sitting beside
+  the station's locked regular pair for the same ware (GMJ-316
+  smartchips: buy 56 / sell 57 locked + supply buy 63). Zero unexplained
+  counterexamples. Parsed into `station_trade_setting` (v20).
 - `<active>` — in-flight trades where the host is one side (49 hosts /
   54 rows in save_008), distinct from `<reservations>`: same `<trade>`
   shape plus `escrow` (cents already paid into escrow) and `transferred`

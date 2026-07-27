@@ -613,6 +613,8 @@ TABLES: dict[str, str] = {
     # price at band average (sell = avg exactly, buy = avg - 1 Cr; verified
     # 588/588 sell offers in save_008 + in-game) — the storage curve does
     # not apply, but player-facing reputation/event discounts still do.
+    # supplies-flagged self-supply buys are EXEMPT from the lock (they keep
+    # need pricing; join trade_offer.flags to tell the two apart).
     "station_trade_setting": """CREATE TABLE IF NOT EXISTS station_trade_setting (
   save_id   INTEGER NOT NULL,
   object_id TEXT NOT NULL,
