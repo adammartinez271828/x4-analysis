@@ -80,7 +80,9 @@ import hashlib
 #      stock/buy/sell limits set in the station UI)
 # v24: ware_limit.amount — a missing amount= means 1 (the UI's floor for
 #      stock/buy/sell limits), not NULL/0 as v23 assumed
-SCHEMA_VERSION = "24"
+# v25: ware.price_min / price_max — the economy price BAND, not just the
+#      average (the supply curve interpolates between them by fill)
+SCHEMA_VERSION = "25"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -809,7 +811,8 @@ TABLES: dict[str, str] = {
   id TEXT PRIMARY KEY, name TEXT, grp TEXT,
   transport TEXT,
   volume REAL,
-  tags TEXT, price_avg REAL,
+  tags TEXT,
+  price_min REAL, price_avg REAL, price_max REAL,
   component TEXT,
   source TEXT
 )""",

@@ -150,9 +150,14 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   Still open: recipe consumers that pick a method themselves
   (`viz/market.py`, `analysis/storage.py` production side) are untouched
   — they model production, not building.
-- **wares.csv `price_min`/`price_max`**: extract-gamedata only captures
-  `price_avg`; the supply curve needs the band. Small extraction change
-  + committed-CSV regeneration.
+- ~~**wares.csv `price_min`/`price_max`**~~ — **DONE (v25, 2026-07-27)**:
+  extraction captures the band, committed CSVs regenerated, `ware` gains
+  `price_min`/`price_max`. Two vanilla DLC wares ship a broken `min`
+  upstream (boron miner, split shield — both non-economy); kept verbatim
+  with a warning rather than repaired, and pinned by
+  `tests/test_catalog.py`. Load-side papercut fixed on the way: a stale
+  user-dir CSV shadowing a newer packaged one used to load missing
+  columns as silent NULLs — `write_reference` now warns.
 - ~~**`<supplies><orders>`/`<wares>` + `<prices><override>` persistence**~~
   — **DONE (v22, 2026-07-27)**: `station_supply` (kind `order` = build
   target, `ware` = set-aside inputs; stations/build storages only, since

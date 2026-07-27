@@ -180,9 +180,19 @@ def _pdval(v):
     return v
 
 
-def _df_rows(df: pd.DataFrame, cols: list[str]) -> list[tuple]:
+def _df_rows(df: pd.DataFrame, cols: list[str], table: str = "") -> list[tuple]:
     if df is None or df.empty:
         return []
+    # reindex tolerates columns the CSV lacks (defensive by convention) —
+    # but say so: the usual cause is a stale extract-gamedata output in the
+    # user data dir shadowing a newer packaged CSV, which would otherwise
+    # load as a column of silent NULLs
+    missing = [c for c in cols if c not in df.columns]
+    if missing and table:
+        log(f"  WARNING: {table}: reference data has no {', '.join(missing)}"
+            " column(s) — loading them as NULL; rerun extract-gamedata"
+            " if a stale copy in the user data dir is shadowing the"
+            " packaged one")
     sub = df.reindex(columns=cols)
     return [tuple(_pdval(v) for v in row)
             for row in sub.itertuples(index=False, name=None)]
@@ -198,8 +208,8 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
     save)."""
     loads = (
         ("ware", ref.wares.rename(columns={"group": "grp"}),
-         ["id", "name", "grp", "transport", "volume", "tags", "price_avg",
-          "component", "source"]),
+         ["id", "name", "grp", "transport", "volume", "tags",
+          "price_min", "price_avg", "price_max", "component", "source"]),
         ("recipe", ref.recipes,
          ["ware", "method", "time", "amount", "input_ware", "input_amount",
           "work_effect"]),
@@ -228,7 +238,8 @@ def write_reference(conn: sqlite3.Connection, ref: RefData) -> None:
             columns=["level", "ware", "capacity", "respawn_min"]),
          ["level", "ware", "capacity", "respawn_min"]),
     )
-    payload = [(table, cols, _df_rows(df, cols)) for table, df, cols in loads]
+    payload = [(table, cols, _df_rows(df, cols, table))
+               for table, df, cols in loads]
     text_rows = list(ref.textdb.items())
     digest = hashlib.sha256()
     for table, cols, rows in payload:

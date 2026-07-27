@@ -68,3 +68,30 @@ def test_glob(game_dir: Path) -> None:
         "extensions/ego_dlc_test/libraries/wares.xml",
         "libraries/wares.xml",
     ]
+
+
+def test_ware_price_band_is_ordered_for_economy_wares():
+    """The committed wares.csv carries the full price band (v25), and for
+    every ECONOMY ware min <= avg <= max holds. Two non-economy wares
+    (a boron miner, a split shield) ship a fat-fingered min in the vanilla
+    DLC files; extraction keeps them verbatim and warns, so this test
+    pins the scope of the damage rather than the values."""
+    import pandas as pd
+    from pathlib import Path
+    from x4analyzer.gamedata.refdata import load_refdata
+
+    # /nonexistent forces the PACKAGED csvs (the committed copies), not
+    # whatever the user's data dir happens to hold
+    w = load_refdata(Path("/nonexistent")).wares
+    assert {"price_min", "price_avg", "price_max"} <= set(w.columns)
+    num = w[["price_min", "price_avg", "price_max"]].apply(
+        pd.to_numeric, errors="coerce")
+    econ = w["tags"].fillna("").str.split().apply(lambda t: "economy" in t)
+    band = num[econ].dropna()
+    assert len(band) >= 50, "economy wares should carry prices"  # 61 today
+    assert (band.price_min <= band.price_avg).all()
+    assert (band.price_avg <= band.price_max).all()
+
+    inverted = set(w.loc[num.price_min > num.price_max, "id"])
+    assert inverted == {"ship_bor_m_miner_solid_01_a",
+                        "shield_spl_m_standard_02_mk1"}, inverted

@@ -135,9 +135,21 @@ Feeds the DB `ware` table.
 | `transport` | storage class (`container`/`liquid`/`solid`/`inventory`/…) | `ware@transport` |
 | `volume` | m³ per unit | `ware@volume` |
 | `tags` | space-separated tags (`economy` marks economy wares) | `ware@tags` |
+| `price_min` | economy price band floor, **credits** | `ware/price@min` |
 | `price_avg` | average price, **credits** (saves store cents; game files don't) | `ware/price@average` |
+| `price_max` | economy price band ceiling, **credits** | `ware/price@max` |
 | `component` | macro built from this ware, lowercased — the ware ↔ module/ship link | `ware/component@ref` |
 | `source` | contributing extension | derived: archive source |
+
+The band is what the economy's supply curve interpolates between by
+storage fill (save-semantics.md § pricing), so a price model needs all
+three. **Two vanilla DLC wares ship a broken `min` upstream** —
+`ship_bor_m_miner_solid_01_a` (12,142,835 vs max 201,346, ego_dlc_boron)
+and `shield_spl_m_standard_02_mk1` (1,536,515,365 vs max 18,780,
+ego_dlc_split). Both are verbatim from the game files, both are
+non-economy wares (ship/equipment), and extraction **warns** rather than
+repairing them, so the day Egosoft fixes it — or spreads it — is visible.
+Anything consuming `price_min` should stay defensive.
 
 ## clusters.csv
 

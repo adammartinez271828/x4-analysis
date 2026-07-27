@@ -2,7 +2,8 @@
 
 Outputs into the data directory:
     factions.csv   id, shortname, name, primaryrace, colour, source
-    wares.csv      id, name, group, transport, volume, tags, price_avg, source
+    wares.csv      id, name, group, transport, volume, tags,
+                   price_min/price_avg/price_max, component, source
     clusters.csv   macro, x, y, z, name, description, source
     sectors.csv    cluster, macro, x, y, z, name, sunlight, highway, source
     ships.csv      macro, model, class, race, purpose, hull, mass, cargo,
@@ -111,6 +112,14 @@ def extract_factions(gf: GameFiles, tdb: TextDB) -> list[list]:
     return list(rows.values())
 
 
+def _num(v):
+    """float or None (game files carry empty/absent numbers)."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
     rows = {}
     for w, source in _iter_merged(gf, "libraries/wares.xml", "ware"):
@@ -119,6 +128,9 @@ def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
             continue
         price = w.find("price")
         comp = w.find("component")
+        # the full price BAND, not just the average: the economy's supply
+        # curve interpolates between min and max by storage fill, so a
+        # price model needs all three (save-semantics.md § pricing)
         rows[wid] = [
             wid,
             tdb.resolve(w.get("name", "")),
@@ -126,7 +138,9 @@ def extract_wares(gf: GameFiles, tdb: TextDB) -> list[list]:
             w.get("transport", ""),
             w.get("volume", ""),
             w.get("tags", ""),
+            price.get("min", "") if price is not None else "",
             price.get("average", "") if price is not None else "",
+            price.get("max", "") if price is not None else "",
             (comp.get("ref", "") if comp is not None else "").lower(),
             source,
         ]
@@ -770,9 +784,21 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
 
     log("Extracting wares")
     ware_rows = extract_wares(gf, tdb)
+    # the price band is taken verbatim; two vanilla DLC wares ship a
+    # fat-fingered min (boron miner 12142835 vs max 201346, split shield
+    # 1536515365 vs 18780 — both upstream typos, both non-economy wares).
+    # Warn rather than repair: silently clamping would hide it if Egosoft
+    # fixes or spreads it. Consumers of price_min must stay defensive.
+    bad = [r[0] for r in ware_rows
+           if _num(r[6]) is not None and _num(r[8]) is not None
+           and _num(r[6]) > _num(r[8])]
+    if bad:
+        log(f"  WARNING: {len(bad)} ware(s) with price_min > price_max in"
+            f" the game files: {', '.join(bad)}")
     _write_csv(
         cfg.data_dir / "wares.csv",
-        ["id", "name", "group", "transport", "volume", "tags", "price_avg", "component", "source"],
+        ["id", "name", "group", "transport", "volume", "tags",
+         "price_min", "price_avg", "price_max", "component", "source"],
         ware_rows,
     )
 
@@ -826,7 +852,7 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
     )
 
     log("Extracting ship models")
-    prices = {r[0]: r[6] for r in ware_rows}  # ware id -> price_avg
+    prices = {r[0]: r[7] for r in ware_rows}  # ware id -> price_avg
     _write_csv(
         cfg.data_dir / "ships.csv",
         ["macro", "model", "class", "race", "purpose", "hull", "mass",
