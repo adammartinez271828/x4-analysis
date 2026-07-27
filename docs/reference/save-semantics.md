@@ -256,3 +256,37 @@ offers with exact recipe math (Market data above), and inputs already
 set aside sit in `<supplies><wares>`. Tables and views: db-schema.md
 § station_munition; `tests/test_drones.py` carries the validation
 numbers.
+
+## Build method: which recipe variant a station builds with
+
+**CONFIRMED 2026-07-27** (player-reported UI setting + save/game-file
+cross-check; closes the old "does build method follow module race or
+faction?" question).
+
+Wares with several `recipes.csv` methods (drones, ships, equipment,
+deployables — e.g. `ship_gen_xs_buildingdrone_01_a` has `default`,
+`terran`, `closedloop`, `xenon`) are built with **the builder faction's
+preferred build method**, not the station's module race and not the
+customer's faction:
+
+- The rule lives in `<faction><buildrules method="…"/>` (savegame-
+  structure.md § factions). For `id="player"` it is the UI's *Default
+  preferred build method* — Terran / Universal (= `default`, everything
+  non-terran) / Closed Loop (= `closedloop`, claytronics + hull parts).
+  Stable across all 13 archived saves here (`terran`).
+- A per-station override exists in-game (station configuration menu,
+  `SetContainerBuildMethod` on the build storage; unset = inherit the
+  faction rule). None is set in any archived save, so how it serializes
+  is **not yet observed**.
+- Per ware, the effective method is the chosen one *if that ware has a
+  recipe under it*, else `default` — the engine's own fallback, so a
+  Terran player still builds `default`-only items (e.g. laser towers)
+  from the default recipe.
+
+This is why ABR-398's `supplies`-flagged drone buys matched the **terran**
+drone recipe: the player faction's rule, not its terran storage modules.
+Anything joining `recipe` for player-built items should select
+`method = <player buildrules>` with a `default` fallback — the same
+`(ware, method) → (ware, "default")` pattern `analysis/storage.py`
+already uses on the production side. Not parsed yet (see the open-items
+report's implementation list).

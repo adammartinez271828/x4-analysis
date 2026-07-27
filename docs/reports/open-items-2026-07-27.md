@@ -65,10 +65,23 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
 3. **Ammo coverage**: set a missile stock level on a defence station —
    do missile wares appear in `<supplies><orders>` and their components
    as `supplies`-flagged buys?
-4. **Build method selection**: ABR-398 used the terran drone recipe
-   (terran modules). Order drones on a non-terran player station lacking
-   inputs; which component wares get flagged offers pins whether method
-   follows module race / faction / other.
+4. ~~**Build method selection**~~ — **CLOSED 2026-07-27, no play
+   experiment needed.** It is a *faction* setting, persisted as
+   `<faction id="player"><buildrules method="terran"/>` = the UI's
+   "Default preferred build method" (player-confirmed: Terran; the other
+   options are Universal = `default` and Closed Loop = `closedloop`).
+   Verified in the save: `build@method` is constant per builder faction
+   over all 499 in-flight build tasks in save_008 and never tracks module
+   race (player 12/12 terran); the element is byte-identical in all 13
+   archived saves; NPC factions without one build on their own race rule
+   (`alliance` → closedloop). The per-station override is real but unset
+   here (`Get/SetContainerBuildMethod` in
+   `menu_station_configuration.lua`, empty string = inherit), so its
+   serialization is the only piece still unobserved — one save with an
+   override set would settle it. Per-ware fallback to `default` when the
+   ware has no recipe under the chosen method is the engine's own rule.
+   Written up in savegame-structure.md § factions and save-semantics.md
+   § Build method.
 
 ### P4 — Smaller semantic gaps
 
@@ -120,6 +133,12 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   `<trade>` rows + `<reservations>` are still not persisted; needed
   before any in-DB economy-price computation. (Mechanism known-exact
   from the GMD-272 validation.)
+- **Parse `<faction><buildrules method>`** (new, 2026-07-27): three rows
+  universe-wide, one handler line, and it is the correct method key for
+  every recipe join on player-built items (drones, deployables, ships) —
+  currently those joins have no method at all. Natural v21 rider next to
+  `<supplies><orders>`; store on `faction_meta`, and keep the per-ware
+  `default` fallback.
 - **wares.csv `price_min`/`price_max`**: extract-gamedata only captures
   `price_avg`; the supply curve needs the band. Small extraction change
   + committed-CSV regeneration.

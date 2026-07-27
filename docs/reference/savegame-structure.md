@@ -216,6 +216,29 @@ and identity:
 </faction>
 ```
 
+- **`<buildrules method="…"/>`** — the faction's preferred **build
+  method**: which recipe variant its yards/stations use when building
+  ships, deployables, drones and equipment (`terran`, `closedloop`,
+  `default` = universal/commonwealth; the `recipes.csv` `method` column).
+  On `id="player"` this is the UI's *Default preferred build method*
+  (player-confirmed 2026-07-27: setting = Terran ⇔ `method="terran"`, and
+  it is the only `<buildrules>` in the player's tree). Written only when
+  a faction's rule differs from its library default — 3 elements in every
+  one of the 13 archived saves (`player` terran, `scavenger` and
+  `loanshark` closedloop); factions without one still build by their own
+  rule (`alliance` builds `closedloop`). CONFIRMED against every in-flight
+  build order in save_008: `build@method` is constant per *builder
+  faction* across all 499 tasks and never varies with the station's module
+  race — player 12/12 `terran` (matching its `<buildrules>`), the 15 NPC
+  factions each on their own race method (`alliance` on `closedloop`).
+- Per-**station** override: exists in the game (station configuration menu
+  → *Preferred build method*, `SetContainerBuildMethod` on the build
+  storage; empty string = inherit the faction rule), but no station in any
+  archived save has one set, so **its serialization is unobserved** —
+  presumably a `<buildrules>` under the station/build-storage component.
+  Effective method per ware = the chosen method if that ware has a recipe
+  under it, else `default` (the engine's own fallback, stated in
+  `menu_station_configuration.lua`).
 - `<account amount>` is the faction treasury in **cents**; the player's
   matches `info/player@money` exactly.
 - `<custom><name name="…"/>` holds the player's custom faction name (only
