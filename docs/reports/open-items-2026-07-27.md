@@ -152,24 +152,38 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   `is_active` flag. Validated: on the 34 clean non-terran NPC solar
   plants with pending, the term cuts mean sell-price error 1.185 →
   0.515 Cr.
-- **NEW (found by that validation): the storage model's target level is
-  wrong for terran stations.** Every terran solar plant models to
-  ~990k units of energy-cell allocation against ~100–250k for comparable
-  non-terran plants, leaving a ~2.1 Cr price error that pending does not
-  touch. `analysis/storage.py`'s per-pool hours factor is the suspect
-  (terran pools/module capacities). Worth a look before any price
-  prediction ships.
-- ~~**Parse the build method**~~ — **DONE (v21, 2026-07-27)**:
-  `faction_meta.build_method` + the `build_method` table (per-station
-  override), resolved by `v_build_method` / `frames.build_methods`.
-  `station_modules.method` now carries the resolved value instead of the
-  always-empty `build_entry.build_method` (dropped), so module build
-  costs stop silently using the `default` recipe for a Terran or
-  Closed-Loop builder. Validated against the engine on save_009: every
-  in-flight build task's method equals the resolved value for its host.
-  Still open: recipe consumers that pick a method themselves
-  (`viz/market.py`, `analysis/storage.py` production side) are untouched
-  — they model production, not building.
+- **NEW: the storage model over-allocates once a station's storage is
+  large — an absolute cap it does not implement.** Found while validating
+  the v26 pending capture; diagnosed 2026-07-27 on save_009's clean
+  single-output NPC energy plants by inverting the Layer-2 curve for the
+  target level (`implied = (max−min)(stock−pending)/(max−price)`, taken
+  only where 12 ≤ price ≤ 20 so the inversion is well-conditioned):
+
+  | modeled allocation | n | implied/modeled |
+  |---|---:|---:|
+  | under 250,000 units | 69 | 1.05 |
+  | 250,000–320,000 | ~7 | 1.00–1.05 |
+  | 435,744 / 483,962 | 2 | 0.73 / 0.65 |
+  | ~1,000,000 (an L container) | 15 | **0.32** |
+
+  Every station modeled above ~320k units lands at an implied 296k–413k
+  regardless of how much bigger its pool is, while everything below
+  matches the model. **Not race-specific** — the first read called this a
+  Terran defect, but a teladi plant (GUX-488, 1M pool) saturates
+  identically at 0.30; Terran plants merely dominate the sample because
+  they pair 8 production modules with a full 1M L container (28.9 h of
+  storage vs 5–7 h elsewhere). The capacity data is not at fault
+  (`storage_ter_l_container_01` = 1,000,000 m³, same as the Argon and
+  Paranid L containers) and neither is throughput (the terran recipe's
+  50/60 s is correctly picked over the default 175/60 s).
+
+  So `analysis/storage.py`'s "a single-output station allocates its whole
+  pool to that ware" is right only up to a ceiling of ~300–360k units.
+  Open: whether the cap is denominated in units or m³ (energy cells are
+  1 m³, so this sample cannot separate them), and its exact value.
+  A second ware with a different volume would settle it. Until then any
+  price prediction on a big-storage station is ~2 Cr out, and
+  `station_storage.max_units` overstates those stations' allocation ~3×.
 - ~~**wares.csv `price_min`/`price_max`**~~ — **DONE (v25, 2026-07-27)**:
   extraction captures the band, committed CSVs regenerated, `ware` gains
   `price_min`/`price_max`. Two vanilla DLC wares ship a broken `min`
