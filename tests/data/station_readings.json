@@ -9,7 +9,14 @@
   },
   "game_time": 82119.817,
   "note": "Model INPUTS captured from the save; OBSERVED values are player readings taken in game against this same save.",
-  "reference_data_caveat": "recipes.csv / wares.csv are extracted from base game + DLC only and are NOT diff-merged with installed extensions. This save runs Faction Fix Pack. VERIFIED both ways: scanningarrays reproduces EXACTLY from our data once the right method is used (prod_tel_scanningarrays_macro -> method 'teladi': amount 36, energycells 60, siliconwafers 60, teladianium 73, matching a second module panel to the unit), while advancedelectronics does not match under any method we hold. So the reference pipeline is sound and the gap is specifically un-merged mod diffs.",
+  "rate_rule": {
+   "additional_output": "the panel's 'Additional Output / h' is a bonus shown ADDITIVELY, i.e. it is part of the displayed total, not on top of it",
+   "confirmed_on": "TEL High Tech Factory III, Scanning Arrays (TEL): amount 36, time 600, efficiency 1.38 -> floor(36 x 1.38) = 49 x 6 = 294/h, and 294 - (36 x 6) = 78 = the panel's Additional Output. Exact, from unmodded reference data, using the teladi method of the prod_tel_ module.",
+   "efficiency": "the save's <efficiency product>, equal to the panel's 'Workforce %'",
+   "form": "rate = floor(recipe.amount x efficiency) x 3600/time x modules",
+   "not_confirmed_on": "IFO-957 advancedelectronics -- see that station's note."
+  },
+  "reference_data_caveat": "recipes.csv / wares.csv are extracted from base game + DLC only and are NOT diff-merged with installed extensions. Whether that matters here is UNKNOWN: scanningarrays reproduces exactly from our data (right method chosen), and the player states the Faction Fix Pack does not change recipes.",
   "save": "quicksave.xml.gz",
   "sources": {
    "derived": "allocation = stock + inbound + open buy amount. A LOWER BOUND, not an equality: a station bids only for what it can use, so a station whose consumers are unbuilt (MAL-475) or which simply is not buying (TPF-229 helium/ore) reads far below its true allocation.",
@@ -107,11 +114,11 @@
      "quantumtubes": 180
     },
     "Workforce": "140 %",
-    "_interpretation": "CORRECTED: 'Additional Output / h' is the workforce bonus displayed ADDITIVELY -- it is PART of the 450, not on top of it (375 + 125 = 500, which is not what the panel shows). So base = 450 - 125 = 325/h = 65 per 720 s cycle, and floor(65 x 1.39556) = 90 -> 450/h. Our reference recipe says amount 54, so the recipe itself is wrong for this ware.",
+    "_interpretation": "OPEN. Panel: Efficiency 140%, Workforce 140%, Additional Output/h +125, Product/h 450, Resources/h 750/245/180.\nOur reference recipe is time 720, amount 54, inputs 60/44/20, work_effect 0.36. Under the rule that fits the Teladi panel exactly (rate = floor(amount x efficiency) x 3600/time) this gives 375/h, not 450, and implies resources 300/220/100, not 750/245/180. The input RATIOS also do not match the recipe under any uniform scaling (panel 4.167 : 1.361 : 1 vs recipe 3 : 2.2 : 1).\nDO NOT infer a modded recipe from this. The player states the mod does not change recipes -- it applies an additional conditional modifier to production. What that modifier is, and why the input ratios move, is unknown. Awaiting the mod investigation.",
     "_source": "Logical Station Overview screenshot, 2026-07-28, same save",
     "module": "(1) Advanced Electronics"
    },
-   "note": "The module panel settles the rate rule:\n    rate = floor(recipe.amount x efficiency) x 3600/time x modules\nwith `efficiency` = the save's <efficiency product> = the panel's 'Workforce %'. 'Additional Output / h' is that same bonus shown additively (rate minus the unbonused rate), NOT a separate war-pressure term. There is no multiplicative war factor in the rate at all -- which makes EIJ-609's 3,972/h consistent, not stale.\n\nWhat IS wrong here is the RECIPE. The panel implies amount 65 per 720 s with inputs 150 energycells / 49 microchips / 36 quantumtubes; our reference data says 54 with 60 / 44 / 20, and carries only a 'default' method for this ware. Our CSVs are extracted from base+DLC and are NOT diff-merged with mods (CLAUDE.md), so a mod-changed recipe reads through as model error.",
+   "note": "The Teladi panel (see _provenance.rate_rule) fixes the rate rule and this station does not obey it. That is the open question, not evidence for any particular cause.",
    "rate": {
     "advancedelectronics": [
      450,
@@ -307,7 +314,7 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "Two advancedelectronics modules, neither with a <production> block. Stock at read time: advancedelectronics 1,775.\n\nFULLY EXPLAINED by the modded advancedelectronics recipe derived from IFO-957's module panel (amount 65 per 720 s; inputs 150 energycells / 49 microchips / 36 quantumtubes). With it, all four wares land on an identical T = 6.297 h -- advancedelectronics 4,093/650, energycells 9,445/1,500, microchips 3,085/490, quantumtubes 2,267/360 -- and the pool closes at 249,979 of 250,000 m3. Equal-hours was never violated; the recipe was wrong. This retracts the earlier 'structurally unfittable' note.",
+   "note": "Two advancedelectronics modules, neither with a <production> block. Stock at read time: advancedelectronics 1,775.\n\nIts four allocations are mutually consistent on SOME rate vector -- they land on a single T if advancedelectronics runs at 650/h against inputs 1,500/490/360 -- and the pool closes at 249,979 of 250,000 m3. So equal-hours holds here; what is wrong is the per-ware RATES we feed it, in the same direction and the same ratios as the IFO-957 panel. Cause unknown; do not assume a recipe change.",
    "rate": {}
   }
  },
