@@ -201,7 +201,7 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "Scrap processors do NOT count toward storage. The player's encyclopaedia shot shows why: the scrap processor's recipe is quoted per unit of scrap (1x scrap metal from 10x energy cells + 1x raw scrap), not per timed cycle, so it has no hourly rate to feed an equal-hours split.",
+   "note": "SOLVED. Two things were wrong, both about its four scrap recyclers.\n\n(1) A multi-queue module alternates between products, and while it is between them its <production> block carries an efficiency but NO <queue ware>. KWC-232's recyclers report efficiency 1.34 with an empty queue, so a (station, macro, ware) lookup missed them entirely and fell back to 1.0.\n\n(2) Its two recipes have DIFFERENT work effects - claytronics 0.34, hull parts 0.37 - so the single reported figure cannot be used as a flat multiplier. 1.34 is claytronics at a workforce ratio of 1.0 (the station runs 5,091 workers against 5,090 jobs); hull parts then runs at 1 + 0.37 = 1.37. Recovering the ratio and re-applying each recipe's own work effect puts all three in-game allocations within 0.13%: claytronics 9,462 vs 9,450, hull parts 32,407 vs 32,367, energy cells 1,833,247 vs 1,833,989.\n\nThe alternation SPLIT does not matter: it scales every rate on the module equally, and a uniform factor cancels out of the equal-hours split. The weight=1/N heuristic is therefore harmless here.\n\nScrap processors remain excluded. The player's encyclopaedia shot shows why: the scrap processor's recipe is quoted per unit of scrap (1x scrap metal from 10x energy cells + 1x raw scrap), not per timed cycle, so it has no hourly rate to feed an equal-hours split.",
    "rate": {}
   },
   "MAL-475": {

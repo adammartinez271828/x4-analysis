@@ -184,7 +184,16 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
     # The reconstruction survives only when the save carried no production
     # data at all (a pre-v27 database, or a hand-built frame) — there, a
     # missing row means "unknown", not "idle".
+    # A module that can make SEVERAL wares alternates between them, and while
+    # it is between products its <production> block carries no <queue ware>.
+    # KWC-232's four scrap recyclers are in that state: they report
+    # efficiency="1.34" with an empty queue. Keying only on (station, macro,
+    # ware) missed them and fell back to 1.0, costing -19.6% on claytronics and
+    # -21.7% on hull parts. So keep a (station, macro) level too and use it
+    # whenever the ware-specific key is absent -- the efficiency is a property
+    # of the module, not of whichever product it happens to be mid-cycle on.
     prod_eff: dict[tuple[str, str, str], float] = {}
+    mod_eff: dict[tuple[str, str], float] = {}
     mp = getattr(frames, "module_production", None)
     have_production = mp is not None and not mp.empty
     if have_production:
@@ -192,7 +201,10 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             eff = getattr(r, "efficiency", None)
             if eff is None or pd.isna(eff) or float(eff) <= 0:
                 continue
-            prod_eff[(r.id, str(r.macro), str(r.ware))] = float(eff)
+            eff = float(eff)
+            mod_eff[(r.id, str(r.macro))] = eff
+            if str(r.ware):
+                prod_eff[(r.id, str(r.macro), str(r.ware))] = eff
 
     mc = ref.modcaps.set_index("macro")
     workers = _num(mc["workers"]).to_dict()
@@ -226,6 +238,29 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             # fall back to reconstructing it (workforce bonus x sunlight), which
             # is all we have for an idle module or a hand-built frame.
             eff = prod_eff.get((sid, macro, ware))
+            if eff is None and (sid, macro) in mod_eff:
+                # Module-level figure, from a multi-queue module caught between
+                # products. It belongs to ONE of that module's recipes, and
+                # they can have DIFFERENT work effects (KWC-232's recycler:
+                # claytronics 0.34, hull parts 0.37), so it cannot be used as
+                # a flat multiplier. Recover the station's workforce ratio from
+                # it -- efficiency = 1 + work_effect x ratio -- reading it
+                # against the module's smallest work effect, then re-apply each
+                # recipe's own. KWC-232 reports 1.34, which is claytronics at
+                # ratio 1.0; hull parts then runs at 1 + 0.37 = 1.37 and all
+                # three of its in-game allocations land within 0.13%. On a
+                # single-recipe module this is exactly a no-op.
+                base_eff = mod_eff[(sid, macro)]
+                works = [recipes[(w2, m2) if (w2, m2) in methods
+                                 else (w2, "default")][2]
+                         for w2, m2, _s, _wt in modrows.get(macro, ())
+                         if ((w2, m2) in methods or (w2, "default") in methods)]
+                works = [w2 for w2 in works if w2 > 0]
+                if works and work > 0:
+                    ratio = max(0.0, min(1.0, (base_eff - 1.0) / min(works)))
+                    eff = 1.0 + work * ratio
+                else:
+                    eff = base_eff
             if eff is None:
                 if have_production:
                     eff = 1.0          # no <production> block: bare recipe

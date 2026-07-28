@@ -213,6 +213,57 @@ def test_unparseable_efficiency_is_ignored_not_fatal():
     assert rows["widget"].max_units > 0
 
 
+# ---- multi-queue modules (v27) --------------------------------------------
+
+def _multi_ref():
+    """A module that alternates between two wares with DIFFERENT work effects."""
+    r = _ref()
+    r.recipes = pd.DataFrame([
+        ["widget", "default", 3600, 100, "energy", 100, 1.0],
+        ["gadget", "default", 3600, 200, "energy", 50, 0.5],
+        ["workunit_busy", "default", 600, 200, "food1", 90, ""],
+    ], columns=["ware", "method", "time", "amount",
+                "input_ware", "input_amount", "work_effect"])
+    r.modules = pd.DataFrame([
+        ["prod_widget", "widget", "default", 1.0],
+        ["prod_widget", "gadget", "default", 1.0],
+    ], columns=["macro", "ware", "method", "scale"])
+    return r
+
+
+def test_module_level_efficiency_is_used_when_the_queue_ware_is_unknown():
+    # a module caught between products reports an efficiency with NO
+    # <queue ware>; keying only on (station, macro, ware) would miss it
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_widget", "", 1.5, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    assert _run(frames)["widget"].throughput == 150.0     # not the 1.0 fallback
+
+
+def test_unqueued_efficiency_is_rescaled_per_recipe_work_effect():
+    # KWC-232's shape. The module reports 1.25, which read against its
+    # SMALLEST work effect (gadget, 0.5) is a workforce ratio of 0.5; widget
+    # then runs at 1 + 1.0 x 0.5 = 1.5 and gadget at its reported 1.25.
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_widget", "", 1.25, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    rows = {r.ware: r for r in station_storage(frames, _multi_ref()).itertuples()}
+    # weight is 1/2 across the two options, so rates are halved
+    assert rows["widget"].throughput == 150.0 * 0.5
+    assert rows["gadget"].throughput == 250.0 * 0.5
+
+
+def test_rescaling_is_a_no_op_on_a_single_recipe_module():
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_widget", "", 1.42, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    # one recipe, work_effect 1.0: ratio 0.42, back to 1 + 1.0 x 0.42 = 1.42
+    assert _run(frames)["widget"].throughput == 142.0
+
+
 def test_shady_buys_get_no_storage_at_all():
     # black-market book: a non-producing station bids for an illegal ware it
     # holds none of. It must neither inflate an existing proxy row nor mint a
