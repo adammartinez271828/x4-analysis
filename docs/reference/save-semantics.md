@@ -446,8 +446,40 @@ knowledge, not yet a feature.
   the UI shows the discount as a % of AVG, which makes the same tier look
   variable across stations. Per-station economy events add temporary
   `<modifier type="discount">` records.
-- **Layer 4 — buy side: NOT modeled** (open gap). Consumers price off
-  need, not fill, and run above the band ceiling.
+- **Layer 4 — buy side: the modifier is near-LINEAR in fill.** Measured
+  2026-07-28 over 5,428 main-sequence buy offers, on the normalised coordinate
+  (`s = price/avg − 1` divided by the band half-width on the relevant side, so
+  +1 = band max and −1 = band min — this handles the 40 asymmetric wares that
+  band position distorts):
+
+  | fill | n | median normalised price | IQR |
+  |---:|---:|---:|---:|
+  | 0–10 % | 925 | **+1.000** | 0.000 |
+  | 10–20 % | 228 | +0.921 | 0.097 |
+  | 20–30 % | 279 | +0.751 | 0.166 |
+  | 30–40 % | 283 | +0.522 | 0.204 |
+  | 40–50 % | 430 | +0.258 | 0.203 |
+  | 50–60 % | 585 | −0.020 | 0.219 |
+  | 60–70 % | 597 | −0.258 | 0.194 |
+  | 70–80 % | 589 | −0.503 | 0.204 |
+  | 80–90 % | 547 | −0.732 | 0.176 |
+  | 90–100 % | 964 | −0.908 | 0.108 |
+
+  Best clamped-linear fit: `s_norm = clamp(2.50 × (0.540 − fill), −1, +1)` —
+  the ceiling is reached below **14 %** fill and the floor above **94 %**,
+  crossing avg at **54 %**. Median |error| 0.048; 66 % of offers within 0.10.
+  The old "consumers price off need, not fill" is wrong: fill explains it.
+
+  **Hours of cover does NOT explain it.** Tested because CCN-497 holds only
+  1.15 h of every input yet bids at the ceiling: binning on hours of cover
+  leaves a median deviation of 0.136 against fill fraction's **0.068**, and the
+  hours profile is not even monotone. Allocation-in-hours varies 4.0–9.3 across
+  stations, so the two coordinates are genuinely different and fill wins.
+
+  Still open: the residual is not noise. CCN-497 (Cardinal's Redress) prices
+  graphene and refined metals a full band width above the fit (+1.03, +1.02) at
+  78 % and 68 % fill, energy cells +0.33, while its two rations sit on the fit.
+  A station-level premium would move all five together; it does not.
 - **Layer 5 — player-owned stations** use manual thresholds — off-model by
   design. The persisted inputs are now readable (v23): `price_setting`
   (kind `reference` = the configured reference price, near-universal;
