@@ -8,6 +8,54 @@
    "holyorder": 1.2
   },
   "game_time": 82119.817,
+  "mod_recipe_changes": {
+   "_impact": "Applying these two recipes to the fixture moves the score from 27/41 to 37/41 in-game readings within 1%. IFO-957 goes from 5 failures to 0 (all within 0.4%, rate exact at 450/h) and WRC-739 from 4 failures to 0 (all +0.0%).",
+   "_note": "The CATCHUP mod changes no recipes - it applies a conditional production bonus (see war_pressure below). A SIBLING mod, faction_fix_pack_econ_bal, is what rewrites recipes. Only 3 wares.",
+   "_verified": "read directly from faction_fix_pack_econ_bal/ext_01.cat -> libraries/wares.xml (a <diff> of <replace> ops), 2026-07-28",
+   "_why_we_miss_them": "gamedata/extract.py builds GameFiles with extensions=None (base + ego_dlc only), and extract_wares handles only <add sel=...> - it never applies <replace>. Both need fixing before the committed recipes.csv is correct for a modded save.",
+   "advancedelectronics": {
+    "amount": 65,
+    "base_was": {
+     "amount": 54,
+     "inputs": {
+      "energycells": 60,
+      "microchips": 44,
+      "quantumtubes": 20
+     },
+     "work_effect": 0.36
+    },
+    "inputs": {
+     "energycells": 150,
+     "microchips": 49,
+     "quantumtubes": 36
+    },
+    "time": 720,
+    "work_effect": 0.4
+   },
+   "ship_gen_xs_lasertower_01_a": {
+    "inputs": {
+     "smartchips": 15
+    }
+   },
+   "weaponcomponents": {
+    "amount": 204,
+    "base_was": {
+     "amount": 170,
+     "inputs": {
+      "energycells": 60,
+      "hullparts": 20,
+      "plasmaconductors": 30
+     }
+    },
+    "inputs": {
+     "energycells": 120,
+     "hullparts": 25,
+     "plasmaconductors": 36
+    },
+    "time": 1800,
+    "work_effect": 0.53
+   }
+  },
   "note": "Model INPUTS captured from the save; OBSERVED values are player readings taken in game against this same save.",
   "rate_rule": {
    "additional_output": "the panel's 'Additional Output / h' is a bonus shown ADDITIVELY, i.e. it is part of the displayed total, not on top of it",
@@ -21,6 +69,13 @@
   "sources": {
    "derived": "allocation = stock + inbound + open buy amount. A LOWER BOUND, not an equality: a station bids only for what it can use, so a station whose consumers are unbuilt (MAL-475) or which simply is not buying (TPF-229 helium/ore) reads far below its true allocation.",
    "ingame": "read off the station UI by the player - authoritative"
+  },
+  "war_pressure": {
+   "_verified": "faction_fix_pack_catchup/ext_01.cat -> md/FactionLogic_Catchup.xml and ui/catchup.lua, 2026-07-28",
+   "applies_to": "all wares, not ware-specific",
+   "consequences": "INVISIBLE in the save's <production>/<efficiency> element AND in the UI's Product/h. It does not multiply the rate. The +20/+40/+22% the station menu shows is a separate UI row driven by $CatchupProdBonus on the trade NPC blackboard.",
+   "mechanism": "A post-hoc <add_cargo> of floor(base_cycle_amount x ProdBonus) on every event_object_production_finished, for every production module of a faction in a contested territory. Recalculated hourly.",
+   "not_the_additional_output_row": "'Additional Output / h' is the vanilla workforce surplus: (floor(amount x efficiency) - amount) x cycles/h. IFO-957 (90-65)x5 = 125; Teladi scanning arrays (49-36)x6 = 78. Both exact."
   }
  },
  "observed": {

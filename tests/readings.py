@@ -53,36 +53,53 @@ def _ref(doc: dict) -> SimpleNamespace:
     )
 
 
-def frames_for(doc: dict, code: str) -> SimpleNamespace:
-    """A Frames-alike for one station, straight from the fixture."""
-    s = doc["stations"][code]
-    sid = s["id"]
-    built = [[sid, macro, 1] for macro, n in s["modules"] for _ in range(int(n))]
-    uni = pd.DataFrame([[sid, "station", s["sector_macro"]]],
-                       columns=["id", "class", "sector.macro"]).set_index("id")
-    uni = uni.reset_index()
+def frames_for(doc: dict, codes=None) -> SimpleNamespace:
+    """A Frames-alike covering ALL fixture stations at once.
+
+    Deliberately one frame for every station, not one per station: the model
+    asks whether *the save* carried `<production>` data at all, so a station
+    that happens to have no production blocks (WRC-739) must not look like a
+    pre-v27 database. Building it per station made WRC-739 fall back to the
+    reconstructed work_effect and miss by 17%.
+    """
+    codes = list(codes or doc["stations"])
+    built, uni, wf, cargo, offers, prod = [], [], [], [], [], []
+    for code in codes:
+        s = doc["stations"][code]
+        sid = s["id"]
+        built += [[sid, macro, 1] for macro, n in s["modules"] for _ in range(int(n))]
+        uni.append([sid, "station", s["sector_macro"]])
+        wf += [[sid, race, amt] for race, amt in s["workforce"]]
+        cargo += [[sid, w, a] for w, a in s["cargo"]]
+        offers += [[sid, side, w, a, 0.0, fl, None]
+                   for side, w, a, fl in s["offers"]]
+        prod += [[sid, macro, ware, eff, state, n]
+                 for macro, ware, eff, state, n in s["production"]]
     return SimpleNamespace(
         built_modules=pd.DataFrame(built, columns=["id", "macro", "built"]),
-        universe=uni,
-        workforce_all=pd.DataFrame([[sid, race, amt] for race, amt in s["workforce"]],
-                                   columns=["id", "race", "amount"]),
-        station_cargo=pd.DataFrame([[sid, w, a] for w, a in s["cargo"]],
-                                   columns=["id", "ware", "amount"]),
-        trade_offers=pd.DataFrame(
-            [[sid, side, w, a, 0.0, fl, None] for side, w, a, fl in s["offers"]],
-            columns=["id", "side", "ware", "amount", "price", "flags", "desired"]),
-        module_production=pd.DataFrame(
-            [[sid, macro, ware, eff, state, n]
-             for macro, ware, eff, state, n in s["production"]],
-            columns=["id", "macro", "ware", "efficiency", "state", "n_modules"]),
+        universe=pd.DataFrame(uni, columns=["id", "class", "sector.macro"]),
+        workforce_all=pd.DataFrame(wf, columns=["id", "race", "amount"]),
+        station_cargo=pd.DataFrame(cargo, columns=["id", "ware", "amount"]),
+        trade_offers=pd.DataFrame(offers, columns=[
+            "id", "side", "ware", "amount", "price", "flags", "desired"]),
+        module_production=pd.DataFrame(prod, columns=[
+            "id", "macro", "ware", "efficiency", "state", "n_modules"]),
     )
+
+
+def model_all(doc: dict, storage_fn=station_storage) -> dict:
+    """{station code: {ware: (allocation, throughput)}} in one model run."""
+    df = storage_fn(frames_for(doc), _ref(doc))
+    by_id = {}
+    for r in df.itertuples():
+        if r.role in ("output", "input", "food"):
+            by_id.setdefault(r.station_id, {})[r.ware] = (r.max_units, r.throughput)
+    return {code: by_id.get(s["id"], {}) for code, s in doc["stations"].items()}
 
 
 def model_for(doc: dict, code: str, storage_fn=station_storage) -> dict:
     """{ware: (allocation, throughput)} as the model computes it."""
-    df = storage_fn(frames_for(doc, code), _ref(doc))
-    return {r.ware: (r.max_units, r.throughput) for r in df.itertuples()
-            if r.role in ("output", "input", "food")}
+    return model_all(doc, storage_fn)[code]
 
 
 def score(doc: dict | None = None, storage_fn=station_storage, tol: float = 0.01):
@@ -92,9 +109,10 @@ def score(doc: dict | None = None, storage_fn=station_storage, tol: float = 0.01
     if it comes in BELOW it.
     """
     doc = doc or load()
+    allm = model_all(doc, storage_fn)
     rows = []
     for code, obs in sorted(doc["observed"].items()):
-        got = model_for(doc, code, storage_fn)
+        got = allm[code]
         for kind in ("alloc", "rate"):
             for ware, (value, source, note) in sorted(obs[kind].items()):
                 pair = got.get(ware)
