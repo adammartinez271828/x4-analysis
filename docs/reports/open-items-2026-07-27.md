@@ -111,7 +111,17 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   against `sectors.csv` (offline, minor; the committed data is
   unaffected).
 
-### P5 — TABLED: allocation is badly under-modelled on scrap recyclers
+### P5a — FIXED: solar output ignored sector sunlight
+
+`analysis/storage.py` rated energy-cell production at recipe speed
+regardless of where the station sits. Player-derived from DLB-176
+(Family Zhin, sunlight 0.71): actual 42,480 ecells/h vs our 60,060, and
+with the corrected rate the equal-hours split lands on the in-game
+allocation (348,586 vs ~348,000 energy cells; 17,186 vs 17,216 graphene).
+Over-full output rows fell 37 -> 29, and the >5% cases 17 -> 7.
+The allocation *rule* was never wrong — only its input.
+
+### P5b — TABLED: allocation still under-modelled on scrap recyclers
 
 Player-read allocations (2026-07-27) against `station_storage`:
 

@@ -194,6 +194,26 @@ knowledge, not yet a feature.
   substrate cohorts sit at ~1 h and fit no pattern yet; and the two knee
   positions have only been measured on one cohort.
 
+  **Solar output scales with sector sunlight — CONFIRMED 2026-07-27
+  (player-derived, now implemented).** `analysis/storage.py` rated energy
+  cells at their recipe speed everywhere, inflating solar throughput by
+  1/sunlight and skewing the equal-hours split on every station that makes
+  energy cells alongside anything else. DLB-176 (Family Zhin,
+  sunlight 0.71) produces 42,480 energy cells/h against a 42,000/h rated
+  base — i.e. base x sunlight x the workforce bonus — and with that rate
+  the existing split reproduces the in-game allocation exactly:
+
+  | ware | model before | model after | in-game |
+  |---|---:|---:|---:|
+  | energy cells | 428,126 | **348,586** | ~348,000 |
+  | graphene | 14,987 | **17,186** | 17,216 |
+  | superfluid coolant | 15,135 | 17,357 | — |
+
+  So the allocation RULE was right all along (equal hours over the pool
+  net of the food buffer); only the throughput feeding it was wrong. The
+  fix halved the population of stations holding more than their modelled
+  allocation (37 output rows -> 29; the >5% cases 17 -> 7).
+
   **Scope note (2026-07-27, agreed with the player):** pricing work is
   currently confined to **basic production stations** — wharfs,
   shipyards, equipment docks, trade stations and pirate bases are

@@ -54,6 +54,16 @@ from .frames import Frames
 
 FOOD_HOURS = 4.0
 WORKUNIT = "workunit_busy"
+# solar output scales with the SECTOR's sunlight multiplier (sectors.csv,
+# from mapdefaults' area@sunlight). Only energy-cell production is solar;
+# every other recipe runs at its rated speed wherever it sits. Player-
+# verified 2026-07-27 on DLB-176 in Family Zhin (sunlight 0.71): the game
+# produces 42,480 energy cells/h against a 42,000/h rated base, i.e.
+# base x 0.71 x the workforce bonus - and with that rate the equal-hours
+# split reproduces the in-game allocation (17,216 graphene, 348k energy
+# cells) to 0.2%. Omitting it inflated solar throughput by 1/sunlight and
+# skewed every multi-ware split on a station that makes energy cells.
+SOLAR_WARE = "energycells"
 
 _COLS = ["station_id", "ware", "transport", "role",
          "throughput", "max_units", "max_volume", "source"]
@@ -73,6 +83,17 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
 
     uni = frames.universe.set_index("id")
     stations = set(uni.index[uni["class"] == "station"])
+    # station -> sector sunlight. Defensive by convention: reference data
+    # predating the sectors.csv sunlight column, or a hand-built frame
+    # without sector ancestry, simply means no scaling (1.0).
+    sec_ref = getattr(ref, "sectors", None)
+    sun_by_sector = {}
+    if sec_ref is not None and "sunlight" in getattr(sec_ref, "columns", []):
+        sun_by_sector = dict(zip(sec_ref["macro"],
+                                 _num(sec_ref["sunlight"], 1.0)))
+    sunlight = ({sid: float(sun_by_sector.get(mac, 1.0) or 1.0)
+                 for sid, mac in uni["sector.macro"].items()}
+                if sun_by_sector and "sector.macro" in uni.columns else {})
 
     wares = ref.wares.set_index("id")
     transport = wares["transport"].to_dict()
@@ -138,8 +159,11 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 continue
             time, amount, work, inputs = recipe
             units = scale * weight
+            # solar plants run at sector sunlight; nothing else does
+            solar = sunlight.get(sid, 1.0) if ware == SOLAR_WARE else 1.0
             if time > 0:
-                output[sid][ware] += amount / time * 3600.0 * units * (1 + work)
+                output[sid][ware] += (amount / time * 3600.0 * units
+                                      * (1 + work) * solar)
                 for inw, ina in inputs:
                     consume[sid][inw] += ina / time * 3600.0 * units
 
