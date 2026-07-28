@@ -346,3 +346,73 @@ No `src/` change follows from this: the pricing model is knowledge, not a
 feature, and `analysis/storage.py` does not use pending. The fix is in the
 scatter generator, and `output/fill_vs_price.html` is regenerated with the net
 position on the x-axis and both power curves drawn.
+
+
+---
+
+# Addendum 2: the steep low-fill branch on the sell side
+
+Raised in review from the scatter: a second locus among "main sequence — sell",
+trending from band ≈ 0.85 at ~5 % fill down to ≈ 0.44 at ~20 %, far steeper
+than the k = 1.14 curve. It is real, and it is not the allocation model being
+wrong.
+
+**Population.** 112 sell offers across **110 distinct stations** — so a
+per-station-design property, not a few outliers. 110 of 112 are role='output';
+111 of 112 have a `computed` allocation. It is essentially absent on the buy
+side (3 of 1,323 low-fill buys).
+
+**What separates them.** Expressing each offer as an implied *price span* —
+the stock at which the price would reach the band floor, as a fraction of the
+modelled allocation — the branch sits at **0.47** against **1.09** for the
+low-fill sells that are on-curve. The span is a **per-(ware, role) cohort
+constant**, and its distribution over interior sells is unimodal at 1.0–1.1
+with a long low tail:
+
+| ware (output) | n | span / allocation | IQR/med |
+|---|---:|---:|---:|
+| computronicsubstrate | 18 | **0.194** | 0.37 |
+| claytronics | 46 | 0.797 | 0.86 |
+| siliconwafers | 29 | 0.823 | 0.62 |
+| *…the pack (energycells, hullparts, graphene, microchips…)* | | 0.99 – 1.16 | 0.08 – 0.32 |
+| advancedelectronics | 43 | 1.319 | 0.35 |
+| terranmre | 15 | 1.378 | 0.21 |
+
+The computronic-substrate cohort is the branch's visible core and is tight:
+18 stations sharing one design (allocation 5,359, throughput 642/h) trace band
+0.916 → 0.698 as fill goes 1.83 % → 4.03 %, a slope ~10× the main sequence's.
+
+**Diagnosis: real behavior, NOT an allocation defect.** Three independent
+checks:
+
+1. Correlation between a ware's sell-side span/allocation and its buy-derived
+   *true* allocation ratio `(stock + amount)/model` is **+0.11** over 18 wares
+   with both. The allocation is 1.000 for nearly every ware whose sell-side
+   span ranges 0.82–1.38 — the two quantities are unrelated.
+2. **GDR-378**, one of the in-game-validated stations, shows
+   computronicsubstrate at span/allocation **0.144** while its five input wares
+   in the same pool on the same station sit at 1.02–1.12. Same station, same
+   save, same allocation model.
+3. Within-station dispersion of span/allocation (IQR/med 0.34) is *worse* than
+   global (0.27), so it is not a station constant either — it is per ware.
+
+**What sets the multiplier is unknown.** Correlations over the 28 wares with
+n ≥ 15: log avg price −0.49 (and computronicsubstrate, the most expensive ware
+at 8,280 Cr, is almost single-handedly driving it), log volume −0.33,
+allocation in hours −0.16, ware's share of its transport pool −0.05,
+throughput +0.05, wares per station +0.02. Nothing explains it. Note also that
+the multiplier is not purely per-ware: siliconwafers reads 0.823 as an output
+and 1.184 as an input, on different stations.
+
+**Falsification.** The hypothesis is "the price reference span is
+`m(ware, role) × allocation` with m a game constant". It is falsified if a
+single station's m moves between saves at constant allocation, or if an
+in-game read of a computronic-substrate producer's storage max comes back near
+1,000 rather than ~5,300 (which would make it an allocation error after all —
+the one check I cannot do from the save, because no station posts a
+computronicsubstrate *buy* offer to derive the allocation from).
+
+Broken out in the scatter as a `narrow price span (output)` legend entry
+(116 offers: computronicsubstrate, claytronics, siliconwafers outputs), defined
+at **cohort** level rather than by a point-level residual cut. With it removed,
+main-sequence sell drops 1,722 → 1,608.
