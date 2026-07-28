@@ -163,6 +163,33 @@ Stars) energycells ×1.10, VDH-320 (holyorder, Cardinal's Redress)
 antimatter cells ×1.05. Everything else in the list sits at ×1.00–1.02,
 i.e. a full station the model gets right to within 0.1%.
 
+### P6 — PARKED: the `shady` (black-market) offer book
+
+A station's shady offers are a **separate book**, opened per station by
+unlocking that station's shadyguy (signal leak + mission), independent of
+whatever illegal wares the station trades normally — structurally the same
+idea as the `supplies` ammo/drone book. They are not station demand and
+must not feed demand or storage models.
+
+Save-side this is already fully encoded and already parsed: the station's
+`<control><post id="shadyguy">` row. In save_009 the correlation is exact —
+**823 stations carry a shadyguy post and exactly those same 823 stations
+post `shady`-flagged offers** (`post` table joined to `trade_offer`), so no
+new capture is needed and no UI opt-out is needed either: the station list
+is a fact in the save.
+
+Scale of the conflation while it stands: 3,245 of the 3,608 buy offers
+priced above their band ceiling are `shady`, all flagged
+`buyercargovirtual|buyermoneyvirtual` (the buyer has neither real hold nor
+real money) and all at ~1.77x the ceiling — the same figure at every
+station across every faction (spaceweed 456.20, spacefuel 366.60,
+stimulants 935.00, majadust 572.60). Strip them and the remaining
+above-band population is a clean, bounded 1.00-1.10x overshoot by genuinely
+starved consumers, which is the Layer 4 behaviour worth modelling.
+
+Work started and reverted at the player's request (storage-proxy exclusion
+plus an opportunities tag/badge); resume from this note.
+
 ## 2. Suggested implementation todos (code; one done — build method, v21)
 
 - **`buildpricefactor` history (trend layer).** v20 stores it per
