@@ -544,6 +544,28 @@ Save-side: savegame-structure.md § Stations (upgrades/groups).
 | `entry_id` | TEXT, FK → `build_entry.entry_id` | the sequence entry | `entry@id` |
 | `equipment_macro` | TEXT | shield/turret/engine macro, lowercased | `entry/upgrades/groups/(shields\|turrets\|engines)@macro` |
 
+### module_production
+
+Live per-production-module state (v27). One row per distinct
+(station, macro, ware, efficiency, state) with a module count — identical
+modules on a station always share an efficiency. Save-side:
+savegame-structure.md § Stations (production).
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `station_id` | TEXT, FK → `component.id` | host station | enclosing station component |
+| `macro` | TEXT | production module macro, lowercased | module `component@macro` |
+| `ware` | TEXT | what the module is making right now | `production/queue@ware` |
+| `efficiency` | REAL | the engine's COMPLETE multiplier on the recipe amount — workforce bonus × sector sunlight × any mod effect | `production/efficiency@product` |
+| `state` | TEXT | `producing`, `waiting`, … | `production@state` |
+| `n_modules` | INTEGER | modules collapsed into this row | count |
+
+`efficiency` is runtime state and **drifts** — read it per save, never
+calibrate it once (same discipline as `build_price_factor`). It is what
+`analysis/storage.py` sizes output storage from; see save-semantics.md
+§ Production efficiency.
+
 ### workforce
 
 Per-station, per-race workforce, summed over a station's `<workforce>`

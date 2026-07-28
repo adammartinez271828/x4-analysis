@@ -147,6 +147,39 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
     for r in mref.itertuples():
         modrows[r.macro].append((r.ware, r.method, r.scale, r.weight))
 
+    # (station, module macro, ware) -> the engine's own production multiplier.
+    #
+    # CONFIRMED 2026-07-28. Each production module carries
+    # `<production><efficiency product=>`, and that single number IS the whole
+    # multiplier on the recipe amount: workforce bonus, sector sunlight and any
+    # mod effect folded together (this playthrough's Faction Fix Pack adds a
+    # per-faction war-pressure term, seen on ARG/ANT at differing percentages —
+    # no static game-file model can reproduce that). EIJ-609 reads
+    # `product="1.12634"`: floor(294 x 1.12634) = 331 per 900 s cycle x 3
+    # modules = 3,972/h, exactly the in-game figure, against 4,824/h from the
+    # reconstructed work_effect.
+    #
+    # Scored against the offer-derived allocations (allocation = stock +
+    # inbound + open buy amount, exact) over 4,914 (station, ware) pairs:
+    #
+    #   basis                                   median |err|   within 1%
+    #   this (efficiency, outputs only)             0.0000       87.2%
+    #   reconstructed work_effect x sunlight        0.0001       76.7%
+    #   no multiplier at all                        0.0036       50.9%
+    #   efficiency on outputs AND inputs            0.0103       49.9%
+    #
+    # So the model's SHAPE was right — outputs are boosted, inputs are not —
+    # only the multiplier was reconstructed instead of read. Sunlight is
+    # already inside `efficiency`, so it must NOT be applied again here.
+    prod_eff: dict[tuple[str, str, str], float] = {}
+    mp = getattr(frames, "module_production", None)
+    if mp is not None and not mp.empty:
+        for r in mp.itertuples():
+            eff = getattr(r, "efficiency", None)
+            if eff is None or pd.isna(eff) or float(eff) <= 0:
+                continue
+            prod_eff[(r.id, str(r.macro), str(r.ware))] = float(eff)
+
     mc = ref.modcaps.set_index("macro")
     workers = _num(mc["workers"]).to_dict()
     cargo_max = _num(mc["cargo_max"]).to_dict()
@@ -175,20 +208,24 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 continue
             time, amount, work, inputs = recipe
             units = scale * weight
-            # solar plants run at sector sunlight; nothing else does
-            solar = sunlight.get(sid, 1.0) if ware == SOLAR_WARE else 1.0
+            # The save's own multiplier when the module reports one; otherwise
+            # fall back to reconstructing it (workforce bonus x sunlight), which
+            # is all we have for an idle module or a hand-built frame.
+            eff = prod_eff.get((sid, macro, ware))
+            if eff is None:
+                solar = sunlight.get(sid, 1.0) if ware == SOLAR_WARE else 1.0
+                eff = (1 + work) * solar
             # A module produces whole units per CYCLE, not fractions per
-            # hour: the workforce bonus and sunlight scale the cycle's
-            # amount and the engine TRUNCATES it (player-verified 7/7 —
-            # 97.92 -> 97 microchips, 195.91 -> 195 smart chips,
-            # 141.55 -> 141 coolant, so floor and not rounding). Doing the
+            # hour: the multiplier scales the cycle's amount and the engine
+            # TRUNCATES it (player-verified 7/7 — 97.92 -> 97 microchips,
+            # 195.91 -> 195 smart chips, 141.55 -> 141 coolant, so floor and
+            # not rounding, and EIJ-609's 294 x 1.12634 -> 331). Doing the
             # multiply at the hourly level instead leaves fractional units
             # and always reads high, by a per-ware amount that depends on
             # where the fraction falls (0.01%-0.9% here) — which perturbs
             # the RATIOS the pool split is computed from, not just the
-            # absolute rates. Note the order: bonus, then sunlight, then
-            # floor, then divide by the cycle time.
-            per_cycle = math.floor(amount * (1 + work) * solar)
+            # absolute rates.
+            per_cycle = math.floor(amount * eff)
             if time > 0:
                 output[sid][ware] += per_cycle / time * 3600.0 * units
                 # PROCESSING modules (scrap works) are outside the storage

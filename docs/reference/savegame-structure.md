@@ -476,6 +476,23 @@ pointing at the `npc` component filling it:
 </workforce>
 ```
 
+**Production modules** — each carries its live state, and
+`<efficiency product>` is the engine's **complete** multiplier on the recipe
+amount (workforce bonus, sector sunlight and any mod effect, all folded into
+one number). `<queue ware>` names what it is making:
+
+```xml
+<production start="81852.263" end="82752.263" item="0" cycle="0" state="producing">
+  <efficiency product="1.12634"/>
+  <queue ware="hullparts"/>
+</production>
+```
+
+The rate is `floor(recipe.amount x product) / recipe.time x 3600` per module —
+the engine truncates per CYCLE. Do not confuse this with the station-level
+`<offers><production>`, which holds trade offers and no recipe at all.
+Parsed since v27 (`module_production`).
+
 **Build plan, listed twice.** The same sequence entries (same `id`s!) appear
 in TWO places: the station's own `<construction><sequence>` and — while a
 build storage exists — the storage's

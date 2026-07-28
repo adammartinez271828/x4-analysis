@@ -86,7 +86,7 @@ import hashlib
 #      trades (the supply curve's `pending` term), merged from the two
 #      places the save keeps each one; the escrow subset keeps its own
 #      flag. trade_active dropped (it held 49 of these 2,510 rows).
-SCHEMA_VERSION = "26"
+SCHEMA_VERSION = "27"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -347,6 +347,7 @@ WORLD_TABLES = (
     "faction_relation", "faction_meta", "faction_licence",
     "player_subscription", "build_price_factor",
     "player_scan", "station_trade_setting", "trade_pending",
+    "module_production",
 )
 
 REFERENCE_TABLES = (
@@ -427,6 +428,17 @@ TABLES: dict[str, str] = {
   idx          INTEGER,
   macro        TEXT,
   built        INTEGER NOT NULL
+)""",
+    "module_production": """CREATE TABLE IF NOT EXISTS module_production (
+  save_id    INTEGER NOT NULL,
+  station_id TEXT NOT NULL,
+  macro      TEXT NOT NULL,   -- production module macro
+  ware       TEXT,            -- <queue ware=>: what it is making now
+  efficiency REAL,            -- <efficiency product=>: the COMPLETE runtime
+                              -- multiplier on the recipe amount (workforce
+                              -- bonus x sunlight x mod effects)
+  state      TEXT,            -- producing / waiting / ...
+  n_modules  INTEGER NOT NULL -- modules sharing this (macro, ware, efficiency)
 )""",
     "module_upgrade": """CREATE TABLE IF NOT EXISTS module_upgrade (
   save_id  INTEGER NOT NULL,

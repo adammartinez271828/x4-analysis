@@ -242,6 +242,70 @@ knowledge, not yet a feature.
   allocations to within 0.20%** — nine of them exactly — across eight
   stations, six factions and both single- and multi-ware producers.
 
+  **Production efficiency: the save states the multiplier — CONFIRMED
+  2026-07-28.** Every production module carries
+  `<production><efficiency product=>`, and that one number IS the whole
+  multiplier on the recipe amount: workforce bonus, sector sunlight and any
+  mod effect folded together. The rate is
+  `floor(recipe.amount x product) / time x 3600` per module (truncated per
+  CYCLE, as already established). EIJ-609 (Holy Order hull parts, True Sight)
+  reads `product="1.12634"`: floor(294 x 1.12634) = 331 per 900 s x 3 modules
+  = **3,972/h**, exactly the in-game logical overview, against 4,824/h from
+  the reconstructed `work_effect`.
+
+  This matters because the multiplier is **not reconstructible**: this
+  playthrough runs Faction Fix Pack, which adds a per-faction "production
+  efficiency from war pressure" term seen on ARG and ANT stations at
+  *differing* percentages. Reading the field is the only mod-proof route.
+
+  Scored against the **offer-derived** allocations (below) over 4,914
+  (station, ware) pairs, the basis for OUTPUT storage is:
+
+  | basis | median \|err\| | within 1% |
+  |---|---:|---:|
+  | save `efficiency`, outputs only | 0.0000 | **87.2%** |
+  | reconstructed `work_effect` x sunlight | 0.0001 | 76.7% |
+  | no multiplier | 0.0036 | 50.9% |
+  | `efficiency` on outputs AND inputs | 0.0103 | 49.9% |
+
+  So the model's SHAPE was right — outputs boosted, inputs at base — only the
+  multiplier was reconstructed instead of read. Splitting by whether a
+  station's efficiency equals `1 + work_effect` isolates the mod term and
+  shows it genuinely enters the allocation:
+
+  | station group | n | reconstructed | save `efficiency` |
+  |---|---:|---:|---:|
+  | efficiency == 1+work_effect (579 stations) | 2,790 | 92.9% | 92.9% |
+  | efficiency modified (539 stations) | 2,124 | 55.5% | **79.7%** |
+
+  Sunlight is already inside `efficiency`, so it must not be applied again;
+  `SOLAR_WARE` survives only as the fallback for a module with no
+  `<production>` block. Implemented v27 (`module_production`).
+
+  **Known exception — EIJ-609.** Its allocation implies efficiency exactly
+  1.0 (in-game 34,829 hull parts; base model 34,829.1, and all three
+  offer-derived inputs within 0.6 units, pool closing to exactly 1,000,000 m3)
+  while its modules report 1.12634. HYPOTHESIS: the allocation is recomputed
+  lazily and lags a recent efficiency change (its workforce is starving — zero
+  medical supplies and zero soja husk — and the mod's war term looks recent).
+  FALSIFIABLE: re-read the hull-parts allocation in-game later; the lag
+  hypothesis predicts it drifts to ~37,228. If it stays at 34,829 the
+  efficiency basis is wrong for war-modified stations specifically.
+
+  **The offer-derived allocation — CONFIRMED 2026-07-28.** An open, unflagged
+  buy offer's `amount` is exactly `allocation - stock - inbound pending`, so
+  `allocation = stock + inbound + amount` for any ware a station is buying.
+  Verified on EIJ-609 (graphene is its only ware with inbound: 2,466 + 426 +
+  1,846 = 4,738, and only with the inbound term do all three inputs land on an
+  identical 9.872 h), and save-wide the derived value matches the model at
+  median ratio 1.0000. This turns allocation validation from 18 hand-read
+  numbers into thousands of ground-truth points per save and should gate any
+  future change to the model.
+
+  **`<workforces><bonus busy=>` is NOT a bonus on/off switch** — busy=0 on
+  1,132 of 1,244 workforce stations, including plainly bonused ones. It looks
+  like a cycle phase. Do not use it as a gate.
+
   **A station can hold MORE than its allocated capacity.** MBI-471 reads
   14,330 energy cells against a 4,403 allocation *in the game's own menu*.
   Allocation is a trade/target level, not a physical cap — so "stock >

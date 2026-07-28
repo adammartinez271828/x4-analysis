@@ -63,6 +63,10 @@ class Frames:
     orders: pd.DataFrame = None              # id, order, default, state
     built_refs: set = None                   # constructed sequence-entry ids
     module_upgrades: pd.DataFrame = None     # entry, macro (planned loadouts)
+    # live production-module state (v27): id, macro, ware, efficiency, state,
+    # n_modules. efficiency is the engine's COMPLETE multiplier on the recipe
+    # amount -- workforce bonus x sunlight x mod effects, all in one number.
+    module_production: pd.DataFrame = None
 
     @property
     def built_modules(self) -> pd.DataFrame:
@@ -694,6 +698,10 @@ def build_frames(save: SaveData, ref: RefData,
         module_upgrades=_read(conn, f"""
             SELECT entry_id AS entry, equipment_macro AS macro
             FROM module_upgrade WHERE save_id = {_CUR} ORDER BY rowid"""),
+        module_production=_read(conn, f"""
+            SELECT station_id AS id, macro, ware, efficiency, state, n_modules
+            FROM module_production WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["ware", "state"]),
         floating_wares=_read(conn, f"""
             SELECT sector_macro AS "sector.macro", ware, amount
             FROM floating_ware WHERE save_id = {_CUR} ORDER BY rowid""",

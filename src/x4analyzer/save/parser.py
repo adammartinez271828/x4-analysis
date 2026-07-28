@@ -72,6 +72,14 @@ class SaveData:
     built_refs: list = field(default_factory=list)
     # equipment in planned module loadouts: (entry_id, equipment_macro)
     module_upgrades: list = field(default_factory=list)
+    # per production module: (host_id, module_macro, ware, efficiency, state).
+    # <production><efficiency product=> is the engine's COMPLETE runtime
+    # multiplier on the recipe amount -- workforce bonus, sector sunlight and
+    # any mod effect (this playthrough's Faction Fix Pack adds a per-faction
+    # war-pressure term) all folded into one number. Reading it is the only
+    # mod-proof way to get a station's real rate; see
+    # docs/plans/storage-production-model-2026-07-28.md.
+    module_production: list = field(default_factory=list)
     npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
     # (sector_macro, ware, yield, level, speed, starttime); starttime is the
     # game-time secs at which a depleted area becomes respawn-eligible (0 on
@@ -289,6 +297,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     object_stack: list[str] = []
     npc_stack: list[list] = []       # open npc records awaiting <skills>
     entry_stack: list[str] = []      # open construction sequence entries
+    # open <production> blocks on module components: [state, ware, product]
+    prod_stack: list[list] = []
     build_type_stack: list[str] = []  # type attr of open <build> elements
     sector_macro_stack: list[str] = []
     # open data-vault components awaiting their loot/unlock children
@@ -314,6 +324,13 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             tag = elem.tag
             if event == "start":
                 tag_stack.append(tag)
+                if tag == "production" and tag_stack[-2:-1] == ["component"]:
+                    # [state, ware, product, depth]; filled in by the child
+                    # handlers. Only module-level blocks are tracked -- a
+                    # station's <offers><production> holds trade offers, not
+                    # a recipe, and must not be mistaken for one.
+                    prod_stack.append([elem.get("state", ""), "", None,
+                                       len(tag_stack)])
                 if tag == "component":
                     clazz = elem.get("class", "")
                     cid = elem.get("id", "")
@@ -447,6 +464,32 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("component"),
                         int(float(elem.get("level", 0) or 0)),
                     ))
+
+            elif tag == "efficiency":
+                # <production><efficiency product=>: the engine's complete
+                # runtime multiplier on the recipe amount. Read here rather
+                # than off the closing <production> because the loop clears
+                # each child as it ends, so the parent no longer has them.
+                if (prod_stack and tag_stack[-1] == "production"
+                        and prod_stack[-1][3] == len(tag_stack)):
+                    try:
+                        prod_stack[-1][2] = float(elem.get("product"))
+                    except (TypeError, ValueError):
+                        pass
+
+            elif tag == "queue":
+                # <production><queue ware=>: what the module is making now
+                if (prod_stack and tag_stack[-1] == "production"
+                        and prod_stack[-1][3] == len(tag_stack)):
+                    prod_stack[-1][1] = elem.get("ware", "").lower()
+
+            elif tag == "production":
+                if prod_stack and prod_stack[-1][3] == len(tag_stack) + 1:
+                    state, ware, product, _depth = prod_stack.pop()
+                    if product is not None and comp_stack and object_stack:
+                        d.module_production.append((
+                            object_stack[-1], comp_stack[-1][2],
+                            ware, product, state))
 
             elif tag == "prices":
                 # <trade><prices buildpricefactor=>: the station's build

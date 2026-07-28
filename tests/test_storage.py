@@ -41,8 +41,13 @@ def _ref():
                            modcaps=modcaps)
 
 
-def _frames(built, universe, workforce=None, cargo=None, offers=None):
+def _frames(built, universe, workforce=None, cargo=None, offers=None,
+            production=None):
     return SimpleNamespace(
+        module_production=pd.DataFrame(
+            production or [],
+            columns=["id", "macro", "ware", "efficiency", "state",
+                     "n_modules"]),
         built_modules=pd.DataFrame(built, columns=["id", "macro", "built"]),
         universe=pd.DataFrame(universe, columns=["id", "class"]),
         workforce_all=pd.DataFrame(workforce or [],
@@ -142,6 +147,52 @@ def test_supply_rows_on_producing_stations_too():
     assert by_role[("food1", "supply")].max_units == 190
     assert by_role[("food1", "food")].source == "computed"  # model untouched
     assert by_role[("widget", "output")].source == "computed"
+
+
+# ---- <production><efficiency product> (v27) --------------------------------
+
+def test_efficiency_from_the_save_overrides_the_recipe_work_effect():
+    # the widget recipe carries work_effect 1.0, so the reconstructed rate is
+    # 200/cycle. The save says the module is actually running at 1.5, and the
+    # engine truncates per cycle: floor(100 x 1.5) = 150. Storage is sized off
+    # the real rate, so the allocation must follow the save, not the recipe.
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_widget", "widget", 1.5, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    rows = _run(frames)
+    assert rows["widget"].throughput == 150.0          # not 200.0
+    # energy input is NOT scaled by the multiplier (outputs only)
+    assert rows["energy"].throughput == 100.0
+
+
+def test_efficiency_truncates_per_cycle_like_the_recipe_path():
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_widget", "widget", 1.12634, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    # floor(100 x 1.12634) = 112, never 112.634
+    assert _run(frames)["widget"].throughput == 112.0
+
+
+def test_missing_efficiency_falls_back_to_the_recipe_work_effect():
+    # an idle module reports no <production> block at all; the reconstructed
+    # workforce bonus is all we have and must still apply
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [], columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    assert _run(frames)["widget"].throughput == 200.0
+
+
+def test_unparseable_efficiency_is_ignored_not_fatal():
+    # defensive: a modded save with a junk/zero product must not zero the
+    # station's storage, it must fall back
+    frames = _producer()
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_widget", "widget", None, "producing", 1],
+         ["st1", "prod_widget", "widget", 0.0, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    assert _run(frames)["widget"].throughput == 200.0
 
 
 def test_shady_buys_get_no_storage_at_all():

@@ -374,6 +374,18 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, entry, macro)
              for entry, macro in save.module_upgrades])
 
+        # per production module, collapsed to one row per distinct
+        # (station, macro, ware, efficiency, state) with a module count --
+        # identical modules on a station always share an efficiency, so this
+        # is a large saving with no loss.
+        prod: dict[tuple, int] = {}
+        for host, macro, ware, eff, state in save.module_production:
+            key = (host, _low(macro), _s(ware), eff, _s(state))
+            prod[key] = prod.get(key, 0) + 1
+        conn.executemany(
+            "INSERT INTO module_production VALUES (?,?,?,?,?,?,?)",
+            [(save_id, *k, n) for k, n in prod.items()])
+
         wf: dict[tuple, float] = {}
         for station, race, amount in save.workforce:
             key = (station, race)
