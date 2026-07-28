@@ -446,40 +446,54 @@ knowledge, not yet a feature.
   the UI shows the discount as a % of AVG, which makes the same tier look
   variable across stations. Per-station economy events add temporary
   `<modifier type="discount">` records.
-- **Layer 4 — buy side: the modifier is near-LINEAR in fill.** Measured
-  2026-07-28 over 5,428 main-sequence buy offers, on the normalised coordinate
+- **Layer 4 — buy side: the modifier is a COSINE in fill.** Measured
+  2026-07-28 over 5,428 buy offers, on the normalised coordinate
   (`s = price/avg − 1` divided by the band half-width on the relevant side, so
   +1 = band max and −1 = band min — this handles the 40 asymmetric wares that
   band position distorts):
 
-  | fill | n | median normalised price | IQR |
-  |---:|---:|---:|---:|
-  | 0–10 % | 925 | **+1.000** | 0.000 |
-  | 10–20 % | 228 | +0.921 | 0.097 |
-  | 20–30 % | 279 | +0.751 | 0.166 |
-  | 30–40 % | 283 | +0.522 | 0.204 |
-  | 40–50 % | 430 | +0.258 | 0.203 |
-  | 50–60 % | 585 | −0.020 | 0.219 |
-  | 60–70 % | 597 | −0.258 | 0.194 |
-  | 70–80 % | 589 | −0.503 | 0.204 |
-  | 80–90 % | 547 | −0.732 | 0.176 |
-  | 90–100 % | 964 | −0.908 | 0.108 |
+  > **`s = cos(pi × fill / 1.095)`**
 
-  Best clamped-linear fit: `s_norm = clamp(2.50 × (0.540 − fill), −1, +1)` —
-  the ceiling is reached below **14 %** fill and the floor above **94 %**,
-  crossing avg at **54 %**. Median |error| 0.048; 66 % of offers within 0.10.
-  The old "consumers price off need, not fill" is wrong: fill explains it.
+  Fits are scored on **bin medians with equal weight per bin** (40 bins of
+  ≥20 offers, 2.5% fill wide). That weighting matters more than anything else
+  here: a per-offer error metric is dominated by the crowded middle of the
+  curve, where a straight line and a cosine are indistinguishable, and it will
+  happily report a linear fit as good. The ends are what discriminate, and they
+  hold few offers.
+
+  | model | S | k | bin RMSE |
+  |---|---:|---:|---:|
+  | `cos(pi (f/S)^k)` | 1.105 | 0.980 | **0.0098** |
+  | `cos(pi f/S)` | 1.095 | — | **0.0124** |
+  | `A cos(pi f/S)` | 1.090 | 0.985 | 0.0128 |
+  | clamped linear | 0.600 | 2.438 | **0.1207** |
+
+  The cosine beats a clamped line by **10x**, and the best warp exponent is
+  0.98 — i.e. no warp: it is a plain cosine. An earlier revision of this file
+  claimed "near-linear with knees"; that was an artifact of scoring per-offer
+  MAE across the middle and is **retracted**.
+
+  The sell side takes the same family, a little less cleanly (1,569 offers,
+  26 bins): `cos(pi (f/S)^k)` at S 1.125 / k 0.86, bin RMSE 0.0352, against a
+  clamped line's 0.1248.
+
+  S ≈ 1.09 also reconciles with the ration result found independently the same
+  day — `(1 + cos(pi u / 1.085)) / 2`, MAD 0.0016 over 2,369 offers. Same law,
+  same span, two disjoint populations.
+
+  So the old "consumers price off need, not fill" is wrong: fill explains it.
 
   **Hours of cover does NOT explain it.** Tested because CCN-497 holds only
   1.15 h of every input yet bids at the ceiling: binning on hours of cover
-  leaves a median deviation of 0.136 against fill fraction's **0.068**, and the
-  hours profile is not even monotone. Allocation-in-hours varies 4.0–9.3 across
-  stations, so the two coordinates are genuinely different and fill wins.
+  leaves a median deviation of 0.136 against fill fraction's 0.068, and the
+  hours profile is not even monotone. Allocation-in-hours varies 4.0-9.3
+  across stations, so the two coordinates are genuinely different and fill wins.
 
   Still open: the residual is not noise. CCN-497 (Cardinal's Redress) prices
-  graphene and refined metals a full band width above the fit (+1.03, +1.02) at
-  78 % and 68 % fill, energy cells +0.33, while its two rations sit on the fit.
-  A station-level premium would move all five together; it does not.
+  graphene and refined metals a full band width above the curve at 78% and 68%
+  fill, energy cells +0.33, while its two rations sit on it. A station-level
+  premium would move all five together; it does not.
+
 - **Layer 5 — player-owned stations** use manual thresholds — off-model by
   design. The persisted inputs are now readable (v23): `price_setting`
   (kind `reference` = the configured reference price, near-universal;
