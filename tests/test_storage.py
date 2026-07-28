@@ -144,6 +144,25 @@ def test_supply_rows_on_producing_stations_too():
     assert by_role[("widget", "output")].source == "computed"
 
 
+def test_shady_buys_get_no_storage_at_all():
+    # black-market book: a non-producing station bids for an illegal ware it
+    # holds none of. It must neither inflate an existing proxy row nor mint a
+    # row of its own (546 such phantom rows universe-wide before this).
+    frames = _frames(
+        built=[["w1", "buildmodule_ships", 1]],
+        universe=[["w1", "station"]],
+        cargo=[["w1", "energy", 100]],
+        offers=[["w1", "buy", "energy", 200, 5, "invertfactionrestriction", None],
+                ["w1", "buy", "energy", 60, 9,
+                 "buyercargovirtual|invertfactionrestriction|shady", 60],
+                ["w1", "buy", "widget", 500, 90,
+                 "buyercargovirtual|buyermoneyvirtual|shady", 500]])
+    df = station_storage(frames, _ref())
+    rows = {(r.ware, r.role): r for r in df.itertuples()}
+    assert rows[("energy", "input")].max_units == 300   # proxy: 100 + 200 only
+    assert not any(r.ware == "widget" for r in df.itertuples())
+
+
 def test_offers_without_flags_column_still_work():
     # defensive: a hand-built frame without the v18 columns must not crash
     frames = _frames(

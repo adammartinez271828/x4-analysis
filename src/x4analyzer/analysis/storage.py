@@ -38,6 +38,11 @@ from the proxy's stock+buy max and emitted as separate role='supply' rows
 (source='offer', max = outstanding need: desired when present, else amount)
 for EVERY station, producing or not.
 
+Shady offers (v26): buy offers flagged "shady" are the station's black-market
+book, unlocked per station via its shadyguy post. They are a separate book as
+well -- price-inelastic and backed by no stock -- so they are dropped from the
+proxy entirely and get no storage row (docs/reports/fill-price-spread-*.md).
+
 Still not modeled: multi-stage internally-cycled wares (gross vs net flow); a
 combined production+build station keeps the computed path only (its build
 inputs are omitted). Proxy caveats: excess stock over-states, and a pure trade
@@ -314,7 +319,16 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if c.id not in producers and c.id in stations:
                 stock[c.id][c.ware] = stock[c.id].get(c.ware, 0.0) + c.amount
     # supplies-flagged buys are self-supply (drone/munition build) demand:
-    # never part of the cargo-storage proxy, collected for every station
+    # never part of the cargo-storage proxy, collected for every station.
+    # shady-flagged buys are the station's BLACK-MARKET book, unlocked per
+    # station by its shadyguy (823 shadyguy posts <-> exactly the 823 stations
+    # posting shady offers in save_009). It is a separate book too: the offers
+    # are price-inelastic (~1.06x band max, no dependence on what the station
+    # holds) and the station stocks none of the ware. Letting them into the
+    # proxy minted 546 phantom (station, ware) allocations across 143
+    # non-producing stations -- every one of them 100% shady-sourced, all four
+    # of them illegal wares (stimulants / spacefuel / spaceweed / majadust).
+    # Unlike supplies they get no row at all: nothing is allocated for them.
     has_flags = offers is not None and not offers.empty \
         and "flags" in offers.columns
     buy: dict[str, dict[str, float]] = defaultdict(dict)
@@ -322,6 +336,8 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
     if offers is not None and not offers.empty:
         for o in offers.itertuples():
             if o.side != "buy" or o.id not in stations:
+                continue
+            if has_flags and isinstance(o.flags, str) and "shady" in o.flags:
                 continue
             if has_flags and isinstance(o.flags, str) \
                     and "supplies" in o.flags:
