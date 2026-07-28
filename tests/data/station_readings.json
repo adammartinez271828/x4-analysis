@@ -2,13 +2,14 @@
  "_provenance": {
   "db_save_id": 61,
   "faction_effects": {
-   "_note": "'Production efficiency from war pressure', faction-wide (player-read 2026-07-28). Multiplies the module's reported <efficiency product>.",
+   "_note": "'Production efficiency from war pressure' is reported in the station menu faction-wide (Holy Order +20%, Antigone +40%, Argon +22%), but it does NOT appear as a multiplier on the module's rate: the module panel's 'Additional Output / h' is the workforce bonus shown additively. Where the war term actually acts is not yet established -- do not model it as a rate multiplier.",
    "antigone": 1.4,
    "argon": 1.22,
    "holyorder": 1.2
   },
   "game_time": 82119.817,
   "note": "Model INPUTS captured from the save; OBSERVED values are player readings taken in game against this same save.",
+  "reference_data_caveat": "recipes.csv / wares.csv are extracted from base game + DLC only and are NOT diff-merged with installed extensions. This save runs Faction Fix Pack. VERIFIED both ways: scanningarrays reproduces EXACTLY from our data once the right method is used (prod_tel_scanningarrays_macro -> method 'teladi': amount 36, energycells 60, siliconwafers 60, teladianium 73, matching a second module panel to the unit), while advancedelectronics does not match under any method we hold. So the reference pipeline is sound and the gap is specifically un-merged mod diffs.",
   "save": "quicksave.xml.gz",
   "sources": {
    "derived": "allocation = stock + inbound + open buy amount. A LOWER BOUND, not an equality: a station bids only for what it can use, so a station whose consumers are unbuilt (MAL-475) or which simply is not buying (TPF-229 helium/ore) reads far below its true allocation.",
@@ -93,7 +94,24 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "The advanced-electronics module reports efficiency 1.39556 and one module; floor(54 x 1.39556)/720x3600 = 375/h, but the game shows 450/h -- exactly 1.2x. EIJ-609 shows no such factor, so the two rate readings are not yet reconciled.",
+   "module_panel": {
+    "Additional Output / h": 125,
+    "Efficiency": "140 %",
+    "Hull Integrity": "100 %",
+    "Product / h": {
+     "advancedelectronics": 450
+    },
+    "Resources / h": {
+     "energycells": 750,
+     "microchips": 245,
+     "quantumtubes": 180
+    },
+    "Workforce": "140 %",
+    "_interpretation": "CORRECTED: 'Additional Output / h' is the workforce bonus displayed ADDITIVELY -- it is PART of the 450, not on top of it (375 + 125 = 500, which is not what the panel shows). So base = 450 - 125 = 325/h = 65 per 720 s cycle, and floor(65 x 1.39556) = 90 -> 450/h. Our reference recipe says amount 54, so the recipe itself is wrong for this ware.",
+    "_source": "Logical Station Overview screenshot, 2026-07-28, same save",
+    "module": "(1) Advanced Electronics"
+   },
+   "note": "The module panel settles the rate rule:\n    rate = floor(recipe.amount x efficiency) x 3600/time x modules\nwith `efficiency` = the save's <efficiency product> = the panel's 'Workforce %'. 'Additional Output / h' is that same bonus shown additively (rate minus the unbonused rate), NOT a separate war-pressure term. There is no multiplicative war factor in the rate at all -- which makes EIJ-609's 3,972/h consistent, not stale.\n\nWhat IS wrong here is the RECIPE. The panel implies amount 65 per 720 s with inputs 150 energycells / 49 microchips / 36 quantumtubes; our reference data says 54 with 60 / 44 / 20, and carries only a 'default' method for this ware. Our CSVs are extracted from base+DLC and are NOT diff-merged with mods (CLAUDE.md), so a mod-changed recipe reads through as model error.",
    "rate": {
     "advancedelectronics": [
      450,
@@ -289,7 +307,7 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "Stock at read time: advancedelectronics 1,775. Two advancedelectronics modules, neither with a <production> block. STRUCTURAL PROBLEM: its three inputs imply three different T values at the recipe's own ratios (energycells 15.74 h, quantumtubes 11.34 h, microchips 7.01 h), so equal-hours is violated here regardless of the multiplier - no scale factor can fit it. The pool still closes exactly (249,979 of 250,000 m3). Recipe is 54 advancedelectronics per 720 s from 60 energycells + 44 microchips + 20 quantumtubes; observed allocations sit at ratios 4.166 : 1.361 : 1 against the recipe's 3 : 2.2 : 1.",
+   "note": "Two advancedelectronics modules, neither with a <production> block. Stock at read time: advancedelectronics 1,775.\n\nFULLY EXPLAINED by the modded advancedelectronics recipe derived from IFO-957's module panel (amount 65 per 720 s; inputs 150 energycells / 49 microchips / 36 quantumtubes). With it, all four wares land on an identical T = 6.297 h -- advancedelectronics 4,093/650, energycells 9,445/1,500, microchips 3,085/490, quantumtubes 2,267/360 -- and the pool closes at 249,979 of 250,000 m3. Equal-hours was never violated; the recipe was wrong. This retracts the earlier 'structurally unfittable' note.",
    "rate": {}
   }
  },
