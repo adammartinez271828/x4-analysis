@@ -1,6 +1,12 @@
 {
  "_provenance": {
   "db_save_id": 61,
+  "faction_effects": {
+   "_note": "'Production efficiency from war pressure', faction-wide (player-read 2026-07-28). Multiplies the module's reported <efficiency product>.",
+   "antigone": 1.4,
+   "argon": 1.22,
+   "holyorder": 1.2
+  },
   "game_time": 82119.817,
   "note": "Model INPUTS captured from the save; OBSERVED values are player readings taken in game against this same save.",
   "save": "quicksave.xml.gz",
@@ -44,7 +50,7 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "Workforce 810 (full) but STARVING: zero medical supplies, zero soja husk, both listed under <shortage>. Modules report efficiency 1.12634 and the production rate follows it, but the ALLOCATION follows 1.0 -- the player reports war-pressure bonuses do not count toward storage.",
+   "note": "Workforce 810 (full) but STARVING: zero medical supplies, zero soja husk, both listed under <shortage>. Modules report efficiency 1.12634 and the production rate follows it, but the ALLOCATION follows 1.0 -- the player reports war-pressure bonuses do not count toward storage. RATE CONFLICT: EIJ-609's 3,972/h fits floor(294 x efficiency) with NO war factor, while IFO-957's 450/h fits floor(54 x efficiency x 1.2). Both are Holy Order and both carry the same +20%. The EIJ-609 rate was read before this quicksave was imported and may be stale - a re-read would settle it (the war-in-rate rule predicts 4,764/h).",
    "rate": {
     "hullparts": [
      3972,
@@ -283,7 +289,7 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "Stock at read time: advancedelectronics 1,775. Two advancedelectronics modules, neither with a <production> block.",
+   "note": "Stock at read time: advancedelectronics 1,775. Two advancedelectronics modules, neither with a <production> block. STRUCTURAL PROBLEM: its three inputs imply three different T values at the recipe's own ratios (energycells 15.74 h, quantumtubes 11.34 h, microchips 7.01 h), so equal-hours is violated here regardless of the multiplier - no scale factor can fit it. The pool still closes exactly (249,979 of 250,000 m3). Recipe is 54 advancedelectronics per 720 s from 60 energycells + 44 microchips + 20 quantumtubes; observed allocations sit at ratios 4.166 : 1.361 : 1 against the recipe's 3 : 2.2 : 1.",
    "rate": {}
   }
  },
@@ -2782,6 +2788,9 @@
      12605.0
     ]
    ],
+   "faction_effects": {
+    "war_pressure": 1.2
+   },
    "id": "[0x149cf]",
    "modules": [
     [
@@ -2898,6 +2907,7 @@
     ]
    ],
    "sector_macro": "cluster_12_sector001_macro",
+   "war_pressure": 1.2,
    "workforce": [
     [
      "paranid",
@@ -2960,6 +2970,9 @@
      295.0
     ]
    ],
+   "faction_effects": {
+    "war_pressure": 1.2
+   },
    "id": "[0x90a95]",
    "modules": [
     [
@@ -3135,6 +3148,7 @@
     ]
    ],
    "sector_macro": "cluster_35_sector001_macro",
+   "war_pressure": 1.2,
    "workforce": [
     [
      "paranid",
@@ -3239,6 +3253,7 @@
    "owner": "argon",
    "production": [],
    "sector_macro": "cluster_416_sector002_macro",
+   "war_pressure": 1.22,
    "workforce": []
   },
   "KWC-232": {
@@ -4039,6 +4054,7 @@
    "owner": "argon",
    "production": [],
    "sector_macro": "cluster_46_sector001_macro",
+   "war_pressure": 1.22,
    "workforce": []
   }
  }
