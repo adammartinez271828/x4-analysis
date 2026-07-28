@@ -13,13 +13,13 @@ import pytest
 
 from readings import load, model_for, report, score
 
-# Baseline as of 2026-07-28, after the <production><efficiency> work.
+# Baseline as of 2026-07-28, after runtime mod patching (modpatch.py).
 # RAISE THIS as the model improves; it must never fall.
-BASELINE_INGAME = 27
+BASELINE_INGAME = 37
 
 # Stations the model reproduces exactly. These are regression locks — a change
 # that breaks one of these is a real regression, not a trade-off.
-EXACT_STATIONS = ("MAL-475", "TPF-229")
+EXACT_STATIONS = ("MAL-475", "TPF-229", "WRC-739", "IFO-957")
 
 
 def test_fixture_is_self_consistent():

@@ -80,6 +80,11 @@ class SaveData:
     # mod-proof way to get a station's real rate; see
     # docs/plans/storage-production-model-2026-07-28.md.
     module_production: list = field(default_factory=list)
+    # installed extensions the save records: (id, version, name), from
+    # <patches><patch extension= version= name=>. NOTE this lists only mods
+    # whose content.xml has save="true" -- a pure data overlay ships
+    # save="false" and leaves NO trace here (gamedata/modpatch.py).
+    extensions: list = field(default_factory=list)
     npcs: list = field(default_factory=list)           # (id, name, code, owner, {skills})
     # (sector_macro, ware, yield, level, speed, starttime); starttime is the
     # game-time secs at which a depleted area becomes respawn-eligible (0 on
@@ -464,6 +469,14 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("component"),
                         int(float(elem.get("level", 0) or 0)),
                     ))
+
+            elif tag == "patch":
+                # <patches><patch extension= version= name=>: the mods the
+                # save itself records (save="true" ones only)
+                if elem.get("extension"):
+                    d.extensions.append((
+                        elem.get("extension", ""), elem.get("version", ""),
+                        elem.get("name", "")))
 
             elif tag == "efficiency":
                 # <production><efficiency product=>: the engine's complete

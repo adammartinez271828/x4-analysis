@@ -50,6 +50,11 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 ## Conventions
 
 - Dependencies stay slim: lxml, pandas, plotly (+pytest dev). Ask before adding heavier deps (kaleido, matplotlib, jupyter).
+- **Reference CSVs stay STOCK** (base+DLC). A mod that rewrites game data is
+  detected per save and patched into that run's `RefData` in memory —
+  `gamedata/modpatch.py`, wired in `analyze.py`. Never bake mod values into
+  `data/*.csv`. Mods with `save="false"` leave no trace in the save and are
+  detected by fingerprint (see save-semantics.md § Mod-aware reference data).
 - Saves are modded — be defensive everywhere: joins against reference data fall back on unknown macro/faction/ware (never crash), the DB loads permissively ("" → NULL, no FK enforcement). Warnings in a run are fine; errors are not (same convention as the R original).
 - New data from the save = a new handler in `parser.py`'s single pass — never a second sweep (`landmarks.py` is the one deliberate exception, kept out of the hot path).
 - DB event merges must stay idempotent: re-running on the same save adds nothing.

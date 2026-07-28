@@ -11,6 +11,7 @@ from .config import Config
 from .analysis.frames import build_frames, station_types_from_db
 from .analysis.storage import station_storage
 from .analysis.drones import station_munition
+from .gamedata.modpatch import patch_reference
 from .gamedata.refdata import load_refdata
 from .save.parser import parse_savegame, peek_save_info
 
@@ -26,6 +27,9 @@ def run_analysis(cfg: Config) -> int:
     log(f"Player: {save.player_name} ({save.player_faction_name or 'Player'})")
     if save.modified:
         log("NOTE: savegame is flagged as modified (mods active)")
+    # Mods that rewrite production recipes are applied to THIS RUN's reference
+    # data only -- the bundled CSVs stay stock (gamedata/modpatch.py).
+    ref = patch_reference(save, ref, log=log)
 
     conn = store.open_db(cfg, save.guid)
     try:

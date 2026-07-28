@@ -463,6 +463,78 @@ knowledge, not yet a feature.
     is engine-runtime state; with E fitted from a handful of quotes,
     every other deployable at that station predicts to ~1–3%.
 
+## Mod-aware reference data (runtime patching, not CSV edits)
+
+**Deliberate design decision, 2026-07-28.** The reference CSVs in
+`src/x4analyzer/data/` are extracted from **base game + DLC only** and are kept
+that way: they are committed, shared across every save and every user, and
+should describe vanilla X4. Mods that rewrite game data are therefore applied
+**per save, in memory, for that run only** — `gamedata/modpatch.py`, called
+from `analyze.py` right after the parse. Nothing on disk changes and a
+non-modded save is untouched.
+
+Why it matters: analysing a modded save against stock recipes silently
+produces wrong throughputs, and throughput feeds the storage allocation, which
+feeds fill %, which feeds every price conclusion.
+
+**Detection has two routes**, because mods fall into two camps:
+
+- *`save="true"` mods register in the savegame* as
+  `<patches><patch extension="ws_…" version=".." name=".."/></patches>`
+  (`SaveData.extensions`, parsed since v27). Matching the extension id is exact.
+  Habitat Capacity Boost (`ws_3737446888`) is one.
+- *`save="false"` mods leave no trace at all.* They are pure data overlays, so
+  the game records nothing — and that is exactly the camp the recipe-rewriting
+  mod is in. For these the only option is a **fingerprint**: a value in the
+  save impossible under stock data.
+
+**The fingerprint used: the production efficiency ceiling.** A module
+serialises `<production><efficiency product="X"/></production>` and
+X = `1 + work_effect × workforce_ratio` with the ratio in [0, 1], so X can
+never exceed `1 + work_effect` under stock data. When it does, that ware's work
+effect is not the stock one. In this playthrough exactly one ware breaches it —
+`advancedelectronics`, 59 of 101 modules, max ratio 1.0294 = 1.40/1.36 — and
+nothing else in the save comes near its ceiling, so the signal is clean.
+
+**What is registered** (read out of the mod's own packed XML with `GameFiles`,
+not inferred): `faction_fix_pack_econ_bal` (`ws_1668472321`, "Faction Enhancer
+– Econ Balance Module") ships a `libraries/wares.xml` `<diff>` of three
+`<replace>` ops. Two are production recipes:
+
+| ware | stock | modded |
+|---|---|---|
+| `advancedelectronics` | amount 54, work 0.36, in 60/44/20 | **amount 65, work 0.40, in 150/49/36** |
+| `weaponcomponents` | amount 170, work 0.53, in 60/20/30 | **amount 204, work 0.53, in 120/25/36** |
+
+(The third only changes a laser-tower *build* input, which storage never uses.)
+`weaponcomponents` keeps its work effect and so raises no fingerprint of its
+own; it is applied because it ships in the same file — one mod, one atomic
+change set. Overrides **replace** the whole `<production>` entry rather than
+merging, because a `<replace>` op can drop an input as well as change one.
+
+**Measured effect** on the in-game readings fixture
+(`tests/data/station_readings.json`, `uv run python tests/readings.py`):
+**27/41 → 37/41** within 1%. IFO-957 goes from five failures to zero (all
+within 0.4%, production rate exact at 450/h) and WRC-739 from four to zero
+(all +0.0%).
+
+**Not the catchup mod.** `faction_fix_pack_catchup` changes no recipes. Its
+"Production efficiency from war pressure" (Holy Order +20%, Antigone +40%,
+Argon +22%) is a post-hoc `<add_cargo>` of `floor(base_cycle_amount ×
+ProdBonus)` on every production-finished event — **invisible in the save's
+`<efficiency>` element and in the UI's Product/h**, and not a rate multiplier.
+The percentage shown in the station menu is a separate UI row fed by
+`$CatchupProdBonus` on the trade NPC blackboard. Do not model it as a
+multiplier.
+
+**Known gap, not yet registered:** `nd_habitat_cap_boost` (`ws_3737446888`,
+which *does* appear in the save's patch list) replaces habitat workforce
+capacity with S 2500 / M 5000 / L 10000 against a stock 333/666/999, a 7.5–10×
+housing boost. `modcaps.csv` is stale for it, and `extract_modcaps` cannot read
+it either — those are `<diff>` files with no `<macro>` element. Workforce
+drives the ration buffer and the efficiency, so this is the next candidate for
+the registry.
+
 ## Station drone/unit pool
 
 Station drones (defence/repair/transport/build/mining) + police craft

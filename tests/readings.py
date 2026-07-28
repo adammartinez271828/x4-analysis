@@ -30,6 +30,7 @@ from types import SimpleNamespace
 import pandas as pd
 
 from x4analyzer.analysis.storage import station_storage
+from x4analyzer.gamedata import modpatch
 
 DATA = Path(__file__).parent / "data" / "station_readings.json"
 
@@ -38,9 +39,12 @@ def load() -> dict:
     return json.loads(DATA.read_text())
 
 
-def _ref(doc: dict) -> SimpleNamespace:
+def _ref(doc: dict, save=None) -> SimpleNamespace:
+    """Reference data for the fixture, with the same runtime mod patching the
+    real pipeline applies (gamedata/modpatch.py). The fixture's recipe rows are
+    stock, exactly like the bundled CSVs."""
     r = doc["reference"]
-    return SimpleNamespace(
+    ref = SimpleNamespace(
         wares=pd.DataFrame(r["ware"], columns=["id", "transport", "volume", "tags"]),
         recipes=pd.DataFrame(r["recipe"], columns=[
             "ware", "method", "time", "amount", "input_ware", "input_amount",
@@ -51,6 +55,9 @@ def _ref(doc: dict) -> SimpleNamespace:
             "macro", "class", "housing", "workers", "cargo_max", "cargo_tags"]),
         sectors=pd.DataFrame(r["sector_ref"], columns=["macro", "sunlight"]),
     )
+    if save is not None:
+        ref = modpatch.patch_reference(save, ref)
+    return ref
 
 
 def frames_for(doc: dict, codes=None) -> SimpleNamespace:
@@ -87,9 +94,18 @@ def frames_for(doc: dict, codes=None) -> SimpleNamespace:
     )
 
 
+def save_like(doc: dict) -> SimpleNamespace:
+    """A SaveData-alike carrying what mod detection needs."""
+    prod = [(doc["stations"][c]["id"], macro, ware, eff, state)
+            for c in doc["stations"]
+            for macro, ware, eff, state, _n in doc["stations"][c]["production"]]
+    return SimpleNamespace(module_production=prod,
+                           extensions=doc["_provenance"].get("extensions", []))
+
+
 def model_all(doc: dict, storage_fn=station_storage) -> dict:
     """{station code: {ware: (allocation, throughput)}} in one model run."""
-    df = storage_fn(frames_for(doc), _ref(doc))
+    df = storage_fn(frames_for(doc), _ref(doc, save_like(doc)))
     by_id = {}
     for r in df.itertuples():
         if r.role in ("output", "input", "food"):
