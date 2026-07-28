@@ -25,7 +25,10 @@ on the main sequence iff all six hold:
 Deliberately *not* in the criterion: side, ware role, faction, allocation
 source. Those were tested and are not discriminators (below).
 
-Spread is measured as Σ|band_position − clamp(1 − fill/100)| over the offers
+Fill is the station's **net position** — `stock + undelivered inbound −
+committed outbound` — not its cargo (see the addendum; the first cut of this
+report used raw stock and that error propagated into its curve-shape finding).
+Spread is measured as Σ|band_position − clamp(1 − fill)| over the offers
 that have an allocation; offers with no allocation have no x-coordinate, never
 appear in the scatter, and are reported by count only.
 
@@ -134,13 +137,20 @@ input value (Σ inputs·avg / amount ÷ avg gives 0.72–0.95 against observed
 
 ### Yards / wharfs / docks — 701, 8.1 % of spread
 
-Real behavior. Median residual **+0.167** — they pay a systematic premium over
-the stock-driven price — and the curve shape genuinely differs: the implied
-exponent on `1 − band = fill^k` is **k ≈ 2.38** against 1.00 everywhere else.
-This is the only category where the *shape*, not just the level, is different.
+Real behavior, and a **different calibration of the same functional form** —
+not noise. Fitting `band = clamp(1 − fill^k)` on the pending-corrected net
+position gives **k = 2.60, MAD 0.0382** — as tight as the main sequence's
+0.0410, and against MAD 0.1705 at k = 1.00. They also run their inventories
+much fuller: fill deciles 5 / 19 / 45 / 66 / **76** / 85 / 91 / 97 / 100
+against the main sequence's 1 / 17 / 31 / 42 / **54** / 66 / 79 / 91 / 98.
 The proxy allocation is not the cause: `stock + buy_amount` reproduces the
-proxy exactly by construction (100 % within 5 %), so the x-axis is not in
-question here.
+proxy by construction, and the exact denominator gives the same k = 2.60
+(MAD 0.0367).
+
+Their **21 sell offers are noise** — band positions 0.02, 0.03, 0.04, 0.05,
+0.07, 0.11, 0.12, 0.16, 0.18, 0.18, 0.24, 0.35, 0.43, 0.44, 0.52, 0.55, 0.58,
+0.65, 0.72, 0.96, 1.00, with no fill structure. Too few and too scattered to
+model; a yard is a buyer.
 
 ### Build-storage demand — 1,788
 
@@ -168,8 +178,8 @@ allocation; neither is a defect.
 ## Rebutting the `a` non-goal
 
 The non-goal said not to chase the price-curve scale `a` in
-`1 − band = a × fill^k`. The evidence says `a` is not a free parameter at all,
-so the non-goal is moot rather than deferred, and saying so changes the model.
+`1 − band = a × fill^k`. The evidence says `a` is not a free parameter, so the
+non-goal is moot rather than deferred, and saying so changes the model.
 
 **CONFIRMED: a buy offer's `amount` is exactly the allocation minus the
 stock.** Across 5,334 main-sequence buys, `(stock + amount) / modelled
@@ -184,28 +194,16 @@ Two consequences:
 2. The scatter's x-axis can use a *measured* denominator for any ware with an
    open buy offer, removing allocation-model error from the fill coordinate.
 
-With that exact denominator, fitting `1 − band = fill^k` over the main-sequence
-buys gives **k = 1.00** as the MAD-minimising exponent (MAD 0.0414; searched
-k = 0.60…2.98 in steps of 0.02 — an interior minimum, with 0.0537 at k = 0.90
-and 0.0554 at k = 1.50), and
-`a = 1.000` — the floor arrives at 100 % fill, not somewhere between 8.6 % and
-82.3 %. The at-floor population (band < 0.02, n = 334) sits at a median fill of
-**97.4 %**; the at-ceiling population (band > 0.98, n = 1,092) at **0.0 %**.
+With the denominator pinned that way, `a = 1.000` — the floor arrives at 100 %
+fill, not somewhere between 8.6 % and 82.3 %. The at-floor population
+(band < 0.02, n = 334) sits at a median fill of **97.4 %**; the at-ceiling
+population (band > 0.98, n = 1,092) at **0.0 %**. The wandering `a` was an
+artifact of fitting through clamped points — a cohort that saturates at both
+ends flattens the fitted slope arbitrarily — and of the pool-split error in the
+modelled allocation being read as scale.
 
-So the reported k ≈ 1.53–1.64 and the wandering `a` are artifacts of two
-things: fitting through clamped points (a cohort that saturates at both ends
-flattens the fitted slope arbitrarily), and using the *modelled* allocation,
-whose pool-split error on multi-ware stations is the dispersion being read as
-"scale". `a` is therefore **not a category discriminator** — with one
-exception, which is worth the whole exercise: the yard category really does
-have k ≈ 2.38, and that is now the sharpest available discriminator for it.
-
-Residual claim after all this: main-sequence buys still sit **+0.026 band**
-above the linear law with the exact denominator (MAD 0.041), and the excess is
-hump-shaped in fill: +0.000 at 0–10 %, **+0.114 at 10–25 %**, +0.106 at
-25–50 %, +0.029 at 50–75 %, −0.001 above 75 % (n = 920 / 344 / 761 / 1,450 /
-1,859). Rations show the same hump on their own. This is real curvature in the
-engine's price function, not an allocation artifact.
+So `a` is **not a category discriminator**. The *exponent* is, and that is the
+finding worth the exercise: see the addendum.
 
 ## Proposed follow-up models, ranked
 
@@ -269,3 +267,82 @@ Before → after on the scatter population:
 
 The population grew 53 % while the bucket medians moved by at most 0.05 — which
 is itself the evidence that the re-admitted categories belong on the curve.
+
+
+---
+
+# Addendum (same day): pending, and the curve is not linear
+
+Raised in review: *does the fill denominator account for pending
+transactions?* **It did not — neither the numerator nor the denominator.** The
+generator divided raw `cargo.amount` by the modelled allocation. That was the
+largest remaining measurement defect in this analysis, and it invalidated this
+report's headline curve-shape claim.
+
+**CONFIRMED: stations price off their net position, not their cargo.**
+Undelivered inbound already counts as held; committed outbound counts as
+already gone. The save carries 2,510 pending trades (1,793 with a station
+buyer, 717 with a station seller), touching **1,287 of 7,229 main-sequence
+offers (17.8 %)**.
+
+| fill numerator | n | MAD | median res | \|res\|>0.25 |
+|---|---:|---:|---:|---:|
+| stock only (as first published) | 7,229 | 0.0527 | +0.0283 | 7.18 % |
+| stock − outbound | 7,229 | 0.0500 | +0.0250 | 6.82 % |
+| stock + inbound | 7,229 | 0.0467 | +0.0361 | 4.77 % |
+| **stock + inbound − outbound** | 7,229 | **0.0448** | +0.0328 | **4.40 %** |
+| *…restricted to the 1,287 offers that carry pending* | 1,287 | 0.0832 → **0.0411** | −0.011 → +0.025 | |
+
+**This dissolves the near-empty off-sequence tranche.** Offers at fill < 5 %
+with band < 0.80 — visually a scatter of near-empty stations pricing as though
+they were full — number 43. **35 of them (81 %) have inbound pending**, against
+7 % of the near-empty offers that *are* on-sequence. Their median residual goes
+from **−0.502 (MAD 0.502) to +0.013 (MAD 0.095)**. They were never a separate
+category; they are main-sequence stations with a delivery in flight.
+
+**CORRECTION: `k = 1.00` was wrong.** That fit was measured on the uncorrected
+numerator, where pending noise was suppressing any exponent above 1. On the net
+position the minimum moves off the boundary:
+
+| population | denominator | best k | MAD @ best | MAD @ k=1.00 |
+|---|---|---:|---:|---:|
+| main sequence | modelled allocation | **1.14** | 0.0410 | 0.0448 |
+| main-sequence buys | exact (stock + amount) | **1.30** | 0.0430 | 0.0443 |
+| yards | proxy allocation | **2.60** | 0.0382 | 0.1705 |
+| yard buys | exact (stock + amount) | **2.60** | 0.0367 | 0.1725 |
+
+So the review's read is right on all counts: a linear model does not work, the
+shape is a power curve, yards share that shape with a distinctly different
+exponent, and yard sells are noise. The `a`-rebuttal above stands — the scale
+is pinned at 1.000 by the offer-derived denominator — but the *exponent* is the
+real category discriminator, and it is 1.14 / 2.60, not 1.00 / 2.38.
+
+**On the buy/sell gap being the −1 Cr adjustment:** on the same (station, ware)
+it is exactly that, 704/706. Across the population the role-matched median
+residuals differ by ≈1 Cr in magnitude — output buy −0.44 Cr vs output sell
++0.72 Cr; input buy +2.27 Cr vs input sell +1.33 Cr — but the *direction*
+flips, because these are different stations (only 706 pairs post both sides,
+and the cross-side samples are n = 40 and n = 55). So: magnitude consistent
+with the 1 Cr, direction unresolved at population level, exact on matched
+pairs.
+
+**Residual structure that survives all of this** — the "noise around the main
+sequence" — is not symmetric noise. It is a systematic hump, and it is
+role-selective:
+
+| | 0–10 % | 10–25 % | 25–50 % | 50–75 % | 75–101 % | >101 % |
+|---|---:|---:|---:|---:|---:|---:|
+| main (all) | +0.000 | +0.080 | +0.062 | +0.031 | +0.006 | +0.089 |
+| yards | +0.038 | +0.153 | +0.294 | +0.233 | +0.175 | +0.152 |
+
+and by role, at k = 1: rations **+0.0000** (n = 2,364, exactly on the curve),
+outputs +0.017, inputs **+0.081**. A single exponent of 1.14 absorbs most of
+the hump (median residual +0.0065) but not its role dependence. That
+role-selectivity — rations exact, production inputs biased high — is the
+sharpest unexplained thing left and should lead the follow-up list, ahead of
+the curvature item, which is now largely explained by k > 1.
+
+No `src/` change follows from this: the pricing model is knowledge, not a
+feature, and `analysis/storage.py` does not use pending. The fix is in the
+scatter generator, and `output/fill_vs_price.html` is regenerated with the net
+position on the x-axis and both power curves drawn.
