@@ -171,9 +171,23 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
     # So the model's SHAPE was right — outputs are boosted, inputs are not —
     # only the multiplier was reconstructed instead of read. Sunlight is
     # already inside `efficiency`, so it must NOT be applied again here.
+    #
+    # A module with NO `<production>` block at all is running the bare recipe:
+    # its multiplier is 1.0, not the reconstructed work_effect. CONFIRMED on
+    # KRV-460, whose single turret-components module reports no block — all
+    # four of its inputs come in at exactly 0.724 of the offer-derived truth,
+    # and 1/0.724 recovers the 1.53 work_effect the fallback was wrongly
+    # applying (its true output rate is the base 340/h). 939 (station, macro)
+    # pairs are in this state; treating them as 1.0 lifts them from 43.6% to
+    # 73.8% within 1%, and the whole computed population from 82.9% to 86.3%.
+    #
+    # The reconstruction survives only when the save carried no production
+    # data at all (a pre-v27 database, or a hand-built frame) — there, a
+    # missing row means "unknown", not "idle".
     prod_eff: dict[tuple[str, str, str], float] = {}
     mp = getattr(frames, "module_production", None)
-    if mp is not None and not mp.empty:
+    have_production = mp is not None and not mp.empty
+    if have_production:
         for r in mp.itertuples():
             eff = getattr(r, "efficiency", None)
             if eff is None or pd.isna(eff) or float(eff) <= 0:
@@ -213,8 +227,12 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             # is all we have for an idle module or a hand-built frame.
             eff = prod_eff.get((sid, macro, ware))
             if eff is None:
-                solar = sunlight.get(sid, 1.0) if ware == SOLAR_WARE else 1.0
-                eff = (1 + work) * solar
+                if have_production:
+                    eff = 1.0          # no <production> block: bare recipe
+                else:
+                    solar = (sunlight.get(sid, 1.0)
+                             if ware == SOLAR_WARE else 1.0)
+                    eff = (1 + work) * solar
             # A module produces whole units per CYCLE, not fractions per
             # hour: the multiplier scales the cycle's amount and the engine
             # TRUNCATES it (player-verified 7/7 — 97.92 -> 97 microchips,

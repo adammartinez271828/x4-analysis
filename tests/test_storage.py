@@ -175,24 +175,42 @@ def test_efficiency_truncates_per_cycle_like_the_recipe_path():
     assert _run(frames)["widget"].throughput == 112.0
 
 
-def test_missing_efficiency_falls_back_to_the_recipe_work_effect():
-    # an idle module reports no <production> block at all; the reconstructed
-    # workforce bonus is all we have and must still apply
+def test_no_production_block_means_the_bare_recipe():
+    # the save carries production data, but not for THIS module -- it has no
+    # <production> block, so it is running the unbonused recipe (KRV-460).
+    frames = _producer()
+    frames.built_modules = pd.DataFrame(
+        [["st1", "prod_widget", 1], ["st1", "prod_other", 1],
+         ["st1", "store_container", 1]], columns=["id", "macro", "built"])
+    frames.module_production = pd.DataFrame(
+        [["st1", "prod_other", "other", 1.5, "producing", 1]],
+        columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    assert _run(frames)["widget"].throughput == 100.0   # not 200.0
+
+
+def test_no_production_data_at_all_keeps_the_reconstruction():
+    # a pre-v27 database or a hand-built frame: a missing row means "unknown",
+    # not "idle", so the recipe work_effect must still apply
     frames = _producer()
     frames.module_production = pd.DataFrame(
         [], columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
+    assert _run(frames)["widget"].throughput == 200.0
+    frames.module_production = None
     assert _run(frames)["widget"].throughput == 200.0
 
 
 def test_unparseable_efficiency_is_ignored_not_fatal():
     # defensive: a modded save with a junk/zero product must not zero the
-    # station's storage, it must fall back
+    # station's storage or crash. Such a row is indistinguishable from a
+    # module with no <production> block, so it takes the bare recipe.
     frames = _producer()
     frames.module_production = pd.DataFrame(
         [["st1", "prod_widget", "widget", None, "producing", 1],
          ["st1", "prod_widget", "widget", 0.0, "producing", 1]],
         columns=["id", "macro", "ware", "efficiency", "state", "n_modules"])
-    assert _run(frames)["widget"].throughput == 200.0
+    rows = _run(frames)
+    assert rows["widget"].throughput == 100.0
+    assert rows["widget"].max_units > 0
 
 
 def test_shady_buys_get_no_storage_at_all():

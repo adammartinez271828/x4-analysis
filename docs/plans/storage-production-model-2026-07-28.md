@@ -184,6 +184,11 @@ fallback.
 with a falsifiable lag hypothesis. It is the only station here with a direct
 in-game allocation reading, so it is worth re-reading later.
 
+**Follow-up, same day:** a module with no `<production>` block is idle and
+runs the bare recipe (multiplier 1.0), not the reconstructed `work_effect` —
+939 (station, macro) pairs, 43.6% -> 73.8% within 1%, whole computed
+population 82.9% -> 86.2%. Anchor: KRV-460.
+
 **Shipped result** (offer-derived score on the reimported quicksave, all
 6,778 comparable pairs): 82.7% within 1%, 87.0% within 5%; rations 95.0%
 within 1%. `role='output'` rows score badly (48 pairs, 10.4%) but those are

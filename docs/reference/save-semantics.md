@@ -278,9 +278,19 @@ knowledge, not yet a feature.
   | efficiency == 1+work_effect (579 stations) | 2,790 | 92.9% | 92.9% |
   | efficiency modified (539 stations) | 2,124 | 55.5% | **79.7%** |
 
-  Sunlight is already inside `efficiency`, so it must not be applied again;
-  `SOLAR_WARE` survives only as the fallback for a module with no
-  `<production>` block. Implemented v27 (`module_production`).
+  Sunlight is already inside `efficiency`, so it must not be applied again.
+
+  **A module with NO `<production>` block runs the bare recipe** (multiplier
+  1.0), not the reconstructed `work_effect` — CONFIRMED on KRV-460, whose lone
+  turret-components module reports no block and whose four inputs all come in
+  at exactly 0.724 of the offer-derived truth; 1/0.724 recovers the 1.53
+  `work_effect` the fallback was wrongly applying, and its true output rate is
+  the base 340/h. 939 (station, macro) pairs are in this state. Treating them
+  as 1.0 lifts them from 43.6% to 73.8% within 1% and the whole computed
+  population from 82.9% to **86.2%**. `SOLAR_WARE` and `work_effect` now
+  survive only for a save carrying no production data at all (a pre-v27
+  database), where a missing row means "unknown" rather than "idle".
+  Implemented v27 (`module_production`).
 
   **Known exception — EIJ-609.** Its allocation implies efficiency exactly
   1.0 (in-game 34,829 hull parts; base model 34,829.1, and all three
