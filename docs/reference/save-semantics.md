@@ -214,6 +214,27 @@ knowledge, not yet a feature.
   fix halved the population of stations holding more than their modelled
   allocation (37 output rows -> 29; the >5% cases 17 -> 7).
 
+  **Dual-role wares are sized by the LARGER flow — CONFIRMED 2026-07-27**
+  (player readings on KWC-232, Avarice IV). A station that both makes and
+  uses a ware buffers the bigger of the two rates, not its output:
+  KWC-232 makes 208,708 energy cells/h (1 solar module x 14.9 Avarice
+  sunlight) and feeds 372,000/h to its four recyclers, and the game
+  allocates on the consumption side. **Processing modules are outside the
+  storage model entirely** — the scrap works' own 90,000 energy cells/h is
+  excluded (counting it misses by 5% on energy cells and 15% on hull
+  parts), matching the fact that its `rawscrap` feedstock is never stocked
+  either. Its *output* (scrap metal) is stored normally.
+
+  | ware | rate used | model | in-game |
+  |---|---:|---:|---:|
+  | energy cells | 372,000/h (recyclers) | 1,832,398 | 1,833,000 |
+  | hull parts | 6,576/h (output) | 32,392 | 32,367 |
+  | claytronics | 1,930/h (output) | 9,505 | 9,450 |
+
+  All three land at the same 4.93 h, so equal-hours holds — only the rate
+  feeding it was wrong. DLB-176 is unaffected (production 42,643/h dwarfs
+  its 2,100/h consumption) and still matches at 348,586 vs ~348,000.
+
   **Scope note (2026-07-27, agreed with the player):** pricing work is
   currently confined to **basic production stations** — wharfs,
   shipyards, equipment docks, trade stations and pirate bases are

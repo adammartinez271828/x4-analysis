@@ -174,8 +174,17 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if time > 0:
                 output[sid][ware] += (amount / time * 3600.0 * units
                                       * (1 + work) * solar)
-                for inw, ina in inputs:
-                    consume[sid][inw] += ina / time * 3600.0 * units
+                # PROCESSING modules (scrap works) are outside the storage
+                # model: their feedstock arrives from space and their inputs
+                # get no buffer. Player-confirmed on KWC-232 — counting the
+                # scrap works' 90,000 energy cells/h alongside the recyclers'
+                # 372,000 misses the in-game allocation by 5% on energy cells
+                # and 15% on hull parts; excluding it lands within 0.6% on
+                # all three wares. Their OUTPUT (scrap metal) is stored
+                # normally.
+                if key[1] != "processing":
+                    for inw, ina in inputs:
+                        consume[sid][inw] += ina / time * 3600.0 * units
 
     # workforce food: full-workforce (jobs) consumption of the race ration,
     # split by the present-workforce race mix (single race -> all of jobs).
@@ -216,12 +225,22 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         thru: dict[str, float] = {}
         for ware, amt in food[sid].items():
             role[ware], thru[ware] = "food", amt
+        # a ware the station both makes and uses is sized by whichever flow
+        # is LARGER — the buffer has to cover the bigger of the two. CONFIRMED
+        # on KWC-232 (Avarice IV), which makes 208,708 energy cells/h and
+        # feeds 372,000/h to its recyclers: the game allocates on the
+        # consumption side (in-game 1,833,000 vs 1,832,362 predicted, with
+        # hull parts and claytronics landing at the same 4.93 h). DLB-176
+        # keeps its verified allocation because there production (42,643/h)
+        # dwarfs consumption (2,100/h).
         for ware, amt in output[sid].items():
             if ware not in role:
                 role[ware], thru[ware] = "output", amt
         for ware, amt in consume[sid].items():
             # non-economy feedstock (raw scrap) is never stocked -> no share
-            if ware not in role and economy_ware.get(ware, True):
+            if not economy_ware.get(ware, True):
+                continue
+            if ware not in role or amt > thru[ware]:
                 role[ware], thru[ware] = "input", amt
 
         # food volume per pool, then split the remainder across production wares

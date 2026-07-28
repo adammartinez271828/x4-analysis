@@ -121,7 +121,19 @@ allocation (348,586 vs ~348,000 energy cells; 17,186 vs 17,216 graphene).
 Over-full output rows fell 37 -> 29, and the >5% cases 17 -> 7.
 The allocation *rule* was never wrong — only its input.
 
-### P5b — TABLED: allocation still under-modelled on scrap recyclers
+### P5b — FIXED: recyclers (dual-role wares + processing modules)
+
+Two more rules, both player-derived from KWC-232 and both now implemented:
+a ware the station makes AND uses is sized by `max(production,
+consumption)`, and processing modules (scrap works) contribute neither
+their feedstock nor their input demand to the allocation. Model vs
+in-game after the fix: energy cells 1,832,398 / 1,833,000, hull parts
+32,392 / 32,367, claytronics 9,505 / 9,450 — all at the same 4.93 h.
+
+Output-side over-fills are now down to **1** (ULG-519, a shipyard on the
+wrong code path) from 17 at the start of this thread.
+
+### P5c — OPEN: the INPUT side is still badly off
 
 Player-read allocations (2026-07-27) against `station_storage`:
 
