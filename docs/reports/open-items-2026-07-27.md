@@ -111,6 +111,36 @@ needed, just a script pass. Also: confirm in-game that MXH-411's stored
   against `sectors.csv` (offline, minor; the committed data is
   unaffected).
 
+### P5 — TABLED: allocation is badly under-modelled on scrap recyclers
+
+Player-read allocations (2026-07-27) against `station_storage`:
+
+| station | ware | modelled | actual (in-game) | factor |
+|---|---|---:|---:|---:|
+| QIB-162 (scavenger, Avarice IV) | energycells | 241,536 | 960,000 | ×3.97 |
+| MDS-738 (scavenger, Avarice IV) | energycells | 241,536 | 960,000 | ×3.97 |
+| KWC-232 (scavenger, Avarice IV) | energycells | 262,234 | 1,833,000 | ×6.99 |
+
+Note the modelled figure is not merely low — the stations are holding
+more than it (KWC-232 stocks 1,748,962), which is how this surfaced.
+**Every high-ratio over-fill in the save shares one feature: a
+`prod_gen_scrap_recycler` module.** 13 of the 17 genuine over-fill rows
+sit on the nine recycler stations (Avarice I/IV/V plus teladi PKM-304 in
+Bright Promise); the recycler's throughput or its role in the per-pool
+hours factor is the obvious suspect, since a station that turns scrap
+into energy cells has a production profile unlike anything the model was
+validated against.
+
+Tabled by agreement; revisit before any price model ships, since these
+stations' fill percentage is meaningless until it is fixed.
+
+The four non-recycler over-fills are mild and probably the multi-ware
+pool split rather than a distinct defect: DLB-176 (split, Family Zhin)
+graphene ×1.12 and superfluid coolant ×1.07, OOC-641 (boron, Reflected
+Stars) energycells ×1.10, VDH-320 (holyorder, Cardinal's Redress)
+antimatter cells ×1.05. Everything else in the list sits at ×1.00–1.02,
+i.e. a full station the model gets right to within 0.1%.
+
 ## 2. Suggested implementation todos (code; one done — build method, v21)
 
 - **`buildpricefactor` history (trend layer).** v20 stores it per
