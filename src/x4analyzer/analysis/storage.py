@@ -210,9 +210,21 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                                    * jobs[sid] * frac)
 
     # producers = stations with a real production module (macro known to
-    # ref.modules). Only these get the throughput x T model; wharfs / shipyards
-    # / docks / trade stations build or trade instead and use the proxy below.
-    producers = set(mods[mods["macro"].isin(set(modrows))]["id"]) & stations
+    # ref.modules) AND no build module. Only these get the throughput x T
+    # model; wharfs / shipyards / equipment docks / trade stations build or
+    # trade instead and use the proxy below.
+    #
+    # The build-module exclusion matters for HYBRIDS — a yard that also runs
+    # production modules (3 in save_009: ULG-519 and the player's MXH-411,
+    # plus one with no storage rows). They used to qualify as producers on
+    # "has any production module", but their real buffers also feed the build
+    # module, which the throughput model cannot see: ULG-519 modelled 45,044
+    # hull parts against 61,494 actually held. The proxy (stock + open buy
+    # offers) is what the yard path is for.
+    yards = set(mods[mods["macro"].astype(str)
+                     .str.startswith("buildmodule")]["id"])
+    producers = (set(mods[mods["macro"].isin(set(modrows))]["id"])
+                 & stations) - yards
 
     # allocate per producing station per transport pool
     rows: list[dict] = []
