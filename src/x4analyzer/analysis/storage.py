@@ -96,6 +96,16 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 if sun_by_sector and "sector.macro" in uni.columns else {})
 
     wares = ref.wares.set_index("id")
+    # only TRADEABLE (economy-tagged) wares are stocked. The exceptions are
+    # the processor feedstocks rawscrap / rawkhaakscrap (tags "processed
+    # recycling solid"): scrapers deliver them straight into the processing
+    # module, so the station never holds any — player-confirmed, and every
+    # one of the 16 stations carrying such an input holds exactly 0. Giving
+    # them a share of the solid pool halved what scrap metal should get
+    # (CGW-678: 15,000 modelled vs 30,000 in-game, the full 300,000 m³ pool
+    # at 10 m³/unit).
+    economy_ware = {w: ("economy" in str(t)) for w, t in
+                    zip(ref.wares["id"], ref.wares.get("tags", ""))}
     transport = wares["transport"].to_dict()
     volume = _num(wares["volume"], 1.0).replace(0, 1.0).to_dict()
 
@@ -210,7 +220,8 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if ware not in role:
                 role[ware], thru[ware] = "output", amt
         for ware, amt in consume[sid].items():
-            if ware not in role:
+            # non-economy feedstock (raw scrap) is never stocked -> no share
+            if ware not in role and economy_ware.get(ware, True):
                 role[ware], thru[ware] = "input", amt
 
         # food volume per pool, then split the remainder across production wares
