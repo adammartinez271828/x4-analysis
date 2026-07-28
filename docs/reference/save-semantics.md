@@ -193,6 +193,36 @@ knowledge, not yet a feature.
   here) and inflates the measured span by 1/(1−d); the computronic
   substrate cohorts sit at ~1 h and fit no pattern yet; and the two knee
   positions have only been measured on one cohort.
+
+  **Scope note (2026-07-27, agreed with the player):** pricing work is
+  currently confined to **basic production stations** — wharfs,
+  shipyards, equipment docks, trade stations and pirate bases are
+  excluded (they price by other rules: Layer 6, build price factor), as
+  are player and Xenon stations, and `supplies`-flagged offers.
+  **Workforce/food wares are tabled**: on habitats and trade hubs the
+  model allots ~4 h of rations while the station stocks food as a trade
+  good, so `station_storage` role='food' rows overshoot badly (219 rows
+  over allocation, worst 110×) and are not usable as a fill measure.
+  Multi-ware production stations ARE in scope, with the caveat that their
+  pool split is approximate (351 input rows over allocation, mean 1.37×);
+  single-output stations are clean (0 of 841 over-full).
+
+  Within that scope, fill vs band position pools remarkably well across
+  every ware — normalising price to `(price−min)/(max−min)` and fill to
+  the modelled allocation, over 1,045 stations:
+
+  | side | n | fit | R² |
+  |---|---:|---|---:|
+  | sell | 1,408 | band position = 1.001 − 0.0100 × fill% | 0.82 |
+  | buy | 2,335 | band position = 1.060 − 0.0099 × fill% | 0.80 |
+
+  A slope of −0.01 per % *is* `max − (max−min) × stock/allocation`, so the
+  allocation-denominated curve is right for the bulk of stations — the
+  cohort deviations above are the tail (oversized storage), not the rule.
+  The buy side tracks fill on the same slope about 6% of a band higher,
+  which is a stronger statement than Layer 4's "consumers price off need,
+  not fill" and worth revisiting there.
+
 - **Layer 3 — player-facing price** = `economy_price × (1 − tier% −
   event%)`. Reputation tier discounts: Known Associate 5% (relation
   ≥0.01), Prized Investor 15% (≥0.1), Partnership Agreement 25% (≥1.0);
