@@ -395,6 +395,31 @@ knowledge, not yet a feature.
   which is a stronger statement than Layer 4's "consumers price off need,
   not fill" and worth revisiting there.
 
+- **The trade panel's decomposition — CONFIRMED 2026-07-28.** The station
+  trade screen states the whole model outright: the price is the ware's
+  **average** times one plus a sum of **additive modifiers, each expressed as a
+  percentage of AVG**. Read off UDX-946 (ARG Ore Refinery I, The Reach):
+
+  | ware | panel modifiers | panel price | check |
+  |---|---|---:|---|
+  | refined metals (selling) | High Supply −38.9 %, Prized Investor −9.1 %, **Total −48.0 %** | 76.82 | 148 × 0.520 = 76.96 |
+  | ore (buying) | High Demand **+6.6 %** | 53.30 | 50 × 1.066 = **53.30 exact** |
+
+  And the save's offer price carries the **supply/demand term alone**: its
+  refined-metals sell offer is 90.72 = avg × 0.6130 = −38.70 %, against the
+  panel's −38.9 %. The reputation discount is applied on top at display time,
+  confirming Layer 3's split from the other direction.
+
+  **The reference band IS that modifier's range.** `min = avg × (1 − spread)`
+  and `max = avg × (1 + spread)` — symmetric for **1,851 of 1,891** wares
+  (refined metals ±39.86 %, energy cells ±37.5 %). So for almost everything,
+  "band position" and "modifier off avg" are the same quantity rescaled:
+  `band = 0.5 + s / (2 × spread)`. The 40 exceptions are genuinely asymmetric
+  — **ore is one** (−14 % / +16 %), as are food rations, graphene, engine parts
+  and ice — and on those the band-position axis kinks at avg, so any curve fit
+  should use `s = price/avg − 1` normalised by the appropriate half-width
+  rather than `(price − min)/(max − min)`.
+
 - **Layer 3 — player-facing price** = `economy_price × (1 − tier% −
   event%)`. Reputation tier discounts: Known Associate 5% (relation
   ≥0.01), Prized Investor 15% (≥0.1), Partnership Agreement 25% (≥1.0);
