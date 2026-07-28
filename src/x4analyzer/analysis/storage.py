@@ -45,6 +45,7 @@ station's *sold*-ware max is only a floor (the proxy reads the buy side).
 """
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 
 import pandas as pd
@@ -171,9 +172,20 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             units = scale * weight
             # solar plants run at sector sunlight; nothing else does
             solar = sunlight.get(sid, 1.0) if ware == SOLAR_WARE else 1.0
+            # A module produces whole units per CYCLE, not fractions per
+            # hour: the workforce bonus and sunlight scale the cycle's
+            # amount and the engine TRUNCATES it (player-verified 7/7 —
+            # 97.92 -> 97 microchips, 195.91 -> 195 smart chips,
+            # 141.55 -> 141 coolant, so floor and not rounding). Doing the
+            # multiply at the hourly level instead leaves fractional units
+            # and always reads high, by a per-ware amount that depends on
+            # where the fraction falls (0.01%-0.9% here) — which perturbs
+            # the RATIOS the pool split is computed from, not just the
+            # absolute rates. Note the order: bonus, then sunlight, then
+            # floor, then divide by the cycle time.
+            per_cycle = math.floor(amount * (1 + work) * solar)
             if time > 0:
-                output[sid][ware] += (amount / time * 3600.0 * units
-                                      * (1 + work) * solar)
+                output[sid][ware] += per_cycle / time * 3600.0 * units
                 # PROCESSING modules (scrap works) are outside the storage
                 # model: their feedstock arrives from space and their inputs
                 # get no buffer. Player-confirmed on KWC-232 — counting the

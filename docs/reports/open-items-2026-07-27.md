@@ -133,7 +133,7 @@ in-game after the fix: energy cells 1,832,398 / 1,833,000, hull parts
 Output-side over-fills are now down to **1** (ULG-519, a shipyard on the
 wrong code path) from 17 at the start of this thread.
 
-### P5c — OPEN: the INPUT side is still badly off
+### P5c — WITHDRAWN: "over-full" was never an error signal
 
 Player-read allocations (2026-07-27) against `station_storage`:
 

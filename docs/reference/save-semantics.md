@@ -214,6 +214,29 @@ knowledge, not yet a feature.
   fix halved the population of stations holding more than their modelled
   allocation (37 output rows -> 29; the >5% cases 17 -> 7).
 
+  **Modules produce whole units per CYCLE — the engine truncates.**
+  CONFIRMED 2026-07-27, 7/7 against player readings. The workforce bonus
+  and sunlight scale the *cycle's amount*, which is then floored, and the
+  hourly rate is that integer over the cycle time:
+  `rate = floor(amount x (1 + work_effect) x sunlight) / time x 3600`.
+  Order matters — DLB-176's energy cells only land on the observed 42,480/h
+  if sunlight is folded in BEFORE the floor. It is truncation, not
+  rounding: 97.92 -> 97 microchips, 195.91 -> 195 smart chips,
+  141.55 -> 141 coolant. Multiplying at the hourly level instead leaves
+  fractional units and always reads high, by a per-ware amount set by
+  where the fraction falls (0.01%-0.9% observed) — which perturbs the
+  RATIOS the pool split runs on, not merely the absolute rates.
+
+  With this in, the model reproduces **all 12 player-read allocations to
+  within 0.13%** (MBI-471's six wares exact, KWC-232 0.01-0.13%,
+  DLB-176 0.00-0.08%, CGW-678 exact).
+
+  **A station can hold MORE than its allocated capacity.** MBI-471 reads
+  14,330 energy cells against a 4,403 allocation *in the game's own menu*.
+  Allocation is a trade/target level, not a physical cap — so "stock >
+  allocation" is not evidence of a modelling error, and the 314 over-full
+  input rows recorded as P5c are probably not a defect at all.
+
   **Dual-role wares are sized by the LARGER flow — CONFIRMED 2026-07-27**
   (player readings on KWC-232, Avarice IV). A station that both makes and
   uses a ware buffers the bigger of the two rates, not its output:
