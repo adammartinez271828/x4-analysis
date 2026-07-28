@@ -103,6 +103,26 @@ only works against the same save that produced them.
   demand. New-station constructions sit on **free-floating build storages
   with no station ancestor** — don't require an object ancestor when
   collecting.
+- **A full station posts NO buy offer at all — CONFIRMED 2026-07-28**
+  (player-observed on UDX-946, whose ore buy price sat at 0 for ~45 minutes
+  because it was completely full, then appeared the moment it began drawing
+  down). The offer is withdrawn, not priced at zero. Coverage across all
+  computed input/ration rows in save_009's quicksave:
+
+  | fill | rows | posting a buy offer |
+  |---|---:|---:|
+  | 0–90 % | 3,692 | 99.7 % |
+  | 90–100 % | 1,225 | 92.7 % |
+  | 100–110 % | 134 | **38.1 %** |
+  | 110–120 % | 101 | **5.0 %** |
+
+  Three consequences. A price-history chart reading 0 means *no offer*, never a
+  zero price. The buy-side sample is **censored at the top of the fill range**,
+  so the scarcity of buy points past 100 % fill in the fill-vs-price scatter is
+  the game withdrawing offers, not evidence the allocation model is right
+  there. And it corroborates the offer-derived allocation from the other
+  direction: the bid disappears exactly as stock reaches the allocation.
+
 - **Station buy offers split into distinguishable demand classes** (2026-07,
   CONFIRMED sweep-wide on save_007 + save_006,
   [../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md)):
