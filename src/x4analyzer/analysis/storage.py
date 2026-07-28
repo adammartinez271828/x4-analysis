@@ -244,11 +244,18 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         caps = pool_cap.get(sid)
         if not caps:
             continue
-        # role + throughput per ware: food > output > input
-        role: dict[str, str] = {}
-        thru: dict[str, float] = {}
-        for ware, amt in food[sid].items():
-            role[ware], thru[ware] = "food", amt
+        # The workforce food buffer and the production share are ADDITIVE,
+        # not exclusive. CONFIRMED on JFV-172 (Tharka's Ravine XVI), which
+        # PRODUCES cheltmeat and also feeds it to its own workers: the game
+        # reserves the 4 h ration buffer off the top for every ration — the
+        # ones it makes included — and then hands the producer a normal
+        # share of what is left, so cheltmeat gets 12,757 + 306 = 13,063
+        # against 13,062 read in-game, and spices lands on 20,051 exactly.
+        # Treating the roles as exclusive (food winning) cost cheltmeat its
+        # entire production claim and handed the surplus to spices: 37,192
+        # modelled against 20,051.
+        food_rate: dict[str, float] = dict(food[sid])
+        food_units = {w: amt * FOOD_HOURS for w, amt in food_rate.items()}
         # a ware the station both makes and uses is sized by whichever flow
         # is LARGER — the buffer has to cover the bigger of the two. CONFIRMED
         # on KWC-232 (Avarice IV), which makes 208,708 energy cells/h and
@@ -257,9 +264,10 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         # hull parts and claytronics landing at the same 4.93 h). DLB-176
         # keeps its verified allocation because there production (42,643/h)
         # dwarfs consumption (2,100/h).
+        role: dict[str, str] = {}
+        thru: dict[str, float] = {}
         for ware, amt in output[sid].items():
-            if ware not in role:
-                role[ware], thru[ware] = "output", amt
+            role[ware], thru[ware] = "output", amt
         for ware, amt in consume[sid].items():
             # non-economy feedstock (raw scrap) is never stocked -> no share
             if not economy_ware.get(ware, True):
@@ -267,31 +275,31 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if ware not in role or amt > thru[ware]:
                 role[ware], thru[ware] = "input", amt
 
-        # food volume per pool, then split the remainder across production wares
+        # the ration buffer comes off the pool first, for every ration
         food_vol: dict[str, float] = defaultdict(float)
-        for ware, r in role.items():
-            if r == "food":
-                food_vol[transport.get(ware, "")] += (
-                    thru[ware] * FOOD_HOURS * volume.get(ware, 1.0))
+        for ware, units in food_units.items():
+            food_vol[transport.get(ware, "")] += units * volume.get(ware, 1.0)
         prod_sigma: dict[str, float] = defaultdict(float)
-        for ware, r in role.items():
-            if r != "food":
-                prod_sigma[transport.get(ware, "")] += (
-                    thru[ware] * volume.get(ware, 1.0))
+        for ware in role:
+            prod_sigma[transport.get(ware, "")] += (
+                thru[ware] * volume.get(ware, 1.0))
 
-        for ware, r in role.items():
+        for ware in set(role) | set(food_units):
             t = transport.get(ware, "")
             vol = volume.get(ware, 1.0)
-            if r == "food":
-                mx = thru[ware] * FOOD_HOURS
-            else:
+            buffer_units = food_units.get(ware, 0.0)
+            share = 0.0
+            if ware in role:
                 remaining = caps.get(t, 0.0) - food_vol.get(t, 0.0)
                 sigma = prod_sigma.get(t, 0.0)
-                mx = thru[ware] * remaining / sigma if sigma > 0 else 0.0
+                share = thru[ware] * remaining / sigma if sigma > 0 else 0.0
+            mx = share + buffer_units
+            r = role.get(ware, "food")
             rows.append({
                 "station_id": sid, "ware": ware, "transport": t, "role": r,
-                "throughput": thru[ware], "max_units": mx,
-                "max_volume": mx * vol, "source": "computed",
+                "throughput": thru.get(ware, food_rate.get(ware, 0.0)),
+                "max_units": mx, "max_volume": mx * vol,
+                "source": "computed",
             })
 
     # proxy path: non-producing stations (wharfs / shipyards / docks / trade).

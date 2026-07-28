@@ -214,6 +214,17 @@ knowledge, not yet a feature.
   fix halved the population of stations holding more than their modelled
   allocation (37 output rows -> 29; the >5% cases 17 -> 7).
 
+  **The ration buffer and the production share are ADDITIVE.** CONFIRMED
+  2026-07-27 on JFV-172 (Tharka's Ravine XVI), which produces cheltmeat
+  *and* feeds it to its own workers. The 4 h ration buffer comes off the
+  pool first for **every** ration — including one the station makes — and
+  a producer then takes a normal share of what is left, on top of its
+  buffer: cheltmeat 12,757 + 306 = 13,063 against 13,062 read in-game,
+  with spices landing on 20,051 exactly. Treating the roles as exclusive
+  (food winning, as the model did) costs the producer its entire
+  production claim and hands the surplus to the station's other wares —
+  it put spices at 37,192 against a real 20,051.
+
   **Modules produce whole units per CYCLE — the engine truncates.**
   CONFIRMED 2026-07-27, 7/7 against player readings. The workforce bonus
   and sunlight scale the *cycle's amount*, which is then floored, and the
@@ -227,9 +238,9 @@ knowledge, not yet a feature.
   where the fraction falls (0.01%-0.9% observed) — which perturbs the
   RATIOS the pool split runs on, not merely the absolute rates.
 
-  With this in, the model reproduces **all 12 player-read allocations to
-  within 0.13%** (MBI-471's six wares exact, KWC-232 0.01-0.13%,
-  DLB-176 0.00-0.08%, CGW-678 exact).
+  With all of the above in, the model reproduces **all 18 player-read
+  allocations to within 0.20%** — nine of them exactly — across eight
+  stations, six factions and both single- and multi-ware producers.
 
   **A station can hold MORE than its allocated capacity.** MBI-471 reads
   14,330 energy cells against a 4,403 allocation *in the game's own menu*.
