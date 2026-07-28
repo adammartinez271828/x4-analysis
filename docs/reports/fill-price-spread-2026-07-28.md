@@ -416,3 +416,115 @@ Broken out in the scatter as a `narrow price span (output)` legend entry
 (116 offers: computronicsubstrate, claytronics, siliconwafers outputs), defined
 at **cohort** level rather than by a point-level residual cut. With it removed,
 main-sequence sell drops 1,722 → 1,608.
+
+
+---
+
+# Addendum 3: there are two curves, selected by ware role — and one of them is a cosine
+
+Raised in review: fit a cosine to the main-sequence sell population; the power
+curves will never fit that shape. The cosine **is** there and it is essentially
+exact — but not on the sell population. It is on the ration wares, which this
+report re-admitted to the main sequence two addenda ago.
+
+## Protocol
+
+Shape parameters are **global**; the scale `S` is fitted **per cohort**
+(span/allocation is already established as a per-(ware, role) constant, so a
+free per-point scale would let any shape win). Criterion is **median |residual|**,
+not SSE — the population has a known contaminating tail, and under SSE the
+ranking inverts. Fill `u` is the pending-corrected net position over the
+modelled allocation. Narrow-span cohorts excluded.
+
+## Result: the shape depends on role, not side
+
+| population | n | cohorts | best fit | MAD | 2nd best | MAD |
+|---|---:|---:|---|---:|---|---:|
+| **production wares** (role=output) | 1,331 | 24 | `1 − (u/0.766)^1.55` | **0.0076** | pure cosine (S 0.920) | 0.0138 |
+| **ration wares** (role=food) | 2,369 | 9 | `(1 + cos(π·u/1.085))/2` | **0.0016** | power k=1.50 | 0.0080 |
+| production inputs (role=input) | 3,006 | 25 | pure cosine (S 1.178) | 0.0439 | power k=1.45 | 0.0497 |
+| yards | 613 | — | `1 − (u/1.0)^2.60` | 0.0367 | — | — |
+
+Ranked on the full sell population the order was: power k=1.55 (0.0072),
+warped cosine k=0.91 (0.0080), pure cosine (0.0138), quarter cosine (0.0186),
+linear (0.0291). So the sell/output population really does prefer a power law —
+but **linear is 4× worse than either**, which is the part of the review's read
+that was dead right, and my earlier `k = 1.14` was a non-robust fit contaminated
+by the tail. The robust value is **k ≈ 1.55**, which recovers the originally
+reported 1.53–1.64.
+
+## The ration cosine is exact
+
+`band = (1 + cos(π · net / (1.085 × allocation))) / 2`
+
+| ware | n | fitted S | MAD | \|r\|<0.005 | \|r\|<0.02 |
+|---|---:|---:|---:|---:|---:|
+| medicalsupplies | 1,065 | 1.084 | 0.00134 | 88.9 % | 94.3 % |
+| foodrations | 292 | 1.094 | 0.00792 | 25.7 % | 93.5 % |
+| sojahusk | 224 | 1.085 | 0.00025 | 84.4 % | 92.9 % |
+| nostropoil | 212 | 1.100 | 0.00029 | 74.5 % | 92.9 % |
+| cheltmeat | 193 | 1.068 | 0.00341 | 64.8 % | 91.7 % |
+| scruffinfruits | 173 | 1.069 | 0.00082 | 87.3 % | 99.4 % |
+| terranmre | 102 | 1.091 | 0.00012 | 87.3 % | 97.1 % |
+| water | 50 | 1.085 | 0.00052 | 84.0 % | 90.0 % |
+| bofu | 58 | 0.200 | 0.00000 | 91.4 % | 93.1 % |
+| **pooled** | **2,369** | | **0.00163** | **77.2 %** | **94.1 %** |
+
+Eight of nine cohorts land on **S = 1.068–1.100** — a constant, not a fitted
+per-ware parameter. (`bofu` at 0.200 is degenerate: every point is on a clamp.)
+Decile-by-decile median residual never exceeds **0.0038**; the power law on the
+same population swings from +0.023 to +0.050. This is the tightest law found
+anywhere in this work — tighter than the allocation model itself.
+
+## The output power law is not an artifact of a noisy denominator
+
+The obvious objection is that outputs prefer a power law only because their
+allocation carries pool-split error, and rations do not. Slicing outputs by how
+many wares share the station's pool tests it directly, and **the objection
+fails — the power law gets *stronger* as the denominator gets cleaner**:
+
+| output slice | n | cosine MAD | power MAD | winner |
+|---|---:|---:|---:|---|
+| 1–2 ware stations (no split error) | 50 | 0.0089 | **0.0012** | power ×7.2 |
+| 3–5 ware stations | 283 | 0.0093 | **0.0035** | power ×2.7 |
+| 6+ ware stations | 839 | 0.0149 | **0.0089** | power ×1.7 |
+
+On the cleanest slice the power law fits to **MAD 0.0012 band units**. So the
+two shapes are real and distinct, not one shape seen through different amounts
+of noise.
+
+## Where the cosine actually fails on outputs
+
+Its flatness at the top is quadratic; the data's is order 1.5. Median residual
+by decile of `u/S` for the output population:
+
+| u/S | 0.05 | 0.15 | 0.25 | 0.35 | 0.45 | 0.55 | 0.65 | 0.75 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| power k=1.55 | −0.001 | −0.006 | −0.006 | −0.015 | −0.005 | −0.001 | +0.004 | +0.017 |
+| pure cosine | −0.005 | **−0.021** | **−0.021** | −0.009 | +0.003 | +0.011 | +0.015 | **+0.064** |
+
+The cosine sits systematically *above* the data through the upper-middle and
+then undershoots badly approaching the floor. The power law's worst decile is
+0.017 against the cosine's 0.064.
+
+## Consequences
+
+1. **Two engine price curves, selected by ware role.** This is a stronger
+   statement than anything in Layer 2, and it explains why a single fitted
+   exponent never sat right: the population is a mixture.
+2. **Rations are now the best-characterised population in the save** — the very
+   population the original scope excluded as "tabled, overshoots badly".
+3. `S` differs between them (0.766 vs 1.085), so the *scale* differs by role
+   too. Rations reach the floor slightly past their modelled 4 h buffer;
+   production wares reach it at ~77 % of allocation.
+4. **Inputs remain unexplained** (MAD 0.044 under either shape). They are now
+   the largest open problem, not the curvature.
+
+**Falsification.** Read one habitat's ration price at three stock levels and
+one single-ware producer's output price at three levels. The ration reading
+must sit within ~0.005 band of the cosine at S = 1.085; the producer within
+~0.002 of `1 − (u/0.766)^1.55`. Either shape failing on a station with a
+directly-read allocation kills it. Neither exponent should be assumed stable
+across saves — both are fitted on this one.
+
+The scatter now draws all three reference curves (production, rations, yards).
