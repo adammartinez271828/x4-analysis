@@ -292,7 +292,16 @@ knowledge, not yet a feature.
   database), where a missing row means "unknown" rather than "idle".
   Implemented v27 (`module_production`).
 
-  **Known exception — EIJ-609.** Its allocation implies efficiency exactly
+  **War-pressure bonuses do not count toward storage — player-confirmed
+  2026-07-28.** EIJ-609 still reads 34,829 hull parts after the efficiency
+  change, so its allocation follows a multiplier of 1.0 while its modules
+  report 1.12634 and its production rate follows the full 1.12634. The mod's
+  war term therefore enters the RATE but not the ALLOCATION, and the two have
+  to be separated. `efficiency / (1 + work_effect)` is exactly 1.000 for the
+  plurality of modules in every faction, so the vanilla part is recoverable in
+  principle; the separation is not yet implemented. OPEN.
+
+  **Superseded — EIJ-609 as a lag.** Its allocation implies efficiency exactly
   1.0 (in-game 34,829 hull parts; base model 34,829.1, and all three
   offer-derived inputs within 0.6 units, pool closing to exactly 1,000,000 m3)
   while its modules report 1.12634. HYPOTHESIS: the allocation is recomputed
@@ -302,9 +311,23 @@ knowledge, not yet a feature.
   hypothesis predicts it drifts to ~37,228. If it stays at 34,829 the
   efficiency basis is wrong for war-modified stations specifically.
 
-  **The offer-derived allocation — CONFIRMED 2026-07-28.** An open, unflagged
-  buy offer's `amount` is exactly `allocation - stock - inbound pending`, so
-  `allocation = stock + inbound + amount` for any ware a station is buying.
+  **The offer-derived allocation is a LOWER BOUND, not an equality —
+  CORRECTED 2026-07-28.** An open, unflagged buy offer's `amount` was briefly
+  recorded here as exactly `allocation - stock - inbound pending`. It is not:
+  a station bids only for what it can *use*. MAL-475 (player-owned, every
+  allocation and rate confirmed correct in game) reads 157,810 derived against
+  a true 1,498,962 energy cells because its consuming modules are still under
+  construction; TPF-229 reads 4,470 derived helium against a true 10,654, and
+  posts no buy offer at all for silicon, methane, silicon carbide or ore.
+  Treat `stock + inbound + amount` as a floor: a model value BELOW it is a
+  real error, a model value above it proves nothing. The 86%-within-1% figures
+  quoted below were scored against this quantity as if it were truth and are
+  therefore optimistic for the stations that are buying and uninformative for
+  those that are not.
+
+  The original claim held on EIJ-609 (graphene 2,466 + 426 inbound + 1,846 =
+  4,738, putting all three inputs on an identical 9.872 h) and on most
+  actively-trading stations, which is why it survived a sweep.
   Verified on EIJ-609 (graphene is its only ware with inbound: 2,466 + 426 +
   1,846 = 4,738, and only with the inbound term do all three inputs land on an
   identical 9.872 h), and save-wide the derived value matches the model at
