@@ -334,7 +334,12 @@ knowledge, not yet a feature.
   efficiency basis is wrong for war-modified stations specifically.
 
   **The offer-derived allocation is a LOWER BOUND, not an equality —
-  CORRECTED 2026-07-28.** An open, unflagged buy offer's `amount` was briefly
+  CORRECTED 2026-07-28.** *(Scope clarified 2026-07-29: it is a lower bound in
+  general, but it is SATURATED — equal to the allocation at median ratio
+  0.9999 — for production inputs that actually post a buy offer, which is why
+  other reports describe it as an equality. Both are true; the bound is loose
+  only where a station is not bidding for what it could hold. Use it to pin the
+  denominator on input buyers, never on a station whose consumers are unbuilt.)* An open, unflagged buy offer's `amount` was briefly
   recorded here as exactly `allocation - stock - inbound pending`. It is not:
   a station bids only for what it can *use*. MAL-475 (player-owned, every
   allocation and rate confirmed correct in game) reads 157,810 derived against
@@ -493,9 +498,17 @@ knowledge, not yet a feature.
   claimed "near-linear with knees"; that was an artifact of scoring per-offer
   MAE across the middle and is **retracted**.
 
-  The sell side takes the same family, a little less cleanly (1,569 offers,
-  26 bins): `cos(pi (f/S)^k)` at S 1.125 / k 0.86, bin RMSE 0.0352, against a
-  clamped line's 0.1248.
+  **SUPERSEDED 2026-07-29 — the sell side is the same cosine, shifted.** This
+  paragraph used to fit the sell side as `cos(pi (f/S)^k)` at S 1.125 / k 0.86
+  (bin RMSE 0.0352). That warp is not the law: the sell side takes the SAME
+  span S = 1.095 with a constant additive offset on the fill axis,
+  `s = cos(pi (fill + 0.053) / 1.095)`, bin RMSE **0.0087** on one parameter
+  against the warp's 0.0144 on two. The offset is selected by whether the
+  station posts a SELL offer for the ware, not by ware role. Full derivation
+  and the falsification of the power-law alternative:
+  [../models/station-pricing-model.md](../models/station-pricing-model.md) and
+  [../reports/price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md)
+  section A.
 
   S ≈ 1.09 also reconciles with the ration result found independently the same
   day — `(1 + cos(pi u / 1.085)) / 2`, MAD 0.0016 over 2,369 offers. Same law,
@@ -543,6 +556,24 @@ knowledge, not yet a feature.
   `supplies`-flagged self-supply buys even ON locked wares (all 7 in
   save_008 at 1.105–1.222×avg, beside the locked regular pair — the v18
   discriminator composing with the lock; zero counterexamples).
+- **The `shady` book has TWO disjoint tiers — CONFIRMED 2026-07-29.** This
+  resolves a contradiction between two earlier reports, and neither was wrong:
+  they sampled different modes.
+
+  | tier | n | stations | price | shape |
+  |---|---:|---:|---|---|
+  | common | 2,897 | 727 | median **1.042 × band max** | a continuum, 1.00–1.56 |
+  | fixed | 376 (11.5 %) | 96 | exactly **2.750 × band avg** | one price per ware |
+
+  The fixed tier is a hard constant: majadust 572.60, spacefuel 366.60,
+  spaceweed 456.20, stimulants 935.00 — ratios to band average of 2.7529 /
+  2.7564 / 2.7482 / 2.7500. **No station appears in both tiers** (0 overlap
+  across 823 stations), so the tier is a station property. The "~1.77× the
+  ceiling" recorded in open-items-2026-07-27 is this tier expressed against
+  band max (2.75 / 1.55); the "1.055 × band max" in
+  fill-price-spread-2026-07-28 is the common tier's median. Neither figure
+  describes the whole book. What sets a station's tier is unknown.
+
 - **Deployables** (satellites/mines/…) are not stocked; a facility builds
   them on demand at
   `base_price × (Σ recipe·E / Σ recipe·band_avg) × M` — and **no

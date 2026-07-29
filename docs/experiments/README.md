@@ -395,6 +395,33 @@ in place and listed at the foot of the file.
 
 ## Contradictions between documents — recorded, not resolved
 
+**Four of the seven below were acted on 2026-07-29** (commit follows this
+file). Kept here with their resolution rather than deleted, so the register
+shows what it caught:
+
+- **(1) offer-derived allocation** — RESOLVED as a scope difference: a lower
+  bound in general, saturated (median ratio 0.9999) for production inputs that
+  post a buy offer. Both wordings were right about different populations.
+  Scope note added to save-semantics.md.
+- **(2) `shady` price level** — RESOLVED, and neither source was wrong: the
+  book is **bimodal and disjoint by station**. 2,897 offers across 727 stations
+  form a continuum at median 1.042 × band max; 376 offers (11.5 %) across 96
+  stations sit at exactly **2.750 × band average** (majadust 572.60, spacefuel
+  366.60, spaceweed 456.20, stimulants 935.00), with **zero station overlap**.
+  The "1.77× the ceiling" figure is the fixed tier against band max. Recorded
+  in save-semantics.md; what sets a station's tier is unknown.
+- **(5) sell-side curve** — RESOLVED: save-semantics.md § Layer 4 marked
+  SUPERSEDED and pointed at the shifted cosine.
+- **(7) yard exponent** — RESOLVED: the body's 2.38 was measured on the
+  uncorrected fill numerator; harmonised to 2.60 with a pointer to the
+  correction.
+
+Still open: (3) faction relation symmetry, (4) inert anomaly census, and (6)
+the price denominator — which Addendum 6 holds as *both* true and is tracked
+as the open question of what sets `m`.
+
+### The original list
+
 1. **Offer-derived allocation** (E-054) — save-semantics.md demotes it to a lower bound on the strength of MAL-475 and TPF-229; fill-price-spread and price-curve report it as an equality at median ratio 1.0000 and as *saturated* for input buyers. Different populations, incompatible wording.
 2. **`shady` price level** (E-026) — "~1.055 × band max" (fill-price-spread) against "~1.77× the ceiling" (open-items-2026-07-27), on populations of the same size and description.
 3. **Faction relation symmetry** (E-081) — "directional, not symmetric" with a worked example against "0 of 486 base pairs asymmetric", the B20 refresh noting the example compared two different pairs.

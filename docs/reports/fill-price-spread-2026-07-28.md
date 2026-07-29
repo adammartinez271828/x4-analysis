@@ -216,12 +216,14 @@ finding worth the exercise: see the addendum.
    read at three stock levels across a restock cycle; a solar plant is ideal
    because it has one ware and no input coupling. Falsified if c is not
    reproducible on a fixed station over time.
-2. **Yard pricing (k ≈ 2.38, +0.167 level).** Yards likely price off outstanding
+2. **Yard pricing (k = 2.60, +0.167 level).** *(The 2.38 first written here was
+   measured on the uncorrected fill numerator; the addendum's 2.60 supersedes
+   it — see "CORRECTION: `k = 1.00` was wrong" below.)* Yards likely price off outstanding
    build demand rather than stock, on the same clamped form but with the
    denominator being the funded order bill of materials rather than the
    allocation. *Validates:* an NPC wharf with a known order queue; compare
    `stock + amount` against Σ recipe of its queued ships. Falsified if k stays
-   ≈ 2.38 with a demand denominator.
+   ≈ 2.60 with a demand denominator.
 3. **Hull-parts allocation error (ratio 1.171, n = 65).** The pool split gives
    hull parts ~17 % less than the game does, consistently. Likely a
    throughput input to the equal-hours split — hull parts are produced by
