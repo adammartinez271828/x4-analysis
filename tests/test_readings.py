@@ -18,7 +18,7 @@ from readings import load, model_for, report, score
 # — JAR-041 was never a model failure, it inherited another station's finished
 # entry id. RAISE THIS as the model improves; it must never fall. The one
 # remaining failure is EIJ-609 (open anomaly).
-BASELINE_INGAME = 48
+BASELINE_INGAME = 49
 
 # Stations the model reproduces exactly. These are regression locks — a change
 # that breaks one of these is a real regression, not a trade-off.

@@ -191,6 +191,11 @@
      "ingame",
      "model 8,592 (+0.17%)"
     ],
+    "condensate": [
+     5,
+     "ingame",
+     "Protectyon (Pirate DLC): storage-only pool, one storage_pir_l_condensate_01 = 50 m3 / 10 m3 = 5; no recipe touches condensate so there is no equal-hours split"
+    ],
     "energycells": [
      1665000,
      "ingame",
@@ -218,7 +223,7 @@
     ]
    },
    "date": "2026-07-28",
-   "note": "The scrap-recycler case, and the model gets it RIGHT: all six modelled wares within 0.2%. Three prod_gen_scrap_recycler modules, each listed twice in the Logical Station Overview because it alternates between claytronics and hull parts, only one active at a time. The model's 50/50 split of the alternation gives 3 x (144,000 + 42,000)/2 = 279,000 energy cells/h and that reproduces the 1,665k reading, so save-semantics.md's 'the alternation split cancels out' STANDS and the earlier 'engine sizes on the queued recipe' hypothesis is DEAD.\n\nTwo structural confirmations: rawscrap holds 1,993 units and has NO allocation (it is separate from ware storage in the UI too) -- the non-economy feedstock rule, confirmed from the game side. And the scrapworks processing module contributes its OUTPUT (scrap metal, 40,000 exact) while its own energy draw stays out of the split.\n\nKNOWN GAP: the station also allocates 5 PROTECTYON, which the model does not produce a row for at all. Protectyon is the Boron shield-generator ware with its own module; it is a special case and small, but it is a missing row rather than a wrong number.\n\nIts PRICES remain unexplained and are now known NOT to be an allocation artifact: implied fill shifts +0.56 (energy cells), +0.36 (scrap metal), +0.12 (hull parts) while both rations sit on the curve (+0.014, +0.006). It is not one of the 14 hacked stations.",
+   "note": "The scrap-recycler case, and the model gets it RIGHT: all six modelled wares within 0.2%. Three prod_gen_scrap_recycler modules, each listed twice in the Logical Station Overview because it alternates between claytronics and hull parts, only one active at a time. The model's 50/50 split of the alternation gives 3 x (144,000 + 42,000)/2 = 279,000 energy cells/h and that reproduces the 1,665k reading, so save-semantics.md's 'the alternation split cancels out' STANDS and the earlier 'engine sizes on the queued recipe' hypothesis is DEAD.\n\nTwo structural confirmations: rawscrap holds 1,993 units and has NO allocation (it is separate from ware storage in the UI too) -- the non-economy feedstock rule, confirmed from the game side. And the scrapworks processing module contributes its OUTPUT (scrap metal, 40,000 exact) while its own energy draw stays out of the split.\n\nThe station also allocates 5 PROTECTYON (condensate), now modelled: condensate is a fourth transport pool that no recipe produces or consumes, so its allocation is simply the module capacity divided by the ware volume (50 / 10 = 5).\n\nIts PRICES remain unexplained and are now known NOT to be an allocation artifact: implied fill shifts +0.56 (energy cells), +0.36 (scrap metal), +0.12 (hull parts) while both rations sit on the curve (+0.014, +0.006). It is not one of the 14 hacked stations.",
    "rate": {}
   },
   "JAR-041": {

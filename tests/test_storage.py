@@ -296,6 +296,57 @@ def test_offers_without_flags_column_still_work():
     assert rows["energy"].max_units == 300
 
 
+# ---- storage-only pool (condensate / Protectyon) ---------------------------
+
+def _condensate_ref():
+    """Reference data with a fourth transport pool no recipe touches."""
+    ref = _ref()
+    ref.wares = pd.DataFrame([
+        ["widget", "container", "1", "container economy"],
+        ["energy", "container", "1", "container economy"],
+        ["food1", "container", "1", "container economy"],
+        ["condensate", "condensate", "10", "condensate economy"],
+    ], columns=["id", "transport", "volume", "tags"])
+    ref.modcaps = pd.concat([ref.modcaps.reset_index(drop=True), pd.DataFrame([
+        ["store_condensate", "storage", "", 0, 50, "condensate"],
+    ], columns=ref.modcaps.columns)], ignore_index=True)
+    return ref
+
+
+def test_storage_only_pool_is_capacity_over_volume():
+    # IRD-672's ground truth: one storage_pir_l_condensate_01 (50 m3) at 10 m3
+    # per unit = 5 Protectyon, read in game. No recipe produces or consumes
+    # condensate, so there is no throughput and no equal-hours split.
+    frames = _frames(
+        built=[["st1", "store_condensate", 1],
+               # a condensate module with NO module_cap row must not crash
+               # or contribute capacity (landmarks_soh_storage_condensate_01)
+               ["st1", "store_condensate_unknown", 1]],
+        universe=[["st1", "station"]],
+        cargo=[["st1", "condensate", 4]])
+    df = station_storage(frames, _condensate_ref())
+    rows = [r for r in df.itertuples() if r.ware == "condensate"]
+    assert len(rows) == 1                       # computed, not also proxied
+    r = rows[0]
+    assert r.max_units == 5.0 and r.max_volume == 50.0
+    assert r.source == "computed" and r.role == "input"
+    assert r.transport == "condensate" and r.throughput is None
+
+
+def test_storage_only_pool_applies_to_producers_too():
+    frames = _frames(
+        built=[["st1", "prod_widget", 1], ["st1", "store_container", 1],
+               ["st1", "store_condensate", 1]],
+        universe=[["st1", "station"]],
+        workforce=[["st1", "default", 100]])
+    rows = {r.ware: r for r in station_storage(
+        frames, _condensate_ref()).itertuples()}
+    assert rows["condensate"].max_units == 5.0
+    # the container pool split is untouched by the fourth pool
+    assert abs(rows["widget"].max_units / rows["widget"].throughput
+               - 98920 / 300) < 1e-6
+
+
 def test_empty_inputs_return_empty():
     empty = SimpleNamespace(built_modules=pd.DataFrame(),
                             universe=pd.DataFrame(columns=["id", "class"]),

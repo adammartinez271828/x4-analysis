@@ -4,7 +4,8 @@ Reverse-engineered (session 2026-07, validated against GDR-378, PEJ-489,
 UBX-812 across Terran/Paranid and all three transport pools): a producing
 station sizes each ware's storage to hold a fixed number of *hours* of that
 ware's throughput, per transport pool (container / liquid / solid), at full
-workforce.
+workforce. The pool list is read from the data (ware.transport, matched
+against module_cap.cargo_tags), not hardcoded.
 
   jobs           = Sum of module_cap.workers over the station's built modules
   output(ware)   = Sum (recipe.amount/time * 3600 * scale) * (1 + work_effect)
@@ -29,6 +30,13 @@ verified is genuinely allocated storage (two same-faction Argon wharves matched
 to Pearson r=0.9984 despite different fill). A full build bill-of-materials
 model would be far costlier and not meaningfully more accurate. Producing
 stations keep the exact throughput x T model (source='computed').
+
+A pool NO recipe touches -- the Pirate DLC's condensate ("Protectyon"), a
+single ware neither produced nor consumed -- has no throughput and so no
+equal-hours split. Its allocation is just capacity / ware.volume, computed for
+every station carrying such a storage module, producer or not (source=
+'computed', role='input'). CONFIRMED on IRD-672: 50 m3 / 10 m3 = 5 Protectyon,
+read in game.
 
 Supply offers (v18): buy offers whose save flags contain "supplies" are the
 station's SELF-SUPPLY demand -- inputs for building its own drones/munitions,
@@ -206,6 +214,29 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if str(r.ware):
                 prod_eff[(r.id, str(r.macro), str(r.ware))] = eff
 
+    # The transport POOLS are the ware.transport values themselves, and a
+    # storage module's cargo_tags names the pools it serves with exactly those
+    # words ("container liquid solid", "condensate"). Derive the pool list from
+    # the data rather than hardcoding it -- the Pirate DLC's condensate
+    # (Protectyon) is a fourth pool, and a hardcoded tuple silently drops it.
+    pool_names = {str(t) for t in wares["transport"].dropna().unique()
+                  if str(t)}
+    # Pools that NO recipe touches ("storage-only"): condensate is produced and
+    # consumed by nothing, so there is no throughput to split hours of. Such a
+    # pool's capacity is simply divided by the ware volume (and, if the pool
+    # ever held several wares, evenly among them). CONFIRMED on IRD-672: one
+    # storage_pir_l_condensate_01 = 50 m3 / 10 m3 = 5 Protectyon, read in game.
+    # Pools with recipes (container / liquid / solid) never qualify, so the
+    # equal-hours model below is untouched.
+    recipe_wares = {w for w, _m in recipes} | {
+        inw for (_t, _a, _e, ins) in recipes.values() for inw, _a2 in ins}
+    storage_only: dict[str, list[str]] = {}
+    for t in pool_names:
+        pw = sorted(w for w, tr in transport.items()
+                    if tr == t and economy_ware.get(w, False))
+        if pw and not any(w in recipe_wares for w in pw):
+            storage_only[t] = pw
+
     mc = ref.modcaps.set_index("macro")
     workers = _num(mc["workers"]).to_dict()
     cargo_max = _num(mc["cargo_max"]).to_dict()
@@ -224,8 +255,11 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         jobs[sid] += workers.get(macro, 0.0)
         cap, tags = cargo_max.get(macro, 0.0), cargo_tags.get(macro, "")
         if cap:
-            for t in ("container", "liquid", "solid"):
-                if t in tags:
+            # a module with no module_cap row has cap 0 above and contributes
+            # nothing (landmarks_soh_storage_condensate_01_macro is in that
+            # state) -- the join stays defensive.
+            for t in str(tags).split():
+                if t in pool_names:
                     pool_cap[sid][t] += cap
         for ware, method, scale, weight in modrows.get(macro, ()):
             key = (ware, method) if (ware, method) in methods else (ware, "default")
@@ -397,6 +431,28 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 "source": "computed",
             })
 
+    # storage-only pools (condensate): capacity / ware volume, for EVERY
+    # station carrying such a module -- producer or not, since the pool has no
+    # throughput and so no place in the equal-hours split above. The ware has
+    # no recipe, which is exactly how the proxy path classifies a ware it
+    # cannot attribute to production: role='input'. throughput is not merely
+    # unknown here, it does not exist -> NULL.
+    special: set[tuple[str, str]] = set()
+    for sid, caps in pool_cap.items():
+        for t, pool_ws in storage_only.items():
+            cap = caps.get(t, 0.0)
+            if cap <= 0:
+                continue
+            for ware in pool_ws:
+                vol = volume.get(ware, 1.0)
+                mx = cap / len(pool_ws) / vol
+                special.add((sid, ware))
+                rows.append({
+                    "station_id": sid, "ware": ware, "transport": t,
+                    "role": "input", "throughput": None, "max_units": mx,
+                    "max_volume": mx * vol, "source": "computed",
+                })
+
     # proxy path: non-producing stations (wharfs / shipyards / docks / trade).
     # The game's allocated max per ware is well-approximated by what the station
     # holds plus what it still bids to buy (proven ~allocated: two same-faction
@@ -438,6 +494,8 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                 buy[o.id][o.ware] = buy[o.id].get(o.ware, 0.0) + o.amount
     for sid in set(stock) | set(buy):
         for ware in set(stock.get(sid, {})) | set(buy.get(sid, {})):
+            if (sid, ware) in special:
+                continue          # already sized from its own storage module
             mx = stock.get(sid, {}).get(ware, 0.0) + buy.get(sid, {}).get(ware, 0.0)
             rows.append({
                 "station_id": sid, "ware": ware,

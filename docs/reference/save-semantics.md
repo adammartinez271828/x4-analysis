@@ -388,6 +388,24 @@ knowledge, not yet a feature.
   feeding it was wrong. DLB-176 is unaffected (production 42,643/h dwarfs
   its 2,100/h consumption) and still matches at 348,586 vs ~348,000.
 
+  **A fourth transport pool: condensate ("Protectyon", Pirate DLC) —
+  CONFIRMED 2026-07-28.** The pools are just the distinct `ware.transport`
+  values, matched word-for-word against `module_cap.cargo_tags`
+  (`"container liquid solid"`, `"condensate"`); `analysis/storage.py` derives
+  them from the data instead of the old hardcoded container/liquid/solid
+  triple, which silently dropped condensate. Condensate is the single ware of
+  its pool and **no recipe produces or consumes it**, so there is no
+  throughput and no equal-hours split: the allocation is simply
+  `pool capacity / ware.volume`, emitted for every station carrying such a
+  module, producer or not (`source='computed'`, `role='input'`, throughput
+  NULL). Player-verified on IRD-672: one `storage_pir_l_condensate_01`
+  (50 m³) at 10 m³/unit = **5 Protectyon**, matching the station UI. 18
+  stations qualify in save_001 (17 × the 50 m³ module → 5 units, VOM-540's
+  `landmarks_gen_piratestation_01_ring_01` 50,000 m³ → 5,000), replacing 6
+  proxy rows and adding 12 that had none.
+  `landmarks_soh_storage_condensate_01_macro` has **no `module_cap` row** at
+  all — it contributes nothing and mints no row; the join stays defensive.
+
   **Scope note (2026-07-27, agreed with the player):** pricing work is
   currently confined to **basic production stations** — wharfs,
   shipyards, equipment docks, trade stations and pirate bases are
