@@ -975,10 +975,12 @@ one by selling Protectyon at Tidebreak:
 
 Nothing else in this work has that kind of separation. A single sale settles it.
 
-**Secondary check:** the panel reads +9.2 % where `price/avg − 1` is +9.109 %,
-a 0.09 pp gap. Either the panel rounds up, or panel and price were sampled a
-moment apart on a station whose stock ticks every hour. Worth confirming
-against a station whose stock is static.
+**Secondary check — RESOLVED (player, 2026-07-29): the trade panel rounds the
+modifier UP.** It reads +9.2 % where `price/avg − 1` is +9.109 %. So a panel
+percentage is a *ceiling* on the true modifier, good to 0.1 pp, and the offer
+price — not the panel figure — is the quantity to fit. This matters for every
+reading taken off the panel: UDX-946's "High Demand +6.6 %" reproduced ore at
+53.30 exactly only because the underlying value happened to round cleanly.
 
 **Recorded as HYPOTHESIS**: the price denominator is a per-(station, ware)
 *price target* distinct from the storage allocation, equal to it for the bulk of
