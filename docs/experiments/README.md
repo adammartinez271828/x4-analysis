@@ -33,16 +33,17 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 
 | subsystem | CONFIRMED | FALSIFIED | PENDING | SUPERSEDED | total |
 |---|---:|---:|---:|---:|---:|
-| Pricing (E-001…E-036) | 13 | 10 | 11 | 2 | 36 |
+| Pricing (E-001…E-036, E-112) | 13 | 10 | 11 | 3 | 37 |
 | Storage allocation (E-037…E-063) | 14 | 6 | 6 | 1 | 27 |
 | Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
-| **total** | **48** | **29** | **31** | **3** | **111** |
+| **total** | **48** | **29** | **31** | **4** | **112** |
 
-Seven entries carry a documented disagreement between sources; they are flagged
-in place and listed at the foot of the file.
+Seven entries carried a documented disagreement between sources; four were
+settled on 2026-07-29 and are listed with their resolution at the foot of the
+file, three remain open.
 
 ---
 
@@ -61,7 +62,7 @@ in place and listed at the foot of the file.
 *Replaced by:* E-005. *Predicted:* bin RMSE 0.0352 over 1,569 offers / 26 bins. *Superseded by:* the one-parameter fill offset, which beats every two-parameter alternative. *Source:* [open-items-2026-07-28.md](../reports/open-items-2026-07-28.md) § A. The sell side needs its own curve.
 
 **E-005 · CONFIRMED** — The sell side is the *same* cosine at the same span with an additive fill offset.
-*Predicts:* `s = cos(π(fill + 0.053)/1.095)`; bin RMSE 0.0087 (1 param) vs power 0.0120, warped cosine 0.0144, pure cosine 0.1180. Shift, not scale: implied `a` flat to 4 s.f. over a 3× fill range while the scale moves 8 %. *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § A / § Why the offset is additive and not a rescaled span.
+*Predicts:* `s = cos(π(fill + 0.053)/1.095)`; bin RMSE 0.0087 (1 param) vs power 0.0120, warped cosine 0.0144, pure cosine 0.1180. Shift, not scale: implied `a` flat to 4 s.f. over a 3× fill range while the scale moves 8 %. *Propagated 2026-07-29:* save-semantics.md § Layer 4 marked SUPERSEDED (it still carried E-004), and the generalized form is in [station-pricing-model.md](../models/station-pricing-model.md). *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § A / § Why the offset is additive and not a rescaled span.
 
 **E-006 · FALSIFIED** — The output/sell curve is a power law reaching the floor at fill ≈ 0.79–0.85.
 *Predicted:* `1 − (u/0.766)^1.55`, MAD 0.0076 on 1,331 offers. *Killed by:* the 0.55–0.98 fill region, previously empty at the bin thresholds used; at `minn = 8` it holds 135 offers and only 8 are at the floor (0.80 → −0.79, 0.95 → −0.98). Wrong by a full 0.2 of a band through that stretch. *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § The power law is falsified; original in [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Addendum 3.
@@ -123,8 +124,11 @@ in place and listed at the foot of the file.
 **E-025 · CONFIRMED** — `lockavgprice` wares are pegged at band average regardless of stock.
 *Predicts:* sell = avg exactly (588/588 offers, zero variance), buy = avg − 1 Cr; corr(fill, band) = −0.04 over 1,175 offers; Layer-3 discounts still stack (EBT-957 microlattice 46.75 = 50 × (1 − 2.0 % − 4.5 %)). *Settled by:* save sweep + in-game read, 2026-07-27. *Source:* [save-semantics.md](../reference/save-semantics.md) § Ware pricing model, Layer 6.
 
-**E-026 · CONFIRMED** — `shady` offers are a separate, price-inelastic black-market book.
-*Predicts:* median 1.055 × band max, identical to three decimals across stimulants/spacefuel/spaceweed/majadust; corr(amount, price) = −0.08; 823 shadyguy posts ↔ exactly 823 stations posting shady offers. **Contradiction:** open-items-2026-07-27 § P6 reports the same population at "~1.77× the ceiling" with per-ware absolute prices (spaceweed 456.20, spacefuel 366.60, stimulants 935.00, majadust 572.60). Both recorded; not reconciled. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Black market (`shady`); [open-items-2026-07-27.md](../reports/open-items-2026-07-27.md) § P6.
+**E-026 · SUPERSEDED** — `shady` is one price-inelastic book at ~1.055 × band max.
+*Replaced by:* E-112. *Predicted:* median 1.055 × band max across all four wares; corr(amount, price) = −0.08; 823 shadyguy posts ↔ 823 stations. *Superseded by:* the book is bimodal, and this entry described only its larger mode. The contradiction with open-items-2026-07-27's "~1.77× the ceiling" was the two modes being sampled separately. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Black market (`shady`); [open-items-2026-07-27.md](../reports/open-items-2026-07-27.md) § P6.
+
+**E-112 · CONFIRMED** — The `shady` book has TWO tiers, disjoint by station.
+*Predicts:* a common tier of 2,897 offers over 727 stations at median **1.042 × band max** (a continuum, 1.00–1.56), and a fixed tier of 376 offers (11.5 %) over 96 stations at exactly **2.750 × band average** — majadust 572.60, spacefuel 366.60, spaceweed 456.20, stimulants 935.00, ratios 2.7529 / 2.7564 / 2.7482 / 2.7500. **Zero station overlap** across 823 stations, so the tier is a station property. *Settled by:* measuring both modes on save 70; resolves the E-026 contradiction with neither source wrong. *Open:* what sets a station's tier. *Source:* [save-semantics.md](../reference/save-semantics.md) § The `shady` book has TWO disjoint tiers.
 
 **E-027 · PENDING** — The self-supply (`supplies`) buy price is a fixed per-ware multiple of band average.
 *Predicts:* 10 distinct price/avg values over 1,207 offers — smartchips 1.1053, missilecomponents 1.2222, dronecomponents 1.1247, energycells 1.1875, metallicmicrolattice 1.0700, siliconcarbide 1.0753, silicon 1.0769, ore 1.0800, hullparts 1.1507, claytronics 1.0750 — independent of station, stock and faction. Source of the constants unidentified; it is **not** the recipe input value (0.72–0.95 computed vs 1.07–1.22 observed). *Settles it:* an extract-gamedata sweep for a per-ware field near 1.07–1.22. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Self-supply (`supplies`).

@@ -46,6 +46,16 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 - [save-semantics.md](docs/reference/save-semantics.md) — reverse-engineered meanings: market data, identity/code recycling, the pricing model, the drone pool.
 - [viz-internals.md](docs/reference/viz-internals.md) — dashboard shell, sector map, opportunities/advisor/audit/P&L, diplomacy, weapon sim.
 - `docs/models/` — verified game-mechanics models (station-pricing, resource-depletion, faction-relations, wormhole-connection). `docs/plans/` — live plans and the extraction-candidates backlog.
+- [experiments/README.md](docs/experiments/README.md) — the register of every falsifiable claim: id, status, prediction, what settles it, and a citation back to the doc that owns it.
+
+**Each doc kind owns one thing, and they must not drift:**
+
+| kind | owns | changes when |
+|---|---|---|
+| `reference/` | the rule, stated once, at the level of "what this field/number means" | the rule changes |
+| `models/` | the generalized *shape* of a verified mechanic + its rejected alternatives | the form or a parameter changes |
+| `experiments/README.md` | the status of every claim, with the evidence that set it | any claim is confirmed, killed or superseded |
+| `reports/` | dated derivations and their history — **append-only**, never rewritten | never; add an addendum instead |
 
 ## Conventions
 
@@ -63,8 +73,14 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 - JS page templates (`viz/map_page.js`, `viz/diplomacy_page.js`) are inlined at build time with tokens substituted via `str.replace` — never f-strings.
 - DataTables `ext.search` filters must guard on the table id — pages can host two tables.
 - Per-object trade views keep the "Executed by" proxy-attribution pattern: subordinate trades redirect to the save-time commander, tagged, with a toggle to disable.
+- **Keep reference / models / experiments in sync — every time.** Learning something new about game behaviour is not done until all three agree. On any change to a reverse-engineered claim:
+  1. **`experiments/README.md`** — set the status (`CONFIRMED` / `FALSIFIED` / `PENDING` / `SUPERSEDED`), keep the evidence that moved it, update the summary table. New claim ⇒ new id at the end of its subsystem block; ids are stable, never reused or renumbered.
+  2. **`reference/`** — update the section that states the rule. If it is now wrong, mark it **SUPERSEDED** with a pointer to what replaced it; do not silently delete it, and do not leave the old law readable as if current (a stale § Layer 4 handed readers a retracted sell-side curve for a day).
+  3. **`models/`** — update the generalized form only if the shape or a parameter moved. A killed candidate goes in that model's *rejected* table with the evidence, so it is not re-tested.
+  4. **`reports/`** — leave alone. Add a dated addendum; never edit a published finding.
+  A claim that is superseded gets a NEW register entry; the old one keeps its id and points at the replacement. When two docs disagree and you cannot settle it, record both and flag it in the register's contradictions section rather than picking a winner.
 - Reverse-engineered claims separate CONFIRMED from hypothesis — never overclaim (e.g. don't assert per-station constants are stable across saves without proof). In-game-validated reference numbers live in the tests (`test_weaponsim.py`, `test_drones.py`, `test_storage.py`, `test_map_prep.py`); when touching a model, revalidate against them.
-- New tracked docs go in a `docs/` subfolder (`reference/`, `models/`, `plans/`); loose `docs/*.md` files are gitignored scratch.
+- New tracked docs go in a `docs/` subfolder (`reference/`, `models/`, `experiments/`, `plans/`, `reports/`); loose `docs/*.md` files are gitignored scratch.
 - Commit finished, verified work locally without asking; when a deliverable goes through interactive review, batch the whole revision round into one commit. Never `git push` (or push tags) until explicitly asked.
 
 ## Gotchas
