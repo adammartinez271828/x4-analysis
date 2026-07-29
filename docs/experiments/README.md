@@ -46,12 +46,12 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | subsystem | CONFIRMED | FALSIFIED | PENDING | SUPERSEDED | total |
 |---|---:|---:|---:|---:|---:|
 | Pricing (E-001…E-036, E-112…E-118) | 16 | 11 | 11 | 5 | 43 |
-| Storage allocation (E-037…E-063) | 14 | 6 | 6 | 1 | 27 |
+| Storage allocation (E-037…E-063, E-119…E-123) | 18 | 6 | 7 | 1 | 32 |
 | Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
-| **total** | **51** | **30** | **31** | **6** | **118** |
+| **total** | **55** | **30** | **32** | **6** | **123** |
 
 Eight entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -272,6 +272,21 @@ file, three remain open.
 
 **E-063 · PENDING** — `<supplies><orders>` persists the drone build TARGET, not outstanding orders.
 *Predicts:* 37/40 order rows across 21 stations exactly equal the station's current drone count, 0/40 exceed it; five full, idle player stations carry rows equal to their counts (JQR-498/MXH-411 30-10-10, QNF-337/TIH-455 15-5-5, MAL-475 30-10-9), which an outstanding-orders reading would put at 0. *Settles it:* on a full station raise the target 30 → 40 and save — reads 40 ⇒ target, 10 ⇒ outstanding; then lower it below stock and see whether the block shrinks without scrapping drones. *Source:* [supply-offer-discriminator.md](../reports/supply-offer-discriminator.md) § Play checklist (open ends, each with the evidence it would produce).
+
+**E-119 · CONFIRMED** — A non-producing station divides each storage pool EQUALLY BY VOLUME among the wares on its trade list, after the ration buffer: `max[w] = (capacity − Σ ration_volume) / n_traded / volume[w]`.
+*Predicts:* every non-ration in-game maximum × its volume is one constant per pool. DHI-588 reads 36 of 36 non-ration wares to the unit — container (2,100,000 − 4,635)/30 = 69,845 m³ (energy cells 69,845, smart chips 34,922, hull parts 5,820, scanning arrays 1,838), liquid 1,200,000/3/6 = 66,666, solid 1,700,000/3 = 566,666 (ore 56,666, ice 70,833). Save-wide it lands within 1 % of `stock + inbound + open buy` on 601/634 pairs against the stock+buy proxy's 556, and it also sizes wares the station holds none of. Same rule as the storage-only pool of E-049: no recipes ⇒ no throughput ⇒ no hours to equalise. Build stations keep the proxy — the rule is FALSE for them (33 % of their wares exceed the equal share, QJI-262 spans 205×) and they must be classified by a built `buildmodule*` entry, not by station macro, since 52 wear `station_gen_factory_base_01_macro`. Reached independently and concurrently by two investigations. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 1; [trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md) § 1, § 3.
+
+**E-120 · CONFIRMED** — The ration buffer is keyed on the races actually PRESENT in the workforce, and floored PER RACE before the races are summed.
+*Predicts:* water at DHI-588 is an ordinary traded ware at 11,640 = 69,845/6 (it is the *Boron* ration and no Boron work there), not a `role='food'` row; and DCO-580's medical supplies come to 1,163 = 334 + 495 + 334 over argon/boron/paranid — boron's rate is 33 per 200 against the others' 45, so one floor on the summed rate gives 1,164 and misses. DHI-588 repeats it in game: 1,338 = 961 + 172 + 205. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 2.
+
+**E-121 · PENDING** — The ration buffer lags the live workforce: it is recomputed on a slower cadence and reflects the headcount at the last recompute.
+*Predicts:* DHI-588's four ration maxima are consistent with exactly one worker fewer per race than the save records (178/32/38 against 179/33/39) on all four wares at once, and the save's own bids confirm the readings (1,559 stock + 43 bid = 1,602 food rations). Save-wide the implied headcount equals the saved workforce on 13 of 31 single-race non-producers, sits 1–2 below on 10 more, and sits at exactly 1,000 on four starving teladi landmark trade stations whose saved workforces are 104/231/361/702 — an integer offset either way, largest where the workforce moves fastest, so not a scale factor (no common ratio fits DHI-588's three races). Same family as E-051. The four Teladi landmark trade stations carry an *identical* 5,400/4,560 reserve — a flat 1,000-worker basis — against module housing of 6,000, so it is neither the live workforce nor the housing cap. *Settles it:* re-read DHI-588's four ration maxima after playing forward — the lag predicts they walk up to 1,611/1,354/190/177, a fixed offset predicts they stay one worker per race behind. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 4; [trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md) § 5 H1.
+
+**E-122 · CONFIRMED** — A storage module naming several transport tags holds ONE shared space: the unit of division is the connected group of tags, not the tag.
+*Predicts:* JDV-447's single 1,200,000 m³ `storage_arg_l_tradestation_01` (`cargo_tags="container liquid solid"`) divides among its 20 container wares **and** its one solid ware together — 1,200,000/21 = 57,142.86 m³ apiece, reproduced on IWQ-591's ring storage. Summing per tag would give each of the three pools the full 1,200,000. Five macros are mixed in this save; 42 Xenon producers carry one and were being triple-counted, though they post no offers so there is no ground truth for them. Eight trading stations fit only with the pools merged. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § The unit of division; [trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md) § Pool groups, not pools.
+
+**E-123 · CONFIRMED** — The ration basis is the station's production JOB SLOTS when it has any, and its live workforce when it has none.
+*Predicts:* over 1,065 single-race producers with a saturated ration buy whose ration is outside their own recipes, the implied headcount matches Σ `module_cap.workers` on 1,034 (median ratio 1.0000) against 793 for the live workforce; GKM-488 staffs 2 of 540 slots and still allocates for 540. A trade station has no job slots and is sized on its population instead (DHI-588; 13 of 31 single-race non-producers land on the saved workforce to the unit, the rest are E-121), and a station with NO workforce takes no ration reserve at all — its ration wares become ordinary traded wares with a full share (JJX-981 and five other Terran trade stations, all exact). *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 3.
 
 ## Parser / save format
 

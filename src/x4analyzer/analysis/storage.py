@@ -10,7 +10,12 @@ against module_cap.cargo_tags), not hardcoded.
   jobs           = Sum of module_cap.workers over the station's built modules
   output(ware)   = Sum (recipe.amount/time * 3600 * scale) * (1 + work_effect)
   input(ware)    = Sum (recipe.input_amount/time * 3600 * scale)   (no bonus)
-  food(ware)     = per-race workunit_busy input * jobs             (fixed 4h)
+  food(ware)     = per-race workunit_busy input * jobs             (fixed 4h),
+                   floored PER RACE; the races PRESENT in the workforce set
+                   which wares are rations at all, and the basis is `jobs`
+                   (full staffing) when the station has job slots, else the
+                   live workforce (a trade station has no job slots and still
+                   eats). The buffer LAGS the live workforce -- see E-121.
 
 Per transport pool, food wares get FOOD_HOURS of buffer and the remaining
 capacity is divided across the production wares so each holds an equal number
@@ -22,21 +27,34 @@ of hours:
 Work_effect applies to output only; input consumption stays at base (verified:
 GDR-378 energy consumption = base rate).
 
-Non-producing stations (wharfs / shipyards / equipment docks / trade stations)
-have no production recipes -- their storage is driven by ship/equipment
-construction or arbitrage, not recipes. For these we use a PROXY: the allocated
-max per ware ~= current stock + open buy-offer amount (source='proxy'), which we
-verified is genuinely allocated storage (two same-faction Argon wharves matched
-to Pearson r=0.9984 despite different fill). A full build bill-of-materials
-model would be far costlier and not meaningfully more accurate. Producing
-stations keep the exact throughput x T model (source='computed').
+Non-producing stations have no recipes and so no hours to equalise, and there
+the same rule degenerates into an EQUAL VOLUME split (v29, CONFIRMED on
+DHI-588's 40 in-game readings):
+
+  share  = (group_capacity - Sum ration_volume) / n_traded_wares
+  max(w) = share / w.volume            (source='computed', role='input')
+
+n_traded_wares is the station's TRADE LIST -- every ware it posts an offer for,
+either side, excluding supplies/shady -- not its cargo: a ware held with no
+offer against it is loot and gets no allocation. Build stations (a built
+`buildmodule*` entry: wharfs, shipyards, equipment docks, and the 52 that wear
+station_gen_factory_base_01_macro) are NOT governed by this -- 33% of their
+wares exceed an equal share, QJI-262 spans 205x -- and keep the PROXY:
+max ~= stock + inbound + open buy amount (source='proxy'), verified genuinely
+allocated storage (two same-faction Argon wharves at Pearson r=0.9984 despite
+different fill). Their real driver is the build bill of materials, unmodelled.
 
 A pool NO recipe touches -- the Pirate DLC's condensate ("Protectyon"), a
-single ware neither produced nor consumed -- has no throughput and so no
-equal-hours split. Its allocation is just capacity / ware.volume, computed for
-every station carrying such a storage module, producer or not (source=
-'computed', role='input'). CONFIRMED on IRD-672: 50 m3 / 10 m3 = 5 Protectyon,
-read in game.
+single ware neither produced nor consumed -- is the same degenerate case on a
+producer: allocation = capacity / ware.volume, computed for every station
+carrying such a storage module (source='computed', role='input'). CONFIRMED on
+IRD-672: 50 m3 / 10 m3 = 5 Protectyon, read in game.
+
+The unit of division is the storage GROUP, not the transport tag: a module
+whose cargo_tags name several pools ("container liquid solid") holds ONE shared
+space, so the tags it links are unioned and divided together (JDV-447: 20
+container wares and 1 solid ware over one 1,200,000 m3 bay = 57,142.86 m3
+each).
 
 Supply offers (v18): buy offers whose save flags contain "supplies" are the
 station's SELF-SUPPLY demand -- inputs for building its own drones/munitions,
@@ -53,8 +71,8 @@ proxy entirely and get no storage row (docs/reports/fill-price-spread-*.md).
 
 Still not modeled: multi-stage internally-cycled wares (gross vs net flow); a
 combined production+build station keeps the computed path only (its build
-inputs are omitted). Proxy caveats: excess stock over-states, and a pure trade
-station's *sold*-ware max is only a floor (the proxy reads the buy side).
+inputs are omitted); build-station allocation (the proxy is a lower bound
+there, and excess stock over-states it).
 """
 from __future__ import annotations
 
@@ -140,8 +158,10 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             float(first["time"]), float(first["amount"]),
             float(first["work_effect"]), inputs)
     methods = set(recipes)
-    # wares any race's workforce eats (inputs of the workunit_busy recipes) --
-    # they get the fixed 4h food buffer on the proxy path too.
+    # wares SOME race's workforce eats (inputs of the workunit_busy recipes).
+    # Used only to LABEL a build station's proxy rows: which wares are rations
+    # at a given station is set by the races actually present in its workforce
+    # (E-120), and that is what `food_units` below carries.
     food_wares = {inw for (w, _m), (_t, _a, _e, ins) in recipes.items()
                   if w == WORKUNIT for inw, _ in ins}
 
@@ -244,9 +264,20 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
 
     # per station accumulators
     jobs: dict[str, float] = defaultdict(float)
-    pool_cap: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    # A storage module that names SEVERAL pools in its cargo_tags ("container
+    # liquid solid") holds one SHARED space serving all of them, not one such
+    # space each. So the unit of division is not the transport tag but the
+    # connected GROUP of tags linked by shared modules. CONFIRMED on JDV-447
+    # (Antigone trade station, 1,200,000 m3 of storage_arg_l_tradestation_01):
+    # its 20 container wares and its one solid ware (nividium) all come out on
+    # 1,200,000 / 21 = 57,142.86 m3 apiece, and the same holds for IWQ-591's
+    # ring storage. Summing the module per tag would have handed each of the
+    # three pools the full 1,200,000.
+    tag_group: dict[str, dict[str, str]] = defaultdict(dict)   # sid -> tag -> group
+    group_cap: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     output: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     consume: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    store_mods: dict[str, list[tuple[list[str], float]]] = defaultdict(list)
 
     for m in mods.itertuples():
         sid, macro = m.id, m.macro
@@ -258,9 +289,9 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             # a module with no module_cap row has cap 0 above and contributes
             # nothing (landmarks_soh_storage_condensate_01_macro is in that
             # state) -- the join stays defensive.
-            for t in str(tags).split():
-                if t in pool_names:
-                    pool_cap[sid][t] += cap
+            ts = [t for t in str(tags).split() if t in pool_names]
+            if ts:
+                store_mods[sid].append((ts, cap))
         for ware, method, scale, weight in modrows.get(macro, ()):
             key = (ware, method) if (ware, method) in methods else (ware, "default")
             recipe = recipes.get(key)
@@ -327,18 +358,65 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
                     for inw, ina in inputs:
                         consume[sid][inw] += ina / time * 3600.0 * units
 
-    # workforce food: full-workforce (jobs) consumption of the race ration,
-    # split by the present-workforce race mix (single race -> all of jobs).
+    # resolve each station's tag groups (union-find over the tags its storage
+    # modules name together) and the shared capacity behind each.
+    for sid, smods in store_mods.items():
+        parent: dict[str, str] = {}
+
+        def find(x, _p=parent):
+            _p.setdefault(x, x)
+            while _p[x] != x:
+                _p[x] = _p[_p[x]]
+                x = _p[x]
+            return x
+
+        for ts, _cap in smods:
+            for t in ts[1:]:
+                ra, rb = find(ts[0]), find(t)
+                if ra != rb:
+                    parent[ra] = rb
+        for ts, cap in smods:
+            g = find(ts[0])
+            group_cap[sid][g] += cap
+            for t in ts:
+                tag_group[sid][t] = g
+        # a tag can be unioned into a group named after another tag; re-point
+        # every member at the final root so the ware -> group lookup is stable.
+        for t in list(tag_group[sid]):
+            tag_group[sid][t] = find(tag_group[sid][t])
+        merged: dict[str, float] = defaultdict(float)
+        for g, cap in group_cap[sid].items():
+            merged[find(g)] += cap
+        group_cap[sid] = merged
+
+    # workforce food. The BASIS is the station's production job slots when it
+    # has any -- the game reserves rations for a FULL workforce, not for the
+    # workers actually present: over 1,065 single-race producers with a
+    # saturated ration buy, the implied headcount matches Σ module workers in
+    # 1,034 cases (median ratio 1.0000) against 793 for the live workforce,
+    # and stations staffed at 2 of 540 still allocate for 540 (GKM-488).
+    # A station with NO job slots at all -- a trade station, whose workers
+    # serve its docks -- still eats, and there the basis is the population
+    # itself (DHI-588, and 13 of 31 single-race non-producers land on their
+    # saved workforce to the unit; the rest are the lag of E-121).
+    # The race split is the present-workforce mix, and the 4 h buffer is
+    # floored PER RACE before the races are summed (E-120).
     food: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    food_units: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     wf = frames.workforce_all
     if wf is not None and not wf.empty:
         totals = wf.groupby("id")["amount"].sum().to_dict()
         for w in wf.itertuples():
             sid = w.id
-            if sid not in stations or jobs.get(sid, 0) <= 0:
+            if sid not in stations:
                 continue
             total = totals.get(sid, 0) or 0
-            frac = (w.amount / total) if total else 0.0
+            if jobs.get(sid, 0) > 0:
+                head = jobs[sid] * ((w.amount / total) if total else 0.0)
+            else:
+                head = float(w.amount or 0)
+            if head <= 0:
+                continue
             method = w.race if (WORKUNIT, w.race) in methods else "default"
             recipe = recipes.get((WORKUNIT, method))
             if not recipe:
@@ -347,8 +425,9 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if wamount <= 0 or wtime <= 0:
                 continue
             for inw, ina in winputs:
-                food[sid][inw] += (ina / wamount / wtime * 3600.0
-                                   * jobs[sid] * frac)
+                rate = ina / wamount / wtime * 3600.0 * head
+                food[sid][inw] += rate
+                food_units[sid][inw] += math.floor(rate * FOOD_HOURS)
 
     # producers = stations with a real production module (macro known to
     # ref.modules) AND no build module. Only these get the throughput x T
@@ -367,12 +446,15 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
     producers = (set(mods[mods["macro"].isin(set(modrows))]["id"])
                  & stations) - yards
 
-    # allocate per producing station per transport pool
+    # allocate per producing station per storage GROUP (see tag_group above:
+    # normally one group per transport tag, but a mixed-tag storage module
+    # merges the tags it serves into one shared space).
     rows: list[dict] = []
     for sid in producers:
-        caps = pool_cap.get(sid)
+        caps = group_cap.get(sid)
         if not caps:
             continue
+        pool_of = tag_group.get(sid, {})
         # The workforce food buffer and the production share are ADDITIVE,
         # not exclusive. CONFIRMED on JFV-172 (Tharka's Ravine XVI), which
         # PRODUCES cheltmeat and also feeds it to its own workers: the game
@@ -384,7 +466,7 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         # entire production claim and handed the surplus to spices: 37,192
         # modelled against 20,051.
         food_rate: dict[str, float] = dict(food[sid])
-        food_units = {w: amt * FOOD_HOURS for w, amt in food_rate.items()}
+        buffer_of: dict[str, float] = dict(food_units[sid])
         # a ware the station both makes and uses is sized by whichever flow
         # is LARGER — the buffer has to cover the bigger of the two. CONFIRMED
         # on KWC-232 (Avarice IV), which makes 208,708 energy cells/h and
@@ -406,21 +488,23 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
 
         # the ration buffer comes off the pool first, for every ration
         food_vol: dict[str, float] = defaultdict(float)
-        for ware, units in food_units.items():
-            food_vol[transport.get(ware, "")] += units * volume.get(ware, 1.0)
+        for ware, units in buffer_of.items():
+            g = pool_of.get(transport.get(ware, ""), "")
+            food_vol[g] += units * volume.get(ware, 1.0)
         prod_sigma: dict[str, float] = defaultdict(float)
         for ware in role:
-            prod_sigma[transport.get(ware, "")] += (
-                thru[ware] * volume.get(ware, 1.0))
+            g = pool_of.get(transport.get(ware, ""), "")
+            prod_sigma[g] += thru[ware] * volume.get(ware, 1.0)
 
-        for ware in set(role) | set(food_units):
+        for ware in set(role) | set(buffer_of):
             t = transport.get(ware, "")
+            g = pool_of.get(t, "")
             vol = volume.get(ware, 1.0)
-            buffer_units = food_units.get(ware, 0.0)
+            buffer_units = buffer_of.get(ware, 0.0)
             share = 0.0
             if ware in role:
-                remaining = caps.get(t, 0.0) - food_vol.get(t, 0.0)
-                sigma = prod_sigma.get(t, 0.0)
+                remaining = caps.get(g, 0.0) - food_vol.get(g, 0.0)
+                sigma = prod_sigma.get(g, 0.0)
                 share = thru[ware] * remaining / sigma if sigma > 0 else 0.0
             mx = share + buffer_units
             r = role.get(ware, "food")
@@ -438,9 +522,15 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
     # cannot attribute to production: role='input'. throughput is not merely
     # unknown here, it does not exist -> NULL.
     special: set[tuple[str, str]] = set()
-    for sid, caps in pool_cap.items():
+    storage_only_groups: dict[str, set[str]] = {}      # sid -> group keys
+    for sid, tg in tag_group.items():
+        storage_only_groups[sid] = {
+            g for g in set(tg.values())
+            if all(t in storage_only for t, g2 in tg.items() if g2 == g)}
+    for sid, caps in group_cap.items():
         for t, pool_ws in storage_only.items():
-            cap = caps.get(t, 0.0)
+            g = tag_group.get(sid, {}).get(t)
+            cap = caps.get(g, 0.0) if g else 0.0
             if cap <= 0:
                 continue
             for ware in pool_ws:
@@ -479,22 +569,111 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
         and "flags" in offers.columns
     buy: dict[str, dict[str, float]] = defaultdict(dict)
     supply: dict[str, dict[str, float]] = defaultdict(dict)
+    traded: dict[str, set[str]] = defaultdict(set)
     if offers is not None and not offers.empty:
         for o in offers.itertuples():
-            if o.side != "buy" or o.id not in stations:
+            if o.id not in stations:
                 continue
-            if has_flags and isinstance(o.flags, str) and "shady" in o.flags:
+            flags = o.flags if has_flags and isinstance(o.flags, str) else ""
+            if "shady" not in flags and "supplies" not in flags:
+                # the station's TRADE LIST: every ware it posts a price for,
+                # bought or sold. This is the set the storage pool is divided
+                # among on the non-producing path below.
+                traded[o.id].add(o.ware)
+            if o.side != "buy":
                 continue
-            if has_flags and isinstance(o.flags, str) \
-                    and "supplies" in o.flags:
+            if "shady" in flags:
+                continue
+            if "supplies" in flags:
                 need = o.desired if getattr(o, "desired", None) is not None \
                     and pd.notna(o.desired) else o.amount
                 supply[o.id][o.ware] = supply[o.id].get(o.ware, 0.0) + need
             elif o.id not in producers:
                 buy[o.id][o.ware] = buy[o.id].get(o.ware, 0.0) + o.amount
+
+    # ---- non-producers that TRADE: the equal-VOLUME split -------------------
+    #
+    # A station with no recipes has no throughput, so there are no hours to
+    # equalise -- and the game falls back to the same rule it uses for a
+    # storage-only pool: every ware on the station's trade list gets an EQUAL
+    # SHARE OF THE VOLUME left after the ration buffer, so its unit allocation
+    # is that share divided by the ware's own volume.
+    #
+    #     max[w] = (group_capacity - Σ ration_volume) / n_traded / volume[w]
+    #
+    # CONFIRMED 2026-07-29 on DHI-588 (Quettanauts trade station, 3 pools, 40
+    # allocations read in game): container 2,100,000 m3 less a 4,635 m3 ration
+    # buffer over 30 traded wares = 69,845 m3 each -- energy cells 69,845 (vol
+    # 1), smart chips 34,922 (vol 2), scanning arrays 1,838 (vol 38), all 36
+    # non-ration readings to the unit; liquid 1,200,000 / 3 / 6 = 66,666 for
+    # helium, hydrogen and methane; solid 1,700,000 / 3 = 566,666 m3, i.e.
+    # 56,666 ore, 56,666 silicon, 70,833 ice. Across the save's 48 trading
+    # non-producers it lands within 1% of `stock + inbound + open buy` on
+    # 601/634 (ware, station) pairs against the old proxy's 556, and unlike
+    # the proxy it also sizes a ware the station currently holds none of and
+    # is not bidding for. Yards (build modules) keep the proxy: their storage
+    # serves ship construction, which this rule says nothing about.
+    split_done: set[tuple[str, str]] = set()
+    split_stations: set[str] = set()
+    for sid in set(group_cap) - producers - yards:
+        pool_of = tag_group.get(sid, {})
+        so_groups = storage_only_groups.get(sid, set())
+        pool_ws: dict[str, set[str]] = defaultdict(set)
+        for ware in traded.get(sid, set()) | set(food_units[sid]):
+            g = pool_of.get(transport.get(ware, ""))
+            if g and g not in so_groups:
+                pool_ws[g].add(ware)
+        for g, ws in pool_ws.items():
+            buffers = {w: u for w, u in food_units[sid].items()
+                       if w in ws and u > 0}
+            share_ws = sorted(ws - set(buffers))
+            if not share_ws:
+                continue
+            left = (group_cap[sid][g]
+                    - sum(u * volume.get(w, 1.0) for w, u in buffers.items()))
+            share = left / len(share_ws)
+            for ware in sorted(ws):
+                vol = volume.get(ware, 1.0)
+                mx = (buffers[ware] if ware in buffers else share / vol)
+                split_done.add((sid, ware))
+                split_stations.add(sid)
+                rows.append({
+                    "station_id": sid, "ware": ware,
+                    "transport": transport.get(ware, ""),
+                    "role": "food" if ware in buffers else "input",
+                    "throughput": food[sid].get(ware) if ware in buffers
+                    else None,
+                    "max_units": mx, "max_volume": mx * vol,
+                    "source": "computed",
+                })
+
+    # INBOUND: goods already contracted and in flight are part of what the
+    # station has allocated room for, and leaving them out is what made the
+    # proxy read low. save-semantics.md § The offer-derived allocation is a
+    # LOWER BOUND has always named the quantity as `stock + inbound + open buy
+    # amount`; the code computed only two of the three terms until 2026-07-29.
+    # On the (now retired) trade-station proxy the missing term accounted for
+    # the entire error -- 82.9 % exact -> 97.3 %, one-sided, 96 pairs under and
+    # none over (docs/reports/trade-station-allocations-2026-07-29.md § 4).
+    pend = getattr(frames, "trade_pending", None)
+    if pend is not None and not pend.empty and "buyer.id" in pend.columns:
+        left = _num(pend["amount"])
+        if "transferred" in pend.columns:
+            left = left - _num(pend["transferred"])
+        for bid, ware, amt in zip(pend["buyer.id"], pend["ware"], left):
+            if bid in stations and bid not in producers and amt > 0:
+                buy[bid][ware] = buy[bid].get(ware, 0.0) + float(amt)
+
     for sid in set(stock) | set(buy):
+        # a ware sitting in a trading station's cargo with no offer against it
+        # is loot, not stock against an allocation: that station's storage is
+        # fully accounted for by the split above, and KPU-277's four such
+        # wares (63 teladianium, 18 hull parts, 4 graphene, 21 missile
+        # components) are outside its 3-ware division.
+        if sid in split_stations:
+            continue
         for ware in set(stock.get(sid, {})) | set(buy.get(sid, {})):
-            if (sid, ware) in special:
+            if (sid, ware) in special or (sid, ware) in split_done:
                 continue          # already sized from its own storage module
             mx = stock.get(sid, {}).get(ware, 0.0) + buy.get(sid, {}).get(ware, 0.0)
             rows.append({

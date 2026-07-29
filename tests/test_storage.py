@@ -356,3 +356,146 @@ def test_empty_inputs_return_empty():
     assert list(out.columns) == ["station_id", "ware", "transport", "role",
                                  "throughput", "max_units", "max_volume",
                                  "source"]
+
+
+# ---- non-producers: the equal-VOLUME split (v29, DHI-588) ------------------
+
+def _trade_ref():
+    """Two container wares of different volume, one solid ware, two races'
+    rations -- enough to exercise every rule of the non-producer split."""
+    ref = _ref()
+    ref.wares = pd.DataFrame([
+        ["widget", "container", "10", "container economy"],
+        ["energy", "container", "1", "container economy"],
+        ["food1", "container", "1", "container economy"],
+        ["food2", "container", "2", "container economy"],
+        ["rock", "solid", "5", "economy solid"],
+    ], columns=["id", "transport", "volume", "tags"])
+    ref.recipes = pd.DataFrame([
+        ["widget", "default", 3600, 100, "energy", 100, 1.0],
+        # argon-style: 90 food1 per 200 workers / 600 s
+        ["workunit_busy", "default", 600, 200, "food1", 90, ""],
+        # a second race eating a DIFFERENT ware at a different rate
+        ["workunit_busy", "other", 600, 200, "food2", 45, ""],
+    ], columns=["ware", "method", "time", "amount",
+                "input_ware", "input_amount", "work_effect"])
+    ref.modcaps = pd.DataFrame([
+        ["prod_widget", "buildmodule", "", 100, 0, ""],
+        ["store_container", "storage", "", 0, 100000, "container"],
+        ["store_solid", "storage", "", 0, 50000, "solid"],
+        ["store_mixed", "storage", "", 0, 120000, "container solid"],
+    ], columns=["macro", "class", "housing", "workers",
+                "cargo_max", "cargo_tags"])
+    return ref
+
+
+def _trader(built=None, workforce=None, offers=None, cargo=None):
+    return _frames(
+        built=built or [["t1", "store_container", 1], ["t1", "store_solid", 1]],
+        universe=[["t1", "station"]],
+        workforce=workforce,
+        cargo=cargo,
+        offers=offers if offers is not None else [
+            ["t1", "buy", "widget", 5, 1, "", None],
+            ["t1", "sell", "energy", 0, 1, "", None],
+            ["t1", "buy", "rock", 7, 1, "", None]])
+
+
+def _trade_rows(**kw):
+    df = station_storage(_trader(**kw), _trade_ref())
+    return {r.ware: r for r in df.itertuples()}
+
+
+def test_non_producer_splits_each_pool_equally_by_volume():
+    # container 100,000 m3 over the two traded container wares = 50,000 m3
+    # each; solid 50,000 m3 over its one ware.
+    rows = _trade_rows()
+    assert rows["widget"].max_units == 50000 / 10
+    assert rows["energy"].max_units == 50000 / 1     # a sell offer counts too
+    assert rows["rock"].max_units == 50000 / 5
+    assert all(r.source == "computed" for r in rows.values())
+    assert rows["widget"].role == "input" and rows["widget"].throughput is None
+
+
+def test_the_split_is_over_the_trade_list_not_the_cargo():
+    # loot: a ware held with no offer against it gets no allocation at all,
+    # and must not enter the divisor (KPU-477's teladianium).
+    rows = _trade_rows(cargo=[["t1", "energy", 40], ["t1", "food1", 999]])
+    assert "food1" not in rows                       # no offer -> no row
+    assert rows["energy"].max_units == 50000         # still 2-way, not 3-way
+
+
+def test_rations_are_keyed_on_the_races_PRESENT():
+    # food1 is a ration for the race that works here; food2 is some other
+    # race's ration and is an ordinary traded ware (DHI-588's water).
+    offers = [["t1", "buy", "widget", 5, 1, "", None],
+              ["t1", "buy", "food1", 5, 1, "", None],
+              ["t1", "buy", "food2", 5, 1, "", None]]
+    rows = _trade_rows(workforce=[["t1", "default", 200]], offers=offers)
+    assert rows["food1"].role == "food"
+    assert rows["food1"].max_units == 90 * 6 * FOOD_HOURS       # 2,160
+    assert rows["food2"].role == "input"                        # not a ration
+    # the buffer comes off the pool first, then the rest splits two ways
+    share = (100000 - 2160 * 1) / 2
+    assert rows["widget"].max_units == share / 10
+    assert rows["food2"].max_units == share / 2
+
+
+def test_no_workforce_means_no_ration_reserve_at_all():
+    # JJX-981: a trade station with an empty workforce allocates its ration
+    # wares a full ordinary share.
+    offers = [["t1", "buy", "widget", 5, 1, "", None],
+              ["t1", "buy", "food1", 5, 1, "", None]]
+    rows = _trade_rows(offers=offers)
+    assert rows["food1"].role == "input"
+    assert rows["food1"].max_units == 50000
+
+
+def test_the_ration_buffer_is_floored_PER_RACE():
+    # DCO-580: two races on different wares AND both on medical supplies --
+    # here both eat food1 at rates that each leave a fraction: 90/200 and
+    # 45/200 per 200 workers per 600 s, over a 4 h buffer.
+    ref = _trade_ref()
+    ref.recipes = pd.DataFrame([
+        ["widget", "default", 3600, 100, "energy", 100, 1.0],
+        ["workunit_busy", "default", 600, 200, "food1", 90, ""],
+        ["workunit_busy", "other", 600, 200, "food1", 45, ""],
+    ], columns=["ware", "method", "time", "amount",
+                "input_ware", "input_amount", "work_effect"])
+    frames = _trader(workforce=[["t1", "default", 7], ["t1", "other", 7]],
+                     offers=[["t1", "buy", "widget", 5, 1, "", None],
+                             ["t1", "buy", "food1", 5, 1, "", None]])
+    rows = {r.ware: r for r in station_storage(frames, ref).itertuples()}
+    # per race: floor(18.9/h x 4 h) = 75 and floor(9.45/h x 4 h) = 37 -> 112.
+    # One floor on the summed rate gives floor(28.35 x 4) = 113 and misses.
+    assert rows["food1"].max_units == 112
+
+
+def test_a_mixed_tag_storage_module_is_ONE_shared_pool():
+    # JDV-447: cargo_tags "container solid" is one bay, so the container and
+    # solid wares divide a single 120,000 m3 budget three ways, not
+    # 120,000 twice.
+    rows = _trade_rows(built=[["t1", "store_mixed", 1]])
+    assert rows["widget"].max_units == 40000 / 10
+    assert rows["energy"].max_units == 40000 / 1
+    assert rows["rock"].max_units == 40000 / 5
+
+
+def test_yards_keep_the_proxy_and_count_inbound():
+    # build stations are NOT governed by the split (33% of their wares exceed
+    # an equal share). They keep stock + inbound + open buy -- and the
+    # inbound term is part of the definition save-semantics.md always gave.
+    frames = _frames(
+        built=[["w1", "buildmodule_ships", 1], ["w1", "store_container", 1]],
+        universe=[["w1", "station"]],
+        cargo=[["w1", "energy", 100]],
+        offers=[["w1", "buy", "energy", 200, 5, "", None]])
+    frames.trade_pending = pd.DataFrame(
+        [["energy", 90, 40, "w1"], ["energy", 10, 10, "w1"],
+         ["energy", 500, 0, "other"]],
+        columns=["ware", "amount", "transferred", "buyer.id"])
+    rows = {r.ware: r for r in station_storage(frames, _trade_ref()).itertuples()}
+    # 100 stock + 200 bid + (90-40) in flight; the settled trade and another
+    # station's inbound contribute nothing
+    assert rows["energy"].max_units == 350
+    assert rows["energy"].source == "proxy"

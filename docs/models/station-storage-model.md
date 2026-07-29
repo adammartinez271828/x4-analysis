@@ -19,10 +19,11 @@ Claims are tagged by confidence:
 - **[EXP]** — established by an in-game reading or controlled action.
 - **[INF]** — inferred, consistent with the data, not independently verified.
 
-**This model is the best-validated thing in the project: 49 of 50 in-game
-readings within 1 %** (`uv run python tests/readings.py`), across **nine
-stations and six factions**, single- and multi-ware producers, and all four
-transport pools. The one failure is EIJ-609, below.
+**This model is the best-validated thing in the project: 86 of 90 in-game
+readings within 1 %** (`uv run python tests/readings.py`), across **ten
+stations and seven factions**, single- and multi-ware producers, a
+multi-species trade station, and all four transport pools. The failures are
+EIJ-609's hull parts and three of DHI-588's four rations, both below.
 
 ## The mechanic in one paragraph
 
@@ -31,10 +32,13 @@ Each transport pool (container / liquid / solid / condensate) is divided so
 that **every production ware in it holds the same number of hours of its own
 throughput**, after rations have taken a fixed 4-hour buffer off the top. So a
 ware that moves fast gets a big allocation and a ware that trickles gets a
-small one, and they all run dry at the same moment. The only hard parts are
-computing each ware's throughput correctly — which the savegame mostly states
-outright — and remembering that the pool, not the station, is the unit of
-division.
+small one, and they all run dry at the same moment. A station with no
+throughput at all — a trade station, or a pool nothing touches — divides the
+same space by head count instead, one equal *volume* share per ware it trades.
+The only hard parts are computing each ware's throughput correctly — which the
+savegame mostly states outright — and remembering that the pool, not the
+station, is the unit of division (and that a mixed-tag storage module makes one
+pool out of several transports).
 
 ## The derivation, as pseudocode
 
@@ -43,11 +47,26 @@ FOOD_HOURS = 4
 
 for each station:
 
-    # ---- non-producers take the proxy path and stop here -------------------
-    if station has no production module:
-        for each ware w with an open buy offer NOT flagged supplies|shady:
-            max[w] = stock[w] + offer.amount[w]          # source = 'proxy'
-        continue
+    # ---- pools are GROUPS of transport tags, not tags ----------------------
+    # a storage module whose cargo_tags name several pools holds ONE shared
+    # space, so union the tags such a module links and divide per group.
+    groups = connected components of {module.cargo_tags} over built modules
+    group_cap[g] = Σ m.cargo_max over modules serving g
+
+    # ---- rations, for the races PRESENT in the workforce -------------------
+    basis = Σ m.workers over built modules      # job slots: FULL staffing
+    if basis == 0: basis = Σ workforce.amount   # a trade station still eats
+    for each race r present, with share f of the live workforce:
+        for each input i of workunit_busy/r:
+            ration_units[i] += floor(i.amount/200/i.time × 3600 × basis×f × FOOD_HOURS)
+
+    # ---- non-producers: equal VOLUME, and stop here ------------------------
+    if station has no production module (and no build module):
+        for each group g:
+            W = wares traded (buy or sell, NOT flagged supplies|shady) in g
+            share = (group_cap[g] − Σ ration_volume in W) / |W − rations|
+            max[w] = ration_units[w] if w is a ration else share / w.volume
+        continue                                          # yards: proxy below
 
     # ---- 1. pool capacities, from BUILT modules only ------------------------
     for m in station.modules where m.built:
@@ -66,24 +85,20 @@ for each station:
             inp[i] += i.amount / i.time × 3600                   # base rate, NO eff
         # a module running two products alternately contributes half of each
 
-    jobs = Σ m.workers over built modules
-    for r in the workforce race's workunit_busy recipe:
-        food[r] = r.amount / r.time × 3600 × jobs
-
     flow[w] = max(out[w], inp[w])           # dual-role ⇒ the LARGER, not the output
     # processing modules (scrap works) contribute their OUTPUT only; their own
     # inputs never enter flow[]. Non-economy feedstock (rawscrap) is never stocked.
 
     # ---- 3. split each pool, equal hours ------------------------------------
-    for pool, capacity in pool_cap:
-        wares = { w : w.transport == pool }
+    for pool, capacity in group_cap:
+        wares = { w : group_of(w.transport) == pool }
 
         if no recipe anywhere produces or consumes any of `wares`:
             # storage-only pool (condensate). No throughput ⇒ no hours to equalise.
             for w in wares: max[w] = capacity / count(wares) / w.volume
             continue
 
-        food_volume = Σ over rations r in wares of  food[r] × FOOD_HOURS × r.volume
+        food_volume = Σ over rations r in wares of  ration_units[r] × r.volume
         Σflow       = Σ over w in wares of          flow[w] × w.volume
 
         T = (capacity − food_volume) / Σflow          # the pool's equal-hours factor
@@ -199,29 +214,92 @@ Its allocation is simply capacity ÷ ware volume. Only condensate ("Protectyon",
 Pirate DLC) qualifies; container/liquid/solid always have recipes. Confirmed on
 IRD-672: one 50 m³ module ÷ volume 10 = **5 Protectyon**, read in game.
 
-## Non-producing stations use a proxy
+## Non-producing stations: the same rule, degenerate
 
-Wharfs, shipyards, equipment docks and trade stations have no production
-recipes — their storage serves ship construction or arbitrage. For these,
-`max ≈ current stock + open buy-offer amount` (`source='proxy'`) [OBS]. Two
-same-faction Argon wharves matched to Pearson **r = 0.9984** despite different
-fill, so the proxy is measuring genuinely allocated storage rather than
-coincidence. A full build bill-of-materials model would cost far more and not
-be meaningfully more accurate.
+A station with no recipes has no throughput, so there are no hours to
+equalise — and the split falls back to **equal volume per traded ware**, which
+is exactly the storage-only-pool rule above applied to every one of its pools:
 
-Excluded from the proxy: **`supplies`-flagged** buys (self-supply for the
+```
+share  = (group_capacity − Σ ration_volume) / n_traded
+max[w] = share / w.volume                      rations: the 4 h buffer, as usual
+```
+
+- **`n_traded` is the station's TRADE LIST** [OBS] — every ware it posts an
+  offer for, either side (a sell offer with `amount = 0` counts), excluding
+  `supplies` and `shady`. A ware sitting in cargo with **no offer is loot and
+  gets no allocation** (KPU-277 holds four such wares outside its 3-ware
+  division).
+- **A station with no workforce takes no ration reserve** and its ration wares
+  become ordinary traded wares with a full share [OBS] — six Terran trade
+  stations, JJX-981 among them, all exact.
+- **The UI shows the floor** of `share / volume`: DHI-588's advanced composites
+  are `2,182.67` and read **2,182**, its scanning arrays `1,838.04` → 1,838.
+  Across 561 trade-station pairs `floor` is exact 537 times against `round`'s
+  243. (`analysis/storage.py` keeps the unrounded value, as it does on the
+  producer path.)
+
+CONFIRMED 2026-07-29 on **DHI-588** — 40 in-game readings, three pools, three
+races — and save-wide against `stock + inbound + open buy` on 601/634 pairs
+within 1 % (the old proxy: 556). Worked in full in
+[../reports/mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md)
+and, independently and concurrently, in
+[../reports/trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md),
+which scores 537/561 pairs exact with **zero** over-runs and puts the median
+coefficient of variation of allocation-volume across a group's wares at
+**0.00004**.
+
+### Build stations keep the proxy
+
+Wharfs, shipyards and equipment docks are a different population and this rule
+is **false** for them: 33 % of their wares exceed the equal share, QJI-262
+spans 205× across seven wares, median CV 0.80 against a trade station's
+0.00004. Classify by a built `buildmodule*` entry, **not by station macro** —
+52 build stations wear `station_gen_factory_base_01_macro`. For them
+`max ≈ stock + inbound + open buy amount` (`source='proxy'`) stands, verified
+genuinely allocated storage (two same-faction Argon wharves at Pearson
+**r = 0.9984** despite different fill). Their real driver is presumably the
+build bill of materials; that model does not exist yet.
+
+Excluded from both paths: **`supplies`-flagged** buys (self-supply for the
 station's own drones/munitions, delivered to a separate inventory — emitted as
 `role='supply'` rows instead) and **`shady`-flagged** buys (a black-market book
 backed by no stock; they were minting 546 phantom allocation rows across 143
 non-producing stations before being dropped).
+
+### Rations across several races
+
+The ration buffer is keyed on the races **actually present** in the workforce,
+not on the ware being some race's ration [EXP]: DHI-588 has argon, paranid and
+teladi workers, and **water** — the Boron ration — is an ordinary traded ware
+there at 11,640 = 69,845/6, alongside maja snails, meat and swamp plant.
+
+The buffer is **floored per race, then summed** [EXP]. DCO-580 (argon 65 /
+boron 125 / paranid 63) allocates 1,163 medical supplies = 334 + 495 + 334;
+boron's rate is 33 per 200 workers against the others' 45, and one floor on the
+summed rate gives 1,164. DHI-588 repeats it in game: 1,338 = 961 + 172 + 205.
+
+The **basis** is the station's production job slots when it has any and its
+live workforce when it has none [OBS] — 1,034 of 1,065 single-race producers
+match Σ `module_cap.workers`, against 793 for the live workforce, and GKM-488
+staffs 2 of 540 slots but still allocates for 540.
+
+**The buffer lags the live workforce** [OBS, mechanism HYPOTHESIS]. DHI-588's
+four ration maxima are consistent with one worker fewer per race than the save
+records; four starving Teladi landmark trade stations carry an identical
+1,000-worker reserve against live workforces of 104–702. See E-121 — this is
+the one thing on this page the model knowingly gets wrong, by 0.6–3.3 % on a
+small station's rations.
 
 ## Validating it
 
 **Against in-game readings** — the authoritative source.
 `tests/data/station_readings.json` holds each station's model inputs alongside
 the values the player read, and `tests/readings.py` replays them without a
-savegame. Currently **49/50**. IRD-672 is the broadest single check: six wares
-across two pools, every one within 0.2 %.
+savegame. Currently **86/90**. DHI-588 is now the broadest single check — 40
+readings, three pools, three races, 37 within 1 % (36 of 36 non-ration wares to
+the unit; the three misses are E-121's ration lag) — with IRD-672 the broadest
+on the producer path at six wares across two pools, every one within 0.2 %.
 
 **Against the save itself** — `stock + inbound + open buy amount` is the
 station's own statement of what it can hold. It is a **LOWER BOUND, not an
@@ -245,6 +323,10 @@ allocation. Coverage is 99.7 % below 90 % fill, 38 % at 100–110 %, 5 % above.
 
 | candidate | how it died |
 |---|---|
+| a non-producer's allocation is `stock + open buy` and nothing better | it is `(capacity − rations)/n_traded/volume`, exact: DHI-588 36/36 non-ration readings, 601/634 save-wide against 556. The proxy was a *fill-dependent* reading of an allocation that does not depend on fill |
+| the ration role belongs to a ware because some race eats it | put `role='food', max=10,390` on DHI-588's water, which the game allocates as an ordinary traded ware at 11,640. It is keyed on the races present |
+| a mixed-tag storage module gives each of its tags the full capacity | triple-counts: JDV-447's 21 wares across two transports share one 1,200,000 m³ bay |
+| `stock + open buy` is the offer-derived allocation | the inbound term is not optional — `stock + inbound + open buy`. Omitting it read low on 96 of 561 trade-station pairs, one-sided, and closed every DHI-588 miss exactly |
 | the price curve's target level is the storage allocation | true for the bulk, false in general — Tidebreak prices over 173 units against a 5,000 allocation. See [station-pricing-model.md](station-pricing-model.md) |
 | a starving workforce drops out of the allocation basis | fits EIJ-609's six wares exactly, and is worse save-wide under **every** definition tried: 93.8 % → 83.6–91.6 % within 1 % |
 | reconstructing the multiplier from `work_effect` × sunlight | 76.7 % against the save field's 87.2 %, and it cannot work on a modded save |
@@ -276,6 +358,16 @@ allocation. Coverage is 99.7 % below 90 % fill, 38 % at 100–110 %, 5 % above.
    because it carries player-set `ware_limit` rows. *Needs* an NPC station with
    both a production and a build module.
 5. **Multi-stage internally-cycled wares** (gross vs net flow) are not modelled.
+6. **The ration buffer lags the live workforce** (E-121). DHI-588 reads one
+   worker per race low, four Teladi landmark trade stations read a flat
+   1,000-worker reserve against live workforces of 104–702. *Falsifiable* by
+   re-reading DHI-588's four ration maxima after playing forward. The model
+   uses the saved workforce and carries the error (0.6–3.3 % there); it is not
+   fudged, because save-wide the saved value is the best single choice.
+7. **Build-station allocation** (wharfs / shipyards / equipment docks) has no
+   model at all — only the `stock + inbound + open buy` lower bound. The
+   equal-volume rule is *false* there. QJI-262's seven wares span 205× in
+   allocation-volume; a bill-of-materials model is the obvious candidate.
 
 ## A note on inputs versus rules
 
@@ -409,9 +501,15 @@ per station, per transport pool (container / liquid / solid / condensate):
   dual-role ⇒ max(production, consumption).  processing modules ⇒ excluded.
   a pool no recipe touches ⇒ capacity / volume, no split.
 
-non-producers (wharf/shipyard/dock/trade): max ≈ stock + open buy amount
-  minus `supplies` (own inventory) and `shady` (no stock behind it)
+non-producers that TRADE: equal VOLUME, the same rule with zero throughput
+  max = (group_capacity − Σ ration_volume) / n_traded / ware.volume
+  n_traded = the trade list (either side), minus `supplies` / `shady` /
+  rations of the races present; cargo with no offer is loot, no allocation
+build stations (a built buildmodule*): max ≈ stock + inbound + open buy amount
 
-validate against: tests/readings.py (49/50 in game), and
+pools are GROUPS of transport tags: a module tagged "container liquid solid"
+  is ONE shared space, so union the tags it links and divide once
+
+validate against: tests/readings.py (86/90 in game), and
   stock + inbound + buy amount — a LOWER BOUND, saturated for input buyers
 ```

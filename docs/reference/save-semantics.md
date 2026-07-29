@@ -94,7 +94,14 @@ only works against the same save that produced them.
   per 600 s). DLC adds race methods (terran/boron/split) via **diff patches
   inside existing wares** — recipe extraction must scan
   `<add sel="…ware[@id=…]">` blocks, not just `<ware>` elements (missing
-  this overcounted Terran energy production 3.5×).
+  this overcounted Terran energy production 3.5×). Which wares are *rations*
+  at a given station is set by **the races actually present in its workforce**,
+  not by the ware being some race's ration (E-120): a station with argon,
+  paranid and teladi workers and no Boron treats **water** as an ordinary
+  traded ware. The 4 h buffer is floored **per race** before the races are
+  summed, and its basis is Σ `module_cap.workers` (full staffing) when the
+  station has job slots, else the live workforce (E-123) — a lag on which is
+  E-121.
 - Build demand = the build storages' open **buy offers** (`<trade buyer=
   ware= amount=>` under `<offers>`). The `<insufficient>`/`<shortage>`
   amounts under `<build><resources>` are NOT per-ware quantities (in-game
@@ -425,6 +432,43 @@ knowledge, not yet a feature.
   `landmarks_soh_storage_condensate_01_macro` has **no `module_cap` row** at
   all — it contributes nothing and mints no row; the join stays defensive.
 
+  **A non-producing station divides each pool EQUALLY BY VOLUME —
+  CONFIRMED 2026-07-29, E-119.** The condensate rule above is not a special
+  case, it is the general one: with no recipes there is no throughput and so no
+  hours to equalise, and the pool is shared by head count instead. Per storage
+  group, `share = (capacity − Σ ration_volume) / n_traded` and
+  `max[w] = share / w.volume`. `n_traded` is the station's **trade list** —
+  every ware it posts an offer for, either side, a sell offer with `amount=0`
+  included, minus `supplies`/`shady` — and *not* its cargo: a ware held with no
+  offer against it is loot and gets no allocation. Read in game on DHI-588, 40
+  maxima: container (2,100,000 − 4,635 m³ of rations)/30 = 69,845 m³ each, so
+  energy cells 69,845, smart chips 34,922, hull parts 5,820, scanning arrays
+  1,838; liquid 1,200,000/3/6 = 66,666; solid 1,700,000/3 = 566,666 m³ (ore and
+  silicon 56,666, ice 70,833). The UI shows the **floor** of `share/volume`
+  (advanced composites 2,182.67 → 2,182; `floor` exact on 537 of 561
+  trade-station pairs against `round`'s 243). This **supersedes** the
+  `stock + open buy` proxy for trading stations, which was reading a
+  fill-dependent shadow of an allocation that does not depend on fill.
+
+  **The pool is a GROUP of transport tags, not a tag — CONFIRMED 2026-07-29,
+  E-122.** A storage module whose `cargo_tags` name several transports
+  (`"container liquid solid"`, five macros in this save) holds **one shared
+  space**. Union the tags such a module links and divide once: JDV-447's single
+  1,200,000 m³ `storage_arg_l_tradestation_01` serves 20 container wares *and*
+  nividium, all on `1,200,000/21 = 57,142.86 m³`. Summing per tag gave each
+  transport the full capacity.
+
+  **Build stations are NOT governed by it and keep the proxy.** Wharfs,
+  shipyards and equipment docks fail the rule outright — 33 % of their wares
+  exceed the equal share, QJI-262's seven wares span 205× — so they stay on
+  `max ≈ stock + inbound + open buy amount` (`source='proxy'`). Classify them
+  by a built `buildmodule*` entry, **never by station macro**: 52 of them wear
+  `station_gen_factory_base_01_macro`.
+  **`analysis/storage.py` computed only `stock + amount` until 2026-07-29** —
+  the inbound term this page has always specified was missing from the code.
+  It is `Σ (amount − transferred)` over `trade_pending` rows whose `buyer_id`
+  is the station.
+
   **Scope note (2026-07-27, agreed with the player):** pricing work is
   currently confined to **basic production stations** — wharfs,
   shipyards, equipment docks, trade stations and pirate bases are
@@ -434,6 +478,11 @@ knowledge, not yet a feature.
   model allots ~4 h of rations while the station stocks food as a trade
   good, so `station_storage` role='food' rows overshoot badly (219 rows
   over allocation, worst 110×) and are not usable as a fill measure.
+  *(Partly fixed 2026-07-29: much of that overshoot was the food role being
+  keyed on the ware rather than on the races present — a trade station's
+  ration wares that no race there eats now take a full trading share instead
+  of a 4 h buffer, E-120. The scope note stands until the fill measure is
+  re-scored.)*
   Multi-ware production stations ARE in scope, with the caveat that their
   pool split is approximate (351 input rows over allocation, mean 1.37×);
   single-output stations are clean (0 of 841 over-full).
