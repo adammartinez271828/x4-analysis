@@ -716,3 +716,29 @@ a trade station with 30 wares sharing a container pool, its two capped-range
 wares at 5.9 M and 7.4 M. Register contradiction item 8 is updated accordingly;
 the reading that settles it is unchanged (a ware worth over 5 M Cr of
 allocation on RAN-388, EOX-322, GMJ-316 or MOP-635).
+
+## Addendum 3 (same day): re-verified a second time, after the Employment Target fix
+
+The storage model changed again in `080353d` — the ration reserve is now sized
+from the design's **Employment Target** (Σ `<workforce max>` over built
+production + build modules, plus the station macro's own declared value) rather
+than the live workforce, and `gamedata/extract.py` now emits the 7 station-class
+`module_cap` rows it was dropping. In-game readings went 86/90 → **131/132**.
+
+Allocations were recomputed in memory with that code and the cap re-scored a
+second time. **Every headline number is unchanged from the published values:**
+the binding population is still the same **399 offers over 331 stations and 29
+wares**, bin RMSE **0.2830 → 0.0192**, median |res| **0.1770 → 0.0146**,
+|res|>0.25 **40.85 % → 3.01 %**, the narrow-span cohort **0.2382 → 0.0136**, and
+the V optimum still sits at 5.00–5.10 M (0.0197 / 0.0172, against 0.0331 at
+4.90 M and 0.0692 at 5.50 M).
+
+DHI-588's claytronics allocation moved by 0.07 units (2,910.16 → 2,910.23) and
+silicon not at all; both still match the in-game readings, its four capped-range
+wares still fit **better uncapped** (0.0152 vs 0.1729), and its sub-cap control
+is unchanged at 76 offers / median |res| 0.0143. The scope contradiction
+(register item 8) is unaffected.
+
+Two independent rebuilds of the storage model, each validated against a
+different and larger set of in-game readings, leave the pricing conclusions
+untouched. E-113, E-114 and E-115 stand as published.
