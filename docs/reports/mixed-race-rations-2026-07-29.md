@@ -420,3 +420,50 @@ before and after.
   against the model's dronecomponents 1 and smartchips 130 and no energy-cell
   row at all. Recorded in the fixture's note; the supply path is a different
   model (`role='supply'`, read off flagged offers) and was not touched here.
+
+---
+
+# Addendum (same day): the GMJ-316 "supplies model is wrong" note is RETRACTED
+
+Written by the coordinating session, not the author of the body above; the body
+is left as published per the append-only rule.
+
+The closing note claims *"the supplies model is wrong at GMJ-316 — the player
+reads dronecomponents 6 / energycells 300 / smartchips 120 against the model's
+dronecomponents 1 and smartchips 130 and no energy-cell row at all."* **That
+comparison is invalid and the conclusion is withdrawn. Nothing is wrong.**
+
+The two quantities are not the same thing:
+
+- The in-game **Supplies** tab shows the station's supply position — what it
+  **holds plus what it has on order**.
+- `station_storage` `role='supply'` is defined in `db/schema.py` as the
+  station's *open self-supply demand*: "outstanding drone/munition build
+  inputs, **NOT** cargo-storage allocation". It is the **order only**, and it
+  reports the order correctly.
+
+On the current snapshot GMJ-316 reads, per ware:
+
+| ware | held (`station_supply`) | on order (`supplies` offer) | `role='supply'` row | in game |
+|---|---:|---:|---:|---:|
+| smartchips | 0 | 120 | **120** | 120 |
+| dronecomponents | **6** | 0 | *none* | 6 |
+| energycells | **350** | 0 | *none* | 300 (earlier state) |
+
+Smart chips agree exactly because the station holds none and has the lot on
+order. The other two have no open order — a satisfied station posts none, the
+same "a full station withdraws its buy offer entirely" rule that governs cargo —
+so there is correctly no order row. The held side was never missing: it is
+parsed into `station_supply` (kind `ware`), **2,471 rows over 1,033 stations**,
+and exposed by `v_station_supply`.
+
+**Nothing downstream consumes `role='supply'`** — no analysis module, no widget;
+`v_station_supply` reads the raw held table. So no output in the project is
+affected either way.
+
+What is genuinely absent is a *supply allocation* — held + on order — which
+nothing currently computes. Both terms are already in the DB. That is a missing
+convenience, not a defect, and it carries the same lower-bound caveat as the
+cargo proxy: with no open order the sum is only a floor on the target.
+
+Recorded as **E-126**.

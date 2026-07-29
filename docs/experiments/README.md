@@ -46,12 +46,12 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | subsystem | CONFIRMED | FALSIFIED | PENDING | SUPERSEDED | total |
 |---|---:|---:|---:|---:|---:|
 | Pricing (E-001…E-036, E-112…E-118) | 16 | 11 | 11 | 5 | 43 |
-| Storage allocation (E-037…E-063, E-119…E-125) | 19 | 7 | 6 | 2 | 34 |
+| Storage allocation (E-037…E-063, E-119…E-126) | 20 | 7 | 6 | 2 | 35 |
 | Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
-| **total** | **56** | **31** | **31** | **7** | **125** |
+| **total** | **57** | **31** | **31** | **7** | **126** |
 
 Eight entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -293,6 +293,9 @@ file, three remain open.
 
 **E-125 · CONFIRMED** — `extract_modcaps` dropped every station-class macro but one: station macros live one directory shallower than module macros.
 *Predicts:* the glob `assets/structures/.*/macros/.*\.xml` requires a directory between `structures` and `macros`, so `assets/structures/macros/station_*.xml` never matched and only the landmark station macro (under `structures/landmarks/macros/`) was extracted — one station row in `modcaps.csv` instead of eight, and E-124's employment target unreadable for seven designs. Making the segment optional adds exactly 7 rows and changes nothing else (247 rows, same 240 module rows). *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum 2, The extraction gap.
+
+**E-126 · CONFIRMED** — The in-game Supplies tab shows held + on order, and `station_storage` `role='supply'` is the ON-ORDER term alone.
+*Predicts:* GMJ-316 reads dronecomponents 6 / energycells 300 / smartchips 120 in game; the save holds dronecomponents 6 and energycells 350 in `station_supply` (kind `ware`) with no open offer, and smartchips 0 held against a 120-unit `supplies`-flagged offer — so the only `role='supply'` row is smartchips 120, and it is correct. A satisfied station posts no supply offer, the same withdrawal rule that governs cargo buys. The held side is fully parsed: **2,471 rows over 1,033 stations**, exposed by `v_station_supply`; nothing downstream consumes `role='supply'`. *Settled by:* player reading of GMJ-316's Supplies tab, 2026-07-29, which was first mis-read as a model defect and is retracted. *Open:* no *supply allocation* (held + on order) is computed anywhere; both terms are in the DB and the sum carries the cargo proxy's lower-bound caveat. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum: the GMJ-316 "supplies model is wrong" note is RETRACTED.
 
 ## Parser / save format
 
