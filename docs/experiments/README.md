@@ -28,6 +28,18 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 - **Never** record a result the sources do not state. If two documents
   disagree, record both and flag it rather than picking a winner (§ Contradictions).
 - Status vocabulary is exactly `CONFIRMED`, `FALSIFIED`, `PENDING`, `SUPERSEDED`.
+- **Field labels are a closed set too** — the register turns into prose if one
+  role appears under five names. Every entry needs `*Source:*`. Beyond that:
+  the prediction is `*Predicts:*` (or `*Predicted:*` once dead); a FALSIFIED
+  entry records its evidence under `*Killed by:*`, `*Falsified by:*`,
+  `*Ruled out:*` or `*Contradicted by:*`; a SUPERSEDED entry names its
+  replacement under `*Replaced by:*` or `*Superseded by:*`; a PENDING entry
+  says what would settle it under `*Settles it:*`, `*Needs:*` or
+  `*Blocked on:*`. Adding a new label means updating
+  `tests/test_experiments_register.py`, which is the point — it should be a
+  deliberate choice, not a typo.
+- `uv run pytest tests/test_experiments_register.py -q` checks all of the
+  above plus the summary table, and prints the corrected table on failure.
 
 ## Summary
 
