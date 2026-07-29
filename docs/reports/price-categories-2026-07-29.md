@@ -482,6 +482,46 @@ design-level constant is not excluded by this save.
 *Falsified by:* a capped supplier on a distinctly different design reading a
 different V.
 
+### The one counterexample in the save: DHI-588
+
+Splitting the binding population by how its allocation was obtained separates
+it cleanly, and the split is one station wide:
+
+| allocation source | offers | stations | median \|res\| `m=1` | median \|res\| cap | bin RMSE `m=1` | bin RMSE cap |
+|---|---:|---:|---:|---:|---:|---:|
+| `computed` (production, equal-hours) | 395 | 330 | 0.1790 | **0.0145** | 0.2219 | **0.0191** |
+| `proxy` (non-producer, stock + open buy) | 4 | 1 | **0.0152** | 0.1729 | **0.0121** | 0.1749 |
+
+The four are **DHI-588** — a *Kaori*-owned station running the Argon
+trade-station design `station_arg_tradestation_base_01_macro`, in Mitsuno's
+Sacrifice — on claytronics and silicon, both sides. It fits **better uncapped**,
+and this is not the proxy denominator marking its own homework:
+
+| ware | stock | open buy amount | target from the offer book | target from the price | the cap says |
+|---|---:|---:|---:|---:|---:|
+| claytronics | 805 | 2,105 | **2,910** | 2,979 | 2,451 |
+| silicon | 12,460 | 44,206 | **56,666** | 58,829 | 38,462 |
+
+The station's own *bid quantity* and its *price* are independent observables.
+They agree with each other to 2.4 % and 3.8 % and both disagree with the cap by
+19 % and 53 %. A capped station would bid 1,646 claytronics, not 2,105. This is
+a real breach, not a measurement artifact.
+
+**So the discriminator is probably narrower than "posts a sell offer".** Every
+one of the 330 capped stations is a *producer* with a computed, production-based
+allocation; the one non-producer in the binding set ignores the cap — and so do
+yards and wharfs, which are also non-producers and where the cap was rejected
+independently (bin RMSE 0.3355 → 0.6310). That is a consistent story:
+**non-producers do not cap.** It is also confounded in this save — every capped
+producer posts a sell offer, so "producer" and "posts a sell offer" cannot be
+separated on the 399 offers available, and one station is thin evidence for
+either. The cap's *value* and *form* (E-113/E-114) do not depend on which way
+this resolves; only its scope does.
+
+*Falsified by:* a second non-producing station (trade station, dock) with an
+allocation worth over 5 M Cr pricing on the capped target — which would make
+DHI-588 an outlier rather than a rule.
+
 ---
 
 ## Ranked remaining leads, and the reading that settles each
@@ -513,12 +553,12 @@ different V.
    against a panel resolution of ~25 Cr (0.1 pp of the 25,000 Cr average). This
    is the highest-value single reading available.
 
-3. **A capped supplier on a non-generic design.** Every capped station but
-   seven runs `station_gen_factory_base_01_macro`. The Xenon factory
-   (`station_xen_factory_base_01_macro`, 1 offer) and the Argon trade station
-   (4 offers) are the only alternatives in the save. *Needs:* the trade
-   panel's supply/demand percentage on the Argon trade station's capped ware,
-   which would show whether V is design-independent.
+3. **Does the cap apply to non-producers? DHI-588 says no.** See the
+   counterexample section below — this is now the sharpest open question about
+   the cap's scope, not a design-independence question. *Needs:* the Logical
+   Station Overview storage maximum for claytronics and silicon on DHI-588
+   (Mitsuno's Sacrifice), which would confirm or refute the 2,910 / 56,666
+   targets its own offer book implies.
 
 4. **Do rations cap?** No ration anywhere in the save reaches 5 M Cr of
    allocation (largest 2.0 M), so the question is untested rather than
