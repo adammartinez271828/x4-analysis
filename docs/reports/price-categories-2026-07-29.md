@@ -661,3 +661,58 @@ stations; if it caps, DHI-588 is an outlier.
 | the cap applies to yards/wharfs/docks | bin RMSE 0.3355 → 0.6310 on the 202 binding offers |
 | the corridor is a faction, sector, design, module-count or transport-pool property | every one of those groupings has a *higher* within-group IQR of `m` than pooling, on both bases |
 | a single `(m, a)` pair describes the capped cohort | free joint fit scores 0.1516 against the zero-parameter cap's 0.0229 |
+
+---
+
+# Addendum 2 (same day): re-verified against the rebuilt storage model
+
+The storage model changed on 2026-07-29 after this report was written —
+non-producing stations moved from the `stock + open buy` proxy to an
+**equal-volume pool split**, the proxy gained the inbound term, transport pools
+became tag *groups*, and the ration role became keyed on the races present
+([mixed-race-rations-2026-07-29.md](mixed-race-rations-2026-07-29.md),
+[trade-station-allocations-2026-07-29.md](trade-station-allocations-2026-07-29.md)).
+`allocation` is the denominator of everything in this report, so all of it was
+re-scored against allocations recomputed in memory with the new code. Nothing
+material moved.
+
+| population | n | published | re-scored on new allocations |
+|---|---:|---|---|
+| binding (cap applies) | 399 | 0.2830 → 0.0192 bin RMSE | **0.2830 → 0.0192** (identical) |
+| binding, median \|res\| | 399 | 0.1770 → 0.0146 | **0.1770 → 0.0146** (identical) |
+| binding, \|res\|>0.25 | 399 | 40.85 % → 3.01 % | **40.85 % → 3.01 %** (identical) |
+| narrow-span cohort | 114 | 0.2382 → 0.0136 | **0.2382 → 0.0136** (identical) |
+| supplier side, \|res\|>0.25 | 1,821 | 9.77 % → 1.48 % | 9.45 % → **1.15 %** |
+| all main+narrow, \|res\|>0.25 | 7,227 | 6.12 % → 4.03 % | 6.03 % → **3.94 %** |
+| all main+narrow, median \|res\| | 7,227 | 0.0143 → 0.0141 | 0.0140 → 0.0139 |
+
+The binding population is **the same 399 offers over the same 331 stations and
+29 wares**, and the V optimum is unchanged (5.00 M bin RMSE 0.0197, 5.10 M
+0.0172, 4.90 M 0.0331, 5.50 M 0.0692). The save-wide numbers improve slightly
+because the new model gives correct allocations to wares the proxy sized from a
+fill-dependent shadow. **E-113 and E-114 stand as published.**
+
+## One thing the rebuild *did* change: the DHI-588 contradiction got sharper
+
+Two corrections to Addendum 1, both against my own reasoning there:
+
+1. **DHI-588's allocations are no longer proxy-derived.** The new model computes
+   claytronics **2,910.16** and silicon **56,666.67** from the pool split —
+   matching the player's in-game readings to the unit. The counterexample no
+   longer rests on an offer-derived lower bound at all. Its residuals are
+   unchanged (uncapped +0.012/+0.015/−0.034/+0.016; capped +0.138 to +0.255),
+   and its sub-cap control is now **76 offers at median |res| 0.0143**.
+2. **The structural difference I offered for the VOM-540/DHI-588 split has
+   evaporated.** Addendum 1 suggested VOM-540's allocation is a *physical
+   storage-module capacity* while DHI-588's is *trade capacity*. Under the new
+   model both are computed by the same rule family — pool capacity ÷ ware count
+   ÷ volume — so that distinction no longer exists. The contradiction is
+   therefore **harder** than it looked: two non-producing stations, allocations
+   from the same rule, disagreeing about whether the 5 M cap applies.
+
+What still separates them is unexplained: VOM-540 is a landmark pirate station
+holding one ware in a dedicated pool at 125 M Cr of allocation value; DHI-588 is
+a trade station with 30 wares sharing a container pool, its two capped-range
+wares at 5.9 M and 7.4 M. Register contradiction item 8 is updated accordingly;
+the reading that settles it is unchanged (a ware worth over 5 M Cr of
+allocation on RAN-388, EOX-322, GMJ-316 or MOP-635).

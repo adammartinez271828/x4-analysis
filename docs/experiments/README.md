@@ -482,9 +482,14 @@ shows what it caught:
   allocation value, with the allocations confirmed in game. No single V fits
   both (≥ 7.4 M vs ≈ 5.4–5.7 M). Recorded as a scope contradiction, not
   resolved; the cap's form and value (E-113/E-114) rest on 392 producer offers
-  and are unaffected. The one structural difference visible is the origin of
-  the allocation — module capacity ÷ volume for VOM-540, trade capacity for
-  DHI-588 — which n = 2 cannot test.
+  and are unaffected. **Sharpened 2026-07-29 by the storage rebuild (E-119):**
+  DHI-588's allocations are now *computed* (claytronics 2,910.16, silicon
+  56,666.67, matching the in-game readings to the unit) rather than
+  offer-derived, so the counterexample no longer rests on a lower bound; and
+  the structural difference first offered for the split — module capacity for
+  VOM-540 against trade capacity for DHI-588 — has evaporated, since both are
+  now produced by the same pool-capacity ÷ count ÷ volume rule. Two
+  non-producers, allocations from one rule, disagreeing about the cap.
 
 Still open: (3) faction relation symmetry, (4) inert anomaly census, and (8)
 whether non-producers cap.
