@@ -254,3 +254,169 @@ correct: the save carries 1,241 single-race, one two-race and two three-race
 `<workforces>` blocks, and the `workforce` table holds exactly that (PK
 `(save_id, station_id, race)`, accumulated per race in `db/store.py`).
 DHI-588's three rows match its XML to the unit. No parser change was needed.
+
+---
+
+## Addendum 2 — the ration basis is the Employment Target (E-124), and E-121 is dead
+
+**2026-07-29, later the same day.** The player supplied full in-game allocation
+tables for two more trade stations — **GMJ-316** (Argon, Ianamus Zura) and
+**PTW-627** (Teladi landmark), the reading this report asked for first — and a
+second investigation ran in parallel. Between them the E-121 lag hypothesis is
+**falsified outright**, and the residual that the body of this report called
+"the one thing the model knowingly gets wrong" is closed.
+
+### What it actually is
+
+```
+employment target = Σ <workforce max> over the built PRODUCTION and BUILDMODULE
+                    macros                                (module_cap.workers)
+                  + the STATION macro's own <workforce max>, if it declares one
+
+ration reserve    = 4 h × target, split across races by the LIVE mix,
+                    floored per race
+```
+
+The game shows this number in the station's Workforce tab. The player read
+**"Employment target 1000"** on PTW-627, which has **104** workers living in it
+in the save.
+
+Eight station-class macros declare one, and I re-derived every value from the
+game files rather than taking them on trust:
+
+| design | target | | design | target |
+|---|---:|---|---|---:|
+| `station_gen_piratebase_base_01` | 150 | | `station_par_tradestation_base_01` | 400 |
+| `station_arg_tradestation_base_01` | 250 | | `station_tel_tradestation_base_01` | 1000 |
+| `station_bor_tradestation_base_01` | 250 | | `landmarks_tel_tradestation_01` | 1000 |
+| `station_{spl,ter}_tradestation_base_01` | 300 | | | |
+
+**Every one of the 31 single-race non-producers with a saturated ration buy
+lands on its design's declared target exactly**, with no free parameter — the
+same 31 stations whose reserves I had described as "≈ the live workforce, with
+a lag". They only looked like the workforce because a station's population
+grows *toward* its target: the reserves were 150 / 250 / 300 / 400 / 1000 while
+the live workforces were 150–152 / 250–252 / 300–302 / 400–401 / 1000.
+
+**It is a sum, not a fallback.** MOP-635 (Argon trade-station macro 250,
+carrying build modules worth 400) implies exactly **650**; TTV-091 is
+3,000 + 150 = **3,150**. Scored save-wide against the ration-implied basis, the
+sum has **median ratio 1.0000 for every station design** and 1,118 of 1,150
+within 1 % — 1,066 `gen_factory` producers, 50 yards (**wharfs 800**,
+shipyards up to 3,150, out of the same sum with no special case), and the seven
+trade/pirate designs.
+
+**Habitation `<workforce max>` is capacity, not demand** — it lands in
+`module_cap.housing` and must not be summed in. I tested it: housing matches
+the implied basis on **0 of 31** non-producers (UGL-363 houses 14,985 and
+reserves for 150) and 4 of 1,066 producers.
+
+### Why E-121 was wrong, in its own terms
+
+I raised the lag on the strength of DHI-588 reading one worker per race low and
+four Teladi stations sharing a 1,000-worker reserve. Three checks kill it:
+
+1. **DHI-588's workforce has not moved.** I pulled its `<workforces>` block out
+   of save_006 (t = 61,949), save_008 (t = 66,773) and save_001 (t = 82,130):
+   **179 / 33 / 39 in all three**, 20,000 s apart, with an identical reserve.
+   Nothing was catching up with anything. The "−1 per race" is
+   `floor(250 × race / 251)` — the target being *below* the live population.
+2. **PTW-627's reserve is immovable.** Its workforce went 376 → 546 → 104 in
+   the archived saves and reads 160 now; the reserve was 5,400 / 4,560 at every
+   one of those points.
+3. **The four Teladi stations share a macro**, `landmarks_tel_tradestation_01`,
+   which declares 1000. Four stations landing on exactly 1,000 was a declared
+   constant, not four independent decays to the same number.
+
+E-121 is FALSIFIED with that evidence; E-123 (job slots, else live workforce)
+is SUPERSEDED by E-124, its first half surviving as one term of the sum.
+Whether a lag explains **EIJ-609** is untouched and stays open on E-051.
+
+### The extraction gap (E-125)
+
+`gamedata/extract.py` globbed `assets/structures/.*/macros/.*\.xml`, which
+requires a directory between `structures` and `macros`. **Station** macros live
+one level shallower, at `assets/structures/macros/*.xml`; only the Teladi
+landmark (under `structures/landmarks/macros/`) matched, so `modcaps.csv` held
+exactly one station row — by accident. Making the middle segment optional adds
+**exactly 7 rows and changes nothing else** (247 rows, the same 240 module
+rows), and the CSV stays stock base+DLC.
+
+The user data dir's copy overrides the packaged one, so I regenerated
+`~/.local/share/x4analyzer/modcaps.csv` too; a full `extract-gamedata` refresh
+would do the same.
+
+### The two new stations
+
+**PTW-627** — the employment-target case. Reserve = 4 h at 1,000 =
+5,400 medical supplies + 4,560 nostrop oil = 15,360 m³ off a shared
+1,800,000 m³ pool (its storage modules are all tagged `container liquid solid`,
+so container and solid divide together — nividium 9,392), leaving
+`(1,800,000 − 15,360) / 19 = 93,928.42 m³` per traded ware. **21 of 21 exact.**
+With the old live-workforce basis every trade ware read uniformly +0.78 % high
+and both rations −89 %.
+
+**GMJ-316** — the control. Same Argon design, so the same declared target of
+250, but **no habitat module and no workforce**: no reserve at all, and its
+food rations and medical supplies take full trading shares of 57,142 and
+28,571. Its four `storage_arg_l_tradestation_01` modules are mixed-tag, so the
+solid ware nividium reads 5,714 (= 57,142.86/10) and not 120,000 — E-122 again,
+on a second design. **21 of 21 exact.** ("Allographyne" in the UI is our ware
+id `khaakalloy`; a display-name mismatch, not missing data.)
+
+Both disputed digits resolved before fixturing: the player re-read
+**medicalsupplies 5,400** and **claytronics 3,913**, the save's own buy offers
+carry `desired="5400"` and `desired="3913"`, and the 19-ware share arithmetic
+independently requires 5,400. Nothing inferred was encoded as a reading.
+
+PTW-627's readings come from a **later game state** than its model inputs (live
+workforce 160 vs 104 in save_001). That is recorded in the fixture and does not
+affect a single number, precisely because the basis is the target and not the
+population — which is itself a small confirmation of E-124.
+
+### `desired` on a buy offer is a free validation source
+
+Where a station holds **zero stock** of a ware, its open buy offer's `desired`
+(and `amount`) *is* the allocation: PTW-627's claytronics 3,913, medical
+supplies 5,400, nostrop oil 4,560 and missile components 93,928 can all be read
+straight out of the XML. This is the existing `stock + inbound + open buy`
+lower bound at its saturated end, not a new field, but it means the
+equal-volume split can be checked on far more stations than the three we have
+in-game readings for. Worth a save-wide pass; not done here.
+
+### Scores after Addendum 2
+
+| | body of this report | now |
+|---|---|---|
+| in-game readings within 1 % | 86 / 90 | **131 / 132** |
+| all readings (derived as a lower bound) | 88 / 95 | 133 / 137 |
+| `pytest -q` | 254 | **259** |
+
+All 40 DHI-588 readings are now exact (was 37/40 — the three ration misses were
+the target), plus 21/21 GMJ-316 and 21/21 PTW-627. **The only remaining in-game
+failure in the whole fixture is EIJ-609's hull parts (E-051).**
+
+Against the save's own bound on save 70: 89.1 % → **89.4 %** within 1 %, and the
+mixed-module trading stations 95.2 % → 99.5 %.
+
+The producer path is unchanged by the target rule in this save — no producing
+station carries a station macro that declares a target (0 of 1,254), so `jobs`
+is the whole sum for all of them, and every producer reading is bit-identical
+before and after.
+
+### What is still open
+
+- **The per-race split disagrees between two stations** (register contradiction
+  9). DHI-588, read in game, needs the **live** race mix: 250 over 179/33/39 →
+  178/32/38, all four ration maxima exact, while its habitat mix would give
+  162/44/42 and miss every one. DCO-580, save-derived but saturated and stable
+  across three snapshots, needs its **habitat** mix: 250 over a live 65/125/63
+  wants 62/125/62, which is its 1:2:1 housing exactly, where the live mix gives
+  64/123/62. EMY-219 cannot tell them apart. The model implements the live mix,
+  on DHI-588's authority; the disagreement is ±3 workers on a 250-worker
+  reserve. *Settles it:* a third multi-race station read in game.
+- **The supplies model is wrong at GMJ-316** — the player reads a separate
+  Supplies inventory of dronecomponents 6 / energycells 300 / smartchips 120,
+  against the model's dronecomponents 1 and smartchips 130 and no energy-cell
+  row at all. Recorded in the fixture's note; the supply path is a different
+  model (`role='supply'`, read off flagged offers) and was not touched here.

@@ -63,6 +63,10 @@ def _ref(doc: dict, save=None) -> SimpleNamespace:
 def frames_for(doc: dict, codes=None) -> SimpleNamespace:
     """A Frames-alike covering ALL fixture stations at once.
 
+    `universe.macro` is the STATION's own macro, not a module's: a trade
+    station's design declares the employment target that sizes its ration
+    reserve (E-124), so the model needs it.
+
     Deliberately one frame for every station, not one per station: the model
     asks whether *the save* carried `<production>` data at all, so a station
     that happens to have no production blocks (WRC-739) must not look like a
@@ -75,7 +79,7 @@ def frames_for(doc: dict, codes=None) -> SimpleNamespace:
         s = doc["stations"][code]
         sid = s["id"]
         built += [[sid, macro, 1] for macro, n in s["modules"] for _ in range(int(n))]
-        uni.append([sid, "station", s["sector_macro"]])
+        uni.append([sid, "station", s.get("macro", ""), s["sector_macro"]])
         wf += [[sid, race, amt] for race, amt in s["workforce"]]
         cargo += [[sid, w, a] for w, a in s["cargo"]]
         offers += [[sid, side, w, a, 0.0, fl, None]
@@ -84,7 +88,8 @@ def frames_for(doc: dict, codes=None) -> SimpleNamespace:
                  for macro, ware, eff, state, n in s["production"]]
     return SimpleNamespace(
         built_modules=pd.DataFrame(built, columns=["id", "macro", "built"]),
-        universe=pd.DataFrame(uni, columns=["id", "class", "sector.macro"]),
+        universe=pd.DataFrame(uni, columns=["id", "class", "macro",
+                                           "sector.macro"]),
         workforce_all=pd.DataFrame(wf, columns=["id", "race", "amount"]),
         station_cargo=pd.DataFrame(cargo, columns=["id", "ware", "amount"]),
         trade_offers=pd.DataFrame(offers, columns=[

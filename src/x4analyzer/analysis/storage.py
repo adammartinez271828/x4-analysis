@@ -259,6 +259,19 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
 
     mc = ref.modcaps.set_index("macro")
     workers = _num(mc["workers"]).to_dict()
+    # A STATION macro can declare its own `<workforce max=>` -- the
+    # "Employment target" the game shows in the station's Workforce tab, and
+    # the basis of its ration reserve (E-124). It is a property of the design,
+    # not of the population: PTW-627 reserves for 1,000 while 104 live there.
+    # Extracted as a class='station' row in modcaps.csv (the extractor dropped
+    # all but the landmark one until 2026-07-29 -- see gamedata/extract.py).
+    st_target: dict[str, float] = {}
+    if "class" in ref.modcaps.columns:
+        st_rows = ref.modcaps[ref.modcaps["class"].astype(str) == "station"]
+        st_target = {m: t for m, t in
+                     zip(st_rows["macro"], _num(st_rows["workers"])) if t > 0}
+    station_macro = (uni["macro"].to_dict()
+                     if "macro" in getattr(uni, "columns", []) else {})
     cargo_max = _num(mc["cargo_max"]).to_dict()
     cargo_tags = mc["cargo_tags"].fillna("").to_dict()
 
@@ -389,18 +402,34 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             merged[find(g)] += cap
         group_cap[sid] = merged
 
-    # workforce food. The BASIS is the station's production job slots when it
-    # has any -- the game reserves rations for a FULL workforce, not for the
-    # workers actually present: over 1,065 single-race producers with a
-    # saturated ration buy, the implied headcount matches Σ module workers in
-    # 1,034 cases (median ratio 1.0000) against 793 for the live workforce,
-    # and stations staffed at 2 of 540 still allocate for 540 (GKM-488).
-    # A station with NO job slots at all -- a trade station, whose workers
-    # serve its docks -- still eats, and there the basis is the population
-    # itself (DHI-588, and 13 of 31 single-race non-producers land on their
-    # saved workforce to the unit; the rest are the lag of E-121).
-    # The race split is the present-workforce mix, and the 4 h buffer is
-    # floored PER RACE before the races are summed (E-120).
+    # workforce food. The BASIS is the station's EMPLOYMENT TARGET, never the
+    # workers actually present (E-124):
+    #
+    #   Σ `<workforce max>` over the built DEMAND-side modules (production
+    #     and buildmodule; `module_cap.workers`)
+    #   PLUS the STATION macro's own `<workforce max>` when it declares one
+    #     -- piratebase 150, arg/bor tradestation 250, spl/ter 300, par 400,
+    #        tel and the Teladi landmark 1000.
+    #   the live workforce only as a last resort, for a design that declares
+    #     neither (no example in this save).
+    #
+    # Habitation `<workforce max>` is CAPACITY, not demand (it lands in
+    # `module_cap.housing`, never in `workers`) and must not be summed in --
+    # housing matches the implied basis on 0 of 31 non-producers and 4 of
+    # 1,066 producers. Scored save-wide against the ration-implied target,
+    # this sum has median ratio 1.0000 for EVERY station design and 1,118 of
+    # 1,150 within 1 %: gen_factory 1,066 producers and 50 yards, the seven
+    # trade/pirate designs, wharfs at 800 and shipyards up to 3,150 falling
+    # out of the same sum with no special case.
+    #
+    # A station with NO workers takes no reserve at all, whatever its design
+    # declares: GMJ-316 has a 250 target but no habitat modules, and its food
+    # rations get a full 57,142-unit trading share (E-124).
+    #
+    # The target is split across races by the PRESENT mix and the headcount is
+    # floored per race, then the 4 h buffer is floored per race again (E-120):
+    # DHI-588's 250 over 179/33/39 gives 178/32/38, and its four in-game
+    # ration maxima (1,602 / 1,338 / 184 / 173) all land exactly.
     food: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     food_units: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     wf = frames.workforce_all
@@ -411,10 +440,14 @@ def station_storage(frames: Frames, ref: RefData) -> pd.DataFrame:
             if sid not in stations:
                 continue
             total = totals.get(sid, 0) or 0
-            if jobs.get(sid, 0) > 0:
-                head = jobs[sid] * ((w.amount / total) if total else 0.0)
-            else:
-                head = float(w.amount or 0)
+            # SUM, not a fallback: MOP-635 is an Argon trade-station macro
+            # (250) carrying build modules (400) and its reserve implies
+            # exactly 650, TTV-091 3,000 + 150 = 3,150.
+            basis = (jobs.get(sid, 0.0)
+                     + st_target.get(str(station_macro.get(sid, "")), 0.0))
+            if basis <= 0:
+                basis = float(total)
+            head = math.floor(basis * ((w.amount / total) if total else 0.0))
             if head <= 0:
                 continue
             method = w.race if (WORKUNIT, w.race) in methods else "default"

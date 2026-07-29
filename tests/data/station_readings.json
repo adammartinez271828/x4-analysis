@@ -64,6 +64,16 @@
     "game_time": 82130.232,
     "note": "Captured later than the rest of the fixture (db_save_id 61 / quicksave); inputs and readings are from the same save_001 snapshot.",
     "save": "save_001.xml.gz"
+   },
+   "GMJ-316": {
+    "db_save_id": 70,
+    "note": "inputs and readings from the same snapshot",
+    "save": "save_001.xml.gz"
+   },
+   "PTW-627": {
+    "db_save_id": 70,
+    "note": "INPUTS from save_001 (live workforce 104); READINGS taken later (live workforce 160). Nothing read depends on the live workforce: the ration basis is the design's employment target (1,000) and the split runs on capacity and the trade list.",
+    "save": "save_001.xml.gz"
    }
   },
   "price_update_timer": "Stations carry <event event=\"updatetradeoffers\" time=...>: 3,555 events over 1,804 stations, next-fire times uniformly distributed 0-65 s ahead of game time, so the trade-offer refresh period is ~65 s. Tested as the explanation for the per-station price offset and FALSIFIED: corr(offset, time since last update) = -0.08 over 541 stations, and the bucket medians are flat at -0.03 to -0.05. A 65 s period cannot accumulate the ~0.78 h of throughput the largest offsets correspond to.",
@@ -339,6 +349,118 @@
     ]
    }
   },
+  "GMJ-316": {
+   "alloc": {
+    "advancedcomposites": [
+     1785,
+     "ingame",
+     ""
+    ],
+    "advancedelectronics": [
+     1904,
+     "ingame",
+     ""
+    ],
+    "antimatterconverters": [
+     5714,
+     "ingame",
+     ""
+    ],
+    "claytronics": [
+     2380,
+     "ingame",
+     ""
+    ],
+    "dronecomponents": [
+     1904,
+     "ingame",
+     ""
+    ],
+    "engineparts": [
+     3809,
+     "ingame",
+     ""
+    ],
+    "fieldcoils": [
+     3809,
+     "ingame",
+     ""
+    ],
+    "foodrations": [
+     57142,
+     "ingame",
+     ""
+    ],
+    "hullparts": [
+     4761,
+     "ingame",
+     ""
+    ],
+    "khaakalloy": [
+     2857,
+     "ingame",
+     ""
+    ],
+    "majadust": [
+     9523,
+     "ingame",
+     ""
+    ],
+    "medicalsupplies": [
+     28571,
+     "ingame",
+     ""
+    ],
+    "missilecomponents": [
+     57142,
+     "ingame",
+     ""
+    ],
+    "nividium": [
+     5714,
+     "ingame",
+     ""
+    ],
+    "scanningarrays": [
+     1503,
+     "ingame",
+     ""
+    ],
+    "shieldcomponents": [
+     5714,
+     "ingame",
+     ""
+    ],
+    "smartchips": [
+     28571,
+     "ingame",
+     ""
+    ],
+    "spaceweed": [
+     19047,
+     "ingame",
+     ""
+    ],
+    "turretcomponents": [
+     2857,
+     "ingame",
+     ""
+    ],
+    "water": [
+     9523,
+     "ingame",
+     ""
+    ],
+    "weaponcomponents": [
+     2857,
+     "ingame",
+     ""
+    ]
+   },
+   "date": "2026-07-29",
+   "note": "Argon trade station, Ianamus Zura. NO workforce and no habitat module, so NO ration reserve at all: food rations 57,142 and medical supplies 28,571 are full trading shares, the same 1,200,000/21 = 57,142.86 m3 every other ware gets. Its four storage_arg_l_tradestation_01 modules are tagged 'container liquid solid' and share ONE pool, which is why the solid ware nividium reads 5,714 (= 57,142.86/10) and not 1,200,000/10. Its station macro declares an employment target of 250, which produces no reserve because nobody lives there (E-124). 'Allographyne' in the UI is our ware id khaakalloy. Supplies inventory (a separate model, not storage): dronecomponents 6, energycells 300, smartchips 120.",
+   "rate": {}
+  },
   "IFO-957": {
    "alloc": {
     "energycells": [
@@ -574,6 +696,118 @@
      ""
     ]
    }
+  },
+  "PTW-627": {
+   "alloc": {
+    "advancedcomposites": [
+     2935,
+     "ingame",
+     ""
+    ],
+    "advancedelectronics": [
+     3130,
+     "ingame",
+     ""
+    ],
+    "antimatterconverters": [
+     9392,
+     "ingame",
+     ""
+    ],
+    "claytronics": [
+     3913,
+     "ingame",
+     ""
+    ],
+    "dronecomponents": [
+     3130,
+     "ingame",
+     ""
+    ],
+    "engineparts": [
+     6261,
+     "ingame",
+     ""
+    ],
+    "fieldcoils": [
+     6261,
+     "ingame",
+     ""
+    ],
+    "hullparts": [
+     7827,
+     "ingame",
+     ""
+    ],
+    "khaakalloy": [
+     4696,
+     "ingame",
+     ""
+    ],
+    "majadust": [
+     15654,
+     "ingame",
+     ""
+    ],
+    "medicalsupplies": [
+     5400,
+     "ingame",
+     ""
+    ],
+    "missilecomponents": [
+     93928,
+     "ingame",
+     ""
+    ],
+    "nividium": [
+     9392,
+     "ingame",
+     ""
+    ],
+    "nostropoil": [
+     4560,
+     "ingame",
+     ""
+    ],
+    "scanningarrays": [
+     2471,
+     "ingame",
+     ""
+    ],
+    "shieldcomponents": [
+     9392,
+     "ingame",
+     ""
+    ],
+    "smartchips": [
+     46964,
+     "ingame",
+     ""
+    ],
+    "spacefuel": [
+     46964,
+     "ingame",
+     ""
+    ],
+    "turretcomponents": [
+     4696,
+     "ingame",
+     ""
+    ],
+    "water": [
+     15654,
+     "ingame",
+     ""
+    ],
+    "weaponcomponents": [
+     4696,
+     "ingame",
+     ""
+    ]
+   },
+   "date": "2026-07-29",
+   "note": "Teladi landmark trade station. THE employment-target case (E-124): its station macro declares <workforce max=1000>, and the reserve is 4 h at 1,000 workers -- medical supplies 5,400 and nostrop oil 4,560 -- while the save holds 104 live workers and the player's Workforce tab reads 'Employment target 1000' against 160 present. Reserve 15,360 m3 off 1,800,000 leaves (1,800,000-15,360)/19 = 93,928.42 m3 per traded ware. Its storage modules are all tagged 'container liquid solid', so container and solid share one pool (nividium 9,392). PROVENANCE: the readings are from a LATER game state than the model inputs (save_001, live workforce 104 vs 160 at read time) -- which does not affect any of these numbers, because the target, the capacity and the trade list are all independent of the live workforce. medicalsupplies 5,400 and claytronics 3,913 were initially transcribed as 5,200 / 3,919 and re-read; the save's own buy offers carry desired=5400 and desired=3913, and the 19-ware share arithmetic independently requires 5,400.",
+   "rate": {}
   },
   "TPF-229": {
    "alloc": {
@@ -1225,6 +1459,142 @@
     null,
     null,
     null
+   ],
+   [
+    "dockarea_arg_m_02_tradestation_01_macro",
+    "dockarea",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_center_01_macro",
+    "defencemodule",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_centerend_01_macro",
+    "defencemodule",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_dockarea_m_01_macro",
+    "dockarea",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_extension_01_macro",
+    "defencemodule",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_macro",
+    "station",
+    null,
+    1000.0,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_ring_inside_01_macro",
+    "habitation",
+    1000.0,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_ring_inside_02_macro",
+    "habitation",
+    1000.0,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_ring_storage_01_macro",
+    "storage",
+    null,
+    null,
+    400000.0,
+    "container liquid solid"
+   ],
+   [
+    "landmarks_tel_tradestation_01_ringcenter_01_macro",
+    "defencemodule",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_ringclamp_01_macro",
+    "defencemodule",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_ringclamp_02_macro",
+    "defencemodule",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "landmarks_tel_tradestation_01_storage_01_macro",
+    "storage",
+    null,
+    null,
+    100000.0,
+    "container liquid solid"
+   ],
+   [
+    "landmarks_tel_tradestation_01_tradelocation_01_macro",
+    "pier",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "pier_arg_single_01_tradestation_01_macro",
+    "pier",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "station_arg_tradestation_base_01_macro",
+    "station",
+    null,
+    250.0,
+    null,
+    null
+   ],
+   [
+    "storage_arg_l_tradestation_01_macro",
+    "storage",
+    null,
+    null,
+    300000.0,
+    "container liquid solid"
    ]
   ],
   "module_ref": [
@@ -3017,6 +3387,51 @@
     "quantumtubes",
     20.0,
     0.43
+   ],
+   [
+    "khaakalloy",
+    "recycling",
+    300.0,
+    100.0,
+    "energycells",
+    6000.0,
+    0.37
+   ],
+   [
+    "khaakalloy",
+    "recycling",
+    300.0,
+    100.0,
+    "khaakscrapmetal",
+    300.0,
+    0.37
+   ],
+   [
+    "khaakalloy",
+    "recycling",
+    300.0,
+    100.0,
+    "nividium",
+    200.0,
+    0.37
+   ],
+   [
+    "khaakscrapmetal",
+    "processing",
+    60.0,
+    1.0,
+    "energycells",
+    10.0,
+    null
+   ],
+   [
+    "khaakscrapmetal",
+    "processing",
+    60.0,
+    1.0,
+    "rawkhaakscrap",
+    1.0,
+    null
    ]
   ],
   "sector_ref": [],
@@ -3374,6 +3789,30 @@
     "container",
     10.0,
     "container economy stationbuilding"
+   ],
+   [
+    "khaakalloy",
+    "container",
+    20.0,
+    "container economy transmutable"
+   ],
+   [
+    "khaakscrapmetal",
+    "solid",
+    10.0,
+    "economy recycling solid"
+   ],
+   [
+    "nividium",
+    "solid",
+    10.0,
+    "economy minable mineral solid"
+   ],
+   [
+    "rawkhaakscrap",
+    "solid",
+    10.0,
+    "processed recycling solid"
    ]
   ]
  },
@@ -3522,6 +3961,7 @@
     ]
    ],
    "id": "[0x33296]",
+   "macro": "station_arg_tradestation_base_01_macro",
    "modules": [
     [
      "defence_arg_disc_01_macro",
@@ -4208,6 +4648,7 @@
     "war_pressure": 1.2
    },
    "id": "[0x149cf]",
+   "macro": "",
    "modules": [
     [
      "defence_par_disc_01_macro",
@@ -4331,6 +4772,341 @@
     ]
    ]
   },
+  "GMJ-316": {
+   "cargo": [
+    [
+     "advancedcomposites",
+     397.0
+    ],
+    [
+     "antimatterconverters",
+     1733.0
+    ],
+    [
+     "dronecomponents",
+     302.0
+    ],
+    [
+     "nividium",
+     303.0
+    ]
+   ],
+   "id": "[0x11fd6]",
+   "macro": "station_arg_tradestation_base_01_macro",
+   "modules": [
+    [
+     "defence_arg_claim_01_macro",
+     1
+    ],
+    [
+     "defence_arg_disc_01_macro",
+     2
+    ],
+    [
+     "dockarea_arg_m_02_tradestation_01_macro",
+     2
+    ],
+    [
+     "dockarea_arg_m_station_01_hightech_macro",
+     2
+    ],
+    [
+     "pier_arg_single_01_tradestation_01_macro",
+     4
+    ],
+    [
+     "storage_arg_l_tradestation_01_macro",
+     4
+    ],
+    [
+     "struct_arg_base_01_macro",
+     4
+    ]
+   ],
+   "offers": [
+    [
+     "buy",
+     "advancedcomposites",
+     985.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "advancedcomposites",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "advancedelectronics",
+     1904.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "advancedelectronics",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "antimatterconverters",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "antimatterconverters",
+     1733.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "claytronics",
+     2380.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "claytronics",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "dronecomponents",
+     1602.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "dronecomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "dronecomponents",
+     0.0,
+     "supplies|invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "engineparts",
+     3263.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "engineparts",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "fieldcoils",
+     3809.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "fieldcoils",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "foodrations",
+     53272.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "foodrations",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "hullparts",
+     4761.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "hullparts",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "khaakalloy",
+     2857.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "khaakalloy",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "majadust",
+     9523.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "majadust",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "medicalsupplies",
+     28571.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "medicalsupplies",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "missilecomponents",
+     57142.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "missilecomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "nividium",
+     5411.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "nividium",
+     303.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "scanningarrays",
+     1503.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "scanningarrays",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "shieldcomponents",
+     5714.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "shieldcomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "smartchips",
+     28571.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "smartchips",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "smartchips",
+     130.0,
+     "supplies|invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "spacefuel",
+     150.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "spaceweed",
+     19047.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "spaceweed",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "stimulants",
+     50.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "turretcomponents",
+     2857.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "turretcomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "water",
+     9523.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "water",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "weaponcomponents",
+     2857.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "weaponcomponents",
+     0.0,
+     "invertfactionrestriction"
+    ]
+   ],
+   "owner": "argon",
+   "production": [],
+   "sector_macro": "cluster_08_sector001_macro",
+   "war_pressure": null,
+   "workforce": []
+  },
   "IFO-957": {
    "cargo": [
     [
@@ -4390,6 +5166,7 @@
     "war_pressure": 1.2
    },
    "id": "[0x90a95]",
+   "macro": "",
    "modules": [
     [
      "defence_par_disc_01_macro",
@@ -4604,6 +5381,7 @@
     ]
    ],
    "id": "[0x30273]",
+   "macro": "station_gen_factory_base_01_macro",
    "modules": [
     [
      "defence_arg_disc_01_macro",
@@ -4784,6 +5562,7 @@
     ]
    ],
    "id": "[0x9e57c]",
+   "macro": "station_gen_factory_base_01_macro",
    "modules": [
     [
      "defence_par_disc_01_macro",
@@ -4948,6 +5727,7 @@
     ]
    ],
    "id": "[0x8d5e1]",
+   "macro": "station_gen_factory_base_01_macro",
    "modules": [
     [
      "dockarea_arg_m_station_01_lowtech_macro",
@@ -5086,6 +5866,7 @@
     ]
    ],
    "id": "[0x2c939]",
+   "macro": "",
    "modules": [
     [
      "defence_arg_disc_01_macro",
@@ -5194,6 +5975,7 @@
     ]
    ],
    "id": "[0x30b89]",
+   "macro": "",
    "modules": [
     [
      "defence_arg_disc_01_macro",
@@ -5403,6 +6185,7 @@
     ]
    ],
    "id": "[0x3af1c]",
+   "macro": "",
    "modules": [
     [
      "dockarea_arg_m_station_02_hightech_macro",
@@ -5594,6 +6377,7 @@
     ]
    ],
    "id": "[0x8f1ab]",
+   "macro": "",
    "modules": [
     [
      "defence_tel_disc_01_macro",
@@ -5716,6 +6500,382 @@
     ]
    ]
   },
+  "PTW-627": {
+   "cargo": [
+    [
+     "advancedcomposites",
+     1335.0
+    ],
+    [
+     "dronecomponents",
+     111.0
+    ],
+    [
+     "nividium",
+     939.0
+    ]
+   ],
+   "id": "[0x4ab49]",
+   "macro": "landmarks_tel_tradestation_01_macro",
+   "modules": [
+    [
+     "landmarks_tel_tradestation_01_bridge_01_macro",
+     4
+    ],
+    [
+     "landmarks_tel_tradestation_01_center_01_macro",
+     1
+    ],
+    [
+     "landmarks_tel_tradestation_01_centercylinder_01_macro",
+     6
+    ],
+    [
+     "landmarks_tel_tradestation_01_centerend_01_macro",
+     1
+    ],
+    [
+     "landmarks_tel_tradestation_01_centerfill_01_macro",
+     2
+    ],
+    [
+     "landmarks_tel_tradestation_01_column_01_macro",
+     3
+    ],
+    [
+     "landmarks_tel_tradestation_01_column_02_macro",
+     12
+    ],
+    [
+     "landmarks_tel_tradestation_01_dockarea_m_01_macro",
+     9
+    ],
+    [
+     "landmarks_tel_tradestation_01_extension_01_macro",
+     1
+    ],
+    [
+     "landmarks_tel_tradestation_01_radar_01_macro",
+     1
+    ],
+    [
+     "landmarks_tel_tradestation_01_ring_01_macro",
+     1
+    ],
+    [
+     "landmarks_tel_tradestation_01_ring_inside_01_macro",
+     3
+    ],
+    [
+     "landmarks_tel_tradestation_01_ring_inside_02_macro",
+     3
+    ],
+    [
+     "landmarks_tel_tradestation_01_ring_inside_03_macro",
+     3
+    ],
+    [
+     "landmarks_tel_tradestation_01_ring_storage_01_macro",
+     3
+    ],
+    [
+     "landmarks_tel_tradestation_01_ringcenter_01_macro",
+     1
+    ],
+    [
+     "landmarks_tel_tradestation_01_ringclamp_01_macro",
+     2
+    ],
+    [
+     "landmarks_tel_tradestation_01_ringclamp_02_macro",
+     2
+    ],
+    [
+     "landmarks_tel_tradestation_01_storage_01_macro",
+     6
+    ],
+    [
+     "landmarks_tel_tradestation_01_tradelocation_01_macro",
+     12
+    ]
+   ],
+   "offers": [
+    [
+     "buy",
+     "advancedcomposites",
+     1369.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "advancedcomposites",
+     1104.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "advancedelectronics",
+     3130.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "advancedelectronics",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "antimatterconverters",
+     9392.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "antimatterconverters",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "claytronics",
+     3913.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "claytronics",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "dronecomponents",
+     3019.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "dronecomponents",
+     111.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "engineparts",
+     6261.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "engineparts",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "fieldcoils",
+     6261.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "fieldcoils",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "hullparts",
+     7827.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "hullparts",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "khaakalloy",
+     4696.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "khaakalloy",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "majadust",
+     15654.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "majadust",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "medicalsupplies",
+     5400.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "medicalsupplies",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "missilecomponents",
+     93928.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "missilecomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "nividium",
+     8453.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "nividium",
+     939.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "nostropoil",
+     4560.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "nostropoil",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "scanningarrays",
+     2471.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "scanningarrays",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "shieldcomponents",
+     9392.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "shieldcomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "smartchips",
+     46964.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "smartchips",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "spacefuel",
+     46964.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "spacefuel",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "spaceweed",
+     231.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "stimulants",
+     81.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "turretcomponents",
+     4696.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "turretcomponents",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "water",
+     15654.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "water",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "weaponcomponents",
+     4696.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "weaponcomponents",
+     0.0,
+     "invertfactionrestriction"
+    ]
+   ],
+   "owner": "teladi",
+   "production": [],
+   "sector_macro": "cluster_01_sector002_macro",
+   "war_pressure": null,
+   "workforce": [
+    [
+     "teladi",
+     104.0
+    ]
+   ]
+  },
   "TPF-229": {
    "cargo": [
     [
@@ -5756,6 +6916,7 @@
     ]
    ],
    "id": "[0x81c97]",
+   "macro": "",
    "modules": [
     [
      "defence_ter_disc_01_macro",
@@ -5901,6 +7062,7 @@
     ]
    ],
    "id": "[0x79f43]",
+   "macro": "",
    "modules": [
     [
      "defence_arg_disc_01_macro",

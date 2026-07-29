@@ -6,6 +6,7 @@ stock+buy proxy (source='proxy'). See docs in analysis/storage.py; the compute
 path is validated in-game against GDR-378 / UBX-812, the proxy against
 same-faction wharves matching to r=0.9984.
 """
+import math
 from types import SimpleNamespace
 
 import pandas as pd
@@ -43,13 +44,15 @@ def _ref():
 
 def _frames(built, universe, workforce=None, cargo=None, offers=None,
             production=None):
+    # universe rows are [id, class] or [id, class, station macro]
+    universe = [list(r) + [""] * (3 - len(r)) for r in universe]
     return SimpleNamespace(
         module_production=pd.DataFrame(
             production or [],
             columns=["id", "macro", "ware", "efficiency", "state",
                      "n_modules"]),
         built_modules=pd.DataFrame(built, columns=["id", "macro", "built"]),
-        universe=pd.DataFrame(universe, columns=["id", "class"]),
+        universe=pd.DataFrame(universe, columns=["id", "class", "macro"]),
         workforce_all=pd.DataFrame(workforce or [],
                                    columns=["id", "race", "amount"]),
         station_cargo=pd.DataFrame(cargo or [], columns=_CARGO),
@@ -499,3 +502,97 @@ def test_yards_keep_the_proxy_and_count_inbound():
     # station's inbound contribute nothing
     assert rows["energy"].max_units == 350
     assert rows["energy"].source == "proxy"
+
+
+# ---- the employment target (v29, E-124) ------------------------------------
+
+def _target_ref(target=1000.0):
+    """A trade-station design that declares <workforce max> of its own."""
+    ref = _trade_ref()
+    ref.modcaps = pd.concat([ref.modcaps, pd.DataFrame([
+        ["st_trade_design", "station", "", target, 0, ""],
+    ], columns=ref.modcaps.columns)], ignore_index=True)
+    return ref
+
+
+def test_the_ration_basis_is_the_station_macros_employment_target():
+    # PTW-627: the design declares 1,000 and the reserve is 4 h at 1,000
+    # even though 10 workers live there. NOT the live workforce.
+    frames = _frames(
+        built=[["t1", "store_container", 1]],
+        universe=[["t1", "station", "st_trade_design"]],
+        workforce=[["t1", "default", 10]],
+        offers=[["t1", "buy", "widget", 5, 1, "", None],
+                ["t1", "buy", "food1", 5, 1, "", None]])
+    rows = {r.ware: r for r in station_storage(frames, _target_ref()).itertuples()}
+    assert rows["food1"].role == "food"
+    assert rows["food1"].max_units == math.floor(
+        90 / 200 / 600 * 3600 * 1000 * FOOD_HOURS)         # 10,800
+    # and the reserve comes off the pool before the equal-volume split
+    assert rows["widget"].max_units == (100000 - 10800) / 1 / 10
+
+
+def test_the_target_and_the_job_slots_ADD():
+    # MOP-635: an Argon trade-station macro (250 here: the design) carrying
+    # build modules (100 job slots) reserves for 350, not for either alone.
+    frames = _frames(
+        built=[["t1", "store_container", 1], ["t1", "prod_widget", 1]],
+        universe=[["t1", "station", "st_trade_design"]],
+        workforce=[["t1", "default", 10]],
+        offers=[["t1", "buy", "food1", 5, 1, "", None]])
+    ref = _target_ref(250.0)
+    rows = {r.ware: r for r in station_storage(frames, ref).itertuples()}
+    assert rows["food1"].max_units == math.floor(
+        90 / 200 / 600 * 3600 * (250 + 100) * FOOD_HOURS)
+
+
+def test_a_declared_target_reserves_NOTHING_without_workers():
+    # GMJ-316: same Argon design (target 250), no habitat and no workforce,
+    # so its ration wares take full trading shares.
+    frames = _frames(
+        built=[["t1", "store_container", 1]],
+        universe=[["t1", "station", "st_trade_design"]],
+        offers=[["t1", "buy", "widget", 5, 1, "", None],
+                ["t1", "buy", "food1", 5, 1, "", None]])
+    rows = {r.ware: r for r in station_storage(frames, _target_ref(250)).itertuples()}
+    assert rows["food1"].role == "input"
+    assert rows["food1"].max_units == 50000
+
+
+def test_the_target_splits_by_the_LIVE_race_mix_floored_per_race():
+    # DHI-588: target 250 over argon 179 / other 72 (251 live) gives
+    # floor(250 x 179/251) = 178 and floor(250 x 72/251) = 71.
+    ref = _target_ref(250.0)
+    ref.recipes = pd.DataFrame([
+        ["widget", "default", 3600, 100, "energy", 100, 1.0],
+        ["workunit_busy", "default", 600, 200, "food1", 90, ""],
+        ["workunit_busy", "other", 600, 200, "food2", 45, ""],
+    ], columns=["ware", "method", "time", "amount",
+                "input_ware", "input_amount", "work_effect"])
+    frames = _frames(
+        built=[["t1", "store_container", 1]],
+        universe=[["t1", "station", "st_trade_design"]],
+        workforce=[["t1", "default", 179], ["t1", "other", 72]],
+        offers=[["t1", "buy", "food1", 5, 1, "", None],
+                ["t1", "buy", "food2", 5, 1, "", None],
+                ["t1", "buy", "widget", 5, 1, "", None]])
+    rows = {r.ware: r for r in station_storage(frames, ref).itertuples()}
+    assert rows["food1"].max_units == math.floor(
+        90 / 200 / 600 * 3600 * 178 * FOOD_HOURS)          # 1,922
+    assert rows["food2"].max_units == math.floor(
+        45 / 200 / 600 * 3600 * 71 * FOOD_HOURS)           # 383
+
+
+def test_packaged_modcaps_carry_the_station_class_employment_targets():
+    """Regression guard on the extraction glob: station macros live at
+    assets/structures/macros/*.xml, one level shallower than module macros,
+    and requiring the middle directory dropped all but the landmark one."""
+    from pathlib import Path
+    from x4analyzer.gamedata.refdata import load_refdata
+    mc = load_refdata(Path("/nonexistent")).modcaps      # packaged copies
+    st = mc[mc["class"].astype(str) == "station"]
+    got = dict(zip(st["macro"], pd.to_numeric(st["workers"], errors="coerce")))
+    assert got.get("station_arg_tradestation_base_01_macro") == 250
+    assert got.get("station_gen_piratebase_base_01_macro") == 150
+    assert got.get("landmarks_tel_tradestation_01_macro") == 1000
+    assert len(st) >= 8

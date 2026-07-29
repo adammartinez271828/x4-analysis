@@ -97,7 +97,7 @@ Stated once here, not repeated per file:
 
 Files and row counts (committed copies): `clusters.csv` 127 ·
 `engines.csv` 177 · `factions.csv` 31 · `gates.csv` 179 ·
-`gatherspeeds.csv` 5 · `highways.csv` 55 · `modcaps.csv` 240 ·
+`gatherspeeds.csv` 5 · `highways.csv` 55 · `modcaps.csv` 247 ·
 `modules.csv` 68 · `recipes.csv` 5,171 · `regionyields.csv` 45 ·
 `sectors.csv` 152 · `ships.csv` 358 · `wares.csv` 1,915 ·
 `textdb.csv.gz` 71,508.
@@ -241,16 +241,27 @@ arrive via the `<add sel>` diff mechanism above).
 
 ## modcaps.csv
 
-Station-module capacities. One row per module macro that declares
-workforce, cargo, or unit storage; key `macro`. Feeds the DB `module_cap`
-table.
+Station-module capacities. One row per macro that declares workforce,
+cargo, or unit storage; key `macro`. Feeds the DB `module_cap` table.
+
+Since 2026-07-29 (E-125) it also carries the eight **station-class** rows —
+the whole station's macro, not a module — whose `workers`
+(`properties/workforce@max`) is the design's **employment target**: the basis
+of its ration reserve (`analysis/storage.py`, station-storage-model.md).
+`station_gen_piratebase_base_01` 150, `station_{arg,bor}_tradestation_base_01`
+250, `station_{spl,ter}_tradestation_base_01` 300,
+`station_par_tradestation_base_01` 400, `station_tel_tradestation_base_01` and
+`landmarks_tel_tradestation_01` 1000. They were missed because station macros
+sit at `assets/structures/macros/*.xml`, one level shallower than module
+macros, and the extraction glob required the middle directory — the middle
+segment is optional now.
 
 | Column | Meaning | Provenance |
 |---|---|---|
-| `macro` | module macro, lowercased | `assets/structures/**/macros/*.xml` `macro@name` |
-| `class` | module class (`habitation`, `storage`, `production`, …) | `macro@class` |
-| `housing` | workforce the module houses | `properties/workforce@capacity` |
-| `workers` | workforce the module needs | `properties/workforce@max` |
+| `macro` | module (or station) macro, lowercased | `assets/structures/(**/)?macros/*.xml` `macro@name` |
+| `class` | macro class (`habitation`, `storage`, `production`, `station`, …) | `macro@class` |
+| `housing` | workforce the module houses (capacity, **not** demand) | `properties/workforce@capacity` |
+| `workers` | workforce the module needs; on a `station` row, the design's employment target | `properties/workforce@max` |
 | `cargo_max` | storage volume, m³ | `properties/cargo@max` |
 | `cargo_tags` | storage classes accepted (`container`, `liquid`, `solid`) | `properties/cargo@tags` |
 | `unit_storage` | drone/unit slots the module adds | `properties/storage@unit` |

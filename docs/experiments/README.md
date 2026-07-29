@@ -46,12 +46,12 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | subsystem | CONFIRMED | FALSIFIED | PENDING | SUPERSEDED | total |
 |---|---:|---:|---:|---:|---:|
 | Pricing (E-001…E-036, E-112…E-118) | 16 | 11 | 11 | 5 | 43 |
-| Storage allocation (E-037…E-063, E-119…E-123) | 18 | 6 | 7 | 1 | 32 |
+| Storage allocation (E-037…E-063, E-119…E-125) | 19 | 7 | 6 | 2 | 34 |
 | Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
-| **total** | **55** | **30** | **32** | **6** | **123** |
+| **total** | **56** | **31** | **31** | **7** | **125** |
 
 Eight entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -279,14 +279,20 @@ file, three remain open.
 **E-120 · CONFIRMED** — The ration buffer is keyed on the races actually PRESENT in the workforce, and floored PER RACE before the races are summed.
 *Predicts:* water at DHI-588 is an ordinary traded ware at 11,640 = 69,845/6 (it is the *Boron* ration and no Boron work there), not a `role='food'` row; and DCO-580's medical supplies come to 1,163 = 334 + 495 + 334 over argon/boron/paranid — boron's rate is 33 per 200 against the others' 45, so one floor on the summed rate gives 1,164 and misses. DHI-588 repeats it in game: 1,338 = 961 + 172 + 205. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 2.
 
-**E-121 · PENDING** — The ration buffer lags the live workforce: it is recomputed on a slower cadence and reflects the headcount at the last recompute.
-*Predicts:* DHI-588's four ration maxima are consistent with exactly one worker fewer per race than the save records (178/32/38 against 179/33/39) on all four wares at once, and the save's own bids confirm the readings (1,559 stock + 43 bid = 1,602 food rations). Save-wide the implied headcount equals the saved workforce on 13 of 31 single-race non-producers, sits 1–2 below on 10 more, and sits at exactly 1,000 on four starving teladi landmark trade stations whose saved workforces are 104/231/361/702 — an integer offset either way, largest where the workforce moves fastest, so not a scale factor (no common ratio fits DHI-588's three races). Same family as E-051. The four Teladi landmark trade stations carry an *identical* 5,400/4,560 reserve — a flat 1,000-worker basis — against module housing of 6,000, so it is neither the live workforce nor the housing cap. *Settles it:* re-read DHI-588's four ration maxima after playing forward — the lag predicts they walk up to 1,611/1,354/190/177, a fixed offset predicts they stay one worker per race behind. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 4; [trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md) § 5 H1.
+**E-121 · FALSIFIED** — The ration buffer lags the live workforce (recomputed on a slower cadence than the workforce itself).
+*Predicted:* DHI-588's four ration maxima consistent with one worker fewer per race than the save records; four Teladi landmark trade stations carrying an identical 5,400/4,560 reserve against live workforces of 104–702. *Killed by:* E-124 — the basis was never the workforce. Every one of those numbers is the design's declared EMPLOYMENT TARGET: DHI-588's Argon trade-station macro declares 250 against a live 251, and scaling the live races to 250 gives exactly 178/32/38, reproducing all four readings to the unit; the four Teladi stations all run `landmarks_tel_tradestation_01_macro`, which declares 1000. Three further disproofs of the lag reading: DHI-588's workforce is IDENTICAL (179/33/39) in save_006, save_008 and save_001 — 20,000 s apart — with the same reserve throughout, so nothing was catching up; PTW-627's reserve stayed at 1,000 while its workforce moved 376 → 546 → 104 → 160; and the implied basis matches the declared target on 31 of 31 single-race non-producers exactly, with no free parameter. Whether a lag explains EIJ-609 is a separate question and stays open on E-051. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum 2; [trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md) § 5 H1 (where it was raised as H1).
 
 **E-122 · CONFIRMED** — A storage module naming several transport tags holds ONE shared space: the unit of division is the connected group of tags, not the tag.
 *Predicts:* JDV-447's single 1,200,000 m³ `storage_arg_l_tradestation_01` (`cargo_tags="container liquid solid"`) divides among its 20 container wares **and** its one solid ware together — 1,200,000/21 = 57,142.86 m³ apiece, reproduced on IWQ-591's ring storage. Summing per tag would give each of the three pools the full 1,200,000. Five macros are mixed in this save; 42 Xenon producers carry one and were being triple-counted, though they post no offers so there is no ground truth for them. Eight trading stations fit only with the pools merged. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § The unit of division; [trade-station-allocations-2026-07-29.md](../reports/trade-station-allocations-2026-07-29.md) § Pool groups, not pools.
 
-**E-123 · CONFIRMED** — The ration basis is the station's production JOB SLOTS when it has any, and its live workforce when it has none.
-*Predicts:* over 1,065 single-race producers with a saturated ration buy whose ration is outside their own recipes, the implied headcount matches Σ `module_cap.workers` on 1,034 (median ratio 1.0000) against 793 for the live workforce; GKM-488 staffs 2 of 540 slots and still allocates for 540. A trade station has no job slots and is sized on its population instead (DHI-588; 13 of 31 single-race non-producers land on the saved workforce to the unit, the rest are E-121), and a station with NO workforce takes no ration reserve at all — its ration wares become ordinary traded wares with a full share (JJX-981 and five other Terran trade stations, all exact). *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 3.
+**E-123 · SUPERSEDED** — The ration basis is the station's production JOB SLOTS when it has any, and its live workforce when it has none.
+*Replaced by:* E-124. *Predicted:* over 1,065 single-race producers with a saturated ration buy, the implied headcount matches Σ `module_cap.workers` on 1,034 (median ratio 1.0000) against 793 for the live workforce; GKM-488 staffs 2 of 540 slots and still allocates for 540. *Superseded by:* the first half is right and survives inside E-124 — job slots are one term of the employment target. The second half is wrong: a station with no job slots takes its basis from its own STATION macro's `<workforce max>`, not from the live workforce, which is why PTW-627 reserves for 1,000 with 104 workers present. The live workforce only ever appeared to work because a station's population grows toward the target. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Finding 3.
+
+**E-124 · CONFIRMED** — The ration reserve is 4 h at the station's EMPLOYMENT TARGET — Σ `<workforce max>` over its built demand-side modules (production + buildmodule) PLUS its station macro's own `<workforce max>` — split across races in proportion to the live workforce and floored per race.
+*Predicts:* the target, not the population, sizes the reserve. PTW-627 reserves 5,400 medical supplies + 4,560 nostrop oil = 4 h at 1,000 while 104 live there, and the player's Workforce tab reads "Employment target 1000". The eight station-class macros declare piratebase 150, arg/bor tradestation 250, spl/ter 300, par 400, tel tradestation and the Teladi landmark 1000 — all eight match the save's own ration offers exactly, and the player independently confirms 150 (free ports), 400 (Paranid) and 1000. It is a SUM, not a fallback: MOP-635 (Argon trade-station macro 250 + build modules 400) implies exactly 650, TTV-091 3,000 + 150 = 3,150. Scored save-wide against the ration-implied target it has median ratio 1.0000 for EVERY station design and 1,118 of 1,150 within 1 % — 1,066 gen_factory producers, 50 yards (wharfs 800, shipyards to 3,150, all falling out of the same sum), and the seven trade/pirate designs. Habitation `<workforce max>` is CAPACITY, not demand, and must not be summed: housing matches on 0 of 31 non-producers and 4 of 1,066 producers. The per-race split with a per-race floor gives DHI-588 178/32/38 from 250 over 179/33/39, reproducing all four of its in-game ration maxima. A station with no workers takes NO reserve whatever its design declares (GMJ-316: target 250, no habitat module, food rations take a full 57,142 trading share). **Documents disagree — see § Contradictions.** *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum 2.
+
+**E-125 · CONFIRMED** — `extract_modcaps` dropped every station-class macro but one: station macros live one directory shallower than module macros.
+*Predicts:* the glob `assets/structures/.*/macros/.*\.xml` requires a directory between `structures` and `macros`, so `assets/structures/macros/station_*.xml` never matched and only the landmark station macro (under `structures/landmarks/macros/`) was extracted — one station row in `modcaps.csv` instead of eight, and E-124's employment target unreadable for seven designs. Making the segment optional adds exactly 7 rows and changes nothing else (247 rows, same 240 module rows). *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum 2, The extraction gap.
 
 ## Parser / save format
 
@@ -493,6 +499,21 @@ shows what it caught:
 
 Still open: (3) faction relation symmetry, (4) inert anomaly census, and (8)
 whether non-producers cap.
+
+- **(9) how the employment target splits across races** (E-124, opened
+  2026-07-29) — the two multi-race stations that can discriminate **disagree**,
+  and neither reading survives both. **DHI-588** (in-game, authoritative):
+  target 250 over a live 179/33/39 gives 178/32/38 by the LIVE mix, and all
+  four of its ration maxima land to the unit; its habitat mix
+  (0.649/0.179/0.171) would give 162/44/42 and misses every one. **DCO-580**
+  (save-derived, saturated buys, stable across three snapshots 20,000 s apart):
+  target 250 over a live 65/125/63 needs 62/125/62, which is its HABITAT
+  capacity mix (1:2:1) exactly, while the live mix gives 64/123/62 and misses
+  two of three. EMY-219 is a tie (both give 87/62). `analysis/storage.py`
+  implements the live mix, on the strength of DHI-588 being read in game;
+  the disagreement is ±3 workers on a 250-worker reserve — 0.8 % of the
+  reserve, ~0.2 % of the pool — and needs a third multi-race station read in
+  game to settle. Recorded, not resolved.
 
 ### The original list
 

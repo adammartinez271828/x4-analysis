@@ -98,10 +98,26 @@ only works against the same save that produced them.
   at a given station is set by **the races actually present in its workforce**,
   not by the ware being some race's ration (E-120): a station with argon,
   paranid and teladi workers and no Boron treats **water** as an ordinary
-  traded ware. The 4 h buffer is floored **per race** before the races are
-  summed, and its basis is Σ `module_cap.workers` (full staffing) when the
-  station has job slots, else the live workforce (E-123) — a lag on which is
-  E-121.
+  traded ware.
+  The buffer is 4 h at the station's **EMPLOYMENT TARGET**, never at its live
+  population (E-124, CONFIRMED 2026-07-29, and the game shows the number in the
+  station's Workforce tab):
+
+      target = Σ `<workforce max>` over the built PRODUCTION and BUILDMODULE
+               macros  (module_cap.workers)
+             + the STATION macro's own `<workforce max>`, if it declares one
+
+  It is a sum, not a fallback — MOP-635 is 400 (build modules) + 250 (Argon
+  trade-station macro) = 650 exactly, TTV-091 3,000 + 150 = 3,150. Habitation
+  `<workforce max>` is **capacity**, not demand: it lands in
+  `module_cap.housing` and must not be summed in (it matches the implied basis
+  on 0 of 31 non-producers). PTW-627 reserves 4 h for **1,000** workers with
+  **104** living in it. Median ratio 1.0000 against the ration-implied basis
+  for every station design, 1,118 of 1,150 within 1 %. The target is split by
+  the **live** race mix with the headcount floored per race, and the 4 h buffer
+  floored per race again (E-120). A station with **no workers takes no reserve
+  at all**, whatever its design declares. *(This supersedes E-123's "live
+  workforce when it has no job slots" and falsifies E-121's lag reading.)*
 - Build demand = the build storages' open **buy offers** (`<trade buyer=
   ware= amount=>` under `<offers>`). The `<insufficient>`/`<shortage>`
   amounts under `<build><resources>` are NOT per-ware quantities (in-game

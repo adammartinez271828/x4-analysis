@@ -19,11 +19,11 @@ Claims are tagged by confidence:
 - **[EXP]** — established by an in-game reading or controlled action.
 - **[INF]** — inferred, consistent with the data, not independently verified.
 
-**This model is the best-validated thing in the project: 86 of 90 in-game
-readings within 1 %** (`uv run python tests/readings.py`), across **ten
-stations and seven factions**, single- and multi-ware producers, a
-multi-species trade station, and all four transport pools. The failures are
-EIJ-609's hull parts and three of DHI-588's four rations, both below.
+**This model is the best-validated thing in the project: 131 of 132 in-game
+readings within 1 %** (`uv run python tests/readings.py`), across **thirteen
+stations and eight factions**, single- and multi-ware producers, three trade
+stations (one of them multi-species), and all four transport pools. The single
+failure is EIJ-609's hull parts, below.
 
 ## The mechanic in one paragraph
 
@@ -54,11 +54,15 @@ for each station:
     group_cap[g] = Σ m.cargo_max over modules serving g
 
     # ---- rations, for the races PRESENT in the workforce -------------------
-    basis = Σ m.workers over built modules      # job slots: FULL staffing
-    if basis == 0: basis = Σ workforce.amount   # a trade station still eats
+    # the EMPLOYMENT TARGET, never the live population
+    basis = Σ m.workers over built modules      # production + buildmodule
+          + station.macro.workers               # the design's own target
+    if basis == 0: basis = Σ workforce.amount   # no design declares neither
+    if no workforce at all: no ration reserve
     for each race r present, with share f of the live workforce:
+        head = floor(basis × f)                 # floored PER RACE
         for each input i of workunit_busy/r:
-            ration_units[i] += floor(i.amount/200/i.time × 3600 × basis×f × FOOD_HOURS)
+            ration_units[i] += floor(i.amount/200/i.time × 3600 × head × FOOD_HOURS)
 
     # ---- non-producers: equal VOLUME, and stop here ------------------------
     if station has no production module (and no build module):
@@ -279,17 +283,47 @@ boron 125 / paranid 63) allocates 1,163 medical supplies = 334 + 495 + 334;
 boron's rate is 33 per 200 workers against the others' 45, and one floor on the
 summed rate gives 1,164. DHI-588 repeats it in game: 1,338 = 961 + 172 + 205.
 
-The **basis** is the station's production job slots when it has any and its
-live workforce when it has none [OBS] — 1,034 of 1,065 single-race producers
-match Σ `module_cap.workers`, against 793 for the live workforce, and GKM-488
-staffs 2 of 540 slots but still allocates for 540.
+### The basis is the EMPLOYMENT TARGET, not the population [EXP]
 
-**The buffer lags the live workforce** [OBS, mechanism HYPOTHESIS]. DHI-588's
-four ration maxima are consistent with one worker fewer per race than the save
-records; four starving Teladi landmark trade stations carry an identical
-1,000-worker reserve against live workforces of 104–702. See E-121 — this is
-the one thing on this page the model knowingly gets wrong, by 0.6–3.3 % on a
-small station's rations.
+```
+target = Σ module_cap.workers over built production + buildmodule modules
+       + module_cap.workers on the STATION's own macro, if it declares one
+```
+
+The game shows this number in the station's Workforce tab. It is a property of
+the design and its build, not of who lives there: **PTW-627 reserves 4 h for
+1,000 workers while 104 live in it**, and the player reads "Employment target
+1000" in its UI. The eight station-class macros declare
+
+| design | target | | design | target |
+|---|---:|---|---|---:|
+| `station_gen_piratebase_base_01` | 150 | | `station_par_tradestation_base_01` | 400 |
+| `station_arg_tradestation_base_01` | 250 | | `station_tel_tradestation_base_01` | 1000 |
+| `station_bor_tradestation_base_01` | 250 | | `landmarks_tel_tradestation_01` | 1000 |
+| `station_{spl,ter}_tradestation_base_01` | 300 | | | |
+
+and all eight match the reserve the save's own ration offers imply, exactly.
+
+- **It is a SUM, not a fallback** [OBS]: MOP-635 (Argon trade-station macro 250
+  + build modules 400) implies exactly 650, TTV-091 3,000 + 150 = 3,150.
+- **Habitation `<workforce max>` is CAPACITY, not demand** [OBS] — it lands in
+  `module_cap.housing` and must not be summed in. Housing matches the implied
+  basis on 0 of 31 non-producers and 4 of 1,066 producers.
+- Scored save-wide against the ration-implied basis, the sum has **median ratio
+  1.0000 for every station design** and 1,118 of 1,150 within 1 %: 1,066
+  gen_factory producers, 50 yards (wharfs 800, shipyards to 3,150, out of the
+  same sum with no special case) and the seven trade/pirate designs.
+- **No workers ⇒ no reserve**, whatever the design declares (GMJ-316: target
+  250, no habitat module, food rations take a full 57,142 trading share).
+- The target is split across races by the **live** mix and the headcount is
+  **floored per race**: DHI-588's 250 over 179/33/39 → 178/32/38, and its four
+  in-game ration maxima all land to the unit. DCO-580 disagrees and wants its
+  *habitat* mix instead — recorded as contradiction (9) in the register.
+
+This replaces the "the buffer lags the live workforce" reading (E-121,
+FALSIFIED): nothing lags. DHI-588 holds 179/33/39 in three snapshots 20,000 s
+apart with the same reserve throughout, and PTW-627's reserve sat at 1,000
+while its workforce went 376 → 546 → 104 → 160.
 
 ## Validating it
 
@@ -324,6 +358,9 @@ allocation. Coverage is 99.7 % below 90 % fill, 38 % at 100–110 %, 5 % above.
 | candidate | how it died |
 |---|---|
 | a non-producer's allocation is `stock + open buy` and nothing better | it is `(capacity − rations)/n_traded/volume`, exact: DHI-588 36/36 non-ration readings, 601/634 save-wide against 556. The proxy was a *fill-dependent* reading of an allocation that does not depend on fill |
+| the ration reserve is sized on the live workforce | it is sized on the design's EMPLOYMENT TARGET. PTW-627 reserves for 1,000 with 104 present; 31 of 31 single-race non-producers match their declared target exactly |
+| the ration reserve lags the workforce (E-121) | nothing lags — DHI-588 is static across 20,000 s and still 1 worker per race "behind", which is the 250 target scaled to its 251 live workers |
+| the ration basis is the station's habitat CAPACITY | 0 of 31 non-producers, 4 of 1,066 producers. Housing is capacity, not demand |
 | the ration role belongs to a ware because some race eats it | put `role='food', max=10,390` on DHI-588's water, which the game allocates as an ordinary traded ware at 11,640. It is keyed on the races present |
 | a mixed-tag storage module gives each of its tags the full capacity | triple-counts: JDV-447's 21 wares across two transports share one 1,200,000 m³ bay |
 | `stock + open buy` is the offer-derived allocation | the inbound term is not optional — `stock + inbound + open buy`. Omitting it read low on 96 of 561 trade-station pairs, one-sided, and closed every DHI-588 miss exactly |
@@ -358,12 +395,11 @@ allocation. Coverage is 99.7 % below 90 % fill, 38 % at 100–110 %, 5 % above.
    because it carries player-set `ware_limit` rows. *Needs* an NPC station with
    both a production and a build module.
 5. **Multi-stage internally-cycled wares** (gross vs net flow) are not modelled.
-6. **The ration buffer lags the live workforce** (E-121). DHI-588 reads one
-   worker per race low, four Teladi landmark trade stations read a flat
-   1,000-worker reserve against live workforces of 104–702. *Falsifiable* by
-   re-reading DHI-588's four ration maxima after playing forward. The model
-   uses the saved workforce and carries the error (0.6–3.3 % there); it is not
-   fudged, because save-wide the saved value is the best single choice.
+6. **How the employment target splits across races is unsettled.** DHI-588
+   (in game) needs the LIVE race mix; DCO-580 (save-derived) needs its HABITAT
+   capacity mix; EMY-219 cannot tell them apart. The model uses the live mix.
+   ±3 workers on a 250-worker reserve. *Settles it:* a third multi-race station
+   read in game. Register contradiction (9).
 7. **Build-station allocation** (wharfs / shipyards / equipment docks) has no
    model at all — only the `stock + inbound + open buy` lower bound. The
    equal-volume rule is *false* there. QJI-262's seven wares span 205× in
@@ -492,6 +528,9 @@ per station, per transport pool (container / liquid / solid / condensate):
 
   T   = (pool_capacity − Σ ration_volume) / Σ (throughput × ware.volume)
   max = throughput × T                    rations: consumption × 4 h  (additive)
+  ration consumption runs on the EMPLOYMENT TARGET (Σ production/buildmodule
+    workforce max + the station macro's own), split by the live race mix,
+    floored per race. No workers ⇒ no reserve.
 
   output(ware) = Σ floor(recipe.amount × efficiency) / recipe.time × 3600
   input(ware)  = Σ recipe.input_amount / recipe.time × 3600      ← base, no bonus
@@ -510,6 +549,6 @@ build stations (a built buildmodule*): max ≈ stock + inbound + open buy amount
 pools are GROUPS of transport tags: a module tagged "container liquid solid"
   is ONE shared space, so union the tags it links and divide once
 
-validate against: tests/readings.py (86/90 in game), and
+validate against: tests/readings.py (131/132 in game), and
   stock + inbound + buy amount — a LOWER BOUND, saturated for input buyers
 ```

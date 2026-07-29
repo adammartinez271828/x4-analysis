@@ -619,10 +619,21 @@ def extract_recipes(gf: GameFiles) -> list[list]:
 
 
 def extract_modcaps(gf: GameFiles) -> list[list]:
-    """Station module capacities: housing/needed workforce and storage."""
+    """Station module capacities: housing/needed workforce and storage.
+
+    The directory between `structures` and `macros` is OPTIONAL. Station
+    macros themselves live at `assets/structures/macros/*.xml` while module
+    macros sit one level deeper (`assets/structures/storage/macros/...`), and
+    requiring the middle segment dropped every station-class macro except the
+    landmarks -- with it, the `<workforce max=>` EMPLOYMENT TARGET that sizes a
+    trade station's ration reserve (E-124). Seven rows were missing:
+    station_{arg,bor}_tradestation 250, station_gen_piratebase 150,
+    station_par_tradestation 400, station_{spl,ter}_tradestation 300,
+    station_tel_tradestation 1000.
+    """
     rows = {}
     paths = gf.glob(
-        r"(extensions/[^/]+/)?assets/structures/.*/macros/.*\.xml$"
+        r"(extensions/[^/]+/)?assets/structures/(.*/)?macros/.*\.xml$"
     )
     for path in paths:
         root = _parse(gf, path)
