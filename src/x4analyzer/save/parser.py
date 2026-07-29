@@ -68,9 +68,12 @@ class SaveData:
     workforce: list = field(default_factory=list)      # (station_id, race, amount)
     modules: list = field(default_factory=list)
     # (host_id, index, macro, entry_id)
-    # sequence-entry ids that have a constructed component (module built)
+    # sequence entries that have a constructed component (module built), as
+    # (host_id, entry_id): entry ids are unique only PER STATION, so the host
+    # is part of the key (dropping it let one station's finished entry mark a
+    # same-id entry built on every other station running the same plan)
     built_refs: list = field(default_factory=list)
-    # equipment in planned module loadouts: (entry_id, equipment_macro)
+    # equipment in planned module loadouts: (host_id, entry_id, equipment_macro)
     module_upgrades: list = field(default_factory=list)
     # per production module: (host_id, module_macro, ware, efficiency, state).
     # <production><efficiency product=> is the engine's COMPLETE runtime
@@ -301,10 +304,19 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
     # nearest open station/ship component id, for posts/workforce/modules
     object_stack: list[str] = []
     npc_stack: list[list] = []       # open npc records awaiting <skills>
-    entry_stack: list[str] = []      # open construction sequence entries
+    # open construction sequence entries: [entry_id, [loadout macros]]. The
+    # loadout is buffered on the entry and emitted at its end tag, where the
+    # owning host is still on comp_stack (entry ids are only unique per host)
+    entry_stack: list[list] = []
+    upgrade_seen: set = set()        # (host, entry) whose loadout is recorded
     # open <production> blocks on module components: [state, ware, product]
     prod_stack: list[list] = []
-    build_type_stack: list[str] = []  # type attr of open <build> elements
+    # (type, component) of open <build> elements. component= is the object
+    # the task builds FOR: a build storage's <build type="expand"> carries a
+    # third copy of its station's plan (the station itself lists it twice,
+    # <construction><sequence> + <snapshot>), so entries under it belong to
+    # that station, not to the storage that is doing the building
+    build_type_stack: list[tuple] = []
     sector_macro_stack: list[str] = []
     # open data-vault components awaiting their loot/unlock children
     vault_stack: list[list] = []
@@ -364,7 +376,8 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                             elem.get("owner", ""), {},
                         ])
                 elif tag == "build":
-                    build_type_stack.append(elem.get("type", ""))
+                    build_type_stack.append(
+                        (elem.get("type", ""), elem.get("component", "")))
                     # <build> is overloaded: a build TASK under a
                     # buildprocessor (always carries order=), construction
                     # progress under a station/buildstorage (no attributes,
@@ -384,7 +397,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                             (comp_stack[-1][1], elem.get("method", "")))
                 elif tag == "entry" and elem.get("index") \
                         and elem.get("macro"):
-                    entry_stack.append(elem.get("id", ""))
+                    entry_stack.append([elem.get("id", ""), []])
                 elif tag == "person":
                     if object_stack:
                         key = (object_stack[-1], elem.get("role", ""))
@@ -524,8 +537,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         and elem.get("state") != "construction":
                     # in-progress modules carry state="construction"; their
                     # plan entry still needs materials, so only finished
-                    # components mark an entry as built
-                    d.built_refs.append(elem.get("construction"))
+                    # components mark an entry as built. Keyed on the OWNING
+                    # host: entry ids repeat across stations that share a
+                    # station plan (comp_stack has already popped this
+                    # component, so _nearest_host is the station above it)
+                    d.built_refs.append(
+                        (_nearest_host(comp_stack), elem.get("construction")))
                 if clazz == "station" or _SHIP_RE.match(clazz):
                     if object_stack and object_stack[-1] == cid:
                         object_stack.pop()
@@ -690,8 +707,15 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     d.log_entries.append(dict(elem.attrib))
                 elif elem.get("index") and elem.get("macro"):
                     # sequence entries live on stations (built + queued) and
-                    # on build storages (expansion plans, type="expand")
-                    host = _nearest_host(comp_stack)
+                    # on build storages (expansion plans, type="expand").
+                    # An expansion plan is a copy of the STATION's plan, and
+                    # its entry ids are the station's — attribute it to the
+                    # <build component=> it builds for, so all copies of one
+                    # plan share a host and the per-host dedup collapses them
+                    host = ""
+                    if build_type_stack and build_type_stack[-1][0] == "expand":
+                        host = build_type_stack[-1][1]
+                    host = host or _nearest_host(comp_stack)
                     if host:
                         try:
                             d.modules.append((
@@ -702,7 +726,18 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         except ValueError:
                             pass
                     if entry_stack:
-                        entry_stack.pop()
+                        entry_id, macros = entry_stack.pop()
+                        # a plan is listed up to three times (construction
+                        # sequence, snapshot, the build storage's expand
+                        # task): record each entry's loadout once per host,
+                        # keeping repeats WITHIN one listing (a module can
+                        # carry the same turret on several groups)
+                        key = (host, entry_id)
+                        if host and macros and (not entry_id
+                                                or key not in upgrade_seen):
+                            upgrade_seen.add(key)
+                            d.module_upgrades += [
+                                (host, entry_id, m) for m in macros]
 
             elif tag == "skills":
                 if npc_stack:
@@ -779,7 +814,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     # queued wharf ship orders whose "insufficient" amounts
                     # are a wharf-wide aggregate repeated per order/ware —
                     # meaningless to sum (their demand = their buy offers)
-                    btype = build_type_stack[-1] if build_type_stack else ""
+                    btype = build_type_stack[-1][0] if build_type_stack else ""
                     if btype in ("", "build"):
                         # host = nearest trackable ancestor (station, free
                         # build storage, or ship) — insufficient blocks often
@@ -809,8 +844,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
             elif tag in ("shields", "turrets", "engines"):
                 if entry_stack and elem.get("macro") \
                         and tag_stack and tag_stack[-1] == "groups":
-                    d.module_upgrades.append(
-                        (entry_stack[-1], elem.get("macro", "").lower()))
+                    entry_stack[-1][1].append(elem.get("macro", "").lower())
 
             elif tag == "trade":
                 if elem.get("ware") and "offers" in tag_stack \

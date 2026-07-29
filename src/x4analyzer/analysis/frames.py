@@ -61,8 +61,11 @@ class Frames:
     #   flags (raw |-joined set, "" = none; "supplies" = self-supply buy),
     #   desired (wanted total, NaN if absent)
     orders: pd.DataFrame = None              # id, order, default, state
-    built_refs: set = None                   # constructed sequence-entry ids
-    module_upgrades: pd.DataFrame = None     # entry, macro (planned loadouts)
+    # constructed sequence entries as (host_id, entry_id): entry ids repeat
+    # across stations sharing a plan, so the host is part of the key
+    built_refs: set = None
+    module_upgrades: pd.DataFrame = None     # id (host), entry, macro
+    #   (planned loadouts; keyed on (id, entry) for the same reason)
     # live production-module state (v27): id, macro, ware, efficiency, state,
     # n_modules. efficiency is the engine's COMPLETE multiplier on the recipe
     # amount -- workforce bonus x sunlight x mod effects, all in one number.
@@ -693,11 +696,12 @@ def build_frames(save: SaveData, ref: RefData,
             FROM trade_offer WHERE save_id = {_CUR} ORDER BY rowid""",
             fill=["id", "flags"]),
         orders=orders,
-        built_refs=set(save.built_refs),
+        built_refs=set(save.built_refs),   # (host_id, entry_id) pairs
         has_highways=save.has_highways,
         module_upgrades=_read(conn, f"""
-            SELECT entry_id AS entry, equipment_macro AS macro
-            FROM module_upgrade WHERE save_id = {_CUR} ORDER BY rowid"""),
+            SELECT host_id AS id, entry_id AS entry, equipment_macro AS macro
+            FROM module_upgrade WHERE save_id = {_CUR} ORDER BY rowid""",
+            fill=["id"]),
         module_production=_read(conn, f"""
             SELECT station_id AS id, macro, ware, efficiency, state, n_modules
             FROM module_production WHERE save_id = {_CUR} ORDER BY rowid""",

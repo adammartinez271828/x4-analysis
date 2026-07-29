@@ -132,6 +132,7 @@ erDiagram
         INTEGER built
     }
     module_upgrade {
+        TEXT host_id FK
         TEXT entry_id FK
         TEXT equipment_macro
     }
@@ -348,7 +349,7 @@ erDiagram
     save ||..o{ component : "save_id"
     component ||..o{ fleet_edge : "follower/commander"
     component ||..o{ build_entry : "host_id"
-    build_entry ||..o{ module_upgrade : "entry_id"
+    build_entry ||..o{ module_upgrade : "(host_id, entry_id)"
     component ||..o{ workforce : "station_id"
     component ||..o{ post : "object_id"
     post }o..o| npc : "npc_id"
@@ -513,9 +514,14 @@ warn). Save-side structure: savegame-structure.md § Fleet hierarchy.
 
 ### build_entry
 
-Station/build-storage build-**plan** entries, **deduplicated** across the
-two places a save lists them (station `construction/sequence` and the
-build storage's `buildtasks` expand queue repeat the same entry ids).
+Station build-**plan** entries, **deduplicated per host** across the places
+a save lists them (station `construction/sequence`, its `snapshot` repeat,
+and the build storage's `buildtasks` expand queue all repeat the same entry
+ids). Entry ids are unique only PER STATION, so every lookup is keyed on
+(`host_id`, `entry_id`) — v28; keying on the bare id let one station's
+finished entry mark another's unbuilt entry built. The expand queue is
+attributed to the station named in `<build component=>`, so a build storage
+holds no `build_entry` rows of its own.
 Renamed from `module` in v15 (plan T11): the rows are plan entries, not
 modules, and the old name was the direct cause of the 2×-capacity bug
 class (unbuilt plan entries counted as modules). Save-side structure:
@@ -524,23 +530,26 @@ savegame-structure.md § Stations.
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
 | `save_id` | INTEGER, FK → `save` | snapshot | — |
-| `host_id` | TEXT, FK → `component.id` | owning station / build storage / ship | derived: nearest trackable ancestor |
+| `host_id` | TEXT, FK → `component.id` | owning station (part of the key: entry ids repeat across stations) | derived: `<build component=>` for an expand queue, else nearest trackable ancestor |
 | `entry_id` | TEXT | sequence-entry id (NULL for entries without one) | `entry@id` |
 | `idx` | INTEGER | build-order index | `entry@index` |
 | `macro` | TEXT, FK → `module_ref.macro` / `module_cap.macro` | module macro, lowercased | `entry@macro` |
-| `built` | INTEGER | 1 = a finished component exists for this entry (`state="construction"` still counts as unbuilt); entries without an id default to built | derived: `component@construction` back-references |
+| `built` | INTEGER | 1 = a finished component **under this host** claims this entry (`state="construction"` still counts as unbuilt); entries without an id default to built | derived: `component@construction` back-references, keyed on (host, entry) |
 
 Anything measuring existing capacity/value must filter `built = 1`
 (`v_built_module`) — sequences include planned, unbuilt entries.
 
 ### module_upgrade
 
-Planned equipment in build-plan entries (the loadout a module will get).
+Planned equipment in build-plan entries (the loadout a module will get),
+one listing per (`host_id`, `entry_id`) — repeated macros within one entry
+are real (one per group) and are kept.
 Save-side: savegame-structure.md § Stations (upgrades/groups).
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|
 | `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `host_id` | TEXT, FK → `component.id` | owning station — entry ids are unique only per station (v28) | derived: as `build_entry.host_id` |
 | `entry_id` | TEXT, FK → `build_entry.entry_id` | the sequence entry | `entry@id` |
 | `equipment_macro` | TEXT | shield/turret/engine macro, lowercased | `entry/upgrades/groups/(shields\|turrets\|engines)@macro` |
 

@@ -496,8 +496,18 @@ Parsed since v27 (`module_production`).
 **Build plan, listed twice.** The same sequence entries (same `id`s!) appear
 in TWO places: the station's own `<construction><sequence>` and — while a
 build storage exists — the storage's
-`<buildtasks><inprogress><build type="expand"><sequence>`. Consumers must
-dedupe by entry id. The sequence includes *unbuilt* entries; a built module's
+`<buildtasks><inprogress><build type="expand"><sequence>` (a station also
+repeats its plan a third time under `<snapshot>`). Consumers must dedupe by
+entry id **per host** — and the storage's copy belongs to the station named
+in `<build component=>`, not to the storage.
+
+**Entry ids are unique only PER STATION.** Every station running the same
+station plan carries the same entry ids (2,235 of 22,562 ids in one save are
+shared, up to 33 stations on one id), so any lookup keyed on the bare entry
+id merges unrelated stations — that is how a finished module on one station
+marked an unbuilt entry built on another (see db-schema.md v28).
+
+The sequence includes *unbuilt* entries; a built module's
 component elsewhere in the station carries `construction="[entryid]"`
 (with `state="construction"` meaning still in progress — its materials still
 count). Station side:

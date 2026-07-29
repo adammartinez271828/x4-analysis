@@ -407,3 +407,113 @@ def test_fixture_parse(save_file: Path) -> None:
                              "tradeentry": "1", "v": "16000000"}]
     assert d.removed_objects[0]["name"] == "TEL Trader"
     assert d.log_entries[0]["title"] == "Test entry"
+
+
+# --- v28: entry ids are unique only PER STATION -------------------------
+# Two stations running the same station plan carry the SAME sequence entry
+# ids. Before v28 the parser collected built_refs as a flat list of entry
+# ids, so ALPHA's finished [0x51] marked BRAVO's still-under-construction
+# [0x51] built — inventing a module (and, on JAR-041, 250,000 m3 of
+# container capacity). The third copy of the plan lives on the build
+# storage's <build type="expand">, which names its station in component=.
+COLLISION_FIXTURE = """<?xml version="1.0"?>
+<savegame>
+  <info>
+    <save name="#001" date="1700000000"/>
+    <game guid="COLL-1" version="900" time="10.0"/>
+    <player name="P" money="1"/>
+  </info>
+  <universe>
+    <component class="galaxy" id="[0x1]" connection="space">
+      <connections><connection connection="galaxy">
+      <component class="cluster" macro="cluster_01_macro" id="[0x10]" connection="galaxy">
+        <connections><connection connection="cluster">
+        <component class="sector" macro="cluster_01_sector001_macro" id="[0x11]"
+                   connection="cluster">
+        <connections><connection connection="sector">
+          <component class="station" macro="station_macro" id="[0xA0]"
+                     owner="argon" code="ALP-001" connection="sector">
+            <construction><sequence>
+              <entry id="[0x50]" index="1" macro="mod_a_macro"/>
+              <entry id="[0x51]" index="2" macro="mod_b_macro">
+                <upgrades><groups>
+                  <turrets macro="TURRET_A_MACRO" group="down_01"/>
+                </groups></upgrades>
+              </entry>
+            </sequence></construction>
+            <connections><connection connection="modules">
+              <component class="buildmodule" macro="mod_a_macro" id="[0xA1]"
+                         construction="[0x50]" connection="modules"/>
+              <component class="buildmodule" macro="mod_b_macro" id="[0xA2]"
+                         construction="[0x51]" connection="modules"/>
+            </connection></connections>
+          </component>
+          <component class="station" macro="station_macro" id="[0xB0]"
+                     owner="argon" code="BRV-001" connection="sector">
+            <construction><sequence>
+              <entry id="[0x50]" index="1" macro="mod_a_macro"/>
+              <entry id="[0x51]" index="2" macro="mod_b_macro">
+                <upgrades><groups>
+                  <turrets macro="TURRET_B_MACRO" group="down_01"/>
+                </groups></upgrades>
+              </entry>
+            </sequence></construction>
+            <connections><connection connection="modules">
+              <component class="buildmodule" macro="mod_a_macro" id="[0xB1]"
+                         construction="[0x50]" connection="modules"/>
+              <component class="buildmodule" macro="mod_b_macro" id="[0xB2]"
+                         construction="[0x51]" state="construction"
+                         connection="modules"/>
+            </connection></connections>
+          </component>
+          <component class="buildstorage" macro="buildstorage_macro" id="[0xB9]"
+                     owner="argon" code="BST-001" connection="sector">
+            <buildtasks><inprogress>
+              <build id="[0x99]" type="expand" builder="[0xB9]"
+                     component="[0xB0]" faction="argon">
+                <sequence>
+                  <entry id="[0x50]" index="1" macro="mod_a_macro"/>
+                  <entry id="[0x51]" index="2" macro="mod_b_macro">
+                    <upgrades><groups>
+                      <turrets macro="TURRET_B_MACRO" group="down_01"/>
+                    </groups></upgrades>
+                  </entry>
+                </sequence>
+              </build>
+            </inprogress></buildtasks>
+          </component>
+        </connection></connections>
+        </component>
+        </connection></connections>
+      </component>
+      </connection></connections>
+    </component>
+  </universe>
+</savegame>
+"""
+
+
+def test_entry_ids_do_not_collide_across_stations(tmp_path: Path) -> None:
+    p = tmp_path / "save.xml"
+    p.write_text(COLLISION_FIXTURE)
+    d = parse_savegame(p)
+
+    # built state is per (host, entry): ALPHA finished both, BRAVO's [0x51]
+    # component still carries state="construction" and must stay unbuilt
+    assert set(d.built_refs) == {("[0xA0]", "[0x50]"), ("[0xA0]", "[0x51]"),
+                                 ("[0xB0]", "[0x50]")}
+
+    # the build storage's expand plan is the station's plan: it attributes to
+    # <build component=>, never to the storage doing the building
+    hosts = {(host, entry) for host, _idx, _macro, entry in d.modules}
+    assert hosts == {("[0xA0]", "[0x50]"), ("[0xA0]", "[0x51]"),
+                     ("[0xB0]", "[0x50]"), ("[0xB0]", "[0x51]")}
+    assert not [m for m in d.modules if m[0] == "[0xB9]"]
+
+    # planned loadouts carry their host too
+    assert set(d.module_upgrades) == {
+        ("[0xA0]", "[0x51]", "turret_a_macro"),
+        ("[0xB0]", "[0x51]", "turret_b_macro"),
+    }
+    # the expand copy repeats BRAVO's entry; it is recorded once per host
+    assert sum(1 for u in d.module_upgrades if u[0] == "[0xB0]") == 1

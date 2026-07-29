@@ -1352,3 +1352,31 @@ def test_v2_database_migrates_keeping_trades(cfg):
     assert conn.execute("SELECT time, buyer_name, buyer_cmdr_id FROM trade_tx"
                         ).fetchall() == [(5.0, "A", None)]
     conn.close()
+
+
+def test_shared_entry_ids_do_not_cross_contaminate_built_state(cfg, ref):
+    """v28: two stations on the same plan share entry ids. ALPHA finished
+    [0x51]; BRAVO's copy is still under construction and must stay unbuilt
+    (the JAR-041 defect: it inherited 250,000 m3 of container capacity)."""
+    from test_saveparser import COLLISION_FIXTURE
+
+    p = Path(cfg.data_dir) / "collision.xml"
+    p.write_text(COLLISION_FIXTURE)
+    save = parse_savegame(p)
+    conn = store.open_db(cfg, save.guid)
+    store.write_reference(conn, ref)
+    store.write_snapshot(conn, save, ref, "collision.xml")
+
+    rows = dict(((h, e), b) for h, e, b in conn.execute(
+        "SELECT host_id, entry_id, built FROM build_entry"))
+    assert rows == {("[0xA0]", "[0x50]"): 1, ("[0xA0]", "[0x51]"): 1,
+                    ("[0xB0]", "[0x50]"): 1, ("[0xB0]", "[0x51]"): 0}
+
+    # each plan is listed once per host, loadout included: the build
+    # storage's expand copy of BRAVO's plan collapses onto the station
+    assert sorted(conn.execute(
+        "SELECT host_id, entry_id, equipment_macro FROM module_upgrade")) == [
+        ("[0xA0]", "[0x51]", "turret_a_macro"),
+        ("[0xB0]", "[0x51]", "turret_b_macro"),
+    ]
+    conn.close()

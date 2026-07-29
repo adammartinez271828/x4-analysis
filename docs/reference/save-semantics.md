@@ -141,7 +141,9 @@ only works against the same save that produced them.
   orders): the plan lives on the build storage under
   `<queue><build type="expand"><sequence><entry>`; an existing station's
   own `<construction><sequence>` repeats the SAME entry ids, so dedupe by
-  entry id. A built module's component carries `construction="[entryid]"` —
+  entry id **within one station** (ids repeat across every station running
+  the same plan; the storage's copy belongs to `<build component=>`).
+  A built module's component carries `construction="[entryid]"` —
   but `state="construction"` means still building and its materials still
   count (treating it as built made estimates come in low by exactly one
   module's recipe). Estimate = Σ default-method recipes of unbuilt entries

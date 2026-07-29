@@ -154,12 +154,15 @@ def _remaining_construction(frames: Frames, ref: RefData,
         return pd.DataFrame(columns=["id", "ware", "amount"])
     mods = mods[mods["id"].isin(host_ids)]
     # a build-storage expansion plan repeats the already-planned entries
-    # (same entry ids as the station sequence) — count each entry once
+    # (same entry ids as the station sequence) — count each entry once per
+    # station: entry ids are unique only per host, never save-wide
     mods = pd.concat([
-        mods[mods["entry"].ne("")].drop_duplicates(subset=["entry"]),
+        mods[mods["entry"].ne("")].drop_duplicates(subset=["id", "entry"]),
         mods[mods["entry"].eq("")],
     ])
-    unbuilt = mods[~mods["entry"].isin(frames.built_refs)]
+    built = frames.built_refs or set()
+    unbuilt = mods[~pd.Series(list(zip(mods["id"], mods["entry"])),
+                              index=mods.index).isin(built)]
     if unbuilt.empty:
         return pd.DataFrame(columns=["id", "ware", "amount"])
 
@@ -181,11 +184,11 @@ def _remaining_construction(frames: Frames, ref: RefData,
             rows.append({"id": sid, "ware": inp, "amount": amt})
 
     ups = frames.module_upgrades
-    ups_by_entry = ups.groupby("entry")["macro"].apply(list).to_dict() \
+    ups_by_entry = ups.groupby(["id", "entry"])["macro"].apply(list).to_dict() \
         if not ups.empty else {}
     for r in unbuilt.itertuples(index=False):
         cost(r.id, r.macro, r.method)
-        for equip in ups_by_entry.get(r.entry, []):
+        for equip in ups_by_entry.get((r.id, r.entry), []):
             cost(r.id, equip, r.method)
     if not rows:
         return pd.DataFrame(columns=["id", "ware", "amount"])

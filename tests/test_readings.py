@@ -13,11 +13,12 @@ import pytest
 
 from readings import load, model_for, report, score
 
-# Baseline as of 2026-07-28, after runtime mod patching (modpatch.py) and the
-# JAR-041/JUK-948/IRD-672 readings. RAISE THIS as the model improves; it must never
-# fall. The two failures are EIJ-609 (open anomaly) and JAR-041 (the
-# built_refs entry-id collision — a known parser defect, see its note).
-BASELINE_INGAME = 47
+# Baseline as of 2026-07-28, after runtime mod patching (modpatch.py), the
+# JAR-041/JUK-948/IRD-672 readings and the v28 built_refs (host, entry_id) fix
+# — JAR-041 was never a model failure, it inherited another station's finished
+# entry id. RAISE THIS as the model improves; it must never fall. The one
+# remaining failure is EIJ-609 (open anomaly).
+BASELINE_INGAME = 48
 
 # Stations the model reproduces exactly. These are regression locks — a change
 # that breaks one of these is a real regression, not a trade-off.

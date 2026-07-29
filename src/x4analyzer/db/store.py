@@ -354,7 +354,9 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
         # stations list their build plan twice (construction sequence + the
         # expand queue repeat the same entry ids): count each entry once per
         # host. Entries without ids are all kept, and count as built the way
-        # frames.built_modules keeps them defensively.
+        # frames.built_modules keeps them defensively. built_refs is keyed on
+        # (host, entry): entry ids are only unique per station, so an entry is
+        # built only when a finished component UNDER THAT HOST claims it.
         built = set(save.built_refs)
         seen: set[tuple] = set()
         entry_rows = []
@@ -365,14 +367,16 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
                 seen.add((host, entry))
             entry_rows.append(
                 (save_id, host, _s(entry), idx, _low(macro),
-                 1 if (entry in built or not entry) else 0))
+                 1 if ((host, entry) in built or not entry) else 0))
         conn.executemany(
             "INSERT INTO build_entry VALUES (?,?,?,?,?,?)", entry_rows)
 
+        # loadouts are already one listing per (host, entry) — the parser
+        # drops the plan's repeat listings where it knows the entry boundaries
         conn.executemany(
-            "INSERT INTO module_upgrade VALUES (?,?,?)",
-            [(save_id, entry, macro)
-             for entry, macro in save.module_upgrades])
+            "INSERT INTO module_upgrade VALUES (?,?,?,?)",
+            [(save_id, host, entry, macro)
+             for host, entry, macro in save.module_upgrades])
 
         # per production module, collapsed to one row per distinct
         # (station, macro, ware, efficiency, state) with a module count --

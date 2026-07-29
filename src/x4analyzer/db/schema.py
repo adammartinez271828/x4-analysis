@@ -86,7 +86,18 @@ import hashlib
 #      trades (the supply curve's `pending` term), merged from the two
 #      places the save keeps each one; the escrow subset keeps its own
 #      flag. trade_active dropped (it held 49 of these 2,510 rows).
-SCHEMA_VERSION = "27"
+# v27: module_production (live per-production-module state: queued ware,
+#      <efficiency product=> runtime multiplier, state, module count)
+# v28: module_upgrade.host_id — station build-sequence entry ids are unique
+#      only PER STATION (2,235 of 22,562 ids in one save are shared, up to
+#      33 stations on one id), so keying loadouts on the bare entry id
+#      merged the plans of every station running the same design. The same
+#      collision reached build_entry.built through the parser's flat
+#      built_refs list: one station's FINISHED entry marked the same id
+#      built on stations where it was still under construction (14 entries
+#      across 11 stations), inventing capacity. Both are now keyed on
+#      (host_id, entry_id).
+SCHEMA_VERSION = "28"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -442,6 +453,8 @@ TABLES: dict[str, str] = {
 )""",
     "module_upgrade": """CREATE TABLE IF NOT EXISTS module_upgrade (
   save_id  INTEGER NOT NULL,
+  host_id  TEXT NOT NULL,   -- owning station/build storage: entry ids are
+                            -- unique only per host (v28)
   entry_id TEXT NOT NULL,
   equipment_macro TEXT NOT NULL
 )""",

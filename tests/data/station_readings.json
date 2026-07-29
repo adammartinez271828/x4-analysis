@@ -226,11 +226,11 @@
     "energycells": [
      21001,
      "ingame",
-     "player read; the model gives 42,516 because it counts an UNBUILT storage module"
+     "player read; model 21,001.6 (-0.0%) since the built_refs (host, entry) fix"
     ]
    },
    "date": "2026-07-28",
-   "note": "PARSER DEFECT, not a model defect. JAR-041's second storage_par_m_container_01 (sequence entry [0x20f1]) is still under construction: its component carries state=\"construction\". The parser correctly skips such components when marking entries built -- but it collects built_refs as a FLAT LIST OF ENTRY IDS with no host, and entry ids are only unique PER STATION. ETP-594 shares this station design and has [0x20f1] finished, so its component marks JAR-041's entry built. Result: 250,000 m3 of phantom container capacity, the pool factor doubles, and every allocation on the station is 2x.\n\nSave-wide scope: 335 (station, entry) pairs are in progress with no finished twin, across 314 stations; 14 of them across 11 stations are wrongly marked built=1 by the collision -- 1 storage, 2 production, 2 habitation, 5 defence, 1 build, 3 structural. Small, but JAR-041 is fully explained by it.\n\nArithmetic check: the model's pool factor is 8.85754 h (42,516.2 / 4,800), so capacity minus reserves = 494,059.5 m3 against a counted 500,000, i.e. reserves 5,940.5. Halving the capacity to the one real storage module gives (250,000 - 5,940.5) / 55,776 = 4.37567 h and 4,800 x 4.37567 = 21,003 energy cells against the 21,001 read in game -- 0.01%. FIX: key built_refs on (host, entry_id).",
+   "note": "FIXED (v28, parser). This was a PARSER defect, not a model defect. JAR-041's second storage_par_m_container_01 (sequence entry [0x20f1]) is still under construction: its component carries state=\"construction\". The parser skipped such components when marking entries built -- but it collected built_refs as a FLAT LIST OF ENTRY IDS with no host, and entry ids are only unique PER STATION. ETP-594 shares this station design and has [0x20f1] finished, so its component marked JAR-041's entry built: 250,000 m3 of phantom container capacity, a doubled pool factor and every allocation on the station 2x (42,516 energy cells against 21,001 read in game).\n\nbuilt_refs and module_upgrade are now keyed on (host_id, entry_id), and a build storage's <build type=\"expand\"> plan (a third copy of the same entry ids) is attributed to the station it names in component=, so all copies of one plan share a host. Save-wide 14 entries across 11 stations lost a wrongly inherited built=1 -- 1 storage, 2 production, 2 habitation, 5 defence, 1 build, 3 structural.\n\nThis fixture's module list was recaptured after the fix (2 containers -> 1); the model, unchanged, lands on 21,001.6 against the 21,001 read in game.",
    "rate": {}
   },
   "JUK-948": {
@@ -3606,7 +3606,7 @@
     ],
     [
      "storage_par_m_container_01_macro",
-     2
+     1
     ],
     [
      "struct_gen_observationdeck_03_macro",
