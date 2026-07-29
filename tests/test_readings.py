@@ -14,15 +14,15 @@ import pytest
 from readings import load, model_for, report, score
 
 # Baseline as of 2026-07-28, after runtime mod patching (modpatch.py) and the
-# JAR-041/JUK-948 readings. RAISE THIS as the model improves; it must never
+# JAR-041/JUK-948/IRD-672 readings. RAISE THIS as the model improves; it must never
 # fall. The two failures are EIJ-609 (open anomaly) and JAR-041 (the
 # built_refs entry-id collision — a known parser defect, see its note).
-BASELINE_INGAME = 41
+BASELINE_INGAME = 47
 
 # Stations the model reproduces exactly. These are regression locks — a change
 # that breaks one of these is a real regression, not a trade-off.
 EXACT_STATIONS = ("MAL-475", "TPF-229", "WRC-739", "IFO-957",
-                  "KWC-232")
+                  "KWC-232", "IRD-672")
 
 
 def test_fixture_is_self_consistent():

@@ -598,3 +598,110 @@ cheap test.
 4. **CCN-497 read twice** — still the sharpest test of whether the input
    offset is stable state or something that moves.
 5. The sell-side +0.053, unchanged from § A.
+
+---
+
+# Addendum 3: IRD-672 as a test case — the allocation is exact
+
+Player readings, 2026-07-28, now locked in `tests/data/station_readings.json`
+with IRD-672 added to `EXACT_STATIONS`. Baseline raised 41 → **47 of 49**;
+235 tests pass.
+
+| ware | in game | model | err |
+|---|---:|---:|---:|
+| energy cells | 1,665,000 | 1,664,647 | −0.02 % |
+| food rations | 34,560 | 34,560 | **exact** |
+| medical supplies | 20,736 | 20,736 | **exact** |
+| scrap metal | 40,000 | 40,000 | **exact** |
+| claytronics | 8,577 | 8,592 | +0.17 % |
+| hull parts | 29,379 | 29,427 | +0.16 % |
+| raw scrap | *no allocation* | *no row* | ✓ |
+| protectyon | 5 | **missing** | — |
+
+## What this settles
+
+**The alternation-split hypothesis is dead, and save-semantics.md is right.**
+Three recyclers, each alternating between claytronics and hull parts, are
+modelled as `3 × (144,000 + 42,000)/2 = 279,000` energy cells/h — and that
+reproduces the 1,665k reading. So "the alternation split does not matter — it
+scales every rate on the module equally and cancels out" **stands**, and
+Addendum 2's "the engine sizes on the currently queued recipe" is withdrawn.
+
+**Two structural rules confirmed from the game side.** Raw scrap holds 1,993
+units and carries **no allocation** — and the player reports the UI itself
+keeps it distinct from ware storage, which is the non-economy feedstock rule
+confirmed from the other direction. And the scrapworks processing module
+contributes its *output* (scrap metal, 40,000 exact) while its own energy draw
+stays out of the split — exactly the KWC-232 rule, now reproduced on a second
+station.
+
+**Known gap:** the station allocates 5 **protectyon**, and the model emits no
+row for it at all. Protectyon is the Boron shield-generator ware with its own
+module. Small, but it is a *missing row*, not a wrong number — worth a check
+that no protectyon-hosting station is mis-split because of it.
+
+## And it re-frames IRD-672's prices
+
+With the allocation confirmed exact, IRD-672's deviation is **entirely price**,
+like JUK-948. Its implied fill shifts are +0.56 (energy cells), +0.36 (scrap
+metal), +0.12 (hull parts) while both rations sit on the curve (+0.014,
++0.006). It is **not** one of the 14 hacked stations, so that candidate does
+not cover it either.
+
+## A better discriminator for the § A offset — CONFIRMED
+
+Looking at why IRD-672's two dual-sided wares behave unlike its one-sided one
+turns up a cleaner rule. The +0.053 offset is **not** keyed on the ware's role;
+it is keyed on **whether the station posts a sell offer for it**:
+
+| role | posts | n | offset | IQR |
+|---|---|---:|---:|---:|
+| input | buy only | 2,763 | −0.040 | 0.086 |
+| input | **buy and sell** | **94** | **+0.049** | **0.024** |
+| output | sell only | 1,388 | +0.053 | 0.015 |
+| output | buy and sell | 58 | +0.057 | 0.019 |
+| food | buy only | 1,837 | +0.007 | 0.008 |
+
+An input-role ware that the station also sells takes the **supplier** offset,
+not the consumer one — and takes it with the supplier's tight dispersion. This
+follows naturally from the already-confirmed "buy = sell − 1 Cr on the same
+(station, ware)": there is one price per (station, ware), and when both sides
+are posted it is the seller's.
+
+Scored on the 117 offers where the two rules disagree:
+
+| rule | n | MAD | \|r\|>0.25 | bin RMSE |
+|---|---:|---:|---:|---:|
+| offset by ware role (a = −0.039) | 117 | 0.1800 | 23.1 % | 0.1984 |
+| **offset by "does it sell it" (a = +0.053)** | 117 | **0.0156** | 10.3 % | **0.1411** |
+
+Save-wide the change is small — 7,102 offers, MAD 0.0144 → 0.0141,
+\|r\|>0.25 5.89 % → 5.67 % — because only 117 offers move. But the rule is
+better *stated* this way, and it removes "output" from the § A statement:
+
+```
+s = cos(π · (fill + a) / 1.095)
+a = +0.053   if the station posts a SELL offer for the ware
+a = +0.007   ration, buy only
+a = −0.040   production input, buy only  (a per-station constant, § B)
+```
+
+## The hacked-station test — inconclusive, not supporting
+
+The 14 stations carrying `hacked=` give 11 with ≥ 2 unclamped input offers:
+median offset −0.010 against −0.042 for the other 891, and 45 % positive
+against 20 %. Suggestive, but the group spans −0.076 (IAZ-139) to +0.117
+(JUK-948) and n = 11. **Not an explanation** — JUK-948 looks like the tail of a
+small sample rather than a hack effect. Recording it as tested and weak.
+
+## Revised leads
+
+1. **Fix `built_refs` keying** — unchanged, still the only confirmed bug.
+2. **The § B per-station input offset** — hypothesis-free again after both
+   staleness and hacking failed. What survives is the measurement: a station
+   constant, 0 → 0.78 h of consumption, shrinking with module count.
+   CCN-497 read twice remains the sharpest test.
+3. **Protectyon rows** — a missing allocation row on a known ware.
+4. **IRD-672's prices**, now a clean price-only anomaly on a station whose
+   allocation is confirmed to 0.2 % — the best-instrumented member of the
+   positive-offset population.
