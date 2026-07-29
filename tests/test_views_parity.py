@@ -429,3 +429,65 @@ def test_v_player_fleet_no_connectionless_fleet_members(conn):
                  WHERE c.save_id = fe.save_id AND c.id = fe.commander_id))
     """).fetchone()[0]
     assert n == 0
+
+
+# ---- v_station_supply_position (E-126) --------------------------------------
+
+def test_v_station_supply_position_sums_held_and_on_order(conn):
+    """The station's supply position is held + on order. Neither term alone
+    reproduces the game's Supplies tab, which is what made GMJ-316 read as a
+    model defect it was not (E-126)."""
+    got = pd.read_sql(
+        "SELECT object_id, ware, held, on_order, allocation"
+        " FROM v_station_supply_position ORDER BY object_id, ware", conn)
+    assert len(got), "no supply rows — fixture DB has no current snapshot?"
+    assert (got["allocation"] == got["held"] + got["on_order"]).all()
+    assert (got[["held", "on_order"]] >= 0).all().all()
+    # allocation 0 is real data, not a dropped join: 152 stations list a
+    # supply ware in <supplies> that they neither hold nor have on order.
+    # What must hold is that every such row traces to a zero-amount SOURCE
+    # row rather than to a failed lookup — the pair-set check below is the
+    # join proof; this pins the interpretation.
+    zero = got[got["allocation"] == 0]
+    src_zero = pd.read_sql(
+        "SELECT object_id, ware FROM station_supply"
+        " WHERE save_id = (SELECT save_id FROM current_save)"
+        "   AND kind='ware' AND amount = 0"
+        " UNION"
+        " SELECT object_id, ware FROM trade_offer"
+        " WHERE save_id = (SELECT save_id FROM current_save)"
+        "   AND side='buy' AND flags LIKE '%supplies%'"
+        "   AND COALESCE(desired, amount) = 0", conn)
+    assert set(map(tuple, zero[["object_id", "ware"]].values)) \
+        <= set(map(tuple, src_zero[["object_id", "ware"]].values))
+
+    held = pd.read_sql(
+        "SELECT object_id, ware, SUM(amount) held FROM station_supply"
+        " WHERE save_id = (SELECT save_id FROM current_save) AND kind='ware'"
+        " GROUP BY object_id, ware", conn)
+    order = pd.read_sql(
+        "SELECT object_id, ware, SUM(COALESCE(desired, amount)) on_order"
+        " FROM trade_offer"
+        " WHERE save_id = (SELECT save_id FROM current_save)"
+        "   AND side='buy' AND flags LIKE '%supplies%'"
+        " GROUP BY object_id, ware", conn)
+    # the view is the full outer join of the two: no pair invented, none lost
+    keys = set(map(tuple, held[["object_id", "ware"]].values)) \
+        | set(map(tuple, order[["object_id", "ware"]].values))
+    assert set(map(tuple, got[["object_id", "ware"]].values)) == keys
+
+    merged = got.merge(held, on=["object_id", "ware"], how="left",
+                       suffixes=("", "_src"))
+    merged = merged.merge(order, on=["object_id", "ware"], how="left",
+                          suffixes=("", "_src"))
+    assert _eq(merged["held"], merged["held_src"].fillna(0)).all()
+    assert _eq(merged["on_order"], merged["on_order_src"].fillna(0)).all()
+
+
+def test_v_station_supply_position_keeps_the_held_view_unchanged(conn):
+    """v_station_supply still means HELD only — station_munition comparisons
+    depend on that, so the new sibling must not have widened it."""
+    a = pd.read_sql(
+        "SELECT SUM(amount) t FROM v_station_supply WHERE kind='ware'", conn)
+    b = pd.read_sql("SELECT SUM(held) t FROM v_station_supply_position", conn)
+    assert _eq(a["t"], b["t"]).all()

@@ -1304,6 +1304,47 @@ FROM station_supply s
 LEFT JOIN component c ON c.id = s.object_id AND c.save_id = s.save_id
 LEFT JOIN ware w ON w.id = s.ware
 WHERE s.save_id = (SELECT save_id FROM current_save)""",
+    # the station's self-supply POSITION per ware: what it holds plus what
+    # it still has on order. This is what the game's Supplies tab shows,
+    # and neither term alone reproduces it (E-126) --
+    # `station_supply` is the held side and `station_storage` role='supply'
+    # is the on-order side, which is why comparing either against the tab
+    # reads as a defect that is not there.
+    #
+    # `allocation` is a LOWER BOUND on the station's supply target, exactly
+    # as `stock + open buy amount` is for cargo: a station whose supplies
+    # are satisfied posts no offer at all, so with on_order = 0 the sum is
+    # only a floor. Validated in game on one station (GMJ-316: drone
+    # components 6 = 6 held, smart chips 120 = 120 on order); the
+    # held-AND-on-order combination for one ware is not yet read in game.
+    "v_station_supply_position": """CREATE VIEW v_station_supply_position AS
+WITH held AS (
+  SELECT object_id, ware, SUM(amount) AS held
+  FROM station_supply
+  WHERE save_id = (SELECT save_id FROM current_save) AND kind = 'ware'
+  GROUP BY object_id, ware
+), on_order AS (
+  SELECT object_id, ware, SUM(COALESCE(desired, amount)) AS on_order
+  FROM trade_offer
+  WHERE save_id = (SELECT save_id FROM current_save)
+    AND side = 'buy' AND flags LIKE '%supplies%'
+  GROUP BY object_id, ware
+), pairs AS (
+  SELECT object_id, ware FROM held
+  UNION
+  SELECT object_id, ware FROM on_order
+)
+SELECT p.object_id, c.code AS station_code, c.name AS station_name,
+       c.owner, p.ware, w.name AS ware_name,
+       COALESCE(h.held, 0) AS held,
+       COALESCE(o.on_order, 0) AS on_order,
+       COALESCE(h.held, 0) + COALESCE(o.on_order, 0) AS allocation
+FROM pairs p
+LEFT JOIN held h ON h.object_id = p.object_id AND h.ware = p.ware
+LEFT JOIN on_order o ON o.object_id = p.object_id AND o.ware = p.ware
+LEFT JOIN component c ON c.id = p.object_id
+     AND c.save_id = (SELECT save_id FROM current_save)
+LEFT JOIN ware w ON w.id = p.ware""",
     # committed in-flight trades, labeled (v26). `pending_out` on the
     # seller side is the supply curve's numerator term.
     "v_trade_pending": """CREATE VIEW v_trade_pending AS
