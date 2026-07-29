@@ -413,6 +413,9 @@ not be shipped as one on this evidence.
    cohorts (D), `supplies` and `yard` pricing (E), EIJ-609 (F), and the
    `nd_habitat_cap_boost` reference-data gap (G).
 
+Every lead in this report and its addenda is registered with its status and
+settling experiment in [docs/experiments/README.md](../experiments/README.md).
+
 ---
 
 # Addendum (same day): lead 5 — the three negative-offset stations

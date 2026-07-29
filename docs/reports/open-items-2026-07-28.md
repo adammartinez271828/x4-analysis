@@ -139,3 +139,6 @@ recipe changes even with extensions loaded.
 4. **G** — habitat capacity, because it is a known-wrong input rather than an
    unknown rule.
 5. **D**, **E-supplies**, **F** — real but small or already boxed in.
+
+Every item above is registered with its status and settling experiment in
+[docs/experiments/README.md](../experiments/README.md).
