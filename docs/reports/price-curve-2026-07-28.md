@@ -412,3 +412,73 @@ not be shipped as one on this evidence.
    [open-items-2026-07-28.md](open-items-2026-07-28.md): the narrow-span output
    cohorts (D), `supplies` and `yard` pricing (E), EIJ-609 (F), and the
    `nd_habitat_cap_boost` reference-data gap (G).
+
+---
+
+# Addendum (same day): lead 5 — the three negative-offset stations
+
+Raised in review. They are **not one phenomenon**, and the shift-vs-scale test
+from § A separates them. For each ware, compare *implied fill − actual* (a
+shift ⇒ price offset) against *implied ÷ actual* (a scale ⇒ wrong allocation
+denominator). One ware cannot tell them apart; three can.
+
+## JAR-041 (holyorder, Cardinal's Redress) — an allocation error, scale 2.00
+
+| ware | fill | s | shift | **scale** |
+|---|---:|---:|---:|---:|
+| energy cells | 0.348 | −0.410 | +0.347 | **1.998** |
+| soja beans | 0.325 | −0.285 | +0.323 | **1.994** |
+| spices | 0.491 | −0.963 | +0.509 | **2.037** |
+| water | 0.231 | +0.254 | +0.227 | **1.984** |
+
+The shift spans a factor of 2.2; the scale is 2.00 on all four. The station is
+on the standard curve and **our denominator is doubled**. Its container pool is
+500,000 m³ from two `storage_par_m_container_01` at 250,000 each and the
+allocation arithmetic closes on that exactly, so the fault is in the capacity:
+either that module's `cargo_max` is wrong/mod-overridden at 2×, or only one of
+the two contributes. Not the double-listing gotcha — 35 build entries, 35
+built, zero duplicate `entry_id`s — and `module_production` independently
+confirms 4 production modules, so the production side is not doubled.
+*Falsifiable in one reading:* energy-cell max should read **21,258**, not the
+modelled 42,516 (water 12,755 vs 25,510).
+
+## JUK-948 (teladi, CEO's Doubt) — same shape, weaker: scale ≈ 1.37
+
+Scale 1.365 / 1.396 / 1.362 / 1.229 on its four inputs, shift 0.101–0.232.
+Scale is the tighter axis but water is well off the other three. Single
+production module and **15.9 h of allocation** against a save-wide median ~6 h
+— the regime where the § B offset is largest and noisiest — so this is likely a
+mixture of a real price offset and a modest allocation error. *Reading:* energy
+cells modelled 19,089; a pure scale error predicts ~14,000.
+
+## IRD-672 (scavenger, Avarice I) — neither; not diagnosable from the save
+
+| ware | shift | scale |
+|---|---:|---:|
+| energy cells | +0.563 | 6.44 |
+| scrap metal | +0.361 | 3.23 |
+| hull parts | +0.117 | 1.39 |
+
+Three wares, three answers on both axes; its two rations sit on the curve
+(+0.014, +0.006). Four known-hard cases intersect here: six scrap recyclers of
+which only four carry a `<production>` block and those report **no
+`<queue ware>`** (the multi-queue case); a `proc_gen_scrapworks` processing
+module, excluded from the storage model by design; energy cells **dual-role**
+(208,680/h produced at Avarice's 19.877 efficiency against 279,000/h consumed
+by the recyclers) where the price implies a target near 258,400 matching
+neither rate; and a `rawscrap` buy at 99.7 % of band max, the confirmed
+non-economy feedstock rule. Needs in-game rates *and* maxima for energy cells,
+hull parts, claytronics and scrap metal together.
+
+## Population context
+
+Of 847 stations with ≥ 3 usable offers, only **two** show a clean scale
+signature (JAR-041 at 2.00, JUZ-209 split at 1.365) — a rare failure mode, not
+a systemic allocation problem. Seven show the clean-shift signature at
+\|shift\| > 0.08, led by JQZ-281 (−0.251, sd 0.007). JAR-041 shares a sector
+with CCN-497, a textbook *shift* station (−0.390, sd 0.0014), so nothing
+regional drives either.
+
+**Revised lead 5:** JAR-041's storage maxima first (one reading settles a 2×
+capacity bug that may be silently affecting other Paranid stations), then
+IRD-672's rates and maxima together, then JUK-948's energy-cell max.
