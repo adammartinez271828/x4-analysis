@@ -36,6 +36,69 @@ computing each ware's throughput correctly — which the savegame mostly states
 outright — and remembering that the pool, not the station, is the unit of
 division.
 
+## The derivation, as pseudocode
+
+```
+FOOD_HOURS = 4
+
+for each station:
+
+    # ---- non-producers take the proxy path and stop here -------------------
+    if station has no production module:
+        for each ware w with an open buy offer NOT flagged supplies|shady:
+            max[w] = stock[w] + offer.amount[w]          # source = 'proxy'
+        continue
+
+    # ---- 1. pool capacities, from BUILT modules only ------------------------
+    for m in station.modules where m.built:
+        for tag in m.cargo_tags:            # container / liquid / solid / condensate
+            pool_cap[tag] += m.cargo_max    # absent module_cap row ⇒ contributes 0
+
+    # ---- 2. hourly flows ---------------------------------------------------
+    for m in station.modules where m.built and m has a recipe:
+        eff = m.<production><efficiency product=>        # the save's own number …
+        if m has no <production> block: eff = 1.0        # … idle: bare recipe, not a guess
+        if m is multi-queue (efficiency with no <queue ware>):
+            rescale eff per recipe via that module's smallest work_effect
+        for each product p of m:
+            out[p] += floor(p.amount × eff) / p.time × 3600      # FLOOR PER CYCLE
+        for each input i of m's recipe:
+            inp[i] += i.amount / i.time × 3600                   # base rate, NO eff
+        # a module running two products alternately contributes half of each
+
+    jobs = Σ m.workers over built modules
+    for r in the workforce race's workunit_busy recipe:
+        food[r] = r.amount / r.time × 3600 × jobs
+
+    flow[w] = max(out[w], inp[w])           # dual-role ⇒ the LARGER, not the output
+    # processing modules (scrap works) contribute their OUTPUT only; their own
+    # inputs never enter flow[]. Non-economy feedstock (rawscrap) is never stocked.
+
+    # ---- 3. split each pool, equal hours ------------------------------------
+    for pool, capacity in pool_cap:
+        wares = { w : w.transport == pool }
+
+        if no recipe anywhere produces or consumes any of `wares`:
+            # storage-only pool (condensate). No throughput ⇒ no hours to equalise.
+            for w in wares: max[w] = capacity / count(wares) / w.volume
+            continue
+
+        food_volume = Σ over rations r in wares of  food[r] × FOOD_HOURS × r.volume
+        Σflow       = Σ over w in wares of          flow[w] × w.volume
+
+        T = (capacity − food_volume) / Σflow          # the pool's equal-hours factor
+
+        for w in wares:
+            max[w]  = flow[w] × T                     # production share
+            if w is a ration:
+                max[w] += food[w] × FOOD_HOURS        # ADDITIVE, not exclusive
+```
+
+Two places this is easy to get wrong, both of which cost real time:
+`floor()` sits inside the cycle and not on the hourly rate, and `eff` multiplies
+outputs only. Section [Throughput](#throughput--the-part-that-is-easy-to-get-wrong)
+gives the numbers for both.
+
 ## The generalized form
 
 Per station, per transport pool:
@@ -223,6 +286,112 @@ built, doubling the pool capacity. The rule was right and its input was wrong.
 When a station is off by a suspiciously round factor, check the inputs before
 touching the model: a *constant scale* error across all of a station's wares
 points at capacity or throughput, whereas a *constant shift* points at pricing.
+
+## A worked example, end to end — WRC-739
+
+ARG Advanced Electronics Factory, Argon. Chosen because it is the simplest
+station in the fixture that still exercises three rules people get wrong, and
+because all four of its allocations were read in game.
+
+**The station.** 2 × `prod_gen_advancedelectronics` (540 workers each),
+1 × `storage_arg_m_container` (250,000 m³), plus structure and defence. Two
+details matter:
+
+- **Its workforce is empty and neither production module carries a
+  `<production>` block.** So `eff = 1.0` — the bare recipe — not a
+  reconstructed work effect. Getting this wrong is what put KRV-460 out by a
+  factor of 0.724.
+- **No workforce means no rations, so no 4 h buffer comes off the pool.** This
+  is the clean case: `T` is just capacity ÷ Σflow.
+
+### Step 1 — the recipe (mod-patched)
+
+This save runs Faction Fix Pack, which rewrites `advancedelectronics`. The
+values below are the patched ones applied at runtime by
+`gamedata/modpatch.py`; the **stock** recipe is amount 54 / inputs 60, 44, 20 /
+work_effect 0.36 and would give the wrong answer here.
+
+```
+advancedelectronics/default:  time 720 s, amount 65
+   inputs: energycells 150, microchips 49, quantumtubes 36
+```
+
+### Step 2 — hourly flows, ×2 modules, eff = 1.0
+
+```
+out  advancedelectronics = floor(65 × 1.0) / 720 × 3600 × 2 =   650 /h
+inp  energycells         =            150  / 720 × 3600 × 2 = 1,500 /h
+inp  microchips          =             49  / 720 × 3600 × 2 =   490 /h
+inp  quantumtubes        =             36  / 720 × 3600 × 2 =   360 /h
+```
+
+### Step 3 — one pool, no food buffer
+
+All four wares are `container`. With volumes 30 / 1 / 22 / 22:
+
+```
+Σflow = 650×30 + 1,500×1 + 490×22 + 360×22
+      = 19,500 + 1,500 + 10,780 + 7,920      = 39,700 m³/h
+
+T = (250,000 − 0) / 39,700 = 6.2972 h
+```
+
+### Step 4 — allocations, and the in-game check
+
+```
+max[ware] = flow × T
+```
+
+| ware | flow /h | × T | model | **read in game** |
+|---|---:|---:|---:|---:|
+| advanced electronics | 650 | 6.2972 | 4,093.20 | **4,093** |
+| energy cells | 1,500 | 6.2972 | 9,445.84 | **9,445** |
+| microchips | 490 | 6.2972 | 3,085.64 | **3,085** |
+| quantum tubes | 360 | 6.2972 | 2,267.00 | **2,267** |
+
+Four for four, each to the unit once truncated. Every ware sits on the same
+**6.30 hours** — which is the whole model in one line.
+
+### The same arithmetic where it gets hard — IRD-672
+
+The scavenger recycler in Avarice I runs every awkward rule at once, and its
+six allocations were also read in game. Two pools, and the container one
+carries a ration buffer:
+
+```
+container: capacity 2,300,000 m³
+  food_volume = 34,560×1 (rations) + 20,736×2 (medical)      =    76,032
+  Σflow       = 279,000×1 + 1,440×24 + 4,932×12              =   372,744
+  T           = (2,300,000 − 76,032) / 372,744               =  5.9664 h
+
+solid:     capacity 400,000 m³
+  Σflow       = 9,000 × 10 (scrap metal)                     =    90,000
+  T           = 400,000 / 90,000                             =  4.4444 h
+
+condensate: capacity 50 m³, no recipe touches it
+  max         = 50 / 10                                      =  5 units
+```
+
+| ware | pool | model | read in game |
+|---|---|---:|---:|
+| energy cells | container | 1,664,647 | 1,665,000 |
+| claytronics | container | 8,592 | 8,577 |
+| hull parts | container | 29,427 | 29,379 |
+| food rations | container | 34,560 | 34,560 |
+| medical supplies | container | 20,736 | 20,736 |
+| scrap metal | solid | 40,000 | 40,000 |
+| condensate | condensate | 5 | 5 |
+| raw scrap | — | *no row* | *no allocation* |
+
+Its 279,000 energy cells/h is the interesting number. The station both makes
+energy cells (one module at Avarice's 19.877 efficiency → 208,680/h) and feeds
+them to three recyclers that alternate between claytronics and hull parts
+(3 × (144,000 + 42,000)/2 = 279,000/h). The dual-role rule takes the **larger**,
+so consumption wins; and the 50/50 alternation split is what makes the
+1,665,000 reading come out right. Meanwhile the scrap works contributes its
+*output* (scrap metal, 40,000 exact) while its own energy draw stays out of the
+split, and `rawscrap` — 1,993 units of it in cargo — gets no allocation at all,
+which the game's own UI corroborates by keeping raw scrap out of ware storage.
 
 ## One-pager
 
