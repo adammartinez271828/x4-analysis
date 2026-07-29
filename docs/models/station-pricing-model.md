@@ -31,7 +31,49 @@ different price book entirely. The savegame's offer price carries the
 supply/demand term alone; the reputation discount is applied at display time.
 So the whole model is: pick the band, evaluate one cosine, add the flat terms.
 
-## The generalized form
+## The closed form
+
+One station, one ware, everything substituted. `stock` is the only variable;
+`m` and `a` are the two parameters that vary by population.
+
+```
+                ⎧  avg + s · (max − avg)          if s ≥ 0
+  price   =     ⎨
+                ⎩  avg + s · (avg − min)          if s < 0
+
+  s       = cos( π · clamp( (fill/m + a) / 1.095, 0, 1 ) )
+
+  fill    = (stock + undelivered inbound − committed outbound) / allocation
+```
+
+Branchless, if you prefer one line:
+
+```
+  price = avg + max(s, 0) · (max − avg) + min(s, 0) · (avg − min)
+```
+
+The two branches exist only because **40 of 1,891 wares have asymmetric bands**
+(ore is −14 % / +16 %). For the other 1,851 the whole thing collapses to a
+single multiply:
+
+```
+  price = avg · (1 + spread · s)              spread = max/avg − 1
+```
+
+So the model is: **turn stock into an angle, take its cosine, and interpolate
+from the band average out to whichever edge that cosine points at.**
+
+**Checked against the two readings the game states outright** [UI], UDX-946:
+
+| ware | band (min / avg / max) | `s` | closed form | observed |
+|---|---|---:|---:|---:|
+| ore (buying) | 43 / 50 / 58 | +0.4125 | **53.30** | 53.30 |
+| refined metals (selling) | 89 / 148 / 207 | −0.9708 | **90.72** | 90.72 |
+
+Everything below unpacks that expression and says where each parameter comes
+from.
+
+## Unpacked
 
 ```
 price   = avg × (1 + Σ modifiers)
@@ -45,6 +87,8 @@ supply/demand modifier = s × spread(sign of s)
   spread(+) = price_max/avg − 1        spread(−) = 1 − price_min/avg
 ```
 
+The supply/demand term is the only modifier that moves with the station's
+state; the rest are flat adjustments applied on top (§ The other modifiers).
 The `allocation` in `fill` is the storage model's output —
 [station-storage-model.md](station-storage-model.md).
 
@@ -159,7 +203,7 @@ Each is a separate book, confirmed by measurement rather than assumed [OBS]:
 |---|---:|---|
 | `lockavgprice` whitelist | 1,175 | pegged at band **average** regardless of stock; sell = avg exactly, buy = avg − 1 |
 | `supplies` (self-supply) | 1,309 | a fixed per-ware multiple of avg — **10 distinct constants**, 1.07–1.22× |
-| `shady` (black market) | 3,273 | ≈ **1.055 × band max**, no fill dependence; opened per station by a `shadyguy` post |
+| `shady` (black market) | 3,273 | **two tiers, disjoint by station** (E-112): 2,897 offers over 727 stations at median 1.042 × band max, and 376 over 96 stations at exactly **2.750 × band avg**; no fill dependence either way. Opened per station by a `shadyguy` post; what sets a station's tier is unknown |
 | build storages | 1,771 | sit at band max; hold no allocation, so they have no fill coordinate at all |
 | yards / wharfs / docks | 701 | same family, different exponent (`k ≈ 2.6`); run much fuller, median fill 76 % vs 54 % |
 | player-owned | 54 | manual thresholds — `price_setting` and `ware_limit`, off-model by design |
@@ -250,11 +294,9 @@ Two constraints, both learned the hard way:
 ## One-pager
 
 ```
-price      = avg × (1 + Σ modifiers)
-modifier   = s × spread          spread(+) = max/avg − 1
-                                 spread(−) = 1 − min/avg
-s          = cos(π · clamp(u/1.095, 0, 1))
-u          = fill/m + a
+price      = avg + max(s,0)·(max − avg) + min(s,0)·(avg − min)
+             ( = avg · (1 + spread·s) for the 1,851 symmetric-band wares )
+s          = cos(π · clamp((fill/m + a) / 1.095, 0, 1))
 fill       = (stock + inbound − outbound) / allocation
 
 a  = +0.053  station posts a sell offer for the ware
@@ -266,6 +308,7 @@ then, at display time only:  × (1 − reputation tier% − event%)
 and the panel rounds its percentages UP.
 
 NOT this model: lockavgprice (avg), supplies (10 constants), shady
-(1.055 × max), build storages (band max), yards (k ≈ 2.6), player (manual),
+(two tiers: 1.042 × max, or 2.750 × avg), build storages (band max),
+yards (k ≈ 2.6), player (manual),
 deployables (recipe × buildpricefactor, no rep discount).
 ```
