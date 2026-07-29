@@ -482,3 +482,119 @@ regional drives either.
 **Revised lead 5:** JAR-041's storage maxima first (one reading settles a 2×
 capacity bug that may be silently affecting other Paranid stations), then
 IRD-672's rates and maxima together, then JUK-948's energy-cell max.
+
+---
+
+# Addendum 2: player readings on the three, and what they change
+
+In-game readings supplied by the player, 2026-07-28. Added to
+`tests/data/station_readings.json`; baseline raised 40 → **41 of 43**.
+
+## JAR-041 — a PARSER defect, and it is fully explained
+
+In game: **21,001 energy cells**, against a modelled 42,516 (+102.4 %). The
+player's diagnosis: **the second storage module is not complete.**
+
+The save agrees, and the mechanism is precise. Sequence entry `[0x20f1]`
+(`storage_par_m_container_01_macro`) has a component with
+`state="construction"` — and `parser.py` already knows to skip those. But it
+collects `built_refs` as a **flat list of entry ids with no host**, and entry
+ids are only unique **per station**: 2,235 of 22,562 ids are shared by more
+than one station, up to 33 stations on one id. **ETP-594** runs the same
+station plan and has `[0x20f1]` finished, so *its* component marks JAR-041's
+entry built. The result is 250,000 m³ of phantom container capacity, a doubled
+pool factor, and every allocation on the station at 2×.
+
+The arithmetic closes to 0.01 %:
+
+| | value |
+|---|---:|
+| model pool factor (42,516.2 / 4,800) | 8.85754 h |
+| ⇒ capacity − reserves | 494,059.5 m³ (of 500,000 counted) |
+| corrected: (250,000 − 5,940.5) / 55,776 | 4.37567 h |
+| ⇒ energy cells 4,800 × 4.37567 | **21,003** |
+| **read in game** | **21,001** |
+
+**Save-wide scope**: 335 (station, entry) pairs are in progress with no
+finished twin, across 314 stations; the collision wrongly marks **14 of them
+built across 11 stations** — 1 storage, 2 production, 2 habitation, 5 defence,
+1 build, 3 structural. Small, but it is a correctness bug on capacity,
+throughput *and* workforce, and JAR-041 is entirely accounted for by it.
+**Fix: key `built_refs` on `(host, entry_id)`.** (Not applied — this task is
+research-only.)
+
+## JUK-948 — the allocation is right, so the deviation is price
+
+In game: **18,957 energy cells** against a modelled 19,089, **−0.7 %**. That
+**kills the ~1.37× allocation-error reading in Addendum 1.** The model is
+correct here and the entire deviation is a price effect.
+
+The player reports the station is labelled **[HACKED]**, and the save records
+it: 13 `hacked="82283.124"` attributes on its components — an *expiry*
+timestamp, against a game time of 82,130.2. **14 stations save-wide carry the
+flag.** It is not parsed today.
+
+This makes JUK-948 the first identified member of a **positive-offset**
+population: it bids +0.10 to +0.23 of a band *low*, the opposite direction to
+the production-input stations (CCN-497 −0.39, FSL-235 −0.34). A station state
+with a known expiry is an attractive candidate for a price modifier, and it is
+cheap to test — parse `hacked=` and compare the 14 flagged stations against the
+rest.
+
+## IRD-672 — three recyclers, not six; my count was wrong
+
+The player reports **three** scrap processor modules, each listed **twice** in
+the Logical Station Overview because each carries two products (claytronics and
+hull parts) and only one is active at a time, swapping when a cycle completes.
+`build_entry` agrees at 3 — **the "6" in Addendum 1 was my own join artifact**
+against `module_ref`, which holds one row per product.
+
+The model already halves each recipe for the alternation:
+3 × (144,000 + 42,000)/2 = 279,000 energy cells/h, and the claytronics and
+hull-parts rates reproduce to ~2 %. Yet the prices imply a target near
+**258,500 units on a 4.9 h pool factor**, i.e. an energy throughput near
+**52,600/h** — a fifth of the modelled figure — and the station's three wares
+still disagree with each other (implied scales 6.44 / 3.23 / 1.39).
+
+**HYPOTHESIS**: the engine sizes storage on the recipe **currently queued**
+rather than the average of the alternation. That would contradict
+save-semantics.md's "the alternation split does not matter — it scales every
+rate on the module equally and cancels out", which was justified for ratios
+*within* one module and does not hold when the split changes what a shared
+input is rated at. *Needs:* in-game rates **and** storage maxima for energy
+cells, hull parts, claytronics and scrap metal together.
+
+## The price-update timer — found, and it FALSIFIES the staleness hypothesis
+
+Stations carry `<event event="updatetradeoffers" time=…>`: **3,555 events over
+1,804 stations**, next-fire times distributed uniformly 0–65 s ahead of game
+time, so the trade-offer refresh period is **~65 s**. This is exactly the
+per-station clock § B's leading hypothesis needed.
+
+It does not work. Over the 541 stations with ≥ 3 input offers and a timer:
+
+| dt to next fire (s) | 4.9 | 12.3 | 23.1 | 37.0 | 50.6 | 57.4 |
+|---|---:|---:|---:|---:|---:|---:|
+| median offset | −0.042 | −0.053 | −0.036 | −0.045 | −0.039 | −0.031 |
+
+`corr(offset, time since last update) = −0.08`; `corr(|offset|, …) = +0.04`.
+Flat. And a 65-second period cannot accumulate the ~0.78 h of throughput the
+largest offsets correspond to — it is off by two orders of magnitude.
+
+**§ B's leading hypothesis is withdrawn.** The per-station constancy, the
+0.78 h ceiling and the sign flip between sides all still stand as measurements;
+the staleness story that tied them together does not. The per-module reserve
+remains the weaker surviving candidate, and `hacked=` is a new one worth a
+cheap test.
+
+## Revised ranking of the remaining leads
+
+1. **Fix `built_refs` keying** — a confirmed correctness bug with a
+   one-line-ish fix and an exact in-game validation already in the fixture.
+2. **Parse `hacked=`** and score the 14 flagged stations against the rest.
+   Cheap, and JUK-948 says price offsets exist in both directions.
+3. **IRD-672's rates and maxima**, to settle queued-recipe vs averaged
+   alternation.
+4. **CCN-497 read twice** — still the sharpest test of whether the input
+   offset is stable state or something that moves.
+5. The sell-side +0.053, unchanged from § A.

@@ -8,6 +8,7 @@
    "holyorder": 1.2
   },
   "game_time": 82119.817,
+  "ird_672_scrap_recyclers": "IRD-672 (scavenger, Avarice I): the player reports only THREE scrap processor modules, each listed TWICE in the Logical Station Overview because each carries two products (claytronics and hull parts) and only one is active at a time, swapping when a cycle completes. build_entry agrees at 3 (an earlier count of 6 was a join artifact against module_ref, which has one row per product). The model already halves each recipe for the alternation -- 3 x (144,000 + 42,000)/2 = 279,000 energy cells/h -- yet the station's prices imply a target near 258,500 units on a 4.9 h pool factor, i.e. an energy throughput near 52,600/h, a fifth of the modelled figure. Its three wares also disagree with each other (implied scales 6.44 / 3.23 / 1.39), so this is not a single scale error. HYPOTHESIS: the engine sizes storage on the recipe that is CURRENTLY queued rather than the average of the alternation -- which would contradict the 'the alternation split cancels out' note in save-semantics.md. NEEDS: in-game rates AND storage maxima for energy cells, hull parts, claytronics and scrap metal together.",
   "mod_recipe_changes": {
    "_impact": "Applying these two recipes to the fixture moves the score from 27/41 to 37/41 in-game readings within 1%. IFO-957 goes from 5 failures to 0 (all within 0.4%, rate exact at 450/h) and WRC-739 from 4 failures to 0 (all +0.0%).",
    "_note": "The CATCHUP mod changes no recipes - it applies a conditional production bonus (see war_pressure below). A SIBLING mod, faction_fix_pack_econ_bal, is what rewrites recipes. Only 3 wares.",
@@ -57,6 +58,7 @@
    }
   },
   "note": "Model INPUTS captured from the save; OBSERVED values are player readings taken in game against this same save.",
+  "price_update_timer": "Stations carry <event event=\"updatetradeoffers\" time=...>: 3,555 events over 1,804 stations, next-fire times uniformly distributed 0-65 s ahead of game time, so the trade-offer refresh period is ~65 s. Tested as the explanation for the per-station price offset and FALSIFIED: corr(offset, time since last update) = -0.08 over 541 stations, and the bucket medians are flat at -0.03 to -0.05. A 65 s period cannot accumulate the ~0.78 h of throughput the largest offsets correspond to.",
   "rate_rule": {
    "additional_output": "the panel's 'Additional Output / h' is a bonus shown ADDITIVELY, i.e. it is part of the displayed total, not on top of it",
    "confirmed_on": "TEL High Tech Factory III, Scanning Arrays (TEL): amount 36, time 600, efficiency 1.38 -> floor(36 x 1.38) = 49 x 6 = 294/h, and 294 - (36 x 6) = 78 = the panel's Additional Output. Exact, from unmodded reference data, using the teladi method of the prod_tel_ module.",
@@ -181,6 +183,30 @@
      "model says 375; ratio exactly 1.2"
     ]
    }
+  },
+  "JAR-041": {
+   "alloc": {
+    "energycells": [
+     21001,
+     "ingame",
+     "player read; the model gives 42,516 because it counts an UNBUILT storage module"
+    ]
+   },
+   "date": "2026-07-28",
+   "note": "PARSER DEFECT, not a model defect. JAR-041's second storage_par_m_container_01 (sequence entry [0x20f1]) is still under construction: its component carries state=\"construction\". The parser correctly skips such components when marking entries built -- but it collects built_refs as a FLAT LIST OF ENTRY IDS with no host, and entry ids are only unique PER STATION. ETP-594 shares this station design and has [0x20f1] finished, so its component marks JAR-041's entry built. Result: 250,000 m3 of phantom container capacity, the pool factor doubles, and every allocation on the station is 2x.\n\nSave-wide scope: 335 (station, entry) pairs are in progress with no finished twin, across 314 stations; 14 of them across 11 stations are wrongly marked built=1 by the collision -- 1 storage, 2 production, 2 habitation, 5 defence, 1 build, 3 structural. Small, but JAR-041 is fully explained by it.\n\nArithmetic check: the model's pool factor is 8.85754 h (42,516.2 / 4,800), so capacity minus reserves = 494,059.5 m3 against a counted 500,000, i.e. reserves 5,940.5. Halving the capacity to the one real storage module gives (250,000 - 5,940.5) / 55,776 = 4.37567 h and 4,800 x 4.37567 = 21,003 energy cells against the 21,001 read in game -- 0.01%. FIX: key built_refs on (host, entry_id).",
+   "rate": {}
+  },
+  "JUK-948": {
+   "alloc": {
+    "energycells": [
+     18957,
+     "ingame",
+     "model 19,089, -0.7%: the allocation is essentially RIGHT"
+    ]
+   },
+   "date": "2026-07-28",
+   "note": "Recorded to settle a price question, not an allocation one. JUK-948 was suspected of a ~1.37x allocation error because its input prices imply a target 27% below the model. The in-game read kills that: the model is within 0.7%, so the whole deviation is PRICE, not allocation.\n\nThe station is labelled [HACKED] in game, and the save records it: 13 hacked=\"82283.124\" attributes on its components (an expiry timestamp -- game time is 82,130.2). 14 stations save-wide carry the flag. It is not parsed today and is a candidate explanation for the price offset, which here runs +0.10 to +0.23 of a band in the OPPOSITE direction to the production-input population (JUK-948 bids LOW; CCN-497 and FSL-235 bid HIGH).",
+   "rate": {}
   },
   "KWC-232": {
    "alloc": {
@@ -774,6 +800,62 @@
     null,
     100000.0,
     "solid"
+   ],
+   [
+    "pier_arg_harbor_04_macro",
+    "pier",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "pier_tel_harbor_02_macro",
+    "pier",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "hab_par_m_01_macro",
+    "habitation",
+    666.0,
+    null,
+    null,
+    null
+   ],
+   [
+    "prod_par_medicalsupplies_macro",
+    "production",
+    null,
+    90.0,
+    null,
+    null
+   ],
+   [
+    "prod_tel_nostropoil_macro",
+    "production",
+    null,
+    120.0,
+    null,
+    null
+   ],
+   [
+    "storage_tel_m_container_01_macro",
+    "storage",
+    null,
+    null,
+    250000.0,
+    "container"
+   ],
+   [
+    "hab_pir_m_01_macro",
+    "habitation",
+    500.0,
+    null,
+    null,
+    null
    ]
   ],
   "module_ref": [
@@ -877,6 +959,18 @@
     "prod_ter_siliconcarbide_macro",
     "siliconcarbide",
     "default",
+    1.0
+   ],
+   [
+    "prod_par_medicalsupplies_macro",
+    "medicalsupplies",
+    "paranid",
+    1.0
+   ],
+   [
+    "prod_tel_nostropoil_macro",
+    "nostropoil",
+    "teladi",
     1.0
    ]
   ],
@@ -3233,6 +3327,496 @@
     [
      "paranid",
      2250.0
+    ]
+   ]
+  },
+  "IRD-672": {
+   "cargo": [
+    [
+     "claytronics",
+     1661.0
+    ],
+    [
+     "condensate",
+     4.0
+    ],
+    [
+     "energycells",
+     57368.0
+    ],
+    [
+     "foodrations",
+     31621.0
+    ],
+    [
+     "hullparts",
+     10670.0
+    ],
+    [
+     "medicalsupplies",
+     2562.0
+    ],
+    [
+     "scrapmetal",
+     6480.0
+    ]
+   ],
+   "id": "[0x30273]",
+   "modules": [
+    [
+     "defence_arg_disc_01_macro",
+     3
+    ],
+    [
+     "defence_arg_tube_01_macro",
+     2
+    ],
+    [
+     "dockarea_arg_m_station_01_lowtech_macro",
+     1
+    ],
+    [
+     "hab_pir_m_01_macro",
+     1
+    ],
+    [
+     "pier_arg_harbor_04_macro",
+     1
+    ],
+    [
+     "proc_gen_scrapworks_macro",
+     1
+    ],
+    [
+     "prod_gen_energycells_macro",
+     1
+    ],
+    [
+     "prod_gen_scrap_recycler_macro",
+     3
+    ],
+    [
+     "storage_arg_l_container_01_macro",
+     2
+    ],
+    [
+     "storage_arg_m_container_01_macro",
+     1
+    ],
+    [
+     "storage_arg_s_container_01_macro",
+     1
+    ],
+    [
+     "storage_arg_s_solid_01_macro",
+     4
+    ],
+    [
+     "storage_pir_l_condensate_01_macro",
+     1
+    ],
+    [
+     "struct_arg_base_01_macro",
+     1
+    ]
+   ],
+   "offers": [
+    [
+     "sell",
+     "claytronics",
+     1032.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "condensate",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "energycells",
+     1490967.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "energycells",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "foodrations",
+     2939.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "hullparts",
+     8920.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "medicalsupplies",
+     10624.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "rawscrap",
+     22207.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "scrapmetal",
+     22207.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "scrapmetal",
+     0.0,
+     "invertfactionrestriction"
+    ]
+   ],
+   "owner": "scavenger",
+   "production": [
+    [
+     "prod_gen_energycells_macro",
+     "energycells",
+     19.877,
+     "producing",
+     1
+    ],
+    [
+     "prod_gen_scrap_recycler_macro",
+     null,
+     1.34,
+     "producing",
+     1
+    ],
+    [
+     "prod_gen_scrap_recycler_macro",
+     null,
+     1.37,
+     "producing",
+     2
+    ]
+   ],
+   "sector_macro": "cluster_500_sector001_macro",
+   "workforce": [
+    [
+     "argon",
+     3842.0
+    ]
+   ]
+  },
+  "JAR-041": {
+   "cargo": [
+    [
+     "energycells",
+     14784.0
+    ],
+    [
+     "medicalsupplies",
+     25176.0
+    ],
+    [
+     "sojabeans",
+     1382.0
+    ],
+    [
+     "sojahusk",
+     1720.0
+    ],
+    [
+     "spices",
+     7863.0
+    ],
+    [
+     "water",
+     1637.0
+    ]
+   ],
+   "id": "[0x9e57c]",
+   "modules": [
+    [
+     "defence_par_disc_01_macro",
+     1
+    ],
+    [
+     "defence_par_tube_01_macro",
+     1
+    ],
+    [
+     "dockarea_arg_m_station_01_hightech_macro",
+     2
+    ],
+    [
+     "hab_par_m_01_macro",
+     1
+    ],
+    [
+     "pier_par_harbor_01_macro",
+     1
+    ],
+    [
+     "prod_par_medicalsupplies_macro",
+     4
+    ],
+    [
+     "storage_par_m_container_01_macro",
+     2
+    ],
+    [
+     "struct_gen_observationdeck_03_macro",
+     1
+    ],
+    [
+     "struct_par_base_01_macro",
+     5
+    ],
+    [
+     "struct_par_base_02_macro",
+     2
+    ],
+    [
+     "struct_par_base_03_macro",
+     2
+    ],
+    [
+     "struct_par_cross_01_macro",
+     5
+    ],
+    [
+     "struct_par_cross_02_macro",
+     2
+    ],
+    [
+     "struct_par_cross_03_macro",
+     3
+    ],
+    [
+     "struct_par_vertical_01_macro",
+     1
+    ],
+    [
+     "struct_par_vertical_02_macro",
+     2
+    ]
+   ],
+   "offers": [
+    [
+     "buy",
+     "dronecomponents",
+     5.0,
+     "supplies|invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "energycells",
+     6217.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "medicalsupplies",
+     23232.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "missilecomponents",
+     14280.0,
+     "supplies|invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "smartchips",
+     60.0,
+     "supplies|invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "sojabeans",
+     718.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "sojahusk",
+     353.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "spices",
+     57.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "water",
+     6713.0,
+     "invertfactionrestriction"
+    ]
+   ],
+   "owner": "holyorder",
+   "production": [
+    [
+     "prod_par_medicalsupplies_macro",
+     "medicalsupplies",
+     1.28,
+     "producing",
+     4
+    ]
+   ],
+   "sector_macro": "cluster_36_sector001_macro",
+   "workforce": [
+    [
+     "paranid",
+     361.0
+    ]
+   ]
+  },
+  "JUK-948": {
+   "cargo": [
+    [
+     "energycells",
+     5542.0
+    ],
+    [
+     "nostropoil",
+     19285.0
+    ],
+    [
+     "spices",
+     4481.0
+    ],
+    [
+     "sunriseflowers",
+     2138.0
+    ],
+    [
+     "water",
+     3920.0
+    ]
+   ],
+   "id": "[0x8d5e1]",
+   "modules": [
+    [
+     "dockarea_arg_m_station_01_lowtech_macro",
+     1
+    ],
+    [
+     "hab_tel_m_01_macro",
+     1
+    ],
+    [
+     "pier_tel_harbor_02_macro",
+     1
+    ],
+    [
+     "prod_tel_nostropoil_macro",
+     1
+    ],
+    [
+     "storage_tel_m_container_01_macro",
+     1
+    ],
+    [
+     "struct_tel_base_01_macro",
+     1
+    ],
+    [
+     "struct_tel_cross_01_macro",
+     1
+    ],
+    [
+     "struct_tel_vertical_02_macro",
+     2
+    ]
+   ],
+   "offers": [
+    [
+     "buy",
+     "energycells",
+     11152.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "majadust",
+     136.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "medicalsupplies",
+     648.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "sell",
+     "nostropoil",
+     26615.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "spacefuel",
+     186.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "spaceweed",
+     236.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "spices",
+     1272.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "stimulants",
+     86.0,
+     "buyercargovirtual|buyermoneyvirtual|invertfactionrestriction|shady"
+    ],
+    [
+     "buy",
+     "sunriseflowers",
+     4572.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "water",
+     3325.0,
+     "invertfactionrestriction"
+    ]
+   ],
+   "owner": "teladi",
+   "production": [
+    [
+     "prod_tel_nostropoil_macro",
+     "nostropoil",
+     1.04096,
+     "producing",
+     1
+    ]
+   ],
+   "sector_macro": "cluster_713_sector001_macro",
+   "workforce": [
+    [
+     "teladi",
+     122.0
     ]
    ]
   },
