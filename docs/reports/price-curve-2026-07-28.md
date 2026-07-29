@@ -803,3 +803,84 @@ current import `(stock + buy amount) / allocation` for hull parts is **0.9986
 over 66 offers**, and every ware with n ≥ 40 sits within 0.8 % of 1.000 (worst:
 ice 0.992). The efficiency, idle-module and multi-queue work since then fixed
 it.
+
+---
+
+# Addendum 5: the condensate pool, and what its prices say
+
+`analysis/storage.py` now derives the transport-pool list from the data and
+models the Pirate DLC's condensate ("Protectyon") pool (commit `19448c5`).
+Verified independently: **239 tests pass**, readings **49 of 50**, IRD-672
+condensate **5 = 5 exact**.
+
+## The container / liquid / solid split really is untouched
+
+The claim is checkable against the price analysis, which runs entirely off
+those allocations. Re-running the same population before (save 69) and after
+(save 70):
+
+| population | n before | n after | MAD before | MAD after |
+|---|---:|---:|---:|---:|
+| rations | 2,372 | 2,372 | 0.0165 | **0.0165** |
+| sells | 1,610 | 1,610 | 0.1313 | **0.1313** |
+| outputs (sell) | 1,544 | 1,544 | 0.1321 | **0.1321** |
+| input buys | 3,085 | 3,096 | 0.0778 | 0.0790 |
+| main sequence | 7,102 | 7,113 | | |
+
+Three populations are identical to four decimal places. The only movement is
+**+11 offers**, exactly the condensate buys that now have an allocation to
+divide by. `station_storage` gains 18 computed condensate rows against 6 proxy
+rows, and the container pool stays at 9,668 rows, liquid 213, solid 344.
+
+## Condensate prices on the SUPPLIER curve, not the consumer one
+
+The new offers are the most regular population in the save. Fourteen scavenger
+stations share one design (allocation 5 units) and produce exactly four prices,
+fixed by stock alone:
+
+| net / 5 | n | s | implied offset `a` |
+|---:|---:|---:|---:|
+| 0.4 | 2 | +0.2823 | **+0.0478** |
+| 0.6 | 3 | −0.2823 | **+0.0472** |
+| 0.8 | 7 | −0.7646 | **+0.0509** |
+
+| offset | MAD (n = 14, net > 0) |
+|---|---:|
+| a = −0.039 (production-input) | 0.1896 |
+| a = 0 (ration / base law) | 0.1019 |
+| **a = +0.048** | **0.0053** |
+| a = +0.053 (supplier) | 0.0092 |
+
+So a **buy-only** ware sits on the **supplier** offset. That is coherent with
+§ A's revised statement rather than against it: the −0.039 consumer offset
+belongs to *production inputs* — wares a recipe consumes — and condensate is
+consumed by no recipe at all. It is the same distinction the storage model now
+makes to size the pool in the first place.
+
+**HYPOTHESIS, not confirmed**: `a = +0.05` is the default and the −0.039
+production-input offset is the special case. *Falsified by* any storage-only
+ware, on any station, reading the consumer offset. The evidence here is 14
+offers at three distinct fills on one station design and one faction — thin,
+and the fills are quantised to fifths because the allocation is 5 units.
+
+**Caveat**: VOM-540 is excluded above. It carries
+`landmarks_gen_piratestation_01_ring_01` at 50,000 m³ → a modelled 5,000 units,
+and reads an implied offset of +0.149 rather than +0.048. There is no in-game
+reading for a landmark-module allocation, so its denominator is an
+extrapolation from the 50 m³ case, not a confirmed number. One in-game read of
+VOM-540's Protectyon max would settle whether the landmark module scales the
+same way.
+
+## Scatter regenerated
+
+`output/price_curves_2026-07-28.html`, from save 70, with condensate as its own
+series and populations split on **whether the station sells the ware** rather
+than ware role:
+
+| series | n | a | MAD | \|r\|>0.25 |
+|---|---:|---:|---:|---:|
+| rations (buy only) | 2,361 | +0.006 | 0.0015 | 0.04 % |
+| production inputs (buy only) | 3,024 | −0.039 | 0.0714 | 8.63 % |
+| supplier side | 1,704 | +0.053 | 0.0125 | 7.69 % |
+| condensate | 16 | +0.048 | 0.0053 | 0.00 % |
+| **main sequence** | **7,109** | | **0.0141** | **5.54 %** |
