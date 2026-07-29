@@ -884,3 +884,103 @@ than ware role:
 | supplier side | 1,704 | +0.053 | 0.0125 | 7.69 % |
 | condensate | 16 | +0.048 | 0.0053 | 0.00 % |
 | **main sequence** | **7,109** | | **0.0141** | **5.54 %** |
+
+---
+
+# Addendum 6: Tidebreak (VOM-540) — the price target is NOT the storage allocation
+
+Player reading, 2026-07-29: trade panel **"Low Supply +9.2 %"**, price
+**27,277.26 Cr**, sell offer 21, buy offer 4,978. Station context from the
+player: Tidebreak carries a Protectyon shield generator consuming ~1
+Protectyon/hour, and is designed as a game failsafe so Protectyon is always
+available, at a high price.
+
+## Two corrections to Addendum 5
+
+**1. The 5,000 allocation is CONFIRMED, not an extrapolation.** Twice, on the
+offer-derived floor: `23 + 4,977 = 5,000` in the save and `22 + 4,978 = 5,000`
+on the panel. The landmark ring module's 50,000 m³ ÷ volume 10 is right, and my
+"no in-game reading behind it" caveat was wrong.
+
+**2. Tidebreak is NOT a separate price book.** "Low Supply +9.2 %" is a named
+supply/demand modifier of exactly the family already confirmed on UDX-946
+("High Supply −38.9 %", "High Demand +6.6 %"). So it prices through the normal
+model, and the `shady` / `lockavgprice` / build-storage hypothesis is dead.
+
+## The two readings are a natural experiment
+
+The shield generator consumes ~1/hour, so the save and the panel catch the same
+station one unit apart:
+
+| stock | price | s | implied fill (base law) |
+|---:|---:|---:|---:|
+| 23 | 27,259.85 | +0.90394 | 0.15402 |
+| 22 | 27,277.26 | +0.91090 | 0.14825 |
+
+**One Protectyon consumed moved the price +17.41 Cr.** That single number
+settles the denominator:
+
+| price target | predicted move per unit consumed |
+|---|---:|
+| the 5,000-unit storage allocation | **0.67 Cr** |
+| a ~173-unit target | **19.28 Cr** |
+
+The observed 17.41 Cr is 26× what the storage allocation allows. Solving the
+two points exactly gives a price target of **173.1 units** with offset
+**a = +0.021** — a price span of **3.5 % of the allocation**.
+
+## "Holding a reserve" — right in spirit, wrong in form
+
+Tested directly. If the price ran over the 5,000 allocation on an inflated
+effective stock, the implied reserve would be:
+
+| stock | effective stock on a 5,000 denominator | implied reserve |
+|---:|---:|---:|
+| 23 | 770 | 747 |
+| 22 | 741 | 719 |
+
+A one-unit change moves the implied reserve by 28, so **an additive stock
+reserve over the full allocation cannot fit both points**. What does fit is a
+much *smaller denominator*. The station behaves as though only ~173 of its
+5,000 Protectyon are the trading target — which is the same thing a reserve
+would achieve, reached by a different mechanism.
+
+## This is the narrow-span phenomenon, and it reinstates an old observation
+
+Span / allocation = **0.035** at Tidebreak. That is the extreme end of the
+cohort recorded as open item **D**: computronicsubstrate 0.19×, claytronics
+0.80×, siliconwafers 0.82×, against ~1.07× for the pack. It also vindicates the
+superseded Layer-2 note in save-semantics.md — *"target_level is NOT the storage
+allocation … the price curve runs over a much narrower span"* — which the
+fill/allocation cosine appeared to overturn. Both are true: the cosine and its
+span S = 1.095 hold, and the **denominator is a price target that usually
+equals the allocation but sometimes does not**.
+
+The contrast within condensate itself is the sharpest version of this anywhere
+in the save: the 14 scavenger stations price over their **full** 5-unit
+allocation (a = +0.048, MAD 0.0053 across fills 0.4 / 0.6 / 0.8), while
+Tidebreak prices over 3.5 % of its 5,000. Same ware, same pool, same law,
+denominators differing by a factor of 29. So the narrow span is a property of
+the station or its module, not of the ware.
+
+## A decisive, player-runnable experiment
+
+The two models diverge violently under a delivery, and the player can trigger
+one by selling Protectyon at Tidebreak:
+
+- **173-unit target**: ~150 units delivered pushes fill past 1 and the price
+  **collapses to the band floor, 22,500 Cr**.
+- **5,000-unit allocation**: the same 150 units move the price by **~100 Cr**,
+  from 27,277 to roughly 27,180.
+
+Nothing else in this work has that kind of separation. A single sale settles it.
+
+**Secondary check:** the panel reads +9.2 % where `price/avg − 1` is +9.109 %,
+a 0.09 pp gap. Either the panel rounds up, or panel and price were sampled a
+moment apart on a station whose stock ticks every hour. Worth confirming
+against a station whose stock is static.
+
+**Recorded as HYPOTHESIS**: the price denominator is a per-(station, ware)
+*price target* distinct from the storage allocation, equal to it for the bulk of
+the economy and much smaller for the narrow-span cohorts. *Falsified by* the
+delivery experiment above returning a ~100 Cr move.
