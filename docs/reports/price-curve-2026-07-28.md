@@ -705,3 +705,101 @@ small sample rather than a hack effect. Recording it as tested and weak.
 4. **IRD-672's prices**, now a clean price-only anomaly on a station whose
    allocation is confirmed to 0.2 % — the best-instrumented member of the
    positive-offset population.
+
+---
+
+# Addendum 4: lead 1 closed — the fix landed, and JAR-041 validates the chain
+
+`built_refs` and `module_upgrades` are now keyed on `(host_id, entry_id)`
+(commit `398208f`, schema v28). Verified independently of the change:
+**237 tests pass**, readings **48 of 49** in-game, `analysis/storage.py`
+untouched — the storage model landed on the number unaided.
+
+## JAR-041, before and after
+
+| | before | after |
+|---|---:|---:|
+| energy cells modelled | 42,516 | **21,002** |
+| against in game | 21,001 | 21,001 |
+| error | +102.4 % | **+0.0 %** |
+
+And the station now prices **on the curve**, which is the part worth recording:
+
+| ware | role | fill | s | implied shift |
+|---|---|---:|---:|---:|
+| energy cells | input | 0.704 | −0.410 | **−0.009** |
+| soja beans | input | 0.658 | −0.285 | **−0.010** |
+| water | input | 0.467 | +0.254 | **−0.009** |
+| spices | input | 0.993 | −0.963 | +0.006 |
+| soja husk | food | 0.829 | −0.742 | +0.009 |
+| medical supplies | output | 0.436 | +0.177 | **+0.050** |
+
+Station shift **+0.323 (sd 0.108) → −0.002 (sd 0.023)**; scale
+**1.998 → 0.997**. Its output lands on **+0.050** against the § A constant of
++0.053, and its three buy-only inputs on −0.009 against the § B population
+median of −0.040.
+
+**This is a complete round trip.** The price model predicted a denominator
+error of exactly 2× from prices alone; the player confirmed the second storage
+module was still under construction; the parser fix removed the phantom
+capacity; and the station now sits on the curve derived from the other 1,800.
+Each step was measured independently of the others.
+
+## The price population is unmoved
+
+Re-run on the corrected import, the main sequence is identical in size and
+essentially identical in fit — so nothing in § A or § B depended on the defect:
+
+| population | n | MAD before | MAD after |
+|---|---:|---:|---:|
+| all buys | 5,492 | 0.0203 | 0.0202 |
+| rations | 2,372 | 0.0165 | 0.0165 |
+| production inputs | 3,085 | 0.0788 | **0.0778** |
+| outputs (sell) | 1,544 | 0.1321 | 0.1321 |
+
+The only movement is the input population, and it is JAR-041's four wares
+coming onto the curve.
+
+## Blast radius of the `build_entry` restructure — checked
+
+The fix also folded each build storage's `type="expand"` plan into its station
+(the expand copy carries the *station's* entry ids, so per-host keying
+otherwise left 643 storage hosts with zero built entries). `build_entry` goes
+43,108 → 32,519 rows and 2,405 → 1,803 hosts. Verified that nothing was lost:
+
+- All 602 `<build … component=>` refs of class `station` have build_entry rows
+  — a one-to-one fold of the 602 vanished hosts. The other 232 refs are ship
+  builds and never had station plans.
+- Zero build_entry hosts are non-station; zero are missing from `component`.
+- Unbuilt entries available to the audit: 4,154 across 457 stations — *more*
+  complete than before, since 3,819 genuinely-queued entries previously existed
+  only under the storage host.
+
+## Revised lead list
+
+1. ~~Fix `built_refs` keying~~ — **done**.
+2. **The condensate transport pool.** `analysis/storage.py:227` iterates a
+   hardcoded `("container", "liquid", "solid")`; condensate is a fourth pool and
+   never gets a computed row. 18 stations hold a condensate storage module and
+   all 6 condensate rows in the DB are `proxy`. Correction to Addendum 3:
+   protectyon is **not** a missing ware — its ware id is `condensate` (display
+   name "Protectyon", Pirate DLC) and it is present in `wares.csv`. The exact
+   target: `storage_pir_l_condensate_01_macro` is 50 m³ ÷ volume 10 = **5
+   units**, the reading taken on IRD-672. Single-ware pool, no equal-hours
+   split to get right.
+3. **`nd_habitat_cap_boost`** unregistered in `modpatch.py` (habitat capacity
+   S 2500 / M 5000 / L 10000 against stock 333/666/999) — a known-wrong input to
+   the ration buffer and the efficiency. Blocked on `extract_modcaps` being
+   unable to read `<diff>` files with no `<macro>`, and `extract_wares`
+   handling only `<add sel=…>` and never `<replace>`.
+4. **§ B's per-station input offset** — hypothesis-free after staleness and
+   hacking both failed. CCN-497 read twice remains the sharpest test.
+5. The § A offset of +0.053, unchanged.
+
+**Also closed:** the hull-parts allocation error from
+[fill-price-spread-2026-07-28.md](fill-price-spread-2026-07-28.md) (follow-up 3,
+"ratio 1.171, the only ware-level model error above 6 %") is **gone**. On the
+current import `(stock + buy amount) / allocation` for hull parts is **0.9986
+over 66 offers**, and every ware with n ≥ 40 sits within 0.8 % of 1.000 (worst:
+ice 0.992). The efficiency, idle-module and multi-queue work since then fixed
+it.
