@@ -45,6 +45,9 @@ supply/demand modifier = s × spread(sign of s)
   spread(+) = price_max/avg − 1        spread(−) = 1 − price_min/avg
 ```
 
+The `allocation` in `fill` is the storage model's output —
+[station-storage-model.md](station-storage-model.md).
+
 `s` is the **normalised price coordinate**: `+1` = band maximum, `0` = band
 average, `−1` = band minimum. Two shape parameters:
 

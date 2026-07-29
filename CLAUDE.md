@@ -45,7 +45,7 @@ Pipeline (`analyze.py`): savegame → `save/parser.py` → `db/store.py` → `an
 - [savegame-structure.md](docs/reference/savegame-structure.md) — the save XML format. [db-schema.md](docs/reference/db-schema.md) — every table/view, merge semantics, the entity identity model. [csv-reference.md](docs/reference/csv-reference.md) — the extracted CSVs and extraction machinery.
 - [save-semantics.md](docs/reference/save-semantics.md) — reverse-engineered meanings: market data, identity/code recycling, the pricing model, the drone pool.
 - [viz-internals.md](docs/reference/viz-internals.md) — dashboard shell, sector map, opportunities/advisor/audit/P&L, diplomacy, weapon sim.
-- `docs/models/` — verified game-mechanics models (station-pricing, resource-depletion, faction-relations, wormhole-connection). `docs/plans/` — live plans and the extraction-candidates backlog.
+- `docs/models/` — verified game-mechanics models (station-pricing, station-storage, resource-depletion, faction-relations, wormhole-connection). `docs/plans/` — live plans and the extraction-candidates backlog.
 - [experiments/README.md](docs/experiments/README.md) — the register of every falsifiable claim: id, status, prediction, what settles it, and a citation back to the doc that owns it.
 
 **Each doc kind owns one thing, and they must not drift:**
