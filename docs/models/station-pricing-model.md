@@ -188,12 +188,136 @@ reputation.
 +9.2 %" against a true +9.109 %. A panel figure is a *ceiling* on the true
 modifier, good to 0.1 pp — **fit the offer price, not the panel figure**.
 
-**Worked example [UI]** — UDX-946 (ARG Ore Refinery I, The Reach):
+**Worked example [UI]** — UDX-946 (ARG Ore Refinery I, The Reach), the same
+station the next section works end to end:
 
-| ware | panel | price | check |
+| ware | panel | panel price | check |
 |---|---|---:|---|
 | refined metals (sell) | High Supply −38.9 %, Prized Investor −9.1 %, Total −48.0 % | 76.82 | 148 × 0.520 = 76.96 |
 | ore (buy) | High Demand +6.6 % | 53.30 | 50 × 1.066 = **53.30 exact** |
+
+The panel reading was taken at a slightly earlier moment than the snapshot used
+below, so its refined-metals offer was 90.72 where the current save reads 90.33
+— the station's stock ticks. Reputation applies to the panel price only.
+
+## A worked example, end to end — UDX-946
+
+ARG Ore Refinery I, The Reach. Argon, 452 workforce. Chosen because the game
+prints its price decomposition on the trade panel, so every step can be checked
+against something the engine states rather than something we fitted.
+
+**The station.** 2 × `prod_gen_refinedmetals` (225 workers each), 2 ×
+`storage_arg_m_container` (250,000 m³ each), 1 × `storage_arg_s_solid`
+(100,000 m³), 2 habitats. The production modules report
+`<efficiency product="1.43">`.
+
+### Step 1 — throughput, from the recipe
+
+`refinedmetals/default`: 150 s, amount 88, inputs 90 energy cells + 240 ore.
+
+```
+output  refinedmetals = floor(88 × 1.43) / 150 × 3600 × 2 modules
+                      = floor(125.84) = 125 → 125/150 × 3600 × 2 =  6,000 /h
+input   energycells   =        90     / 150 × 3600 × 2          =  4,320 /h
+input   ore           =       240     / 150 × 3600 × 2          = 11,520 /h
+```
+
+Both rules from [station-storage-model.md](station-storage-model.md) are load
+bearing here: the output is multiplied by `efficiency` **and floored per
+cycle** (125.84 → 125), while the inputs stay at the **base** recipe rate with
+no efficiency applied at all. Rations come from workforce, not recipes:
+1,012.5 food rations/h and 607.5 medical supplies/h.
+
+### Step 2 — the equal-hours split, per pool
+
+**Container pool** — capacity 2 × 250,000 = 500,000 m³. Rations take their 4 h
+buffer off the top first:
+
+```
+food_volume = (1,012.5 × 4) × 1  +  (607.5 × 4) × 2   =  4,050 + 4,860 = 8,910 m³
+Σ throughput×volume = 4,320 × 1 (energy) + 6,000 × 14 (refined metals) = 88,320
+T = (500,000 − 8,910) / 88,320 = 5.5603 h
+```
+
+```
+refinedmetals max = 6,000 × 5.5603 = 33,362.09
+energycells   max = 4,320 × 5.5603 = 24,020.71
+```
+
+**Solid pool** — capacity 100,000 m³, one ware in it:
+
+```
+T = 100,000 / (11,520 × 10) = 0.8681 h      ore max = 11,520 × 0.8681 = 10,000
+```
+
+Note how different the two pools are: this refinery holds **5.6 hours** of
+refined metals and **52 minutes** of ore. That asymmetry is the whole reason
+allocation has to be computed per pool rather than per station.
+
+### Step 3 — fill
+
+Refined metals: 31,759 in cargo, nothing pending either way.
+
+```
+fill = 31,759 / 33,362.09 = 0.9519
+```
+
+### Step 4 — which `a`
+
+The station posts a **sell** offer for refined metals, so it takes the supplier
+offset `a = +0.053` — not because refined metals is an "output", but because it
+is the side the station is on for that ware.
+
+### Step 5 — the closed form
+
+```
+u     = 0.9519 + 0.053                      = 1.0049
+s     = cos(π · clamp(1.0049/1.095, 0, 1))  = cos(π × 0.9177) = −0.9668
+price = 148 + (−0.9668) × (148 − 89)        = 90.96
+```
+
+| | value |
+|---|---:|
+| model | **90.96** |
+| the save's offer price | **90.33** |
+| difference | +0.63 Cr = **0.0106 of a band** |
+
+That sits inside the supplier population's MAD of 0.0125, i.e. this station is
+an ordinary member of the population rather than an especially good fit. On the
+trade panel the same offer appears as *High Supply −38.9 %, Prized Investor
+−9.1 %, Total −48.0 %* — the reputation term is applied at display time and is
+not in the 90.33.
+
+### The same station's ore, which does NOT fit — and why that is the open question
+
+Run the identical procedure on the ore buy and it fails badly:
+
+```
+net   = 8,100 stock + 1,176 inbound = 9,276
+fill  = 9,276 / 10,000 = 0.9276
+u     = 0.9276 − 0.039 = 0.8886
+s     = cos(π × 0.8115) = −0.8297   →   price 44.19
+```
+
+The save says **53.30**, and the panel says *High Demand +6.6 %* — which is
+`50 × 1.066` exactly. A station 93 % full of ore is being told it has high
+demand.
+
+Inverting gives `s = +0.4125`, an implied fill of 0.3993, and therefore
+
+```
+m = 0.9276 / 0.3993 = 2.32
+```
+
+So UDX-946 prices ore over a target **2.3× its storage allocation** — the
+opposite tail from Tidebreak's 0.035, and consistent with the fact that its
+solid pool holds under an hour of ore. The cosine, the span and the offset are
+all unchanged; only the denominator moved.
+
+**This is the model's honest edge.** For most of the economy `m = 1` and the
+chain above lands within a hundredth of a band. Where the storage allocation is
+small relative to the flow through it, `m` departs from 1 in both directions,
+and what sets it is [the open question](#open-questions).
 
 ## Populations that do NOT use this model
 
