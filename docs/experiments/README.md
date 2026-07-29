@@ -45,17 +45,17 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 
 | subsystem | CONFIRMED | FALSIFIED | PENDING | SUPERSEDED | total |
 |---|---:|---:|---:|---:|---:|
-| Pricing (E-001…E-036, E-112) | 13 | 10 | 11 | 3 | 37 |
+| Pricing (E-001…E-036, E-112…E-118) | 16 | 11 | 11 | 5 | 43 |
 | Storage allocation (E-037…E-063) | 14 | 6 | 6 | 1 | 27 |
 | Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
-| **total** | **48** | **29** | **31** | **4** | **112** |
+| **total** | **51** | **30** | **31** | **6** | **118** |
 
-Seven entries carried a documented disagreement between sources; four were
+Seven entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
-file, three remain open.
+file, two remain open.
 
 ---
 
@@ -112,8 +112,8 @@ file, three remain open.
 **E-017 · PENDING** — `a = +0.05` (supplier) is the default offset and the −0.039 production-input offset is the special case.
 *Predicts:* 14 condensate offers on one station design give a = +0.048, MAD 0.0053, against 0.1019 at a = 0 and 0.1896 at a = −0.039. *Falsified by:* any storage-only ware, on any station, reading the consumer offset. Evidence is thin — 14 offers, three fills quantised to fifths, one faction. *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § Addendum 5 / § Condensate prices on the SUPPLIER curve.
 
-**E-018 · PENDING** — The price denominator is a per-(station, ware) *price target* distinct from the storage allocation.
-*Predicts:* at Tidebreak (VOM-540) two readings one unit apart moved the price +17.41 Cr; the 5,000-unit storage allocation permits 0.67 Cr/unit and a 173-unit target predicts 19.28 Cr/unit. Solving both points exactly gives target 173.1 units, offset a = +0.021, span = 3.5 % of allocation. *Settles it:* sell ~150 Protectyon at Tidebreak — the 173-unit target predicts a collapse to the band floor at **22,500 Cr**; the 5,000-unit allocation predicts a ~100 Cr move, 27,277 → ~**27,180 Cr**. *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § Addendum 6.
+**E-018 · SUPERSEDED** — The price denominator is a per-(station, ware) *price target* distinct from the storage allocation.
+*Replaced by:* E-113. *Predicted:* at Tidebreak (VOM-540) two readings one unit apart moved the price +17.41 Cr; the 5,000-unit storage allocation permits 0.67 Cr/unit and a 173-unit target predicts 19.28 Cr/unit. Solving both points exactly gives target 173.1 units, offset a = +0.021, span = 3.5 % of allocation. *Superseded by:* the claim is right and now has a mechanism — the target is the allocation capped at a fixed 5 M Cr of value, which at Tidebreak's 25,000 Cr band average is **200 units** with no free parameters against this entry's two-parameter 173.1. Whether the residual 27 units is real is E-117. *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § Addendum 6.
 
 **E-019 · FALSIFIED** — Tidebreak runs a separate price book (`shady` / `lockavgprice` / build-storage).
 *Killed by:* the trade panel reads "Low Supply +9.2 %", a named supply/demand modifier of the family already confirmed on UDX-946 — it prices through the normal model. *Source:* [price-curve-2026-07-28.md](../reports/price-curve-2026-07-28.md) § Addendum 6 / § Two corrections to Addendum 5.
@@ -130,8 +130,8 @@ file, three remain open.
 **E-023 · CONFIRMED** — Stations price off their *net position* (`stock + inbound − committed outbound`), not their cargo.
 *Predicts:* MAD 0.0527 → 0.0448 save-wide; on the 1,287 offers carrying pending, 0.0832 → 0.0411; the 43 "near-empty pricing as full" offers are 81 % inbound-pending and their median residual goes −0.502 → +0.013. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Addendum (same day): pending.
 
-**E-024 · PENDING** — The price reference span is `m(ware, role) × allocation` with m a game constant.
-*Predicts:* computronicsubstrate 0.194, claytronics 0.797, siliconwafers 0.823 against ~0.99–1.16 for the pack; GDR-378 reads 0.144 on computronicsubstrate while its five same-pool inputs sit at 1.02–1.12. *Falsified by:* a single station's m moving between saves at constant allocation, or an in-game read of a computronic-substrate producer's storage max coming back near 1,000 rather than ~5,300. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Addendum 2: the steep low-fill branch.
+**E-024 · FALSIFIED** — The price reference span is `m(ware, role) × allocation` with m a game constant.
+*Predicted:* computronicsubstrate 0.194, claytronics 0.797, siliconwafers 0.823 against ~0.99–1.16 for the pack; GDR-378 reads 0.144 on computronicsubstrate while its five same-pool inputs sit at 1.02–1.12. *Killed by:* `m` is not a per-(ware, role) constant — claytronics output reads **0.109 at GOR-075 (allocation 22,835) and 1.214 at WOK-167 (allocation 1,757)**, same ware, same role, and across the 48 claytronics sellers `m × allocation` is flat at 2,480–2,525 units. The apparent per-ware constants were `5 M Cr / (band average × that design's allocation)`, constant within a ware only because those three wares are made on one station design. Replaced by E-113; the per-(ware, role) dispersion of `m` falls from IQR/median 0.95 to 0.014 on the capped basis. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § Claytronics — the bimodality is the cap turning on.
 
 **E-025 · CONFIRMED** — `lockavgprice` wares are pegged at band average regardless of stock.
 *Predicts:* sell = avg exactly (588/588 offers, zero variance), buy = avg − 1 Cr; corr(fill, band) = −0.04 over 1,175 offers; Layer-3 discounts still stack (EBT-957 microlattice 46.75 = 50 × (1 − 2.0 % − 4.5 %)). *Settled by:* save sweep + in-game read, 2026-07-27. *Source:* [save-semantics.md](../reference/save-semantics.md) § Ware pricing model, Layer 6.
@@ -148,8 +148,8 @@ file, three remain open.
 **E-028 · PENDING** — Yards/wharfs/docks price off outstanding build demand, not stock, on the same clamped form.
 *Predicts:* fitting `band = clamp(1 − fill^k)` on the net position gives k = 2.60, MAD 0.0382 (exact denominator: 2.60 / 0.0367), against 0.1705 at k = 1.00; yards run much fuller (median fill 76 % vs 54 %). *Falsified by:* k staying ≈ 2.38 with a demand denominator. *Needs:* an NPC wharf with a known order queue; compare `stock + amount` against Σ recipe of its queued ships. **Note:** the same report's earlier text quotes k ≈ 2.38, corrected to 2.60 in its addendum. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Yards / wharfs / docks + § Addendum (same day).
 
-**E-029 · CONFIRMED** — Construction buyers do not price off stock at all.
-*Predicts:* median band position exactly 1.000 and median price/max exactly 1.000 over 1,788 build-storage offers; 189 above band max; they hold no allocation. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Build-storage demand.
+**E-029 · SUPERSEDED** — Construction buyers do not price off stock at all.
+*Replaced by:* E-118. *Predicted:* median band position exactly 1.000 and median price/max exactly 1.000 over 1,788 build-storage offers; 189 above band max; they hold no allocation. *Superseded by:* every one of those numbers still reproduces on save 70 (median price/max 1.0000, 63.1 % at band max to the cent, 187 above max, 0 of 1,771 with an allocation), but the 37 % that are *not* clamped do move with stock — corr = −0.791 against a demand denominator. "Not on a stock curve" was the right reading of the median and the wrong reading of the population. *Source:* [fill-price-spread-2026-07-28.md](../reports/fill-price-spread-2026-07-28.md) § Build-storage demand.
 
 **E-030 · CONFIRMED** — The trade panel's price decomposition is `avg × (1 + Σ additive modifiers)`, and the save's offer price carries the supply/demand term alone.
 *Predicts:* UDX-946 ore (buying) "High Demand +6.6 %" → 50 × 1.066 = 53.30 exact; refined metals sell offer 90.72 = avg × 0.6130 = −38.70 % against the panel's −38.9 % (rep discount applied at display). *Source:* [save-semantics.md](../reference/save-semantics.md) § Ware pricing model, The trade panel's decomposition.
@@ -171,6 +171,24 @@ file, three remain open.
 
 **E-036 · SUPERSEDED** — Layer 2's economy price is linear in stock over a `target_level` much narrower than the allocation.
 *Replaced by:* E-001, partly reinstated by E-018. *Predicted:* `economy_price = max − (max−min)(stock − pending)/target_level`; cohort fits R² 0.982–0.999, span 4–7 h of production for bulk wares, Terran solar band max to ~43,000 units falling to band min at ~269,000 against a 992,397 allocation. *Superseded by:* the fill/allocation cosine. *Reinstated in part:* Addendum 6 finds the denominator *is* sometimes a narrower price target (E-018), so the two are recorded as both true. *Source:* [save-semantics.md](../reference/save-semantics.md) § Ware pricing model, Layer 2.
+
+**E-113 · CONFIRMED** — The supplier-side price target is the storage allocation capped at a fixed credit value: `target = min(allocation, V / ware.price_avg)`.
+*Predicts:* `m = min(1, V/(price_avg × allocation))` with no free parameters; the 399 supplier offers whose allocation is worth more than 5 M Cr (331 stations, 29 wares, 17 factions) go from bin RMSE **0.3459 to 0.0285** over 16 equal-count bins, median \|res\| 0.1770 → 0.0146, and \|res\|>0.25 on the whole supplier side 9.77 % → **1.48 %**; nothing outside the binding set moves. The implied-target/allocation-value ratio holds 0.99–1.01 up to 4 M Cr and then breaks to 0.671 (7.6 M), 0.366 (13.9 M), 0.117 (43.9 M), 0.046 (125 M). Dissolves the "narrow price span (output)" book: 114 offers, bin RMSE **0.2382 → 0.0136**, \|res\|>0.25 41.23 % → **0.00 %**. *Falsified by:* a supplier station with an in-game-verified allocation worth over 5 M Cr whose price tracks the full allocation — e.g. any of the 55 energy-cell solar plants pricing on 992,397 units rather than 312,500. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § Headline.
+
+**E-114 · CONFIRMED** — The cap is a *value*, `V ≈ 5,000,000 Cr`, not a volume, a unit count or a time.
+*Predicts:* per-offer implied V on the Terran/Pioneer energy-cell solar design (one design, in-game-verified ~992,397-unit allocation, 20 well-conditioned offers) median **5,002,645 Cr, IQR 5,001,555–5,007,379**; two offers 1.14 M Cr of stock apart solve jointly to **V = 5,006,800, a = 0.0482**, returning the offset the cohort is independently known to carry. Normalising on `price_min` or `price_max` instead of `price_avg` loosens the implied cap's relative IQR to 0.349 and 0.186 against **0.056**; normalising on ware volume gives no constant at all (31,000–609,000 m³ across cohorts that share the value cap to 1 %). *Falsified by:* any tight capped cohort reading a V more than ~2 % from 5.0 M once its `a` is independently pinned. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § The value of the cap.
+
+**E-115 · CONFIRMED** — The cap selects on *whether the station posts a sell offer* for the ware — the same predicate as the `a` offset (E-016) — and not on ware role, offer side, faction, sector or station design.
+*Predicts:* applying it to the 147 buy-only production inputs where it would bind roughly doubles their error, bin RMSE **0.1058 → 0.2078**, and those inputs show no knee at all in implied target ÷ allocation value (0.94–1.09) up to 13 M Cr of allocation; applying it to the 202 binding yard offers gives **0.3355 → 0.6310**. Mean within-group IQR of implied `m` on the capped basis: pooled **0.0281**, and *no* grouping beats it — station class 0.0281, design 0.0284, module count 0.0324, ware 0.0590, faction 0.0800, sector 0.1104. *Falsified by:* a buy-only production input with allocation value well above 5 M Cr pricing on the capped target. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § The cap applies to the supplier side only / § Which grouping makes `m` tightest.
+
+**E-116 · PENDING** — V is exactly 5,000,000 Cr, and the binding population's 5.05–5.10 M optimum is the V/`a` trade-off, not a different constant.
+*Predicts:* bin RMSE on the binding population 0.0197 at 5.00 M against 0.0172 at 5.10 M and 0.0331 at 4.90 M; a 1 % change in V is absorbed by ~0.001 of `a`, which is inside the supplier offset's known 0.041–0.066 scatter. *Settles it:* read one energy-cell solar plant's sell price and stock twice, once near 150,000 units and once near 300,000 — two points, two unknowns, one station, no cohort scatter. It settles E-007 at the same time. Predicted: `price = 16 × (1 + 0.375 · cos(π(stock/312,500 + 0.048)/1.095))`. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § Ranked remaining leads, item 1.
+
+**E-117 · PENDING** — Tidebreak (VOM-540) is the 5 M cap and not a bespoke target: its Protectyon target is 200.0 units, not E-018's fitted 173.1.
+*Predicts:* condensate band average 25,000 Cr against a 5,000-unit allocation is 125 M Cr, the deepest point in the corridor in the save; the cap gives target = 5 M/25,000 = **200.0 units, zero free parameters**, and reproduces the save's own offer price at stock 23 to **28 Cr out of a 2,500 Cr band half-width (1.1 %)** where the uncapped allocation is off by 212 Cr (8.5 %). E-018's derivative constraint implies 177 units and its level constraint 216–226 depending on `a`; 200 sits between them and one station cannot separate them. *Settles it:* sell ~117 Protectyon to VOM-540, taking its stock near 140, and read the price — cap **23,639.91**, E-018's 173.1 target **23,189.50**, uncapped allocation **27,432.80**. The 450 Cr gap between the first two is 18× the panel's ~25 Cr resolution. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § Ranked remaining leads, item 2.
+
+**E-118 · CONFIRMED** — Build storages hold no allocation, but the 37 % of their offers that are not clamped at the band ceiling do move with stock against a demand denominator — and not on the cosine.
+*Predicts:* over 1,771 offers on 630 hosts, **0** have a storage allocation row; against `demand = stock + inbound + open buy amount`, corr(fill, s) = **−0.791** (1,574 usable offers) and corr(stock, s) = −0.334 (1,045 with stock); yet the price holds `s = +1.000` flat to fill ≈ 0.41 before falling, giving bin RMSE **0.4992** against `cos(π(f+0.053)/1.095)`, 0.4369 against the plain cosine, and 0.1353 for the best free `(m, a)` with `a` pinned at the −0.250 grid edge. **Caveat recorded, not hidden:** the denominator uses the offer's own `amount`, so if the engine sets `amount = target − stock` the correlation is partly definitional; the monotone relation is real, its *shape* is only as good as that assumption, and the shape is what refuses the cosine. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § build storages.
 
 ## Storage allocation
 
@@ -432,9 +450,15 @@ shows what it caught:
   uncorrected fill numerator; harmonised to 2.60 with a pointer to the
   correction.
 
-Still open: (3) faction relation symmetry, (4) inert anomaly census, and (6)
-the price denominator — which Addendum 6 holds as *both* true and is tracked
-as the open question of what sets `m`.
+- **(6) price denominator** — RESOLVED 2026-07-29, and both sources were right
+  about different halves of one rule: the denominator **is** the storage
+  allocation (E-001) *and* it **is** sometimes a narrower price target (E-018),
+  because the target is the allocation **capped at 5 M Cr of value**. Below the
+  cap the two are the same number; above it they are not. E-036 and E-018 are
+  both superseded by E-113/E-114, and the "what sets `m`" question is closed:
+  `m = min(1, 5 M / (price_avg × allocation))`.
+
+Still open: (3) faction relation symmetry and (4) inert anomaly census.
 
 ### The original list
 

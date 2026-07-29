@@ -172,8 +172,22 @@ knowledge, not yet a feature.
   only — a modded save's mods are NOT diff-merged into the committed CSVs,
   so treat as approximate; floors verified against offers, but buy-side
   ceilings can exceed max.
-- **Layer 2 — economy price** (the value in the save's sell offers), a
-  linear supply curve:
+- **Layer 2 — economy price** (the value in the save's sell offers).
+  **SUPERSEDED 2026-07-29 — read Layer 4 for the current law; this section is
+  kept for its measurements, not its formula.** The curve is a cosine, not a
+  line (E-001), and `target_level` is now identified: it is the storage
+  allocation **capped at 5,000,000 Cr of value**,
+  `target = min(allocation, 5 M / ware.price_avg)`, applied where the station
+  posts a sell offer (E-113/E-114/E-115,
+  [../models/station-pricing-model.md](../models/station-pricing-model.md) §
+  The price target `m`). That reconciles this section's "much narrower span"
+  with the allocation model rather than contradicting it — the two are the same
+  number below 5 M Cr and diverge above it, which is why the cohorts measured
+  below read span/allocation 0.10–0.80. Cross-check: this section's
+  computronic-substrate span of 626 units against the cap's 5 M/8,280 = **604**.
+  The historical statement follows.
+
+  A linear supply curve:
   `economy_price = max − (max−min) × (stock − pending) / target_level`.
   Linear confirmed across 192 energy sell offers; exact on clean solar
   plants. *Pending* = committed outbound sales, summed from
@@ -515,6 +529,18 @@ knowledge, not yet a feature.
   same span, two disjoint populations.
 
   So the old "consumers price off need, not fill" is wrong: fill explains it.
+
+  **The denominator of `fill` is capped at 5 M Cr of value on the supplier
+  side [OBS, 2026-07-29].** `fill = net / min(allocation, 5,000,000 /
+  ware.price_avg)` wherever the station posts a sell offer for the ware; the
+  allocation is the whole story only while it is worth less than 5 M Cr. This
+  binds on 399 offers over 331 stations and 29 wares and takes them from bin
+  RMSE 0.3459 to 0.0285 with no free parameters, and it dissolves the former
+  "narrow price span (output)" cohort (computronic substrate, claytronics,
+  silicon wafers) back into the main sequence. It does **not** apply to
+  buy-only production inputs or to yards, where it was tested and rejected.
+  E-113/E-114/E-115;
+  [../reports/price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md).
 
   **Hours of cover does NOT explain it.** Tested because CCN-497 holds only
   1.15 h of every input yet bids at the ceiling: binning on hours of cover

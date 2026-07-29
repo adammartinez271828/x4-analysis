@@ -148,32 +148,51 @@ cause is unknown.** It is not an allocation error: for inputs posting a buy
 offer, `stock + inbound + amount` equals the modelled allocation at median
 ratio 0.9999.
 
-### The price target `m`
+### The price target `m` — a 5-million-credit cap
 
-`m = 1` for the bulk of the economy — the price runs over the storage
-allocation the equal-hours model computes (see
-[../reference/save-semantics.md](../reference/save-semantics.md) § storage).
-**But `m ≠ 1` genuinely exists** [EXP]:
+`m` is **not a free parameter and not a cohort constant**. The price target is
+the storage allocation capped at a fixed credit value [OBS]:
 
-Tidebreak (VOM-540) prices Protectyon over a **173-unit target against a
-5,000-unit allocation**, `m = 0.035`. The allocation is confirmed twice on the
-offer-derived floor (23 + 4,977 and 22 + 4,978 = 5,000). Two readings one unit
-apart — its shield generator consumes ~1/hour — moved the price **+17.41 Cr**;
-the 5,000-unit allocation permits **0.67 Cr** per unit and a 173-unit target
-predicts **19.28 Cr**. A constant additive stock reserve over the full
-allocation cannot fit both points (the implied reserve moves 28 units for a
-1-unit change); a smaller denominator fits exactly.
+```
+target = min( allocation , V / ware.price_avg )        V = 5,000,000 Cr
+m      = min( 1 , V / (price_avg × allocation) )
+```
 
-Save-wide, implied `m` peaks at 0.9–1.0 with a long low tail: **247 offers at
-`m < 0.65` across 232 stations and 28 wares**, 235 of them sell/output. Per
-(ware, role): computronicsubstrate output ≈ 0.10, claytronics 0.56 **bimodal**
-(clusters near 0.28 and 0.80), siliconwafers 0.60, microchips 0.76, hullparts
-0.80; inputs cluster at 1.10–1.19. Some cohorts are tight (weaponcomponents
-IQR/median 0.09, quantumtubes 0.07), others are not.
+applied **only where the station posts a SELL offer** for the ware — the same
+predicate that selects the `+0.053` offset. Equivalently: a supplier prices on
+whichever runs out first, its storage or five million credits of that ware,
+`u = max(net/allocation, net·price_avg/V) + a`.
+
+`m = 1` for the bulk of the economy because most allocations are worth less
+than 5 M Cr. It binds on **399 supplier offers over 331 stations, 29 wares and
+17 factions** — two populations that look unrelated on a fill/`s` scatter until
+you multiply by the band average: expensive wares in small quantities
+(computronic substrate 8,280 Cr × 5,338 units = 44 M ⇒ `m` = 0.113; Protectyon
+25,000 Cr × 5,000 = 125 M ⇒ `m` = 0.040) and cheap wares in enormous ones
+(energy cells 16 Cr × 992,397 = 15.9 M ⇒ `m` = 0.315).
+
+Bin RMSE on that population **0.3459 → 0.0285 with zero free parameters**;
+`|res| > 0.25` on the whole supplier side **9.77 % → 1.48 %**. `V` is a value,
+not a volume or a unit count: per-offer implied V on the Terran energy-cell
+solar design is **5,002,645 Cr (IQR 5,001,555–5,007,379, n = 20)**, while
+normalising on `price_min`/`price_max` loosens the fit 3–6× and on ware volume
+gives no constant at all. Full derivation:
+[../reports/price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md).
+
+After the cap there is **no residual cohort structure in `m`**: the mean
+within-group IQR of implied `m` is 0.0281 pooled, and no grouping tried — ware,
+faction, sector, design, module count, transport pool, allocation-hours —
+beats it. The per-(ware, role) "constants" previously listed here
+(computronicsubstrate 0.10, claytronics 0.56 bimodal, siliconwafers 0.60) were
+`5 M / (avg × that design's allocation)`; claytronics collapses from IQR/median
+0.95 to **0.014**.
 
 **`m` and `a` trade off at any single fill** — the decomposition `u = fill/m + a`
-is a convention, not a derived fact. Which of the two the engine actually
-carries is **[INF]** and open.
+is a convention, not a derived fact. That trade-off is why `V` fits best at
+5.05–5.10 M with `a` fixed at the rule value while the one cohort with a
+verified allocation and a wide fill range returns 5.0026 M; it is also why
+Tidebreak's target reads 200 (cap, zero parameters) against E-018's 173.1 (two
+free parameters). Which of the two the engine carries is **[INF]** and open.
 
 ## The other modifiers
 
@@ -328,12 +347,18 @@ Each is a separate book, confirmed by measurement rather than assumed [OBS]:
 | `lockavgprice` whitelist | 1,175 | pegged at band **average** regardless of stock; sell = avg exactly, buy = avg − 1 |
 | `supplies` (self-supply) | 1,309 | a fixed per-ware multiple of avg — **10 distinct constants**, 1.07–1.22× |
 | `shady` (black market) | 3,273 | **two tiers, disjoint by station** (E-112): 2,897 offers over 727 stations at median 1.042 × band max, and 376 over 96 stations at exactly **2.750 × band avg**; no fill dependence either way. Opened per station by a `shadyguy` post; what sets a station's tier is unknown |
-| build storages | 1,771 | sit at band max; hold no allocation, so they have no fill coordinate at all |
+| build storages | 1,771 | hold **no allocation** (0 of 1,771), so no fill coordinate exists. 63 % sit at band max to the cent and 10.6 % *above* it; the unclamped rest do move with stock against `stock + inbound + open buy amount` (corr −0.79) but hold `s = +1` flat to fill ≈ 0.41 and are **not** on the cosine (bin RMSE 0.44–0.50). E-118 |
 | yards / wharfs / docks | 701 | same family, different exponent (`k ≈ 2.6`); run much fuller, median fill 76 % vs 54 % |
 | player-owned | 54 | manual thresholds — `price_setting` and `ware_limit`, off-model by design |
 
 `supplies` and `yard` are characterised but **not explained**. The rest are
-understood.
+understood. All six were re-admitted as candidates and re-tested on 2026-07-29
+against the value cap; only the seventh, the old `narrow price span (output)`
+cohort (computronicsubstrate / claytronics / siliconwafers, 114 offers),
+turned out **not** to be a separate book — it is ordinary supplier pricing with
+the 5 M cap binding, bin RMSE 0.2382 → 0.0136. The cap was explicitly rejected
+for yards (bin RMSE 0.3355 → 0.6310 on the 202 offers where it would bind) and
+for buy-only production inputs (0.1058 → 0.2078 on 147).
 
 **Deployables are priced by recipe, not by stock [OBS].** Satellites, mines and
 the like are built on demand at
@@ -356,16 +381,26 @@ discount** (confirmed twice). `M` drifts between saves; read it per save.
 
 ## How well it fits
 
-Save `save_id` 70, 7,109 main-sequence offers, with the role/side offsets and
-`m = 1`:
+Save `save_id` 70, 7,227 main-sequence offers (the 114 old narrow-span ones
+re-admitted), with the role/side offsets. MAD is the *median* absolute
+residual. `m = 1` is the pre-2026-07-29 model; `cap` is `m = min(1, 5 M /
+(price_avg × allocation))` on the supplier side.
 
-| population | n | MAD | \|residual\| > 0.25 |
-|---|---:|---:|---:|
-| rations (buy only) | 2,361 | **0.0015** | 0.04 % |
-| supplier side | 1,704 | 0.0125 | 7.69 % |
-| production inputs (buy only) | 3,024 | 0.0714 | 8.63 % |
-| condensate | 16 | 0.0053 | 0.00 % |
-| **all** | **7,109** | **0.0141** | **5.54 %** |
+| population | n | MAD `m=1` | MAD cap | \|res\|>0.25 `m=1` | \|res\|>0.25 cap |
+|---|---:|---:|---:|---:|---:|
+| rations (buy only) | 2,372 | **0.0015** | **0.0015** | 0.04 % | 0.04 % |
+| supplier side | 1,821 | 0.0129 | 0.0130 | 9.77 % | **1.48 %** |
+| …of which the cap binds | 399 | 0.1770 | **0.0146** | 40.85 % | **3.01 %** |
+| production inputs (buy only) | 3,044 | 0.0717 | 0.0717 | 8.64 % | 8.64 % |
+| **all** | **7,227** | **0.0143** | **0.0141** | **6.12 %** | **4.03 %** |
+
+Bin RMSE on the binding population: **0.3459 → 0.0285** over 16 equal-count
+bins. The save-wide *bin-median* statistic barely moves (0.0063 → 0.0066)
+because 24 bins of ~300 offers cannot see 399 of them however wrong they are —
+which is exactly why `m = 1` also scored 0.0063 there while scoring 0.283 on
+the offers it got wrong. Score a change to `m` on the population it binds on
+**and** on the whole-population tail fraction, never on the save-wide bin
+median alone.
 
 Rations are the tightest law found anywhere in this project — tighter than the
 storage allocation model that feeds it.
@@ -399,17 +434,24 @@ Two constraints, both learned the hard way:
 | recipe properties driving the input offset | cycle time +0.13, input count +0.17, input value share +0.20, chain tier +0.11 — all weak, and all ware-level, which cannot explain a station constant |
 | hours of cover instead of fill | median deviation 0.136 against fill's 0.068, and not monotone |
 | owner faction | every faction with n ≥ 100 sits between −0.018 and −0.003 |
+| `m` as a per-(ware, role) game constant | claytronics output reads 0.109 and 1.214 for the *same* ware and role; `m × allocation` is flat at 2,480–2,525 across its 48 sellers (E-024) |
+| the cap as a *volume* cap | `target × ware.volume` spans 31,000–609,000 m³ across cohorts sharing a value cap to 1 % |
+| the cap normalising on `price_min` / `price_max` | implied-cap relative IQR 0.349 / 0.186 against `price_avg`'s 0.056 |
+| the cap applying to buy-only inputs or to yards | bin RMSE 0.1058 → 0.2078 (147 inputs) and 0.3355 → 0.6310 (202 yard offers) where it would bind |
+| the corridor as a faction / sector / design / module-count property | every such grouping has a *higher* within-group IQR of `m` than pooling, on both bases |
 
 ## Open questions
 
-1. **What sets `m`.** The low-`m` corridor (247 offers, 232 stations, 28 wares)
-   is the largest unexplained structure left. Claytronics being bimodal — same
-   ware, two clusters — is the sharpest available test case, because whatever
-   separates the clusters must be a station property.
+1. **Is `V` exactly 5,000,000 Cr?** The binding population optimises at
+   5.05–5.10 M with `a` fixed; the one cohort with a verified allocation and a
+   wide fill range returns 5.0026 M. `V` and `a` trade off, so it needs one
+   station read at two well-separated stock levels (E-116).
 2. **What the −0.039 per-station input offset physically is.** Confirmed as a
    station constant with a 0.78 h ceiling; two hypotheses killed.
 3. **Whether the engine carries `m` or `a`.** They are interchangeable at a
    single fill, so only a cohort spanning several fills can separate them.
+   Tidebreak is the open case: the cap says 200 units with no free parameters,
+   E-018's two-parameter solve said 173.1 (E-117).
 4. **`supplies`' 10 per-ware constants** (1.07–1.22× avg), source unidentified.
    Not the recipe input value, which gives 0.72–0.95.
 5. **Yard pricing** (`k ≈ 2.6`), likely priced off outstanding build demand
@@ -426,7 +468,9 @@ fill       = (stock + inbound − outbound) / allocation
 a  = +0.053  station posts a sell offer for the ware
      −0.039  buy-only production input   (a per-station constant)
      +0.006  buy-only ration
-m  =  1      almost always; 0.035 at Tidebreak, ~0.10 computronicsubstrate
+m  = min(1, 5,000,000 Cr / (price_avg x allocation))     supplier side only
+     ( = 1 almost always; 0.04 Tidebreak, 0.11 computronicsubstrate,
+       0.32 the 992k-unit energy-cell solar design )
 
 then, at display time only:  × (1 − reputation tier% − event%)
 and the panel rounds its percentages UP.
