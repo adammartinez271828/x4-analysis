@@ -159,10 +159,11 @@ m      = min( 1 , V / (price_avg × allocation) )
 ```
 
 applied **only where the station posts a SELL offer** for the ware — the same
-predicate that selects the `+0.053` offset. Every capped station in the save is
-also a *producer*, and the one non-producer that reaches the cap (DHI-588,
-a Kaori-owned Argon trade-station design) ignores it, as do yards; the two
-predicates are confounded and the scope is open (E-115). Equivalently: a supplier prices on
+predicate that selects the `+0.053` offset. The station need **not** produce
+the ware: 23 offers over 12 producing stations reselling a ware they buy cap
+cleanly (median |res| 0.1151 → 0.0142). Whether *non*-producers cap is open and
+contradictory — VOM-540 caps, DHI-588 (in-game-verified allocations) does not,
+and no single V fits both (E-115 § scope, register § Contradictions item 8). Equivalently: a supplier prices on
 whichever runs out first, its storage or five million credits of that ware,
 `u = max(net/allocation, net·price_avg/V) + a`.
 

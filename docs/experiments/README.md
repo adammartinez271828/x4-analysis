@@ -53,9 +53,9 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
 | **total** | **51** | **30** | **31** | **6** | **118** |
 
-Seven entries carried a documented disagreement between sources; five were
+Eight entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
-file, two remain open.
+file, three remain open.
 
 ---
 
@@ -179,7 +179,7 @@ file, two remain open.
 *Predicts:* per-offer implied V on the Terran/Pioneer energy-cell solar design (one design, in-game-verified ~992,397-unit allocation, 20 well-conditioned offers) median **5,002,645 Cr, IQR 5,001,555–5,007,379**; two offers 1.14 M Cr of stock apart solve jointly to **V = 5,006,800, a = 0.0482**, returning the offset the cohort is independently known to carry. Normalising on `price_min` or `price_max` instead of `price_avg` loosens the implied cap's relative IQR to 0.349 and 0.186 against **0.056**; normalising on ware volume gives no constant at all (31,000–609,000 m³ across cohorts that share the value cap to 1 %). *Falsified by:* any tight capped cohort reading a V more than ~2 % from 5.0 M once its `a` is independently pinned. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § The value of the cap.
 
 **E-115 · CONFIRMED** — The cap selects on *whether the station posts a sell offer* for the ware — the same predicate as the `a` offset (E-016) — and not on ware role, offer side, faction, sector or station design.
-*Predicts:* applying it to the 147 buy-only production inputs where it would bind roughly doubles their error, bin RMSE **0.1058 → 0.2078**, and those inputs show no knee at all in implied target ÷ allocation value (0.94–1.09) up to 13 M Cr of allocation; applying it to the 202 binding yard offers gives **0.3355 → 0.6310**. Mean within-group IQR of implied `m` on the capped basis: pooled **0.0281**, and *no* grouping beats it — station class 0.0281, design 0.0284, module count 0.0324, ware 0.0590, faction 0.0800, sector 0.1104. **Scope caveat, recorded not hidden:** all 330 capped stations are *producers* with a computed allocation, and the single non-producer in the binding set breaks it — **DHI-588** (Kaori, Argon trade-station design, Mitsuno's Sacrifice) fits better uncapped (median \|res\| 0.0152 against the cap's 0.1729) and its own bid quantity independently implies targets of 2,910 claytronics and 56,666 silicon against caps of 2,451 and 38,462. So "producer" and "posts a sell offer" are confounded here; yards, also non-producers, reject the cap too. *Falsified by:* a buy-only production input with allocation value well above 5 M Cr pricing on the capped target; the scope half is settled by a second non-producing station over 5 M Cr of allocation. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § The cap applies to the supplier side only / § The one counterexample in the save: DHI-588.
+*Predicts:* applying it to the 147 buy-only production inputs where it would bind roughly doubles their error, bin RMSE **0.1058 → 0.2078**, and those inputs show no knee at all in implied target ÷ allocation value (0.94–1.09) up to 13 M Cr of allocation; applying it to the 202 binding yard offers gives **0.3355 → 0.6310**. Mean within-group IQR of implied `m` on the capped basis: pooled **0.0281**, and *no* grouping beats it — station class 0.0281, design 0.0284, module count 0.0324, ware 0.0590, faction 0.0800, sector 0.1104. **Refined 2026-07-29 by the DHI-588 readings:** the station does **not** have to produce the ware — 23 offers over 12 producing stations reselling a ware they buy (khaakscrapmetal at ZZY-447/WSS-605/DOU-799/DRI-101, microchips at LIB-169/QLG-810, silicon wafers at GSF-444/NQP-234, refined metals at XUP-313) cap cleanly, median \|res\| 0.1151 → 0.0142, so an "own output only" narrowing is rejected. **The non-producer cell is contradictory and is recorded as such (see § Contradictions):** VOM-540 caps (0.0822 → 0.0181, implied V 5.69–5.71 M against a 125 M allocation value) while **DHI-588** does not (0.0152 → 0.1729, its four wares demanding 0.93–1.04 × their own allocation value), and no single V reconciles them — DHI-588 needs V ≥ 7.4 M, VOM-540 ≈ 5.4–5.7 M. DHI-588's allocations are now in-game-verified (claytronics 2,910, silicon 56,666 read exactly) and its 50 sub-cap wares sit at median \|res\| 0.0139, so it is an ordinary supplier-curve station and not a measurement artifact. *Falsified by:* a buy-only production input with allocation value well above 5 M Cr pricing on the capped target. *Needs:* the storage maximum and price for a ware worth over 5 M Cr of allocation on a second large NPC trade station (RAN-388, EOX-322, GMJ-316, MOP-635) to settle the scope. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § The cap applies to the supplier side only / § The one counterexample in the save: DHI-588.
 
 **E-116 · PENDING** — V is exactly 5,000,000 Cr, and the binding population's 5.05–5.10 M optimum is the V/`a` trade-off, not a different constant.
 *Predicts:* bin RMSE on the binding population 0.0197 at 5.00 M against 0.0172 at 5.10 M and 0.0331 at 4.90 M; a 1 % change in V is absorbed by ~0.001 of `a`, which is inside the supplier offset's known 0.041–0.066 scatter. *Settles it:* read one energy-cell solar plant's sell price and stock twice, once near 150,000 units and once near 300,000 — two points, two unknowns, one station, no cohort scatter. It settles E-007 at the same time. Predicted: `price = 16 × (1 + 0.375 · cos(π(stock/312,500 + 0.048)/1.095))`. *Source:* [price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md) § Ranked remaining leads, item 1.
@@ -458,7 +458,21 @@ shows what it caught:
   both superseded by E-113/E-114, and the "what sets `m`" question is closed:
   `m = min(1, 5 M / (price_avg × allocation))`.
 
-Still open: (3) faction relation symmetry and (4) inert anomaly census.
+- **(8) do non-producers cap?** (E-115, opened 2026-07-29) — the two
+  non-producing stations in the save with a ware worth over 5 M Cr of
+  allocation **disagree**. VOM-540 (Tidebreak, `landmarks_gen_piratestation`)
+  caps: median \|res\| 0.0822 → 0.0181, implied V 5.69–5.71 M against a 125 M
+  allocation value. DHI-588 (Quettanauts, Argon trade-station design) does not:
+  0.0152 → 0.1729, its four capped-range wares demanding 0.93–1.04 × their own
+  allocation value, with the allocations confirmed in game. No single V fits
+  both (≥ 7.4 M vs ≈ 5.4–5.7 M). Recorded as a scope contradiction, not
+  resolved; the cap's form and value (E-113/E-114) rest on 392 producer offers
+  and are unaffected. The one structural difference visible is the origin of
+  the allocation — module capacity ÷ volume for VOM-540, trade capacity for
+  DHI-588 — which n = 2 cannot test.
+
+Still open: (3) faction relation symmetry, (4) inert anomaly census, and (8)
+whether non-producers cap.
 
 ### The original list
 

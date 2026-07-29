@@ -507,20 +507,82 @@ They agree with each other to 2.4 % and 3.8 % and both disagree with the cap by
 19 % and 53 %. A capped station would bid 1,646 claytronics, not 2,105. This is
 a real breach, not a measurement artifact.
 
-**So the discriminator is probably narrower than "posts a sell offer".** Every
-one of the 330 capped stations is a *producer* with a computed, production-based
-allocation; the one non-producer in the binding set ignores the cap — and so do
-yards and wharfs, which are also non-producers and where the cap was rejected
-independently (bin RMSE 0.3355 → 0.6310). That is a consistent story:
-**non-producers do not cap.** It is also confounded in this save — every capped
-producer posts a sell offer, so "producer" and "posts a sell offer" cannot be
-separated on the 399 offers available, and one station is thin evidence for
-either. The cap's *value* and *form* (E-113/E-114) do not depend on which way
-this resolves; only its scope does.
+### Addendum, same day: DHI-588 read in game, and the scope 2×2×2
 
-*Falsified by:* a second non-producing station (trade station, dock) with an
-allocation worth over 5 M Cr pricing on the capped target — which would make
-DHI-588 an outlier rather than a rule.
+The player supplied DHI-588's full Logical Station Overview allocation table
+(38 wares). It is **QUE — Quettanauts**, the DB's `kaori`; the report above said
+"Kaori-owned" from the faction id and "Argon trade station" from the design
+macro, both of which read as a faction claim they were not.
+
+**The readings confirm the proxy exactly where it matters.** Claytronics
+**2,910** and silicon **56,666** are precisely the modelled values, so the cap
+breach is now measured against an in-game allocation, not inferred from an
+offer-derived lower bound. (34 of 38 readings reproduce exactly; the four that
+miss — advancedcomposites 1,214 vs 2,182, dronecomponents 1,795 vs 2,328,
+engineparts 3,650 vs 4,656, graphene 2,737 vs 3,492 — are all *under*, exactly
+as the lower-bound caveat predicts, and none is a capped ware.)
+
+**The control is decisive.** With its in-game allocations, DHI-588's **50
+offers on wares worth under 5 M Cr sit at median |res| 0.0139** — dead on the
+main-sequence supplier fit of 0.0115. Its **4 offers above 5 M sit at 0.0152
+uncapped and 0.1729 capped**. It is an ordinary supplier-curve station across
+54 offers, and the cap is the only thing that breaks it.
+
+Re-running the scope split with `producer` = *has at least one built production
+module* (the storage `source` field is not a proxy for this: Tidebreak's
+condensate pool takes the `computed` path with zero production modules):
+
+| producer | posts sell offer | produces this ware | offers | stations | median \|res\| no cap | with cap | verdict |
+|---|---|---|---:|---:|---:|---:|---|
+| ✓ | ✓ | ✓ | 369 | 328 | 0.1950 | **0.0145** | **CAPS** |
+| ✓ | ✓ | ✗ | 23 | 12 | 0.1151 | **0.0142** | **CAPS** |
+| ✓ | ✗ | ✗ | 147 | 136 | **0.0519** | 0.0942 | does not cap |
+| ✗ | ✓ | — | 7 | 3 | — | — | **split, see below** |
+
+Two things are settled by this that were not before:
+
+- **The station does not have to produce the ware.** 23 offers over 12 stations
+  where a *producer* resells something it buys — khaakscrapmetal at ZZY-447,
+  WSS-605, DOU-799, DRI-101; microchips at LIB-169, QLG-810; silicon wafers at
+  GSF-444, NQP-234; refined metals at XUP-313 — cap cleanly, 0.1151 → 0.0142
+  (bin RMSE 0.1771 → 0.0128). A narrower "the cap applies to a station's own
+  output" rule is **rejected**.
+- **Posting a sell offer is necessary.** 147 buy-only inputs at producing
+  stations over 136 stations get worse under the cap. Unchanged.
+
+**The non-producer cell is genuinely split, and I am recording both rather than
+picking a winner.** It holds three stations, one of which is uninformative:
+
+| station | design | offers | median \|res\| no cap | with cap | the V each ware demands |
+|---|---|---:|---:|---:|---|
+| **VOM-540** (Tidebreak, civilian) | `landmarks_gen_piratestation_01_macro` | 2 | 0.0822 | **0.0181** | 5.69, 5.71 M — **caps** |
+| **DHI-588** (Quettanauts) | `station_arg_tradestation_base_01_macro` | 4 | **0.0152** | 0.1729 | 6.05, 6.08, 6.85, 7.64 M — **does not cap** |
+| IJK-683 (Xenon) | `station_xen_factory_base_01_macro` | 1 | 0.0115 | 0.0115 | net position 0 — carries no information under any model |
+
+DHI-588's four demanded values are **0.93–1.04 × its own allocation value**,
+i.e. it tracks its allocation, not a constant. VOM-540's two are 5.69–5.71 M
+against an allocation worth **125 M**, i.e. it is unambiguously capped — at an
+implied V 8–14 % above the producer population's, on 23 units of stock where a
+one-unit error moves the implied target by 4 %.
+
+**No single V reconciles them.** DHI-588 needs V ≥ 7.4 M to stay uncapped;
+VOM-540 needs V ≈ 5.4–5.7 M. So this is a scope question, not a calibration
+one, and neither "producers only" nor "posts a sell offer" is the whole rule.
+The one structural difference I can see is where the allocation comes from —
+VOM-540's is a *physical storage-module capacity* (the "pool no recipe touches"
+path, capacity ÷ volume), DHI-588's is *trade capacity* — but n = 2 cannot
+test that.
+
+**None of this touches E-113 or E-114.** The cap's existence, form and value
+rest on 392 offers over 340 producing stations. Only its scope at the margin is
+open.
+
+*Settled by:* the Logical Station Overview allocation and current price for
+**silicon and claytronics on any other large NPC trade station** — RAN-388
+(boron, 47 offers), EOX-322 or GMJ-316 (argon, 46), MOP-635 (Quettanauts, 45)
+are the biggest after DHI-588. If one of them carries a ware worth over 5 M Cr
+of allocation and prices on the full allocation, DHI-588 is the rule for trade
+stations; if it caps, DHI-588 is an outlier.
 
 ---
 
