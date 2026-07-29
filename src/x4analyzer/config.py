@@ -53,36 +53,109 @@ def x4_user_dir_candidates() -> list[Path]:
             home / "Documents" / "Egosoft" / "X4"]
 
 
+GAME_DIR_ENV = "X4_GAME_DIR"
+
+GAME_DIR_NAME = "X4 Foundations"
+
+# Non-default Steam library roots ("path" in the modern libraryfolders.vdf)
+# and the legacy pre-2021 form, where each numbered key IS the path
+# (`"1"  "D:\\SteamLibrary"`) with no "path" key at all.
+_VDF_PATH_RE = re.compile(r'"path"\s+"([^"]+)"')
+_VDF_LEGACY_RE = re.compile(r'"\d+"\s+"([^"]{2,})"')
+
+
 def _steam_roots() -> list[Path]:
+    """Places a Steam installation root may live, most likely first."""
     home = Path.home()
     if sys.platform == "win32":
         pf86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
-        return [Path(pf86) / "Steam"]
+        pf = os.environ.get("ProgramFiles", r"C:\Program Files")
+        return [Path(pf86) / "Steam", Path(pf) / "Steam", Path(r"C:\Steam")]
     if sys.platform == "darwin":
         return [home / "Library" / "Application Support" / "Steam"]
-    return [home / ".local" / "share" / "Steam", home / ".steam" / "steam",
-            Path(os.environ.get("XDG_DATA_HOME",
-                                home / ".local" / "share")) / "Steam"]
+    xdg = Path(os.environ.get("XDG_DATA_HOME", home / ".local" / "share"))
+    return [
+        home / ".local" / "share" / "Steam",
+        home / ".steam" / "steam",
+        home / ".steam" / "root",
+        xdg / "Steam",
+        # Flatpak and Snap keep their own private HOME.
+        home / ".var" / "app" / "com.valvesoftware.Steam" / ".local"
+        / "share" / "Steam",
+        home / "snap" / "steam" / "common" / ".local" / "share" / "Steam",
+    ]
+
+
+def _steam_libraries(root: Path) -> list[Path]:
+    """Library roots listed by a Steam root's libraryfolders.vdf.
+
+    Includes the Steam root itself (it is always library 0, and older
+    installs have no vdf at all). Tolerates a missing or malformed file:
+    anything unparseable simply contributes no extra libraries.
+    """
+    libs = [root]
+    for name in ("steamapps", "SteamApps", "steam/steamapps"):
+        vdf = root / name / "libraryfolders.vdf"
+        if not vdf.is_file():
+            continue
+        try:
+            text = vdf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        found = _VDF_PATH_RE.findall(text) or _VDF_LEGACY_RE.findall(text)
+        for raw in found:
+            # Windows paths are escaped in the vdf ("D:\\SteamLibrary").
+            libs.append(Path(raw.replace("\\\\", "\\")))
+    return libs
+
+
+def _game_dir_in(library: Path) -> Path | None:
+    """The X4 install inside one Steam library root, if present."""
+    for apps in ("steamapps", "SteamApps"):
+        common = library / apps / "common"
+        candidate = common / GAME_DIR_NAME
+        if candidate.is_dir():
+            return candidate
+        # Case-insensitive fallback (cf. the capital-S EgoSoft trap).
+        try:
+            for d in common.iterdir():
+                if d.name.lower() == GAME_DIR_NAME.lower() and d.is_dir():
+                    return d
+        except OSError:
+            continue
+    return None
 
 
 def find_game_dir() -> Path | None:
-    """Locate the X4 installation via Steam library folders."""
+    """Locate the X4 installation: $X4_GAME_DIR, else Steam libraries.
+
+    Returns None when nothing is found — Steam being absent entirely is
+    the normal case for a wheel/uvx install, where `extract-gamedata` is
+    simply not usable.
+    """
+    env = os.environ.get(GAME_DIR_ENV)
+    if env:
+        p = Path(env).expanduser()
+        if p.is_dir():
+            return p
+
+    seen: set[Path] = set()
     libraries: list[Path] = []
     for root in _steam_roots():
-        vdf = root / "steamapps" / "libraryfolders.vdf"
-        if not vdf.is_file():
-            continue
-        libraries.append(root)
-        try:
-            for m in re.finditer(r'"path"\s+"([^"]+)"', vdf.read_text(
-                    encoding="utf-8", errors="replace")):
-                libraries.append(Path(m.group(1).replace("\\\\", "\\")))
-        except OSError:
-            continue
+        for lib in _steam_libraries(root):
+            try:
+                key = lib.resolve()
+            except OSError:
+                key = lib
+            if key in seen:
+                continue
+            seen.add(key)
+            libraries.append(lib)
+
     for lib in libraries:
-        candidate = lib / "steamapps" / "common" / "X4 Foundations"
-        if candidate.is_dir():
-            return candidate
+        found = _game_dir_in(lib)
+        if found is not None:
+            return found
     return None
 
 
@@ -92,7 +165,9 @@ class Config:
     # the platform-standard locations.
     x4_user_dir: Path | None = None
 
-    # X4 installation (for `extract-gamedata`). None = detect via Steam.
+    # X4 installation (for `extract-gamedata`). Left unset it is filled in
+    # by detection (`$X4_GAME_DIR`, else the Steam libraries) at construction
+    # time, and stays None only when no install could be found.
     game_dir: Path | None = None
 
     # Writable dir for caches and regenerated reference data; packaged data
@@ -116,6 +191,17 @@ class Config:
 
     # Open the dashboard in the default browser when done.
     open_browser: bool = True
+
+    def __post_init__(self) -> None:
+        # Resolve the game install eagerly so plain attribute access
+        # (`Config().game_dir`) yields a usable path instead of a None that
+        # only surfaces later as an AttributeError. Detection is a handful
+        # of stats plus one small vdf read, and must never be fatal.
+        if self.game_dir is None:
+            try:
+                self.game_dir = find_game_dir()
+            except Exception:  # pragma: no cover - detection is best-effort
+                self.game_dir = None
 
     def find_all_savegames(self) -> list:
         """Every discoverable savegame file (first user dir with any)."""
@@ -168,8 +254,12 @@ class Config:
             return self.game_dir
         found = find_game_dir()
         if found is None:
+            searched = "\n  ".join(str(r) for r in _steam_roots())
             raise FileNotFoundError(
-                "Could not locate the X4 installation via Steam libraries. "
-                "Use --game-dir to point at the 'X4 Foundations' folder."
+                "Could not locate the X4 installation. Looked for a Steam "
+                f"library holding 'steamapps/common/{GAME_DIR_NAME}' under:"
+                f"\n  {searched}\n"
+                f"Set {GAME_DIR_ENV}=/path/to/'{GAME_DIR_NAME}' or pass "
+                "--game-dir to point at the installation directory."
             )
         return found

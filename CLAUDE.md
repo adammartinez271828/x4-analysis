@@ -24,7 +24,7 @@ uv run pytest tests/test_store.py -q     # run one test file
 ## Machine-specific paths (defaults in `config.py`)
 
 - Savegames: `/home/adam/.config/EgoSoft/X4/12073019/save/` (found by the platform-aware search in `config.x4_user_dir_candidates()`; note the capital-S `EgoSoft` — naive lowercase-`Egosoft` matching misses it).
-- Game install: `/games/SteamLibrary/steamapps/common/X4 Foundations` (auto-detected from Steam `libraryfolders.vdf`; only needed for `extract-gamedata`; official DLCs installed, plus ~60 mods — saves are `modified="1"`).
+- Game install: `/games/SteamLibrary/steamapps/common/X4 Foundations` — a non-default Steam library, found via `libraryfolders.vdf` under the Steam roots (`config.find_game_dir()`, full rules in [csv-reference.md](docs/reference/csv-reference.md) § Extraction and override machinery). `Config()` resolves it at construction, so `cfg.game_dir` is a real path; override with `X4_GAME_DIR` or `--game-dir`. Only needed for `extract-gamedata`; official DLCs installed, plus ~60 mods — saves are `modified="1"`.
 - Reference CSVs live IN the package (`src/x4analyzer/data/`, committed) so wheels/uvx work; the per-user data dir (`~/.local/share/x4analyzer`, platform-dependent via `config.user_data_dir()`) holds the analysis database (`x4_<guid>.sqlite`) and extract-gamedata output, which override packaged files.
 
 ## Architecture

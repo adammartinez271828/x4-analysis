@@ -42,7 +42,9 @@ def main(argv: list[str] | None = None) -> int:
         "extract-gamedata",
         help="regenerate reference CSVs from the installed game (base + DLC)",
     )
-    p_ex.add_argument("--game-dir", type=Path, help="X4 installation directory")
+    p_ex.add_argument("--game-dir", type=Path,
+                      help="X4 installation directory (default: detected via "
+                           "$X4_GAME_DIR or the Steam libraries)")
     p_ex.add_argument("--include-mods", action="store_true",
                       help="also scan non-DLC extensions for added ships")
     _add_common_args(p_ex)
@@ -51,7 +53,9 @@ def main(argv: list[str] | None = None) -> int:
         "gamedata-dashboard",
         help="build the game-data analysis dashboard (weapon-mod comparison)",
     )
-    p_gd.add_argument("--game-dir", type=Path, help="X4 installation directory")
+    p_gd.add_argument("--game-dir", type=Path,
+                      help="X4 installation directory (default: detected via "
+                           "$X4_GAME_DIR or the Steam libraries)")
     p_gd.add_argument("--output-dir", type=Path, help="dashboard output directory")
     _add_common_args(p_gd)
 
@@ -84,7 +88,16 @@ def main(argv: list[str] | None = None) -> int:
     if not argv or argv[0].startswith("-"):
         argv = ["analyze", *argv]
     args = parser.parse_args(argv)
+    try:
+        return _run(args)
+    except (FileNotFoundError, RuntimeError) as exc:
+        # Path/discovery failures are user errors, not bugs: report them
+        # the way the rest of the pipeline reports problems.
+        log("ERROR:", exc)
+        return 1
 
+
+def _run(args: argparse.Namespace) -> int:
     cfg = Config()
     if args.data_dir:
         cfg.data_dir = args.data_dir

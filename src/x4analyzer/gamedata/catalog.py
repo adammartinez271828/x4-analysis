@@ -63,6 +63,13 @@ class GameFiles:
         """`extensions`: folder names under extensions/ to load, in load order.
         None loads only official DLC (ego_dlc_*)."""
         self.game_dir = game_dir
+        if game_dir is None:
+            # A None here means detection found no install; say so rather
+            # than dying on `None.is_dir()` three frames from the cause.
+            raise FileNotFoundError(
+                "no X4 installation given (game directory detection found "
+                "none): set X4_GAME_DIR or pass --game-dir"
+            )
         if not game_dir.is_dir():
             raise FileNotFoundError(f"game directory not found: {game_dir}")
 

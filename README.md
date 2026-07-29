@@ -77,7 +77,12 @@ savegame. After a game update, or to pick up mod-added ships, regenerate it
 ```bash
 x4-analyzer extract-gamedata                  # writes to your user data dir
 x4-analyzer extract-gamedata --include-mods   # also scan mod extensions
+x4-analyzer extract-gamedata --game-dir <dir> # if your install isn't found
 ```
+
+Detection checks `$X4_GAME_DIR` first, then the Steam libraries listed in
+`libraryfolders.vdf` (including libraries on other drives, and Flatpak/Snap
+Steam); `--game-dir` or `X4_GAME_DIR` covers any layout it misses.
 
 Regenerated files (and the trade-history caches) live in a per-user data
 directory (`~/.local/share/x4analyzer` on Linux, `%LOCALAPPDATA%\x4analyzer`

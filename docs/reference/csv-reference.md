@@ -51,6 +51,27 @@ vanilla+DLC virtual filesystem**, while the analyzed saves are
 
 Stated once here, not repeated per file:
 
+- **Finding the game install** (`config.find_game_dir`). In order: the
+  `X4_GAME_DIR` environment variable (must be an existing directory, else it
+  is ignored); then every Steam root for the platform — Linux
+  `~/.local/share/Steam`, `~/.steam/steam`, `~/.steam/root`,
+  `$XDG_DATA_HOME/Steam`, Flatpak
+  (`~/.var/app/com.valvesoftware.Steam/…`) and Snap
+  (`~/snap/steam/common/…`); Windows `%ProgramFiles(x86)%\Steam`,
+  `%ProgramFiles%\Steam`, `C:\Steam`; macOS
+  `~/Library/Application Support/Steam`. Each root contributes itself
+  (it is always library 0) plus every library listed in its
+  `steamapps/libraryfolders.vdf` — both the modern `"path" "…"` form and
+  the pre-2021 form where the numbered key *is* the path, with Windows
+  `\\` unescaped. The first library holding `steamapps/common/X4
+  Foundations` wins (matched case-insensitively). A missing, unreadable or
+  malformed vdf costs that root its extra libraries and nothing more:
+  detection never raises, and returns `None` when Steam is absent — the
+  normal case for a wheel/uvx install, where `extract-gamedata` is simply
+  not usable. `Config()` runs this at construction, so `cfg.game_dir` is
+  the resolved path (or `None`); `cfg.resolve_game_dir()` is the same thing
+  but raises a `FileNotFoundError` naming the roots searched and both
+  overrides (`X4_GAME_DIR`, `--game-dir`) instead of returning `None`.
 - **Archives.** Game data lives in `.cat`/`.dat` pairs: the `.cat` is a text
   index (`<path> <size> <mtime> <md5>` per line), the `.dat` holds the
   payloads concatenated in index order, so each entry's offset is the

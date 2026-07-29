@@ -124,8 +124,9 @@ extraction machinery.
 For questions the CSVs don't answer, use the archive reader straight:
 
 ```python
+from x4analyzer.config import Config
 from x4analyzer.gamedata.catalog import GameFiles
-gf = GameFiles(Path("/games/SteamLibrary/steamapps/common/X4 Foundations"))
+gf = GameFiles(Config().resolve_game_dir())   # or an explicit install path
 gf.glob(r"regex over virtual paths")   # loose files not included
 gf.read_bytes(path); gf.source_of(path)  # "" = base, else extension name
 ```
