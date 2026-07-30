@@ -46,12 +46,12 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | subsystem | CONFIRMED | FALSIFIED | PENDING | SUPERSEDED | total |
 |---|---:|---:|---:|---:|---:|
 | Pricing (E-001…E-036, E-112…E-118) | 16 | 11 | 11 | 5 | 43 |
-| Storage allocation (E-037…E-063, E-119…E-128) | 20 | 7 | 8 | 2 | 37 |
+| Storage allocation (E-037…E-063, E-119…E-128) | 21 | 7 | 7 | 2 | 37 |
 | Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111) | 5 | 5 | 4 | 0 | 14 |
-| **total** | **57** | **31** | **33** | **7** | **128** |
+| **total** | **58** | **31** | **32** | **7** | **128** |
 
 Eight entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -297,11 +297,11 @@ file, three remain open.
 **E-126 · CONFIRMED** — The in-game Supplies tab shows held + on order, and `station_storage` `role='supply'` is the ON-ORDER term alone.
 *Predicts:* GMJ-316 reads dronecomponents 6 / energycells 300 / smartchips 120 in game; the save holds dronecomponents 6 and energycells 350 in `station_supply` (kind `ware`) with no open offer, and smartchips 0 held against a 120-unit `supplies`-flagged offer — so the only `role='supply'` row is smartchips 120, and it is correct. A satisfied station posts no supply offer, the same withdrawal rule that governs cargo buys. The held side is fully parsed: **2,471 rows over 1,033 stations**, exposed by `v_station_supply`; nothing downstream consumes `role='supply'`. *Settled by:* player reading of GMJ-316's Supplies tab, 2026-07-29, which was first mis-read as a model defect and is retracted. *Resolved 2026-07-29:* `v_station_supply_position` now exposes held, on_order and their sum as `allocation` — 3,199 (station, ware) pairs over 1,045 stations, 378 carrying both terms; it reproduces GMJ-316's tab (drone components 6, smart chips 120). The sum carries the cargo proxy's lower-bound caveat and the held-AND-on-order case is still unread in game. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum: the GMJ-316 "supplies model is wrong" note is RETRACTED.
 
-**E-127 · PENDING** — The self-supply allocation is `held + on order`, the same saturating lower bound as `stock + open buy amount` is for cargo.
-*Predicts:* `v_station_supply_position` over 3,199 (station, ware) pairs on 1,045 stations; validated in game only at the two ENDPOINTS — GMJ-316 drone components 6 (6 held, nothing on order) and smart chips 120 (none held, 120 on order). The 378 pairs carrying BOTH terms are untested, so a held-only or order-only rule is not yet excluded on them. *Settles it:* read the Supplies tab for **TDF-832** (split, Wretched Skies IV Family Valka) missile components — the sum predicts **25,869** against 9,836 held-only or 16,033 order-only, three values thousands apart — or **ASU-653** (paranid, Wretched Skies X) energy cells, predicting **22,550** against 8,924 or 13,626. Either separates all three rules in one reading. *Source:* [db-schema.md](../reference/db-schema.md) § views, `v_station_supply_position`; [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum: the GMJ-316 note is RETRACTED.
+**E-127 · CONFIRMED** — The self-supply allocation is `held + on order`, the same saturating lower bound as `stock + open buy amount` is for cargo.
+*Predicts:* `v_station_supply_position` over 3,199 (station, ware) pairs on 1,045 stations; validated in game only at the two ENDPOINTS — GMJ-316 drone components 6 (6 held, nothing on order) and smart chips 120 (none held, 120 on order). The 378 pairs carrying BOTH terms are untested, so a held-only or order-only rule is not yet excluded on them. *Settled by:* player reading of TDF-832, 2026-07-29 — the Supplies tab reads **9,836 / 25,869** missile components, the predicted sum exactly (9,836 held + 16,033 on order), against 9,836 held-only or 16,033 order-only. Smart chips **0 / 11,937** reproduce the order-only endpoint exactly. The UI format is `held / allocation`. **The lower-bound caveat is demonstrated in the same reading:** TDF-832's energy cells read 84,286 / **85,576** in game while the view floors at 82,695 — the station's supplies offer carries `amount = 0`, so with nothing on order the sum sits below the true allocation. A zero-amount offer, not a withdrawn one, is how a satisfied station presents here. *Source:* [db-schema.md](../reference/db-schema.md) § views, `v_station_supply_position`; [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum: the GMJ-316 note is RETRACTED.
 
 **E-128 · PENDING** — The employment target splits across races by the LIVE workforce mix, not by habitat capacity.
-*Predicts:* DHI-588 (read in game) needs the live mix — 250 over 179/33/39 → 178/32/38 reproduces all four ration maxima to the unit, where its habitat mix gives 162/44/42 and misses every one. DCO-580 (save-derived only) needs its habitat mix — 250 over a live 65/125/63 wants 62/125/62, its 1:2:1 housing exactly. `analysis/storage.py` implements the live mix on DHI-588's authority. **The save holds only THREE multi-race stations and just two of them discriminate — the two that disagree — so "read a third station" is not an available experiment.** *Settles it:* read **DCO-580** (boron, argon/boron/paranid) in game. Its **food rations** separate the rules by 18 units: the live mix predicts **576**, the habitat mix **558**. Corroborating wares on the same station: bofu 221 vs 225, water 398 vs 405, medical supplies 1,166 vs 1,163. A live-mix reading makes the rule universal and retires the contradiction; a habitat-mix reading means neither rule is right and the split turns on something the two stations differ in. *Blocked on:* that reading. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum 2; § Contradictions item 9.
+*Predicts:* DHI-588 (read in game) needs the live mix — 250 over 179/33/39 → 178/32/38 reproduces all four ration maxima to the unit, where its habitat mix gives 162/44/42 and misses every one. DCO-580 (save-derived only) needs its habitat mix — 250 over a live 65/125/63 wants 62/125/62, its 1:2:1 housing exactly. `analysis/storage.py` implements the live mix on DHI-588's authority. **The save holds only THREE multi-race stations and just two of them discriminate — the two that disagree — so "read a third station" is not an available experiment.** *Sharpened 2026-07-29:* DCO-580 does not merely *prefer* the habitat mix — it **refutes the live mix outright**. Its derived bofu is **225** against a live-mix prediction of 221, and its water **405** against 398. Offer-derived values are a LOWER bound, so a derived value that *exceeds* a prediction cannot be explained by an unsaturated offer: the allocation is at least 225 and 405, and the live mix cannot reach them. The habitat mix matches all five of its ration wares exactly (food rations 558, medical supplies 1,163, bofu 225, water 405, soja husk 357). So the two stations are a genuine contradiction with solid evidence on both sides — **neither a pure live-mix nor a pure habitat-mix rule fits both**, and the implemented live mix is known-wrong at DCO-580. The obvious hybrids fail too: per-race `min(live, habitat share)` gives DHI-588 162/33/39 against its required 178/32/38. *Blocked on:* DCO-580 is **not known to the player** (`component.known` and `knownto` both NULL), so it cannot be read, and the save holds no other discriminating station — the three multi-race stations are DHI-588 (live), DCO-580 (habitat) and EMY-219 (tie), and no station anywhere has a habitat race set differing from its workforce race set. *Settles it:* a **player-built multi-race station** — build habitats of two races (e.g. `hab_arg_s` 250 and `hab_par_s` 333) and read the ration allocations while the habitats are still filling, so the live mix and the capacity mix differ. That is the only route left that does not depend on exploring Boron space; if DCO-580 later becomes visible, reading its food rations (live 576 vs habitat 558) settles it directly. *Source:* [mixed-race-rations-2026-07-29.md](../reports/mixed-race-rations-2026-07-29.md) § Addendum 2; § Contradictions item 9.
 
 ## Parser / save format
 
@@ -521,11 +521,15 @@ whether non-producers cap.
   two of three. EMY-219 is a tie (both give 87/62). `analysis/storage.py`
   implements the live mix, on the strength of DHI-588 being read in game;
   the disagreement is ±3 workers on a 250-worker reserve — 0.8 % of the
-  reserve, ~0.2 % of the pool — and, since the save holds only THREE multi-race
-  stations of which only these two discriminate, a third one is **not
-  available**. The settling experiment is instead to read **DCO-580** in game:
-  its food rations separate the rules by 18 units (live mix 576, habitat mix
-  558). Tracked as E-128. Recorded, not resolved.
+  reserve, ~0.2 % of the pool. **Sharpened 2026-07-29:** this is a real
+  contradiction, not a weak preference. DCO-580's derived **bofu 225** and
+  **water 405** *exceed* the live-mix predictions of 221 and 398, and an
+  offer-derived value is a LOWER bound — so exceeding a prediction refutes it
+  outright, and the implemented live mix is known-wrong there. DCO-580 is not
+  known to the player (`component.known` and `knownto` both NULL) and cannot be
+  read, and the save holds no other discriminating station. Tracked as E-128,
+  whose settling experiment is now a player-built multi-race station.
+  Recorded, not resolved.
 
 ### The original list
 
