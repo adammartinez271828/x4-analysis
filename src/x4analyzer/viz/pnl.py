@@ -61,11 +61,14 @@ def build_pnl(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
               & (tl["buyer.faction"] == "PLA")]
     value = _station_value(frames, ref)
 
+    sec_name = dict(zip(frames.sectors["sector.id"], frames.sectors["name"]))
+
     rows = []
     series: dict[str, dict] = {}
     for _, d in stations.iterrows():
         code = str(d["code"])
         label = f"{d['name']} ({code})"
+        sector = sec_name.get(d.get("sector.id"), "?")
         rev = sales[sales["seller.code"] == code]
         cost = buys[buys["buyer.code"] == code]
         revenue = float(rev["money"].sum())
@@ -78,7 +81,7 @@ def build_pnl(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         val = float(value.get(d["id"], 0.0))
         payback = val / net_h if net_h > 0 and val > 0 else None
         rows.append({
-            "label": label, "trades": len(rev) + len(cost),
+            "label": label, "sector": sector, "trades": len(rev) + len(cost),
             "revenue": revenue, "costs": costs, "net": net,
             "net_h": net_h, "recent_h": recent_h,
             "value": val, "payback": payback,
@@ -98,7 +101,8 @@ def build_pnl(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     rows.sort(key=lambda r: r["net_h"], reverse=True)
 
     table_rows = json.dumps([[
-        r["label"], r["trades"], round(r["revenue"]), round(r["costs"]),
+        r["label"], r["sector"],
+        r["trades"], round(r["revenue"]), round(r["costs"]),
         round(r["net"]), round(r["net_h"]), round(r["recent_h"]),
         round(r["value"]), round(r["payback"], 1) if r["payback"] else None,
     ] for r in rows], separators=(",", ":"))
@@ -137,7 +141,7 @@ are excluded. Value = sum of built modules at average game prices; Payback
 = value ÷ net/h. Trend compares the last {TREND_WINDOW_H:g}h against the
 whole history.</p>
 <table id='pnl' class='display nowrap' style='width:100%'>
-<thead><tr><th>Station</th><th>Trades</th><th>Revenue</th><th>Costs</th>
+<thead><tr><th>Station</th><th>Sector</th><th>Trades</th><th>Revenue</th><th>Costs</th>
 <th>Net</th><th>Net/h</th><th>Last {TREND_WINDOW_H:g}h /h</th>
 <th>Value</th><th>Payback (h)</th></tr></thead></table>
 <div id='cumnet' style='height:420px'></div>
@@ -151,18 +155,18 @@ const numCol = (d, t) => t === 'display' ? fmt(d) : d;
 $('#pnl').DataTable({{
   data: ROWS, order: [], pageLength: 15,
   columnDefs: [
-    {{targets: [1, 2, 3, 7], render: numCol}},
-    {{targets: [4, 5], render: (d, t) => t === 'display'
+    {{targets: [2, 3, 4, 8], render: numCol}},
+    {{targets: [5, 6], render: (d, t) => t === 'display'
       ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
         + "</span>" : d}},
-    {{targets: 6, render: (d, t, row) => {{
+    {{targets: 7, render: (d, t, row) => {{
       if (t !== 'display') return d;
-      const base = row[5];
+      const base = row[6];
       const arrow = d > base * 1.15 ? ' ▲' : (d < base * 0.85 ? ' ▼' : '');
       return (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
         + arrow + "</span>";
     }}}},
-    {{targets: 8, render: (d, t) => {{
+    {{targets: 9, render: (d, t) => {{
       if (t === 'display') return d === null ? '&mdash;' : fmt(d) + 'h';
       return d === null ? 1e12 : d;
     }}}},

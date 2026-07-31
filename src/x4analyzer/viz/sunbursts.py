@@ -352,6 +352,14 @@ def _fleet_sunburst(frames: Frames, ref: RefData, title: str):
         owner = sectors["owner"].get(sector_id, "")
         return _owner_colour(ref, owner, level)
 
+    def hover(label, sector_id):
+        """Label + the node's OWN sector: a subordinate deep in a fleet can
+        sit in a different sector than the commander it hangs under."""
+        name = sectors["name"].get(sector_id)
+        if name is None or (isinstance(name, float) and pd.isna(name)):
+            name = "?"
+        return f"{label}<br>Sector: {name}"
+
     used_sectors = pd.unique(pd.concat(
         [ships["sector.id"], stations["sector.id"]], ignore_index=True))
     for sid in used_sectors:
@@ -376,8 +384,10 @@ def _fleet_sunburst(frames: Frames, ref: RefData, title: str):
         top = df[df["id"].isin(leaders) & ~df["id"].isin(followers)]
         for _, d in top.iterrows():
             name = d["name"] if pd.notna(d["name"]) else (unnamed or d["macro"])
-            sb.add(str(d["id"]), f"{name}<br>{d['code']}", str(d["sector.id"]),
-                   0, sector_colour(d["sector.id"], 2))
+            label = f"{name}<br>{d['code']}"
+            sb.add(str(d["id"]), label, str(d["sector.id"]),
+                   0, sector_colour(d["sector.id"], 2),
+                   hover=hover(label, d["sector.id"]))
             tops.append(d["id"])
 
     # walk down the hierarchy
@@ -391,9 +401,10 @@ def _fleet_sunburst(frames: Frames, ref: RefData, title: str):
             if fid not in ships_by_id.index:
                 continue
             srow = ships_by_id.loc[fid]
-            sb.add(str(fid), f"{srow['name']}<br>{srow['code']}",
-                   str(w["leader"]), 0,
-                   sector_colour(srow["sector.id"], min(level, 6)))
+            label = f"{srow['name']}<br>{srow['code']}"
+            sb.add(str(fid), label, str(w["leader"]), 0,
+                   sector_colour(srow["sector.id"], min(level, 6)),
+                   hover=hover(label, srow["sector.id"]))
             nxt.append(fid)
         frontier = nxt
         level += 1
@@ -403,7 +414,9 @@ def _fleet_sunburst(frames: Frames, ref: RefData, title: str):
     # ships outside any fleet hang directly under their sector
     solo = ships[~ships["id"].isin(leaders) & ~ships["id"].isin(followers)]
     for _, d in solo.iterrows():
-        sb.add(str(d["id"]), f"{d['name']}<br>{d['code']}", str(d["sector.id"]),
-               0, sector_colour(d["sector.id"], 2))
+        label = f"{d['name']}<br>{d['code']}"
+        sb.add(str(d["id"]), label, str(d["sector.id"]),
+               0, sector_colour(d["sector.id"], 2),
+               hover=hover(label, d["sector.id"]))
 
     return sb.figure(title, maxdepth=3, values=False)

@@ -51,6 +51,18 @@ time at 90% travel speed (log-validated) with S/M riding highways at an
 assumed 10 km/s (one-way, no spool-up/docking). DataTables `ext.search`
 filters on this page must guard on the table id — there are two tables.
 
+## Sunbursts (`viz/sunbursts.py`, `common.Sunburst`)
+
+`Sunburst.add()` accumulates (id, label, parent, value, colour) rows and
+takes an OPTIONAL per-node `hover=` string; `figure()` emits plotly
+`hovertext`/`hovertemplate` only when at least one node set one (nodes
+without fall back to their label), so sunbursts that never pass `hover`
+render byte-identically to before. **Fleet Compositions** uses it: the top
+ring is the commander's sector, but a subordinate deep in a fleet can sit
+in a DIFFERENT sector, so station/ship nodes hover as label + "Sector:
+<their own sector>" (`"?"` when unresolved). Slice labels themselves stay
+free of sector text.
+
 ## Sortable tables (`viz/tables.py`)
 
 One DataTables page per table (`save_table`), dark-themed, height reported
@@ -94,9 +106,23 @@ that cannot be bought.
 
 Empire bottleneck audit: input starvation, raw resource supply, output
 pile-up, storage saturation via modcaps.csv, waiting constructions, idle
-ships from parsed order queues, staffing, crew gaps. Per-station P&L: trade
-attribution by station code incl. subordinate proxy; station value = module
-ware prices via wares.csv `component` macro link.
+ships from parsed order queues, staffing, crew gaps. Section order groups
+the station findings first and the ship findings (idle ships, crew gaps)
+last; the DataTables ids (`t1`…`t8`) are historical and do NOT follow the
+displayed order. Every section names the SECTOR: a station id → sector name
+map (from `frames.stations['sector.id']` via the sectors frame, `"?"` when
+unknown) feeds a Sector column right after Station in the starvation,
+pile-up, saturation and staffing tables and for the station rows of crew
+gaps; ship rows (idle ships, crew gaps) resolve their own
+`frames.ships['sector.id']`; the raw-supply cards carry it as muted fine
+print in the card header (`_mining_cards(inflow, pools, st_name, st_sector,
+wname)`). Per-station P&L: trade attribution by station code incl.
+subordinate proxy; station value = module ware prices via wares.csv
+`component` macro link. Its table is JS-driven — rows are positional JSON
+arrays (`[label, sector, trades, …]`) and every `columnDefs` target is an
+index into that array, so inserting a column means shifting them all; the
+cumulative-net chart keeps plain station labels as series names (no sector)
+to keep the legend readable.
 
 Raw resource supply (`analysis/mining.py`) renders per-station cards: per
 hold class (solid/liquid — one shared miner pool each) the overall

@@ -262,9 +262,13 @@ def test_mining_cards_flags_storage_full_pool():
     short = raw_inflow(_starved(), ref, rates)
     full = raw_inflow(_starved(offers=[["st1", "buy", "ore", 0]]), ref, rates)
     name = {"st1": "Refinery (STA-001)"}
+    sector = {"st1": "Grand Exchange I"}
 
-    html_short, n_short = _mining_cards(*short, name, str)
-    html_full, n_full = _mining_cards(*full, name, str)
+    html_short, n_short = _mining_cards(*short, name, sector, str)
+    html_full, n_full = _mining_cards(*full, name, sector, str)
+    # the card header names the station's sector as muted fine print
+    assert "Refinery (STA-001)" in html_short
+    assert "Grand Exchange I" in html_short
     assert n_short == 1 and "assign +" in html_short
     assert "storage full" not in html_short
     # storage-blocked: flagged, no advice, and not counted as a finding
@@ -285,7 +289,7 @@ def test_mining_cards_partial_block_keeps_advice():
     html, n = _mining_cards(*raw_inflow(
         frames, _ref(), _rates([["st1", "ore", 600.0],
                                 ["st1", "silicon", 600.0]])),
-        {"st1": "Refinery (STA-001)"}, str)
+        {"st1": "Refinery (STA-001)"}, {"st1": "Grand Exchange I"}, str)
     assert n == 1
     assert "assign +" in html
     assert "at storage limit" in html and "storage full" not in html

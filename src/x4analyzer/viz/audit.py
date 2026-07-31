@@ -66,12 +66,13 @@ def _stock_cell(r) -> str:
 
 
 def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
-                  wname) -> tuple[str, int]:
+                  st_sector: dict, wname) -> tuple[str, int]:
     """Raw-supply cards, one per station: per hold class (solid/liquid)
     the OVERALL shortfall — raw consumption not covered by current inflow
     — as a coverage bar, headlined by the miners that would close it,
     quoted per ship size ("assign +32 M or +12 L miners", each size at
-    its own measured rate); the per-ware rates are fine print. A class
+    its own measured rate); the per-ware rates are fine print, and the
+    station's sector is muted fine print in the card header. A class
     whose consumed wares have all hit their storage ceiling is flagged
     instead: its inflow is limited by space, not by miners, so no advice
     is quoted and it is not counted. Returns (html, number of class pools
@@ -172,8 +173,10 @@ def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
                 f"<th>used /h</th><th>&Delta; /h</th><th>stock</th></tr>"
                 f"{wrows}</table>"
                 "</div>")
+        sector = st_sector.get(sid, "?")
         cards.append((total_need,
-                      f"<div class='mcard'><h4>{st_name.get(sid, sid)}</h4>"
+                      f"<div class='mcard'><h4>{st_name.get(sid, sid)} "
+                      f"<span class='msector'>· {sector}</span></h4>"
                       + "".join(blocks) + "</div>"))
     cards.sort(key=lambda c: -c[0])
     return ("<div class='mcards'>" + "".join(h for _n, h in cards)
@@ -246,6 +249,9 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                        stations["name"].astype(str) + " ("
                        + stations["code"].astype(str) + ")"))
     sec_name = dict(zip(frames.sectors["sector.id"], frames.sectors["name"]))
+    # station id -> sector name, for the Sector column of every section
+    st_sector = {sid: sec_name.get(sec, "?")
+                 for sid, sec in zip(stations["id"], stations["sector.id"])}
 
     rates = _station_rates(frames, ref)
     my_rates = rates[rates["id"].isin(st_ids)]
@@ -265,6 +271,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             state = ("<span class='neg'>STALLED</span>" if stock <= 0
                      else f"<span class='warn'>{cover:.1f}h left</span>")
             rows.append({"Station": st_name.get(r.id, r.id),
+                         "Sector": st_sector.get(r.id, "?"),
                          "Input": wname(r.ware), "Consumes/h": round(r.cons),
                          "Stock": round(stock), "Status": state,
                          "_sort": cover})
@@ -276,7 +283,8 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     # not covered by current inflow) and the miners needed to close it —
     # quoted per ship size at each size's measured delivery rate
     inflow, pools = raw_inflow(frames, ref, rates)
-    mining_html, n_need = _mining_cards(inflow, pools, st_name, wname)
+    mining_html, n_need = _mining_cards(inflow, pools, st_name, st_sector,
+                                        wname)
 
     # ---- 2. output pile-up ---------------------------------------------------
     rows = []
@@ -291,6 +299,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         if hours > OUTPUT_PILE_H:
             price = sell_price.get((r.id, r.ware))
             rows.append({"Station": st_name.get(r.id, r.id),
+                         "Sector": st_sector.get(r.id, "?"),
                          "Product": wname(r.ware), "Makes/h": round(r.prod),
                          "Stock": round(stock),
                          "Hours of output": round(hours, 1),
@@ -323,6 +332,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             pct = 100.0 * used / capacity
             if pct > STORAGE_FULL_PCT:
                 rows.append({"Station": st_name.get(sid, sid),
+                             "Sector": st_sector.get(sid, "?"),
                              "Storage": cls, "Capacity (m³)": round(capacity),
                              "Used (m³)": round(used),
                              "Fill": f"<span class='neg'>{pct:.0f}%</span>"})
@@ -453,6 +463,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                 note = ("<span class='warn'>not enough housing</span>"
                         if housing < need else "")
                 rows.append({"Station": st_name.get(sid, sid),
+                             "Sector": st_sector.get(sid, "?"),
                              "Workforce": round(have), "Wanted": round(need),
                              "Housing": round(housing),
                              "Staffed": f"<span class='{'neg' if pct < 50 else 'warn'}'>{pct:.0f}%</span>",
@@ -488,6 +499,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             rows.append({
                 "Ship": f"{d['name']} ({d['code']})",
                 "Size": size,
+                "Sector": sec_name.get(d["sector.id"], "?"),
                 "Crew": (f"{have}/{cmax:.0f}" if pd.notna(cmax)
                          else str(have)),
                 "Missing crew": missing,
@@ -500,7 +512,9 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         for _, d in stations.iterrows():
             if pd.isna(d.get("manager.id")):
                 rows.append({"Ship": f"{d['name']} ({d['code']})",
-                             "Size": "Station", "Crew": "",
+                             "Size": "Station",
+                             "Sector": st_sector.get(d["id"], "?"),
+                             "Crew": "",
                              "Missing crew": 0,
                              "Issues": "<span class='neg'>no manager</span>",
                              "_f": 0})
@@ -533,12 +547,12 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         ("Constructions waiting for materials",
          "your build sites' open material orders — still needed beyond deliveries already under way",
          waiting, "t4"),
-        ("Idle ships",
-         "no orders, only a Wait/Dock standing order, or a standing order "
-         "that is not running; fleet subordinates excluded", idle, "t5"),
         ("Understaffed stations",
          "workforce below 90% of what production modules want", staffing,
          "t6"),
+        ("Idle ships",
+         "no orders, only a Wait/Dock standing order, or a standing order "
+         "that is not running; fleet subordinates excluded", idle, "t5"),
         ("Crew gaps",
          f"ships without a captain or below full crew, M/L/XL without "
          f"engineer, L/XL pilots below skill {PILOT_SKILL_LOW}, stations "
@@ -599,6 +613,7 @@ h3{{margin:22px 0 2px 0;}} h3 small{{color:{DARK_MUTED};font-weight:normal;}}
 .mcard{{background:#252525;border:1px solid #3a3a3a;border-radius:8px;
   padding:10px 14px;flex:1 1 340px;max-width:520px;}}
 .mcard h4{{margin:0 0 4px 0;}}
+.msector{{color:{DARK_MUTED};font-size:12px;font-weight:normal;}}
 .mclass{{margin:10px 0 2px 0;}}
 .mhead{{display:flex;justify-content:space-between;gap:10px;
   margin-bottom:4px;}}

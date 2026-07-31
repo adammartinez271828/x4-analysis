@@ -147,14 +147,16 @@ class Sunburst:
         self.parents: list[str] = []
         self.values: list[float] = []
         self.colours: list[str | None] = []
+        self.hovers: list[str | None] = []
 
     def add(self, id_: str, label: str, parent: str, value: float,
-            colour: str | None = None) -> None:
+            colour: str | None = None, hover: str | None = None) -> None:
         self.ids.append(id_)
         self.labels.append(label)
         self.parents.append(parent)
         self.values.append(value)
         self.colours.append(colour)
+        self.hovers.append(hover)
 
     def add_root(self, label: str, value: float, colour: str | None = None,
                  id_: str = "total") -> None:
@@ -203,11 +205,22 @@ class Sunburst:
         marker = None
         if any(c is not None for c in self.colours):
             marker = {"colors": [c or "#cccccc" for c in self.colours]}
+        # per-node hover text is opt-in: without it the trace is built
+        # exactly as before (plain label hover), so every other sunburst
+        # renders unchanged
+        extra: dict = {}
+        if any(h is not None for h in self.hovers):
+            extra = {
+                "hovertext": [h if h is not None else lab
+                              for h, lab in zip(self.hovers, self.labels)],
+                "hovertemplate": "%{hovertext}<extra></extra>",
+            }
         trace = go.Sunburst(
             ids=self.ids, labels=self.labels, parents=self.parents,
             values=self.values if values else None,
             branchvalues="total" if values else None,
             hoverinfo="label", marker=marker, maxdepth=maxdepth or -1,
+            **extra,
         )
         fig = go.Figure(trace)
         # explicit height: plotly's 450px default renders the rings too small
