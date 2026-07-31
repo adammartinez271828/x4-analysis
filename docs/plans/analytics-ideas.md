@@ -122,11 +122,17 @@ exactly this data).
 - **Output:** a "front line report": sectors likely to flip, with the
   factors visible (hostile mass vs defence mass vs recent losses).
 
-### 9. Loss heatmap — feasibility: HIGH (small)
+### 9. Loss heatmap — feasibility: HIGH (small) ⭐ **IMPLEMENTED** (sector map, Ship Losses overlay)
 
 Player ship losses on the map with killer attribution and time trend.
 Mostly a presentation extension of the existing Destroyed table; danger
 scores feed advisors #1/#2/#4.
+
+Shipped as a default-off sector-map overlay: one crimson X per sector, sized
+by loss count, hovering to the killer-faction tally and the three most recent
+losses with hours-before-save — see
+[../reference/viz-internals.md](../reference/viz-internals.md) § sector map.
+Feeding the counts into the advisors' danger scoring is still open.
 
 ---
 

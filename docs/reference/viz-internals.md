@@ -329,6 +329,27 @@ Interactivity:
   ownerless ships only (owned ships move constantly and stay position-less),
   so a snapshot taken before that change falls back to the hex centre.
   Spoiler-filtered like everything else (`knownto == "player"` only).
+- Ship-loss overlay (payload `losses`, default off): the player's own losses
+  from `frames.destroyed` (the merged destroyed-object log history, which the
+  DB keeps long after the game's rolling log dropped it), aggregated to ONE
+  record per sector: `{i, x, y, count, last, recent[≤3], fac}` — sector index,
+  marker position, loss count, hours-before-save of the most recent loss, the
+  three most recent entries (`obj`, `killer`, `fac`, `hours`) and a
+  killer-faction tally `[[short, n], …]` commonest-first. Killer factions come
+  from `viz/combat.killer_faction()` (leading 3-letter tag, `?` when unknown or
+  absent). Drawn as crimson (`#E23A4E`) X glyphs (`xPath`, plotly's `x`
+  symbol), sized `min(15, 8 + 2.4·log2(count))` — deliberately narrow, the
+  marker says *here* and the tooltip says how many; legend label counts ships
+  lost, not sectors. Two caveats: the log records a sector by **display name**,
+  not macro or position, so the sector is resolved through the plotted
+  sectors' names (a duplicate name would keep the first) and unresolved rows
+  drop with one `N losses in sectors not on the map` log line; and a loss
+  carries **no in-sector position**, so every marker sits at a fixed offset
+  (0.55 × the in-hex radius, up-left) from the hex centre — the centre itself
+  is the vault/derelict fallback position, so the two never collide. Losses
+  are NOT spoiler-filtered (the game already showed them to the player in the
+  log); a loss in a sector spoiler mode hides simply fails to resolve and
+  drops.
 - Search/jump; sessionStorage view persistence.
 
 Gate lines attach at the gates' approximate in-sector positions (endpoint

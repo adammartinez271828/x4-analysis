@@ -58,6 +58,16 @@
     return "M" + p(n, 0) + "L" + p(0, n) + "L" + p(-n, 0) + "L" + p(0, -n) +
       "ZM" + p(-i, -i) + "L" + p(i, i) + "M" + p(-i, i) + "L" + p(i, -i);
   }
+  // plotly's "x": a filled cross rotated 45 degrees
+  function xPath(cx, cy, size) {
+    var r = size / 2, w = r * 0.32, s = Math.SQRT1_2;
+    return "M" + [[w, w], [w, r], [-w, r], [-w, w], [-r, w], [-r, -w],
+                  [-w, -w], [-w, -r], [w, -r], [w, -w], [r, -w], [r, w]]
+      .map(function (p) {
+        return (cx + (p[0] - p[1]) * s).toFixed(2) + "," +
+          (cy + (p[0] + p[1]) * s).toFixed(2);
+      }).join("L") + "Z";
+  }
 
   // the plotly_dark colorway the resource traces used to cycle through
   // (offset 1: the gates trace took the first slot)
@@ -155,6 +165,7 @@
   layers.erlking = el("g", {id: "ly-erlking"}, svg);
   layers.warps = el("g", {id: "ly-warps"}, svg);
   layers.derelicts = el("g", {id: "ly-derelicts"}, svg);
+  layers.losses = el("g", {id: "ly-losses"}, svg);
   // player station markers sit above the hover layer so they can take
   // pointer events for their tooltips (zoomed-in only: the zoomed-out
   // CSS hides them — the dashed ring + count badge covers that mode);
@@ -491,6 +502,43 @@
     ptMarkers.push({el: g, x: d.x, y: d.y});
   });
 
+  // ship-loss overlay: crimson X markers on the sectors where the player
+  // has lost ships (the merged destroyed-object log history). One marker
+  // per sector, offset up-left of the hex centre and sized log-ishly by
+  // the loss count over a deliberately narrow range — the marker says
+  // "here", the tooltip says how many. A transparent hit disc keeps the
+  // thin glyph hoverable.
+  var LOSS_COL = "#E23A4E";
+  (D.losses || []).forEach(function (l) {
+    var g = el("g", {}, layers.losses);
+    var sz = Math.min(15, 8 + 2.4 * Math.log(l.count) / Math.LN2);
+    el("circle", {r: Math.max(5.5, sz / 2 + 1), fill: "transparent"}, g);
+    el("path", {d: xPath(0, 0, sz), fill: LOSS_COL,
+                stroke: "#1e1e1e", "stroke-width": 0.6}, g);
+    g.addEventListener("mouseenter", function (ev) {
+      var h = "<b>" + l.count + (l.count === 1 ? " loss" : " losses") + "</b>";
+      if ((l.fac || []).length)
+        h += "<br>Killed by: " + l.fac.map(function (f) {
+          return esc(f[0] === "?" ? "unattributed" : f[0]) +
+            " &times; " + f[1];
+        }).join(", ");
+      (l.recent || []).forEach(function (r) {
+        h += "<br><span style='opacity:0.85'>" + esc(r.obj) +
+          (r.killer ? " &mdash; " + esc(r.killer) : " &mdash; unknown") +
+          ", " + r.hours.toFixed(1) + "h ago</span>";
+      });
+      if (l.count > (l.recent || []).length)
+        h += "<br><span style='opacity:0.6'>&hellip; and " +
+          (l.count - l.recent.length) + " older</span>";
+      tip.innerHTML = h;
+      tip.style.display = "block";
+      moveTip(ev);
+    });
+    g.addEventListener("mousemove", moveTip);
+    g.addEventListener("mouseleave", hideTip);
+    ptMarkers.push({el: g, x: l.x, y: l.y});
+  });
+
   // resource overlay: one hidden group per resource; the LEFT-edge gauge
   // encodes mineable-NOW (live yields + respawned-but-full "overdue" areas),
   // and (when the reference data carries replenishment) a RIGHT-edge gauge
@@ -771,7 +819,7 @@
              clusters: true, labels: true,
              contested: false, police: false, pirates: false,
              player: false, vaults: false, erlking: false, warps: false,
-             derelicts: false,
+             derelicts: false, losses: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
              fac_equipdock: true, fac_trading: true, fac_khaak: false},
     factions: {},
@@ -829,7 +877,8 @@
                 contested: layers.contested, police: layers.police,
                 pirates: layers.pirates, player: layers.player,
                 vaults: layers.vaults, erlking: layers.erlking,
-                warps: layers.warps, derelicts: layers.derelicts};
+                warps: layers.warps, derelicts: layers.derelicts,
+                losses: layers.losses};
 
   function applyLayer(name) {
     var on = state.layers[name] ? "" : "none";
@@ -996,6 +1045,12 @@
     overlayRows.push(["derelicts",
       "Derelict Ships (" + nBail + " bailed / " + D.derelicts.length + ")",
       pathSwatch(diamondXPath, DERELICT_COL, 9)]);
+  }
+  // losses: the label counts ships lost, not the sectors they were lost in
+  if ((D.losses || []).length) {
+    var nLost = D.losses.reduce(function (a, l) { return a + l.count; }, 0);
+    overlayRows.push(["losses", "Ship Losses (" + nLost + ")",
+      pathSwatch(xPath, LOSS_COL, 11)]);
   }
   overlayRows.forEach(function (row) {
     litem(gOver, row[1], row[2],

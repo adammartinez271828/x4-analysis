@@ -42,6 +42,7 @@ def _ref(**over):
             "class": ["S"],
         }),
         faction_colour={"argon": "#0000ff", "player": "#00ff00"},
+        faction_short={"xenon": "XEN", "paranid": "PAR"},
         faction_name={"argon": "Argon Federation"},
         ware_name={"ore": "Ore"},
     )
@@ -124,8 +125,21 @@ def _frames(**over):
         "role": ["origin", "destination"],
         "target_conn": ["c2", "c1"],
     })
+    # ship losses, as the destroyed-object log parser yields them: sector
+    # by DISPLAY NAME, killer as a tagged name (or missing). "Nowhere" is
+    # not a sector on the map and must drop silently
+    destroyed = pd.DataFrame({
+        "time": [90_000.0, 50_000.0, 10_000.0, 20_000.0, 30_000.0],
+        "object": ["Scout One (SC-001)", "Miner Two (MI-002)",
+                   "Old Trader (TR-003)", "Ghost (GH-004)",
+                   "Lone Wolf (LW-005)"],
+        "location": ["Alpha", "Alpha", "Alpha", "Nowhere", "Beta I"],
+        "killer": ["XEN Raiding Party F (GZM-478)", None,
+                   "XEN P (ABC-111)", "XEN K (DEF-222)",
+                   "PAR Falx (PQR-333)"],
+    })
     base = dict(
-        sectors=sectors, universe=universe,
+        sectors=sectors, universe=universe, destroyed=destroyed,
         police=empty_events, pirates=empty_events.copy(),
         resource_cols=["ore"], time_now=100_000.0,
         resource_areas={},
@@ -403,6 +417,56 @@ def test_payload_derelicts_without_ship_reference():
     p = _payload(_frames(), ref, _cfg())
     d1 = next(d for d in p["derelicts"] if d["code"] == "DER-001")
     assert d1["ship"] == "ship_arg_s_scout_01_a_macro" and d1["size"] == "S"
+
+
+def test_payload_losses(payload):
+    ls = {l["i"]: l for l in payload["losses"]}
+    idx = {s["macro"]: i for i, s in enumerate(payload["sectors"])}
+    # "Nowhere" resolves to no sector and drops; the rest aggregate per sector
+    assert set(ls) == {idx["sec_a1"], idx["sec_b1"]}
+    a = ls[idx["sec_a1"]]
+    assert a["count"] == 3
+    # hours before the save (time_now = 100_000 s), most recent first
+    assert a["last"] == pytest.approx(2.8, abs=0.05)
+    assert [r["obj"] for r in a["recent"]] == [
+        "Scout One (SC-001)", "Miner Two (MI-002)", "Old Trader (TR-003)"]
+    assert a["recent"][0]["fac"] == "XEN"
+    assert a["recent"][1]["killer"] == "" and a["recent"][1]["fac"] == "?"
+    # killer tally, commonest first
+    assert a["fac"] == [["XEN", 2], ["?", 1]]
+    # marker sits up-left of the hex centre, inside the hex
+    sec = payload["sectors"][idx["sec_a1"]]
+    assert a["x"] < sec["x"] and a["y"] < sec["y"]
+    assert abs(a["x"] - sec["x"]) < 31 and abs(a["y"] - sec["y"]) < 31
+    b = ls[idx["sec_b1"]]
+    assert b["count"] == 1 and b["fac"] == [["PAR", 1]]
+
+
+def test_payload_losses_hours_from_frame_column():
+    # frames.destroyed normally carries a precomputed HoursAgo column;
+    # it wins over the time/time_now fallback
+    f = _frames()
+    f.destroyed = f.destroyed.assign(HoursAgo=[1.0, 2.0, 3.0, 4.0, 5.0])
+    p = _payload(f, _ref(), _cfg())
+    a = next(l for l in p["losses"] if l["count"] == 3)
+    assert a["last"] == 1.0
+
+
+def test_payload_losses_empty():
+    for empty in (pd.DataFrame(columns=["time", "object", "location",
+                                        "killer"]),
+                  None):
+        p = _payload(_frames(destroyed=empty), _ref(), _cfg())
+        assert p["losses"] == []
+
+
+def test_payload_losses_spoilers_hidden():
+    # a loss in a sector the map hides is dropped, not leaked
+    d = _frames().destroyed.copy()
+    d.loc[d["location"] == "Beta I", "location"] = "Beta II"
+    p = _payload(_frames(destroyed=d), _ref(), _cfg(spoilers_hide=True))
+    assert [l["count"] for l in p["losses"]] == [3]
+    assert "Lone Wolf" not in str(p)
 
 
 def test_payload_wormholes(payload):

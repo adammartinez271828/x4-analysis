@@ -15,9 +15,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..cli import log
 from ..config import Config
 from ..analysis.frames import Frames
 from ..gamedata.refdata import RefData
+from .combat import killer_faction
 from .common import DARK_BG, DARK_FG, fullscreen_button_html
 
 X_DIV = 20_000_000
@@ -656,6 +658,56 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             reach[si] = max(reach.get(si, 0.0),
                             (off[0] ** 2 + off[1] ** 2) ** 0.5)
 
+    # ship losses for the loss overlay, aggregated per sector from the
+    # merged destroyed-object log history (frames.destroyed — the DB keeps
+    # it long after the game's rolling log dropped it). Two quirks: the log
+    # names a sector by DISPLAY NAME, not macro, so the sector is resolved
+    # through the plotted sectors' names (unique in vanilla+DLC; a
+    # duplicate would keep the first), and a loss carries no in-sector
+    # position, so the marker sits at a fixed offset up-left of the hex
+    # centre — the centre itself is the vault/derelict fallback position.
+    # Losses are the player's own history (the game already showed them in
+    # the log), so they are NOT spoiler-filtered; a loss whose sector is
+    # absent from the map (unknown name, or hidden in spoiler mode) is
+    # dropped and counted in a single log line.
+    losses: list[dict] = []
+    dead = getattr(frames, "destroyed", None)
+    if dead is not None and len(dead):
+        by_name: dict[str, int] = {}
+        for i, s in enumerate(sectors):
+            by_name.setdefault(s["name"], i)
+        short_by_tag = {s: s for s in
+                        getattr(ref, "faction_short", {}).values()}
+        d = dead.copy()
+        d["killer"] = d["killer"].fillna("") if "killer" in d.columns else ""
+        d["object"] = d["object"].fillna("?")
+        d["fac"] = [killer_faction(k, short_by_tag) for k in d["killer"]]
+        d["hours"] = (d["HoursAgo"] if "HoursAgo" in d.columns
+                      else (frames.time_now - d["time"]) / 3600.0)
+        d["si"] = [by_name.get(str(n).strip(), -1)
+                   for n in d["location"].fillna("")]
+        offmap = int((d["si"] < 0).sum())
+        if offmap:
+            log(f"   {offmap} losses in sectors not on the map")
+        for si, grp in d[d["si"] >= 0].groupby("si", sort=False):
+            grp = grp.sort_values("hours")   # smallest = most recent
+            tally = grp.groupby("fac").size().sort_values(ascending=False)
+            s = sectors[int(si)]
+            r_px = (big if s["big"] else small) / 2 * 0.75
+            losses.append({
+                "i": int(si),
+                "x": round(s["x"] - 0.55 * r_px, 2),
+                "y": round(s["y"] - 0.55 * r_px, 2),
+                "count": int(len(grp)),
+                "last": round(float(grp["hours"].min()), 1),
+                "recent": [{"obj": str(r["object"]),
+                            "killer": str(r["killer"]),
+                            "fac": str(r["fac"]),
+                            "hours": round(float(r["hours"]), 1)}
+                           for _, r in grp.head(3).iterrows()],
+                "fac": [[str(f), int(n)] for f, n in tally.items()],
+            })
+
     # wormholes / anomalies for the warp overlay, spoiler-filtered like
     # everything else. Three tiers: "linked" (a resolved partner warp),
     # "dormant" (a story <transition> not yet wired up) and "inert" (a
@@ -891,7 +943,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "resources": resources, "factions": factions, "stations": stations,
         "vaults": vaults, "hws": hws, "area_status": area_status,
         "wormholes": wormholes, "wlinks": wlinks,
-        "derelicts": derelicts,
+        "derelicts": derelicts, "losses": losses,
     }
 
 
