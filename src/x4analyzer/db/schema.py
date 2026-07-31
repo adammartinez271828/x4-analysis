@@ -97,7 +97,17 @@ import hashlib
 #      built on stations where it was still under construction (14 entries
 #      across 11 stations), inventing capacity. Both are now keyed on
 #      (host_id, entry_id).
-SCHEMA_VERSION = "28"
+# v29: build_task — the `<build>` elements carrying type=/order= (build
+#      orders and their per-buildprocessor progress), promoted out of the
+#      "inferred" pile (docs/reports/build-demand-2026-07-30.md § Should a
+#      parser handler be promoted). It carries the BUILD STORAGE -> STATION
+#      link that until now had to be guessed from plot geometry (the
+#      type='expand' task's component=, 593 exact 1:1 pairs on save_002)
+#      plus the per-yard ship order books (type='buildship'/'restock'/
+#      'recycleship'). The <resources><insufficient>/<shortage> amounts
+#      under these elements are NOT quantities (E-068) and are not read;
+#      the per-entry <upgrades><groups> loadout plans are not read either.
+SCHEMA_VERSION = "29"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -358,7 +368,7 @@ WORLD_TABLES = (
     "faction_relation", "faction_meta", "faction_licence",
     "player_subscription", "build_price_factor",
     "player_scan", "station_trade_setting", "trade_pending",
-    "module_production",
+    "module_production", "build_task",
 )
 
 REFERENCE_TABLES = (
@@ -450,6 +460,55 @@ TABLES: dict[str, str] = {
                               -- bonus x sunlight x mod effects)
   state      TEXT,            -- producing / waiting / ...
   n_modules  INTEGER NOT NULL -- modules sharing this (macro, ware, efficiency)
+)""",
+    # build tasks (v29): every `<build>` element carrying type= or order=.
+    # One logical task has up to two rows, joined on (host_id, task_id):
+    #   kind 'task'     — the order, under <buildtasks><queue|inprogress> of
+    #                     a station/build storage. task_id = the save's id=;
+    #                     target_id = component= (the object being worked on:
+    #                     the STATION for type='expand', the ship component
+    #                     for buildship/restock/recycleship — it resolves in
+    #                     `component`, giving the order's macro and code).
+    #   kind 'progress' — the same task's live progress on a `buildprocessor`
+    #                     component inside one of the host's build/dock
+    #                     modules. task_id = order= (the wrapper's id on the
+    #                     same host); carries state/step/steps/start/end/
+    #                     method/sequence_index. comp_id is the processor.
+    # NOT captured, deliberately: the <resources><insufficient>/<shortage>
+    # ware lists (amounts are NOT quantities — E-068, savegame-structure.md;
+    # the ware names alone land in build_resource) and the per-entry
+    # <upgrades><groups> loadout plans (heavy, ~330k rows).
+    "build_task": """CREATE TABLE IF NOT EXISTS build_task (
+  save_id   INTEGER NOT NULL,
+  host_id   TEXT NOT NULL,   -- owning station / build storage
+  comp_id   TEXT NOT NULL,   -- component the element sits on (= host_id for
+                             -- kind 'task', the buildprocessor otherwise)
+  kind      TEXT NOT NULL,   -- 'task' | 'progress'
+  task_id   TEXT NOT NULL,   -- save id= (task) / order= (progress)
+  ctx       TEXT,            -- 'queue' | 'inprogress' | 'processor'
+  type      TEXT,            -- expand | buildship | build | restock |
+                             -- recycle | recycleship | recycleanchor | NULL
+  target_id TEXT,            -- component= (FK component.id, doc only)
+  -- the target resolved against the save's component index at load. It is
+  -- NOT always in `component`: a yard's QUEUED buildship order points at a
+  -- real ship component that carries no @connection (an unplaced hull the
+  -- yard holds), and those are filtered out of `component` by design — 191
+  -- of the 214 buildship orders on save_002. Hence the denormalized copy.
+  target_class TEXT,
+  target_macro TEXT,
+  target_code  TEXT,
+  builder   TEXT,            -- the construction vessel / builder component
+  faction   TEXT,
+  time      REAL,            -- game-time the order was placed
+  flags     TEXT,            -- raw save flags ('nothing', 'ammo', ...)
+  preexisting INTEGER,
+  method    TEXT,            -- recipe variant this build uses (v_build_method)
+  state     TEXT,            -- building | waitingforresources | ...
+  step      INTEGER, steps INTEGER,
+  start_time REAL, end_time REAL,   -- game-time span of the current step
+  sequence_index INTEGER,    -- build-plan entry index being worked on
+  macro     TEXT,            -- ship macro, on the few orders that state it
+  PRIMARY KEY (save_id, host_id, comp_id, kind, task_id)
 )""",
     "module_upgrade": """CREATE TABLE IF NOT EXISTS module_upgrade (
   save_id  INTEGER NOT NULL,
@@ -1049,6 +1108,9 @@ INDEXES = (
     "station_storage(station_id)",
     "CREATE INDEX IF NOT EXISTS idx_station_munition ON "
     "station_munition(station_id)",
+    # the build-storage -> station link and the per-order joins (v29)
+    "CREATE INDEX IF NOT EXISTS idx_build_task_target ON "
+    "build_task(save_id, target_id)",
 )
 
 # The frames.py replacement layer. (Re)created at every connect so
@@ -1294,6 +1356,46 @@ LEFT JOIN faction_meta fm
 WHERE c.class IN ('station', 'buildstorage')
   AND c.save_id = (SELECT save_id FROM current_save)
   AND COALESCE(bm.method, fm.build_method) IS NOT NULL""",
+    # build orders with their target resolved and their live progress
+    # attached (v29). One row per kind='task' order; the progress columns
+    # come from the matching kind='progress' row on the host's
+    # buildprocessor (NULL while nothing is actively working the order).
+    # target_* is the object the order is FOR: the station for
+    # type='expand', the (queued, repairing or restocking) ship otherwise.
+    "v_build_task": """CREATE VIEW v_build_task AS
+SELECT t.host_id, h.code AS host_code, h.name AS host_name, h.class AS
+       host_class, h.owner AS host_owner, t.task_id, t.ctx, t.type,
+       t.target_id, t.target_class, t.target_macro, t.target_code,
+       tc.name AS target_name, tc.spawntime AS target_spawntime,
+       t.builder, t.faction, t.time, t.flags,
+       p.state, p.step, p.steps, p.method, p.sequence_index,
+       p.start_time, p.end_time
+FROM build_task t
+LEFT JOIN component h ON h.save_id = t.save_id AND h.id = t.host_id
+LEFT JOIN component tc ON tc.save_id = t.save_id AND tc.id = t.target_id
+LEFT JOIN build_task p ON p.save_id = t.save_id AND p.host_id = t.host_id
+                      AND p.task_id = t.task_id AND p.kind = 'progress'
+WHERE t.save_id = (SELECT save_id FROM current_save) AND t.kind = 'task'""",
+    # build storage -> the station it is building, straight from the
+    # storage's type='expand' task (v29). 1:1 on save_002 (593 storages,
+    # 593 distinct stations, 593 distinct pairs); before this the link had
+    # to be inferred. A storage whose station has no expand task in flight
+    # emits no row (181 of the 625 offer-posting storages on save_002).
+    # One pair per row: 11 storages carry BOTH an inprogress and a queued
+    # expand for the same station, grouped here (n_tasks > 1; ctx via MIN,
+    # which prefers 'inprogress' alphabetically — the live one).
+    "v_build_storage_station": """CREATE VIEW v_build_storage_station AS
+SELECT t.host_id AS storage_id, s.code AS storage_code, s.owner,
+       t.target_id AS station_id, c.code AS station_code,
+       c.name AS station_name, t.target_macro AS station_macro,
+       c.sector_macro, MIN(t.ctx) AS ctx, MIN(t.time) AS time,
+       COUNT(*) AS n_tasks
+FROM build_task t
+LEFT JOIN component s ON s.save_id = t.save_id AND s.id = t.host_id
+LEFT JOIN component c ON c.save_id = t.save_id AND c.id = t.target_id
+WHERE t.save_id = (SELECT save_id FROM current_save)
+  AND t.kind = 'task' AND t.type = 'expand' AND t.target_id IS NOT NULL
+GROUP BY t.host_id, t.target_id""",
     # station self-supply, labeled (v22): build targets and set-aside
     # inputs with station/ware display names. Join station_munition on
     # (station, ware) to compare a drone target against the actual count.

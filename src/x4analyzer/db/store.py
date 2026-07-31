@@ -173,6 +173,16 @@ def _i(v):
     return int(f) if f is not None else None
 
 
+def _target_cols(hit) -> tuple:
+    """(class, macro, code) of a build task's target component, or NULLs
+    when the save's index has no such id (unknown/removed object — never
+    an error)."""
+    if not hit:
+        return (None, None, None)
+    clazz, macro, code = hit
+    return (_s(clazz), _low(macro), _s(code))
+
+
 def _pdval(v):
     """pandas cell -> SQL value (NaN/NA/"" -> NULL)."""
     if v is None or v == "" or (pd.api.types.is_scalar(v) and pd.isna(v)):
@@ -578,6 +588,27 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             [(save_id, oid, kind, _low(ware), amount)
              for (oid, kind, ware, amount) in save.ware_limits
              if oid and ware])
+        # build tasks (v29): the order wrappers and their buildprocessor
+        # progress rows. Rows without a host or a task id cannot be keyed
+        # (never seen: every one of the 1,458 on save_002 has both) and are
+        # skipped rather than failing the import.
+        # the target resolves against the SAVE's components, not the
+        # `component` table: a queued buildship order points at a real ship
+        # component that has no @connection yet (a hull the yard holds,
+        # outside the universe tree) and so never lands in `component`
+        comp_index = {c[0]: (c[1], c[2], c[4]) for c in save.components}
+        conn.executemany(
+            "INSERT OR REPLACE INTO build_task VALUES "
+            "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [(save_id, host, comp, kind, task_id, _s(ctx), _s(typ),
+              _s(target), *_target_cols(comp_index.get(target)),
+              _s(builder), _low(faction), _f(time), _s(flags),
+              _i(pre), _low(method), _s(state), _i(step), _i(steps),
+              _f(start), _f(end), _i(seq_index), _low(macro))
+             for (host, comp, kind, task_id, ctx, typ, target, builder,
+                  faction, time, flags, pre, method, state, step, steps,
+                  start, end, seq_index, macro) in save.build_tasks
+             if host and task_id])
         conn.executemany(
             "INSERT OR REPLACE INTO build_method VALUES (?,?,?)",
             [(save_id, oid, _low(method))

@@ -163,6 +163,28 @@ class SaveData:
     # kind: "insufficient" = station construction, "shortage" = shipyard
     # ship-order backlog
     build_resources: list = field(default_factory=list)  # (host, ware, amount, kind)
+    # build TASKS (v29) — the `<build>` elements that carry type= or order=,
+    # in the two shapes the save uses for one logical task:
+    #   kind "task"     — the order itself, under <buildtasks><queue|
+    #                     inprogress> of a station or build storage. Carries
+    #                     id= (the task id), component= (WHAT is being built /
+    #                     worked on: the station for type="expand", the ship
+    #                     component for buildship/restock/recycleship),
+    #                     builder=, faction=, time=, flags=.
+    #   kind "progress" — the live progress of that task on a `buildprocessor`
+    #                     component inside a build/dock module. Carries
+    #                     order= (the task id it belongs to, same host),
+    #                     state=/step=/steps=/start=/end=/method=/
+    #                     sequenceindex=.
+    # task_id is the shared id in both shapes (id= / order=), so the two rows
+    # of a task join on (host_id, task_id).
+    # The `<resources><insufficient>`/`<shortage>` amounts under these are NOT
+    # per-ware quantities (E-068) and are deliberately not read here; the
+    # per-entry <upgrades><groups> loadout plans are not read either.
+    # (host_id, comp_id, kind, task_id, ctx, type, target_id, builder,
+    #  faction, time, flags, preexisting, method, state, step, steps,
+    #  start, end, sequence_index, macro)
+    build_tasks: list = field(default_factory=list)
     # open trade offers: (object_id, side, ware, amount, price_cr, flags,
     # desired). side "buy" = station wants to buy `amount` at `price`; "sell"
     # mirrors. flags is the save's raw |-joined set ("" = none); "supplies"
@@ -281,6 +303,45 @@ def _pending_row(source: str, host: str, elem) -> tuple:
     )
 
 
+def _build_task_row(comp_stack: list, tag_stack: list, elem) -> tuple:
+    """One `<build>` element carrying type= or order= (SaveData.build_tasks).
+
+    host = the nearest station/build storage ancestor (progress rows sit on a
+    `buildprocessor` component inside one of its modules, so the immediate
+    component is kept separately as comp_id). ctx is the wrapping tag:
+    'queue' / 'inprogress' for order wrappers, 'processor' for the
+    buildprocessor form (whose parent tag is the bare <component>)."""
+    host = ""
+    for pcls, pid, _pm, _pp in reversed(comp_stack):
+        if pcls in ("station", "buildstorage"):
+            host = pid
+            break
+    parent = tag_stack[-2] if len(tag_stack) > 1 else ""
+    build_id = elem.get("id", "")
+    return (
+        host,
+        comp_stack[-1][1] if comp_stack else "",
+        "task" if build_id else "progress",
+        build_id or elem.get("order", ""),
+        "processor" if parent == "component" else parent,
+        elem.get("type", ""),
+        elem.get("component", ""),
+        elem.get("builder", ""),
+        elem.get("faction", ""),
+        elem.get("time", ""),
+        elem.get("flags", ""),
+        elem.get("preexisting", ""),
+        elem.get("method", ""),
+        elem.get("state", ""),
+        elem.get("step", ""),
+        elem.get("steps", ""),
+        elem.get("start", ""),
+        elem.get("end", ""),
+        elem.get("sequenceindex", ""),
+        elem.get("macro", ""),
+    )
+
+
 def _nearest_host(comp_stack: list) -> str:
     """Nearest trackable ancestor: station, build storage, or ship. Offers
     and cargo of a station plot's build storage attribute to the storage,
@@ -395,6 +456,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                                                       "buildstorage")):
                         d.station_build_methods.append(
                             (comp_stack[-1][1], elem.get("method", "")))
+                    elif elem.get("type") or elem.get("order"):
+                        # a build TASK (order wrapper) or its progress on a
+                        # buildprocessor — the two shapes share one id space
+                        # (wrapper id= <-> processor order=), keyed per host
+                        d.build_tasks.append(
+                            _build_task_row(comp_stack, tag_stack, elem))
                 elif tag == "entry" and elem.get("index") \
                         and elem.get("macro"):
                     entry_stack.append([elem.get("id", ""), []])
