@@ -69,8 +69,32 @@ def run_analysis(cfg: Config) -> int:
     if cfg.open_browser:
         import webbrowser
 
+        _scrub_frozen_ld_library_path()
         webbrowser.open(out.as_uri())
     return 0
+
+
+def _scrub_frozen_ld_library_path() -> None:
+    """Restore the pre-bootloader LD_LIBRARY_PATH in frozen Linux builds.
+
+    PyInstaller's one-file bootloader points LD_LIBRARY_PATH at its
+    extraction dir so the bundled Python finds the bundled shared libs --
+    built on an old distro for glibc compatibility. Child processes
+    inherit it, so xdg-open/kde-open pick up the bundled (older)
+    libstdc++.so.6 and abort with GLIBCXX version errors on newer
+    systems. Nothing runs after the browser launch, so restoring the
+    original environment here is safe.
+    """
+    import os
+    import sys
+
+    if not (getattr(sys, "frozen", False) and sys.platform.startswith("linux")):
+        return
+    orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+    if orig is not None:
+        os.environ["LD_LIBRARY_PATH"] = orig
+    else:
+        os.environ.pop("LD_LIBRARY_PATH", None)
 
 
 def run_seed(cfg: Config, files: list[Path] | None = None) -> int:

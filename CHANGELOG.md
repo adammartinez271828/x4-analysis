@@ -2,6 +2,10 @@
 
 ## 1.4.0 — unreleased
 
+### Fixes
+
+- **Linux binary: browser launch no longer crashes kde-open/xdg-open** — the one-file build exported PyInstaller's `LD_LIBRARY_PATH` (with the build machine's older libstdc++) into the browser-opener process, which aborted with `GLIBCXX` version errors on newer distros (reported on Bazzite). The original environment is now restored before the browser is launched.
+
 ### New User Features
 
 - **Diplomacy views** — faction relations are now surfaced from the savegame, split by whose perspective they answer. **Empire → Standings**: your empire's standing with every faction as a sortable table — a diverging −30..+30 rep bar, the rank (Ally/Friend/Neutral/Enemy/War), the trade discount each faction grants you, how many licences you hold with them, and your treasury. **Universe → Relations**: the whole galaxy's diplomacy as a directional faction×faction heatmap (green = allied, red = hostile), with war/ally cells outlined, your row/column highlighted, and a hover that shows both directions (relations aren't always symmetric). Effective standing = base relation + active boosters as of the save; the −30..+30 rank uses the game's own formula. How it all decodes is written up in `docs/models/faction-relations-model.md`.
