@@ -160,6 +160,89 @@ def test_standings_payload():
     assert rows["antigone"]["rank"] == "Neutral"
 
 
+def test_v_faction_standing_composition():
+    """v_faction_standing must mirror the frames pivot: booster if the pair
+    has one (even a negative or zero-summing one), else base, clamped."""
+    import sqlite3
+    from x4analyzer.db import schema
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE save (save_id INTEGER)")
+    conn.execute("INSERT INTO save VALUES (1)")
+    conn.execute(schema.TABLES["faction_relation"])
+    for name in ("current_save", "v_faction_standing"):
+        conn.execute(schema.VIEWS[name])
+    rows = [
+        ("player", "yaki", "base", -0.32), ("player", "yaki", "booster", 0.2),
+        ("player", "split", "base", -0.032),
+        ("player", "split", "booster", -0.01004),
+        ("player", "scaleplate", "base", -0.0032),      # no booster
+        ("player", "hydra", "booster", 0.0),            # booster present, 0.0
+        ("player", "hydra", "base", -0.5),
+        ("player", "over", "base", 0.4),                # clamp
+        ("player", "over", "booster", 1.4),
+        ("player", "argon", "discount", 0.15),          # ignored kind
+    ]
+    conn.executemany(
+        "INSERT INTO faction_relation (save_id, faction, other, kind, value)"
+        " VALUES (1,?,?,?,?)", rows)
+    got = {o: (b, bo, e) for o, b, bo, e in conn.execute(
+        "SELECT other, base, booster, effective FROM v_faction_standing")}
+    assert got["yaki"] == (-0.32, 0.2, 0.2)
+    assert got["split"] == pytest.approx((-0.032, -0.01004, -0.01004))
+    assert got["scaleplate"] == (-0.0032, 0.0, -0.0032)
+    assert got["hydra"] == (-0.5, 0.0, 0.0)       # a 0.0 booster still wins
+    assert got["over"] == (0.4, 1.4, 1.0)         # clamped
+    assert "argon" not in got                     # discount-only pair
+
+
+def test_standings_payload_takes_effective_verbatim():
+    """The composition (booster replaces base, E-145) lives in frames.py —
+    the payload must not recompute it as base + booster (E-083, FALSIFIED)."""
+    f = _frames()
+    # yaki-shaped row: hostile base, positive story booster
+    f.faction_relations = pd.concat([f.faction_relations, pd.DataFrame({
+        "faction": ["player"], "other": ["antigone"], "base": [-0.32],
+        "booster": [0.2], "effective": [0.2]})], ignore_index=True)
+    rows = {r["id"]: r for r in _standings_payload(f, _ref())["rows"]}
+    assert rows["antigone"]["eff"] == pytest.approx(0.2)     # not -0.12
+    assert rows["antigone"]["rank"] == "Friend"
+    assert rows["antigone"]["base"] == -0.32                 # raw values kept
+    assert rows["antigone"]["booster"] == 0.2
+    assert round(rows["antigone"]["uiv"]) == 23
+
+
+# In-game rep-bar readings, 2026-07-31, taken a few game-hours after save
+# 8E0C…/save_010 (save_id 79, t = 82,687 s), whose <factions> block holds the
+# base/booster values below. They are the evidence for E-145 and against the
+# additive law E-083; tests/readings.py is storage-specific, so they live here.
+# Tolerances reflect post-save drift, not model slack:
+#   yaki    exact 0.2 sits ON the rank-23 threshold (10^2.3/1000 = 0.19953),
+#           so 22 and 23 are the same prediction.
+#   split   the reading post-dates the save; the booster decayed/was traded
+#           back toward 0, so only sign and band are asserted.
+#   loans.  linear band, no meaningful decay in the interval: exact.
+STANDING_READINGS = [
+    # faction,      base,     booster,     in-game rank, tolerance
+    ("yaki",       -0.32,     0.2,         22, 1.1),
+    ("split",      -0.032,   -0.01004,     -6, 5.0),
+    ("loanshark",  -0.0032,   0.0026712,    4, 0.5),
+    ("scaleplate", -0.0032,   None,        -5, 0.5),
+    ("buccaneers", -0.032,    None,       -15, 0.5),
+    ("fallensplit", -0.0032,  None,        -5, 0.5),
+    ("alliance",    1.0,      None,        30, 0.5),
+]
+
+
+@pytest.mark.parametrize("fid,base,booster,read,tol", STANDING_READINGS)
+def test_ingame_standing_readings(fid, base, booster, read, tol):
+    eff = base if booster is None else booster        # E-145: replace, not add
+    assert _uivalue(eff) == pytest.approx(read, abs=tol), fid
+    # the additive law would have missed the two big ones outright
+    if booster is not None and base:
+        add = _uivalue(max(-1.0, min(1.0, base + booster)))
+        assert abs(add - read) > tol, f"{fid}: additive law not discriminated"
+
+
 def test_relations_payload_directional():
     p = _relations_payload(_frames(), _ref())
     ids = [f["id"] for f in p["factions"]]

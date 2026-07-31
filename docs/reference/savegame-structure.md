@@ -182,10 +182,16 @@ A faction that the player has interacted with, trimmed:
 
 - `relation` is a float in −1…+1. The in-game −30…+30 scale is a log
   transform of this value, not stored in the save.
-- `<booster>` under `<relations>` is a temporary additive standing modifier;
-  the stored `relation` is its **current decayed value** as of the save (the
-  engine persists it mid-decay), with `time` the last-update game time.
-  Effective standing = clamp(base + Σ boosters, −1, +1).
+- `<booster>` under `<relations>` is a temporary standing modifier, and it is
+  **not an offset on the base**: the stored `relation` is the pair's **current
+  standing** at its decayed value as of the save (the engine persists it
+  mid-decay), with `time` the last-update game time. Effective standing =
+  clamp(booster if the pair has one, else base, −1, +1) — E-145. (The former
+  additive reading, `clamp(base + Σ boosters, −1, +1)`, is **SUPERSEDED**: it
+  mispredicted three in-game rep readings by up to 43 rank points and two signs
+  — E-083, FALSIFIED. See
+  [../models/faction-relations-model.md](../models/faction-relations-model.md)
+  § Rejected alternatives.)
 - `<booster>` under `<discounts>` is the same element name with different
   semantics: a trade discount fraction (`amount="0.15"` = 15 %).
 - `<licence>` lists which *counterpart* factions granted this faction a

@@ -660,10 +660,16 @@ def build_frames(save: SaveData, ref: RefData,
         faction_relations = pd.DataFrame(index=keys)
         faction_relations["base"] = base.reindex(keys).fillna(0.0)
         faction_relations["booster"] = boost.reindex(keys).fillna(0.0)
-        # effective standing as of the save (boosters are stored at their
-        # current decayed value) = base + boosters, clamped to [-1, 1]
+        # effective standing as of the save: a booster, when one exists, IS the
+        # current standing (the engine persists it at its decayed value) and
+        # REPLACES the base; the base applies only to pairs with no booster.
+        # E-145 (E-083 falsified the old additive law). Every observed pair has
+        # at most one booster per direction; if several ever appear we sum them
+        # — an arbitrary but stable choice, see E-145.
+        has_boost = pd.Series(keys.isin(boost.index), index=keys)
         faction_relations["effective"] = (
-            faction_relations["base"] + faction_relations["booster"]
+            faction_relations["booster"].where(
+                has_boost, faction_relations["base"])
         ).clip(-1.0, 1.0)
         faction_relations = faction_relations.reset_index()
         faction_discounts = (frel_raw[frel_raw["kind"] == "discount"]

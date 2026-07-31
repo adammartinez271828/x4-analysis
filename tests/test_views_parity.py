@@ -491,3 +491,40 @@ def test_v_station_supply_position_keeps_the_held_view_unchanged(conn):
         "SELECT SUM(amount) t FROM v_station_supply WHERE kind='ware'", conn)
     b = pd.read_sql("SELECT SUM(held) t FROM v_station_supply_position", conn)
     assert _eq(a["t"], b["t"]).all()
+
+
+# ---- v_faction_standing vs the frames pivot (E-145) -------------------------
+
+def test_v_faction_standing_uses_booster_over_base(conn):
+    """The standing composition is REPLACE, not add (E-145 killed E-083):
+    a pair with a booster reads the booster, a pair without reads the base."""
+    got = pd.read_sql(
+        "SELECT faction, other, base, booster, effective"
+        " FROM v_faction_standing", conn).set_index(["faction", "other"])
+    raw = pd.read_sql(
+        "SELECT faction, other, kind, value FROM faction_relation"
+        " WHERE save_id = (SELECT save_id FROM current_save)"
+        "   AND kind IN ('base', 'booster')", conn)
+    # same pivot analysis/frames.py performs, reimplemented here
+    base = raw[raw["kind"] == "base"].groupby(["faction", "other"])["value"].sum()
+    boost = raw[raw["kind"] == "booster"].groupby(
+        ["faction", "other"])["value"].sum()
+    keys = base.index.union(boost.index)
+    want = pd.DataFrame(index=keys)
+    want["base"] = base.reindex(keys).fillna(0.0)
+    want["booster"] = boost.reindex(keys).fillna(0.0)
+    want["effective"] = want["booster"].where(
+        pd.Series(keys.isin(boost.index), index=keys), want["base"]
+    ).clip(-1.0, 1.0)
+
+    assert len(got) == len(want) > 100
+    want = want.reindex(got.index)
+    for col in ("base", "booster", "effective"):
+        assert (got[col] - want[col]).abs().max() < 1e-12, col
+
+    # the test must be able to tell the two laws apart: the real save has
+    # pairs carrying BOTH a non-zero base and a booster (yaki/split/loanshark
+    # ↔ player among them), where base + booster ≠ effective
+    both = want[(want["base"] != 0) & (want["booster"] != 0)]
+    assert len(both) > 0
+    assert (both["base"] + both["booster"] - both["effective"]).abs().max() > 1e-6

@@ -893,8 +893,11 @@ def test_v_faction_standing(conn):
     out = {(f, o): (b, bo, e) for f, o, b, bo, e in conn.execute(
         "SELECT faction, other, base, booster, effective"
         " FROM v_faction_standing")}
+    # a booster REPLACES the base — it is the current standing, not an offset
+    # (E-145; the additive 0.18 is E-083, FALSIFIED). Multiple boosters on one
+    # pair are summed (never observed in a save; documented in frames.py).
     assert out[("argon", "player")] == (
-        0.1, pytest.approx(0.08), pytest.approx(0.18))
+        0.1, pytest.approx(0.08), pytest.approx(0.08))
     assert out[("xenon", "player")] == (-1.2, 0.0, -1.0)  # clamped
     assert ("teladi", "player") not in out
     assert ("boron", "player") not in out

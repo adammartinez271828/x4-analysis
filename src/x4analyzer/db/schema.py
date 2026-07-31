@@ -652,8 +652,10 @@ TABLES: dict[str, str] = {
 )""",
     # faction diplomacy (universe/factions). kind: base | booster | discount
     # (discount value is a trade discount fraction, not a standing). time is
-    # the application game-time (NULL for base). Effective standing = base +
-    # active boosters, computed in frames. See docs/models/faction-relations-model.md
+    # the application game-time (NULL for base). Effective standing = the
+    # active booster if the pair has one (it IS the current standing), else
+    # the base — composed in frames and mirrored by v_faction_standing (E-145).
+    # See docs/models/faction-relations-model.md
     "faction_relation": """CREATE TABLE IF NOT EXISTS faction_relation (
   save_id  INTEGER NOT NULL,
   faction  TEXT NOT NULL,
@@ -1122,16 +1124,22 @@ VIEWS: dict[str, str] = {
     # or subselects this instead of repeating the MAX(save_id) idiom
     "current_save": """CREATE VIEW current_save AS
 SELECT MAX(save_id) AS save_id FROM save""",
-    # effective faction standing (T7): base + boosters clamped to [-1, 1],
-    # reproducing the frames.py pivot. Discount-only pairs emit no row
-    # (frames keys on base ∪ booster); discounts stay a plain filter on
-    # faction_relation. Whether boosters decay in-save is unsettled
-    # (faction-model F1) — this view just sums what the save stores.
+    # effective faction standing (T7): the booster when the pair has one,
+    # otherwise the base, clamped to [-1, 1] — a booster IS the current
+    # standing and replaces the base (E-145; the old additive law is E-083,
+    # FALSIFIED). Reproduces the frames.py pivot. Discount-only pairs emit no
+    # row (frames keys on base ∪ booster); discounts stay a plain filter on
+    # faction_relation. Boosters are stored at their current decayed value, so
+    # this view just reads what the save stores — no decay projection.
     "v_faction_standing": """CREATE VIEW v_faction_standing AS
 SELECT faction, other,
        SUM(CASE WHEN kind = 'base'    THEN value ELSE 0 END) AS base,
        SUM(CASE WHEN kind = 'booster' THEN value ELSE 0 END) AS booster,
-       MIN(1.0, MAX(-1.0, SUM(value))) AS effective
+       MIN(1.0, MAX(-1.0,
+           CASE WHEN SUM(kind = 'booster') > 0
+                THEN SUM(CASE WHEN kind = 'booster' THEN value ELSE 0 END)
+                ELSE SUM(CASE WHEN kind = 'base' THEN value ELSE 0 END)
+           END)) AS effective
 FROM faction_relation
 WHERE save_id = (SELECT save_id FROM current_save)
   AND kind IN ('base', 'booster')

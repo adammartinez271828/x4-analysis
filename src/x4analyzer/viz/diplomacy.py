@@ -4,9 +4,9 @@ matrix (Universe).
 Both are self-contained client-rendered pages (the map.py pattern): a `_PAGE`
 template with `__TOKEN__` placeholders and a shared `diplomacy_page.js` that
 branches on the payload's `view`. Everything comes from the savegame's
-`universe/factions` block (frames.faction_*): base relation + boosters =
-effective standing, clamped to [-1, 1], as of the save. See
-docs/models/faction-relations-model.md.
+`universe/factions` block (frames.faction_*): the effective standing is the
+active booster when the pair has one, else the base relation, clamped to
+[-1, 1], as of the save (E-145). See docs/models/faction-relations-model.md.
 """
 
 from __future__ import annotations
@@ -112,11 +112,13 @@ def _standings_payload(frames: Frames, ref: RefData) -> dict:
     for fid in _roster(frames):
         if fid == "player":
             continue
-        base = booster = 0.0
+        base = booster = eff = 0.0
         if pr is not None and fid in pr.index:
             base = float(pr.loc[fid, "base"])
             booster = float(pr.loc[fid, "booster"])
-        eff = max(-1.0, min(1.0, base + booster))
+            # composition lives in frames.py: a booster replaces the base
+            # (E-145). Never recompute it here.
+            eff = max(-1.0, min(1.0, float(pr.loc[fid, "effective"])))
         m = _fac_meta(ref, fid)
         m.update({
             "base": round(base, 4), "booster": round(booster, 4),

@@ -79,8 +79,9 @@
     var h = "<h1>Player Standings" +
       (D.player_name && D.player_name !== "Player"
         ? " — " + esc(D.player_name) : "") + "</h1>";
-    h += "<p class='sub'>Effective standing = base relation + active " +
-      "boosters, as of the save. Treasury: <b>" + fmtMoney(D.treasury) +
+    h += "<p class='sub'>Effective standing = the active booster if there " +
+      "is one (it carries the current, decayed standing), else the base " +
+      "relation — as of the save. Treasury: <b>" + fmtMoney(D.treasury) +
       "</b></p>";
     h += "<table id='stand' class='display' style='width:100%'><thead><tr>" +
       "<th>Faction</th><th>Standing</th><th>Rank</th>" +

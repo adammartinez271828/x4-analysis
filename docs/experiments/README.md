@@ -48,10 +48,10 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | Pricing (E-001…E-036, E-112…E-118, E-129…E-135, E-141…E-142) | 24 | 15 | 7 | 6 | 52 |
 | Storage allocation (E-037…E-063, E-119…E-128, E-136…E-138, E-140) | 25 | 11 | 3 | 2 | 41 |
 | Parser / save format (E-064…E-080, E-143…E-144) | 10 | 4 | 5 | 0 | 19 |
-| Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
+| Faction / diplomacy (E-081…E-084, E-145…E-146) | 2 | 2 | 2 | 0 | 6 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111, E-139) | 5 | 5 | 5 | 0 | 15 |
-| **total** | **71** | **39** | **26** | **8** | **144** |
+| **total** | **72** | **40** | **26** | **8** | **146** |
 
 Nine entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -410,11 +410,17 @@ station without being resolved.
 **E-082 · CONFIRMED** — Player standing is booster-driven: no base `<relation>` with major trading factions, permanent hostiles/allies are base relations.
 *Predicts:* argon↔player both `0.240896 @ t=70164.839`; Xenon and Kha'ak at −1, Alliance at +1. *Source:* [faction-relations-model.md](../models/faction-relations-model.md) § Player standing is booster-driven [OBS].
 
-**E-083 · PENDING** — Effective standing = `clamp(base + Σ boosters, −1, +1)`, and the rep bar is a fixed log transform of it.
-*Predicts:* `uiv = sign(r)·10·log10(|r|·1000)` for `|r| > 0.0032`, `uiv = r/0.00064` below; anchors 1.0=30, 0.5=27, 0.32=25, 0.1=20, 0.032=15, 0.01=10, 0.0032=5. *Settles it:* play item B9 — note the in-game rep bar for 3 factions and check `clamp(base + Σ boosters)` against it. *Source:* [faction-relations-model.md](../models/faction-relations-model.md) § The −30..+30 rank value [DOC]; [phase7-research-p1.md](../reports/phase7-research-p1.md) § Play checklist, B9.
+**E-083 · FALSIFIED** — Effective standing = `clamp(base + Σ boosters, −1, +1)` (the *additive* composition; the rank-transform half of the claim survived and is now carried by E-145).
+*Predicted:* `uiv = sign(r)·10·log10(|r|·1000)` for `|r| > 0.0032`, `uiv = r/0.00064` below; anchors 1.0=30, 0.5=27, 0.32=25, 0.1=20, 0.032=15, 0.01=10, 0.0032=5 — applied to `base + Σ boosters`. *Killed by:* play item B9, executed 2026-07-31 — three in-game rep readings taken some game-hours after save 8E0C…/save_010, against that save's `<factions>` values. yaki (base −0.32, booster +0.2): additive −0.12 ⇒ **−21**, read **+22 "Ally"**. split (base −0.032, booster −0.01004): additive −0.042 ⇒ **−16**, read **−6**. loanshark (base −0.0032, booster +0.0026712): additive −0.00053 ⇒ **−0.8**, read **+4**. All three wrong in magnitude, two in sign. The rank transform itself is untouched — every reading lands on it once the composition is replaced (E-145). *Replaced by:* E-145. *Source:* [faction-relations-model.md](../models/faction-relations-model.md) § Rejected alternatives; [phase7-research-p1.md](../reports/phase7-research-p1.md) § Play checklist, B9.
 
 **E-084 · PENDING** — Boosters decay in place, and the save persists them at their current decayed value.
 *Predicts:* `delay`/`decay` params, e.g. 540 s then rate 0.02; the decay curve is deliberately not projected. *Settles it:* B9 — save (slot A), leave one faction completely untouched for ≥ 1 game hour, save again (slot B), byte-diff the same booster keys. *Source:* [phase7-research-p1.md](../reports/phase7-research-p1.md) § Play checklist, B9.
+
+**E-145 · CONFIRMED** — Effective standing = the pair's **booster** when it has one, else its **base** relation, clamped to [−1, +1]; a booster is not an offset but the current standing itself, persisted at its decayed value. The rank transform (`uiv = sign(r)·10·log10(|r|·1000)`, linear `r/0.00064` for `|r| ≤ 0.0032`) is unchanged from E-083 and applies to that value.
+*Predicts:* for save 8E0C…/save_010 — yaki (base −0.32, booster +0.2) ⇒ r = 0.2 ⇒ **+23** rank, Ally; split (base −0.032, booster −0.01004) ⇒ r = −0.01004 ⇒ **−10**; loanshark (base −0.0032, booster +0.0026712) ⇒ linear band ⇒ **+4.17**; factions with no booster read their base: scaleplate −0.0032 ⇒ −5, buccaneers −0.032 ⇒ −15, fallensplit −0.0032 ⇒ −5, alliance +1 ⇒ +30. *Confirmed by:* the B9 readings of 2026-07-31, taken a few game-hours after that save — yaki **+22 "Ally"** (0.2 sits exactly on the +23 threshold 10^2.3/1000 = 0.19953, so a hair of decay reads 22), loanshark **+4** (exact), split **−6** (right sign and band; the reading post-dates the save, and a booster of −0.01004 drifting toward 0 passes −6 = −0.0025 on the way). SCA/FAF/BUC read their negative standings and cannot be raised, ALI reads +30 ally — the base-only factions behave as predicted, which also rules out "boosters only, base ignored". Kills the additive law E-083 (yaki off by 43 rank points). *Source:* [faction-relations-model.md](../models/faction-relations-model.md) § The model in one paragraph; [viz-internals.md](../reference/viz-internals.md) § Diplomacy.
+
+**E-146 · PENDING** — The booster **replaces** the base rather than being `max(base, booster)`, and it drifts toward the base (not toward 0) as it decays.
+*Predicts:* under replace, a pair whose booster is *worse* than its base reads the booster; under `max`, it reads the base. Every pair observed so far has its booster on the better side of its base (yaki +0.2 vs −0.32, split −0.01004 vs −0.032, loanshark +0.0027 vs −0.0032), so the two rules are indistinguishable on the available saves; the implementation picks **replace**, matching the engine's own framing of a boosted value drifting back to the actual relation. The drift target is likewise unobserved: split moved from −0.01004 toward 0 (base −0.032), which favours 0, but ongoing trade/mission boosts against that faction cannot be excluded. *Settles it:* an in-game reading of a pair whose booster is on the worse side of a non-zero base — e.g. a scripted reputation drop against a high-base faction, or a hostile act against Alliance (base +1) — read the rep bar and compare with the save's `<relations>`. For the drift target: two saves ≥ 1 game hour apart with no interaction with a faction that has both a non-zero base and a live booster. *Source:* [faction-relations-model.md](../models/faction-relations-model.md) § Rejected alternatives.
 
 ## Resources
 

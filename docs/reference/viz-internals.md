@@ -295,8 +295,12 @@ directional faction×faction matrix). All from the save's
 [db-schema.md](db-schema.md), semantics in
 [../models/faction-relations-model.md](../models/faction-relations-model.md).
 Frames pivots to `faction_relations` with base/booster/**effective** =
-clamp(base + Σboosters, −1, 1) — the standing AS OF THE SAVE, since the
-engine persists boosters at their current decayed value.
+clamp(booster if the pair has one, else base, −1, 1) — the standing AS OF THE
+SAVE, since the engine persists a booster at its current decayed value and the
+booster *is* the standing, not an offset on the base (E-145; the earlier
+additive `clamp(base + Σboosters)` is FALSIFIED, E-083). The page shows the raw
+base and booster columns alongside; only `effective` composes them, and it
+composes them in `frames.py` only — `viz/diplomacy.py` reads that column.
 
 Two self-contained pages (map.py `_PAGE`+external-JS pattern,
 `window.X4DIPLO`, `diplomacy_page.js` branches on `view`): Standings = a
