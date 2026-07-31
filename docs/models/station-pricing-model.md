@@ -11,6 +11,24 @@ trade panel. The detailed derivations, fits and rejected alternatives live in
 [../reference/save-semantics.md](../reference/save-semantics.md) § Ware pricing
 model. This document is the *shape* of the model, not its history.
 
+**Revised 2026-07-30** against the eight Phase-2 reports of
+[../plans/model-gaps-2026-07-29.md](../plans/model-gaps-2026-07-29.md) — the
+`supplies` book, the yard book, the cap's scope, `V`'s structure and the offset
+family all moved — and against the first implementation.
+
+**The model now exists in code: `src/x4analyzer/analysis/pricing.py`.** It
+implements this document — the closed form, the book classification, and a
+bin-median scoring harness that enforces the rules in § How to score a change —
+and it is *research-grade*: no widget, no pipeline wiring, nothing else in the
+package imports it. Where this document and the module disagree about a
+*number*, the module is the one that was scored; where they disagree about a
+*rule*, that is a bug in one of them and the register (E-…) is the tiebreak.
+Two conventions the module carries that this document should be read with:
+every prediction is labelled `law`, `descriptive` or `none`, and residuals are
+scored in **band units** (`(observed − predicted)` over the half-spread on the
+observed side), never in `u` — near `s = ±1` the cosine is flat and a four-cent
+price difference manufactures a `u` residual of 2–5.
+
 Each claim is tagged by confidence:
 
 - **[UI]** — the game states it outright in the station trade panel or the
@@ -127,6 +145,7 @@ the ware's role [OBS]:
 | buy-only production input | **−0.039** | 3,024 | 0.0714 |
 | buy-only ration | **+0.006** | 2,361 | **0.0015** |
 | condensate / Protectyon | +0.048 | 16 | 0.0053 |
+| host carries a built `buildmodule` (yard) | **−0.202** | 61 stations | 0.0007 (MAD of the per-station median) |
 
 An input-role ware the station *also sells* takes the supplier offset
 (+0.049, IQR 0.024) rather than the consumer one (−0.040, IQR 0.086). This
@@ -146,7 +165,30 @@ between-station sd 0.0542), running 0 to a ceiling of ~0.78 h of consumption
 and shrinking monotonically with the station's production module count. **Its
 cause is unknown.** It is not an allocation error: for inputs posting a buy
 offer, `stock + inbound + amount` equals the modelled allocation at median
-ratio 0.9999.
+ratio 0.9999. **−0.039 is only the population default**; the real number ranges
+over roughly 0 to −0.8, so any per-station work should measure it rather than
+assume it (`pricing.station_input_offsets()` does).
+
+**Three things it is now known NOT to be** [OBS, 2026-07-30]:
+
+- **Not a per-module reserve of goods** (E-011 FALSIFIED). It is a *fill
+  fraction*: NVF-801 posts twelve inputs at −0.198…−0.214 over allocations from
+  210 to 366,112 units, which would need the same modules to hold back 41.7 and
+  73,500 units — a factor of 1,764. 169 of 909 stations carry a **positive**
+  constant, which no reserve can produce. A reserve denominated in *hours of
+  consumption* is algebraically indistinguishable from the fill offset and is
+  not refuted — but it is not what E-011 claimed, and it is in the rejected
+  table so it is not re-tested as if new.
+- **Not stock-dependent.** Over 13 epochs and 15,319 s the implied `a` is flat
+  to a median spread of **0.0059**, 227 of 241 epochs within 0.01 of their
+  series median, while net positions move 10–50 % of allocation. CCN-497 holds
+  graphene at −0.3884…−0.3911 across all 12 unclamped epochs while its price
+  runs 233.00 → 158.98.
+- **Not shared with rations** (E-015 CONFIRMED, role/predicate-keyed). Over the
+  829 stations posting both, ration `a` sits at +0.0066 (MAD 0.0021) while the
+  same stations' inputs range −0.97 to +0.54; on the 445 discriminating
+  stations the role rule scores bin-median 0.0045 against 0.1074 for "rations
+  take the station's constant".
 
 ### The price target `m` — a 5-million-credit cap
 
@@ -197,6 +239,65 @@ is a convention, not a derived fact. That trade-off is why `V` fits best at
 verified allocation and a wide fill range returns 5.0026 M; it is also why
 Tidebreak's target reads 200 (cap, zero parameters) against E-018's 173.1 (two
 free parameters). Which of the two the engine carries is **[INF]** and open.
+
+#### `V` is one global constant — of an unsettled value [OBS, 2026-07-30]
+
+Two results, and they point in opposite directions about how done this is.
+
+**No cohort structure, and that is settled.** Solving `V` per station at fixed
+`a` over 153 multi-epoch trajectories gives **IQR/median 0.008**; ware medians
+spread only 5.025–5.060 M and faction medians 5.030–5.080 M, and **nothing
+beats pooling** (E-130). So "is the cap per-design or per-faction" is closed,
+and any one well-conditioned capped station is as good as a cohort.
+
+**The absolute value is not, and 13 epochs did not break it.** `V` and the
+supplier offset `a` lie on an exact ridge of slope ≈ **+0.0009 in `a` per +1 %
+in `V`** — the corpus ridge and the single-snapshot ridge trace the same line
+to within one grid cell — so per-station `V` intervals with `a` free are ~23 %
+wide. Conditional on `a`, `V` is pinned to ±0.1 %: at `a = 0.048` the two
+in-game-anchored solar plants both return 5,001,8xx Cr as 13-epoch medians; at
+`a = 0.053` they return 5.043–5.057 M. The non-binding suppliers, which carry
+no `V` at all, prefer `a = 0.052` and hence `V ≈ 5.05 M` — but their `a` is
+measured *through* the storage-allocation model, so a 1 % bias there would move
+it by the whole disputed amount. **Use `V = 5,000,000` and treat both numbers
+as parameters** (which is what `pricing.py` does, with `a = 0.053`). E-116.
+
+#### Above the capped target: the cap holds, unless the station eats the ware
+
+Two refinements to the cap's scope, both from the whole >5 M Cr population at
+once [OBS, 2026-07-30]:
+
+**The cap is confirmed ABOVE the target, not only below it.** Of the 49
+saturated NPC supplier offers on snapshot 71, the **30 the station does not
+itself consume sit at exactly the band minimum**, bin-median error 0.0000 in
+all seven bins, where reverting to the allocation curve scores 0.4245. That
+kills the leading alternative scope rule — "the cap applies only while
+net ≤ target" — whose falsifiers are offers at fill 0.51–0.94 already past the
+capped target (CAC-761, MBP-961, PAC-481, TFH-220, XXF-947 …).
+
+**But a ware the station itself CONSUMES does not clamp there.** Above the
+capped target it leaves the supplier book for the consumer book — target = the
+storage allocation, offset = that station's own input constant. The split on
+those 49 offers is perfect with **no tuned parameter**: 0/19 self-consumed at
+the band minimum, 30/30 non-self-consumed at it. *Below* the target the
+exemption does not apply — all 51 self-consumed sub-target offers fit the
+**capped** curve (0.008–0.019 of a half-spread) — which is why a blanket
+exemption degrades that cohort (0.0144 → 0.0303) while the above-target-only
+form is neutral everywhere else. *Self-consumed* means: an input to one of the
+station's own production recipes, **or** a build resource while it carries a
+built `buildmodule*`, **or** a ration of a race present in its workforce.
+
+**HYPOTHESIS on the price form, not on the split.** The exempted offers do not
+land on the allocation curve at `+0.053` either; solved individually they want
+a negative `a` (energy cells −0.108…−0.153, scrap metal −0.015…−0.071, silicon
+−0.162, hull parts −0.208). The one station where that is independently
+checkable settles it: **ULG-519** reads −0.202/−0.203/−0.202 on its production
+inputs and −0.208 on its saturated hull-parts sell, and predicting from
+`T = allocation, a = −0.203` lands within **0.014** of the observation against
++0.348 (allocation at +0.053) and +0.355 (capped). The eight Avarice scavengers
+buy no inputs at all, so their constant is unobservable — the rule predicts
+*that* their price stays off the floor, not *where* it lands, and it has no
+closed form until the per-station input constant is modelled. E-132/E-133.
 
 ## The other modifiers
 
@@ -349,20 +450,45 @@ Each is a separate book, confirmed by measurement rather than assumed [OBS]:
 | book | n | behaviour |
 |---|---:|---|
 | `lockavgprice` whitelist | 1,175 | pegged at band **average** regardless of stock; sell = avg exactly, buy = avg − 1 |
-| `supplies` (self-supply) | 1,309 | a fixed per-ware multiple of avg — **10 distinct constants**, 1.07–1.22× |
-| `shady` (black market) | 3,273 | **two tiers, disjoint by station** (E-112): 2,897 offers over 727 stations at median 1.042 × band max, and 376 over 96 stations at exactly **2.750 × band avg**; no fill dependence either way. Opened per station by a `shadyguy` post; what sets a station's tier is unknown |
-| build storages | 1,771 | hold **no allocation** (0 of 1,771), so no fill coordinate exists. 63 % sit at band max to the cent and 10.6 % *above* it; the unclamped rest do move with stock against `stock + inbound + open buy amount` (corr −0.79) but hold `s = +1` flat to fill ≈ 0.41 and are **not** on the cosine (bin RMSE 0.44–0.50). E-118 |
-| yards / wharfs / docks | 701 | same family, different exponent (`k ≈ 2.6`); run much fuller, median fill 76 % vs 54 % |
+| `shady` (black market) | 3,273 | **two tiers, disjoint by station** (E-112): 2,897 offers over 727 stations at median 1.042 × band max, and 376 over 96 stations at exactly **2.750 × band avg**; no fill dependence either way. Opened per station by a `shadyguy` post. The tier is **mutable state**, and the only correlate is the workforce: fixed ⇒ unstaffed on 1,227 of 1,228 station-epochs, converse false (E-134). Not derivable from the save — classify it off the observed price |
+| build storages | 1,771 | hold **no allocation** (0 of 1,771), so no fill coordinate exists. 63 % sit at band max to the cent and 10.6 % *above* it; the unclamped rest do move with stock but hold `s = +1` flat to a knee and are **not** on the cosine. Confirmed on an *independent* denominator (outstanding module-build BOM): free flat-then-line 0.0725 against the cosine's 0.3084, the warped cosine's 0.4261 and the clamped line's 0.2844. Take the knee as a **spread** — 0.41 / 0.50 / 0.57 on three denominators — not a value. E-118 |
 | player-owned | 54 | manual thresholds — `price_setting` and `ware_limit`, off-model by design |
 
-`supplies` and `yard` are characterised but **not explained**. The rest are
-understood. All six were re-admitted as candidates and re-tested on 2026-07-29
-against the value cap; only the seventh, the old `narrow price span (output)`
-cohort (computronicsubstrate / claytronics / siliconwafers, 114 offers),
-turned out **not** to be a separate book — it is ordinary supplier pricing with
-the 5 M cap binding, bin RMSE 0.2382 → 0.0136. The cap was explicitly rejected
-for yards (bin RMSE 0.3355 → 0.6310 on the 202 offers where it would bind) and
-for buy-only production inputs (0.1058 → 0.2078 on 147).
+**Two former members of this table are back in the main sequence**
+[OBS, 2026-07-30]:
+
+- **`supplies` (self-supply)** is a *fixed point on the same cosine*:
+  `price = (avg + max)/2`, i.e. **`s = +0.5` exactly** — `u = 0.3650` — with no
+  parameters and no stock dependence. 15,345 offers over 13 saves, maximum
+  deviation **0.00 Cr**. Its ten "per-ware constants" were `1 + spread/2`; the
+  half-credit prices (53.50, 240.50, 1,520.50) are what a midpoint rule
+  produces and a rounded constant does not. E-129.
+- **Yards / wharfs / docks** are *the ordinary cosine on the storage
+  allocation*, with a yard station constant `a ≈ −0.202` (rations still +0.006,
+  sells still +0.053). Scored like for like against E-028's clamped power on
+  the offer-derived proxy — one fitted parameter each, whole yard buy book
+  n = 675, bin medians on a rule-independent x — the cosine wins by **27×**
+  (0.0054 against 0.1483), and it *explains* the ~0.17 band floor at full fill
+  that the power form leaves as an anomaly: at fill 1 the shifted cosine
+  reaches only `s = cos(0.728π)`, band position 0.18. What is left unexplained
+  is one cohort constant, which is the same open question as every other
+  station's input constant. E-131.
+
+**Book precedence matters and is measured.** Manual price settings first (not a
+price book at all), then the **offer's own flags**, then the station's
+whitelist, then the host's kind. Flags must outrank the whitelist: 13 offers on
+snapshot 71 are both `supplies`-flagged and `lockavgprice`-listed and all 13
+price at the midpoint, not at `avg − 1` — booking the whitelist first puts them
+in the wrong book by 0.5–0.75 band units.
+
+The remaining books were re-admitted as candidates and re-tested on 2026-07-29
+against the value cap; the old `narrow price span (output)` cohort
+(computronicsubstrate / claytronics / siliconwafers, 114 offers) turned out
+**not** to be a separate book — it is ordinary supplier pricing with the 5 M cap
+binding, bin RMSE 0.2382 → 0.0136. The cap was explicitly rejected for yards
+(bin RMSE 0.3355 → 0.6310 on the 202 offers where it would bind) and for
+buy-only production inputs (0.1058 → 0.2078 on 147); the yard rejection stands
+independently of E-131, which changes the yard's *curve*, not its denominator.
 
 **Deployables are priced by recipe, not by stock [OBS].** Satellites, mines and
 the like are built on demand at
@@ -409,6 +535,21 @@ median alone.
 Rations are the tightest law found anywhere in this project — tighter than the
 storage allocation model that feeds it.
 
+**Re-scored on snapshot 71 by `analysis/pricing.py` (2026-07-30).** Where these
+supersede the save-70 figures above, they are the numbers to quote — same
+discipline, current snapshot, and reproduced by an implementation rather than a
+scratch script. `lockavgprice` and `supplies` are exact **to 1e-9 per offer**,
+so they carry no error bar at all. The supplier population's binding cohort
+reads bin RMSE 0.0059 at `(V, a) = (5.00 M, 0.048)` and 0.0089 at
+`(5.05 M, 0.053)`; the 1,349 non-binding suppliers read 0.0127 and 0.0077
+respectively; all 1,715 suppliers 0.0094 and 0.0078. Yards: 0.0054 on the
+cosine against 0.1483 on the power. Two scoring rules the harness enforces and
+that any re-run must too: **exclude `lockavgprice` pairs from the supplier
+population** — leaving them in inflates the binding bin RMSE from 0.0145 to
+0.43, which is what a careless run reports — and drop clamped offers
+(`|s| ≥ 1`, 9 % of station-epochs), which sit on a band edge and carry no
+information about the fill coordinate.
+
 ## How to score a change to this model
 
 Two constraints, both learned the hard way:
@@ -443,23 +584,53 @@ Two constraints, both learned the hard way:
 | the cap normalising on `price_min` / `price_max` | implied-cap relative IQR 0.349 / 0.186 against `price_avg`'s 0.056 |
 | the cap applying to buy-only inputs or to yards | bin RMSE 0.1058 → 0.2078 (147 inputs) and 0.3355 → 0.6310 (202 yard offers) where it would bind |
 | the corridor as a faction / sector / design / module-count property | every such grouping has a *higher* within-group IQR of `m` than pooling, on both bases |
+| the input offset as a per-module **reserve of units** | it is a fill fraction, not a stock of goods: NVF-801 shares one `a` across allocations differing 1,764×, 169 of 909 stations carry a positive offset, and it is flat to 0.006 over 13 epochs while stock moves 10–50 % (E-011) |
+| the input offset as a reserve denominated in **hours of consumption** | **not refuted — and that is the point.** It is algebraically indistinguishable from the fill offset itself (the allocation is proportional to consumption rate), so it cannot be tested this way; it would still need a mechanism for the positive-`a` stations. Do not re-run the E-011 test expecting it to discriminate |
+| yards priced off outstanding **build demand** (E-028's mechanism) | the demand was constructed and is a median 0 % / max 69 % of a yard's own allocation; on it, 10 of 16 bins degenerate to fill 1.000 spanning the whole band, bin RMSE 0.4355 against the proxy's 0.0792; and BOM swings at CV 0.511 across epochs while the allocation holds at CV 0.0107, with complete queue turnover in under 2,000 s |
+| the yard book as a clamped power `1 − fill^k` (k ≈ 2.6) | a **shape artifact of unmodelled offsets**, not a family: once yard rations take +0.006 and yard sells +0.053, the ordinary cosine at `a = −0.202` beats it 27× on bin RMSE at equal parameter count and reproduces the 0.17 band floor the power form cannot (E-131) |
+| the cap's scope as **net-position saturation** (cap only while net ≤ target) | ten falsifiers at fill 0.51–0.94 already past the capped target, all sitting at the band minimum where the allocation curve is off by up to a full half-spread: CAC-761, MBP-961, PAC-481, TFH-220, XXF-947, DRN-534, QFO-450, OHU-068, SZE-818, AOY-922 (E-133) |
+| the cap's scope as a faction / design / sector / tide-phase property | every grouping contains both cohorts — scavenger IRD-672 caps while eight other scavengers do not, kaori BPR-268 caps while kaori DHI-588 does not, `station_gen_factory_base_01_macro` is the modal macro on both sides, cluster_500 holds four cappers and eight non-cappers; across 13 epochs the scavengers' prices move only with their own net, no periodicity |
+| the "1.21–1.30× scavenger storage scale error" | **withdrawn, and by freeing `a`, not by changing the storage model.** KWC-232's allocation is player-verified at 1,833,000 against a modelled 1,833,247; corpus 2-parameter solves on the series with leverage return `T ≈ the modelled allocation` with a negative offset (NDE-080 1.014×, CGW-678 0.993×, NDE-080 scrap 1.000×). The 1.2–1.3× figures survive only where net varies 0–3 % and `T` and `a` are not separable |
+| build-storage price as a cosine, warped cosine, clamped line, or the yard's power | on an **independent** module-BOM denominator: 0.3084 / 0.4261 / 0.2844 / 0.1629 against flat-then-line's 0.0725 (E-118). Same ordering on the self-referential denominator, which is what shows it was never an artifact of `amount` appearing on both sides |
+| `u`-space least squares for the (V, a) solve | heteroscedastic near `s = ±1`: it manufactured `V ≈ 3.8–4.5 M` on the low-fill solar plants out of 0.06 Cr price deviations. Score in band units |
+| `(V, a) = (5.00 M, 0.046)` as a save-wide rule | best on the capped cohort (0.0058) and one of the worst save-wide (0.0127 against a 0.0077 baseline) — it buys 344 offers by degrading the 1,349 that carry no cap at all. Over-fitting |
 
 ## Open questions
 
-1. **Is `V` exactly 5,000,000 Cr?** The binding population optimises at
-   5.05–5.10 M with `a` fixed; the one cohort with a verified allocation and a
-   wide fill range returns 5.0026 M. `V` and `a` trade off, so it needs one
-   station read at two well-separated stock levels (E-116).
-2. **What the −0.039 per-station input offset physically is.** Confirmed as a
-   station constant with a 0.78 h ceiling; two hypotheses killed.
+1. **Is `V` exactly 5,000,000 Cr?** Still open, and now precisely bounded:
+   `V` and `a` lie on a measured ridge of slope +0.0009 per 1 %, 13 epochs of
+   per-station trajectories do not break it, and `(5.00 M, 0.048)` and
+   `(5.05 M, 0.053)` are indistinguishable from save data. It needs one capped
+   station read at two well-separated stock levels — any one will do, since `V`
+   has no cohort structure (E-116, E-130).
+2. **What the per-station input offset physically is.** Confirmed as a station
+   constant with a 0.78 h ceiling; **four** hypotheses now killed (staleness,
+   recipe properties, `hacked=`, per-module unit reserve), and the
+   hours-of-consumption form is untestable by the same route. This is the
+   model's biggest unexplained parameter, and it is now load-bearing in three
+   places: the consumer book, the yard constant (−0.202) and the
+   self-consumption exemption.
 3. **Whether the engine carries `m` or `a`.** They are interchangeable at a
    single fill, so only a cohort spanning several fills can separate them.
    Tidebreak is the open case: the cap says 200 units with no free parameters,
    E-018's two-parameter solve said 173.1 (E-117).
-4. **`supplies`' 10 per-ware constants** (1.07–1.22× avg), source unidentified.
-   Not the recipe input value, which gives 0.72–0.95.
-5. **Yard pricing** (`k ≈ 2.6`), likely priced off outstanding build demand
-   rather than stock.
+4. **Do non-producers cap?** Narrowed from a cohort to **DHI-588 alone** — two
+   offers, on in-game-verified allocations, preferring the allocation over the
+   cap by 0.255 and 0.141 half-spreads, with no self-consumption to explain it
+   — against VOM-540, which caps. Recorded as register contradiction (8), not
+   resolved.
+5. **Where an exempted (self-consumed) supplier offer actually lands.** The
+   split is exact; the price form is confirmed only where the station's input
+   constant is observable (ULG-519), and the eight Avarice scavengers buy no
+   inputs at all (E-132).
+6. **What the 949 fully-built build storages are buying for.** The
+   whole-installed-loadout replacement BOM tracks the proxy at r = 0.887 over
+   898 offers (median ratio 1.61), which is a hypothesis and not a model — the
+   *missing* loadout cannot be computed from the save alone because L-size
+   `<upgrades><groups>` entries are not 1:1 with installed turrets (E-135).
+7. **What sets a `shady` station's tier.** Unstaffed is necessary and not
+   sufficient, and the tier is mutable state that the save gives no other
+   handle on (E-134).
 
 ## One-pager
 
@@ -470,17 +641,35 @@ s          = cos(π · clamp((fill/m + a) / 1.095, 0, 1))
 fill       = (stock + inbound − outbound) / allocation
 
 a  = +0.053  station posts a sell offer for the ware
-     −0.039  buy-only production input   (a per-station constant)
+     −0.039  buy-only production input   (a PER-STATION constant, 0…−0.8;
+                                          −0.039 is only the population default)
      +0.006  buy-only ration
+     −0.202  host carries a built buildmodule (yards; rations and sells on
+                                          that host still take +0.006/+0.053)
 m  = min(1, 5,000,000 Cr / (price_avg x allocation))     supplier side only
      ( = 1 almost always; 0.04 Tidebreak, 0.11 computronicsubstrate,
        0.32 the 992k-unit energy-cell solar design )
+     V has NO per-station/ware/faction structure, but V and a trade off on a
+     ridge: (5.00M, 0.048) and (5.05M, 0.053) are indistinguishable offline.
+
+exemption: above the capped target, a ware the station ITSELF CONSUMES
+     (own recipe input | build resource | ration of a race it employs)
+     reverts to T = allocation with that station's own input constant,
+     instead of clamping at the band minimum.   Below the target: no exemption.
 
 then, at display time only:  × (1 − reputation tier% − event%)
 and the panel rounds its percentages UP.
 
-NOT this model: lockavgprice (avg), supplies (10 constants), shady
-(two tiers: 1.042 × max, or 2.750 × avg), build storages (band max),
-yards (k ≈ 2.6), player (manual),
+ALSO this model, as fixed points / offsets on the same cosine:
+     supplies  s = +0.5 exactly   ( = (avg+max)/2, no parameters )
+     yards     the ordinary cosine at a = −0.202  (NOT a clamped power)
+
+NOT this model: lockavgprice (avg; but offer FLAGS outrank the whitelist),
+shady (two mutable tiers: 1.042 × max, or 2.750 × avg — fixed ⇒ unstaffed),
+build storages (no allocation at all; flat at band max to a knee ~0.4–0.6,
+then falls — descriptive, not a law), player (manual),
 deployables (recipe × buildpricefactor, no rep discount).
+
+book precedence: manual price setting → offer flags → station whitelist
+                 → host kind (buildstorage, yard) → main sequence
 ```

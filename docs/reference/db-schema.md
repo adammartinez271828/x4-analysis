@@ -553,6 +553,60 @@ Save-side: savegame-structure.md § Stations (upgrades/groups).
 | `entry_id` | TEXT, FK → `build_entry.entry_id` | the sequence entry | `entry@id` |
 | `equipment_macro` | TEXT | shield/turret/engine macro, lowercased | `entry/upgrades/groups/(shields\|turrets\|engines)@macro` |
 
+### build_task
+
+Every `<build>` element that carries a `type=` or an `order=` (v29) — the
+build **orders** and their live per-processor progress. A snapshot-scoped W
+table: ~1,458 rows on save_002, rebuilt from the save each run, collected in
+the parser's single pass (one `elif` on the existing element dispatch, no
+second sweep). Save-side structure — three element shapes sharing one tag name
+and one id space — is savegame-structure.md § Stations.
+
+One logical task is up to **two rows**, joined on (`host_id`, `task_id`):
+
+| `kind` | where it lives | `task_id` | carries |
+|---|---|---|---|
+| `task` | the order wrapper under the host's `<buildtasks><queue\|inprogress>` | the save's `id=` | `type`, `target_*`, `builder`, `faction`, `time`, `flags`, `preexisting` |
+| `progress` | a `buildprocessor` component inside one of the host's build/dock modules | the wrapper's id, read off `order=` | `state`, `step`, `steps`, `method`, `sequence_index`, `start_time`, `end_time` |
+
+The join closed 618/618 on save_002.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER, FK → `save` | snapshot | — |
+| `host_id` | TEXT, FK → `component.id` | owning station or build storage | enclosing component |
+| `comp_id` | TEXT | the component the element sits on — `= host_id` for `kind='task'`, the `buildprocessor` otherwise | enclosing component |
+| `kind` | TEXT | `task` \| `progress` | derived from where the element sits |
+| `task_id` | TEXT | `id=` (task) / `order=` (progress) | `build@id` / `build@order` |
+| `ctx` | TEXT | `queue` \| `inprogress` \| `processor` | enclosing element |
+| `type` | TEXT | `expand`, `buildship`, `build`, `restock`, `recycle`, `recycleship`, `recycleanchor` or NULL | `build@type` |
+| `target_id` | TEXT | `component=` — the object the order is FOR. **Documentation-only FK**, see below | `build@component` |
+| `target_class` / `target_macro` / `target_code` | TEXT | the target resolved against the save's component index **at load** | derived |
+| `builder` | TEXT | the construction vessel / builder component | `build@builder` |
+| `faction`, `time`, `flags`, `preexisting` | TEXT/REAL/TEXT/INTEGER | order metadata | `build@…` |
+| `method` | TEXT | the recipe variant this build uses (cf. `v_build_method`) | `build@method` |
+| `state`, `step`, `steps`, `start_time`, `end_time`, `sequence_index` | | live progress of the current step | `build@…` |
+| `macro` | TEXT | ship macro, on the few orders that state it directly | `build@macro` |
+
+PK `(save_id, host_id, comp_id, kind, task_id)` — `task_id` is unique only
+per host, the same discipline `build_entry` needs for entry ids (v28).
+
+**Why `target_*` is denormalized.** `target_id` does *not* always resolve in
+`component`: a yard's **queued** `buildship` order points at a real ship
+component that carries no `@connection` — an unplaced hull the yard is holding
+— and those are filtered out of `component` by design. That is **191 of the
+214** buildship orders on save_002, so a join alone would lose almost the whole
+order book; the class/macro/code are therefore copied in at load. Joining
+`target_id` to `component` is still correct where it hits (`v_build_task` does
+both).
+
+**Deliberately not captured:** the `<resources><insufficient>`/`<shortage>`
+ware lists under these elements — their *amounts* are not quantities (E-068,
+savegame-structure.md § Stations), and the ware names alone already land in
+`build_resource` — and the per-entry `<upgrades><groups>` loadout plans, which
+are ~330 k rows in the save (a per-host aggregate would be 1/50th of that and
+is the shape to reach for if E-135's loadout hypothesis is ever pursued).
+
 ### module_production
 
 Live per-production-module state (v27). One row per distinct
@@ -1470,6 +1524,8 @@ what it is.
 | `v_player_fleet` | `fleet_edge` + 2× `component` | `follower_id`, `follower_entity`, `commander_id`, `commander_entity` | "the player's fleet edges, entity-keyed" — the ONE fleet resolution (write_snapshot's), player-filtered; `merge_events` takes its commander-attribution map from here and `frames.wings` reads it. Edges touching connectionless components are absent (the retired save-side `_player_edges` kept them — measured equivalent, 0 divergent edges, pinned in `test_views_parity.py`) |
 | `v_resource_area` | `resource` + `region_yield` | `sector_macro`, `ware`, `yield`, `level`, `speed`, `starttime`, `capacity`, `respawn_min`, `status` (`live`/`full`/`respawning`/`never`/`unknown`) | "what can I mine right now, where" — the confirmed timer/eligibility layer of the respawn model as SQL (an empty area past its `starttime` is respawned & full even though its stored yield reads 0). Caveats: `full` reports the *reference* capacity — correct for every ware incl. nividium (B11 confirmed materialize-to-full 2026-07-24; the review's below-cap nividium tail was drawdown between saves); depletion RELOCATES the area within its sector (B5 settled it: ~95% of full depletions move the record, a 20 km-lattice step per axis), so nothing position-keyed may be layered on it — the view's sector granularity is exactly the relocation-proof choice. Verified 0 status mismatches vs frames' classification on all areas (re-run the check if B21 changes the regionyields extraction) |
 | `v_build_method` | `component` + `build_method` + `faction_meta` | `object_id`, `owner`, `method`, `source` (`station` = own override, `faction` = inherited rule) | "which recipe variant does this station build with" — stations on their race default emit no row; per WARE a recipe lookup must still fall back to method `default` when the ware has no variant (the engine's own rule) |
+| `v_build_task` | `build_task` (kind `task`) + `component` (host) + `component` (target) + `build_task` (kind `progress`) | host (`host_id`/`code`/`name`/`class`/`owner`), `task_id`, `ctx`, `type`, `target_id`/`target_class`/`target_macro`/`target_code`/`target_name`/`target_spawntime`, `builder`, `faction`, `time`, `flags`, and the progress columns `state`/`step`/`steps`/`method`/`sequence_index`/`start_time`/`end_time` | "what is this station or build storage working on, and how far along" — one row per order, with its live progress attached (progress columns NULL while nothing is actively working it). `target_*` comes from `build_task`'s denormalized copy, so queued connection-less ship hulls are present; `target_name`/`target_spawntime` come from the `component` join and are NULL for exactly those |
+| `v_build_storage_station` | `build_task` (`type='expand'`) + `component` ×2 | `storage_id`, `storage_code`, `owner`, `station_id`, `station_code`, `station_name`, `station_macro`, `sector_macro`, `ctx`, `time`, `n_tasks` | "which station is this build storage building" — the link straight from the expand task's `component=`, **1:1 on save_002 (593 storages, 593 stations, 593 pairs)**, where before it had to be inferred from plot geometry. A storage whose station has no expand task in flight emits no row (181 of the 625 offer-posting storages); 11 storages carry both an inprogress and a queued expand for the same station and are grouped (`n_tasks > 1`) |
 | `v_station_supply` | `station_supply` + `component` + `ware` | `object_id`, `station_code`, `station_name`, `owner`, `kind`, `ware`, `ware_name`, `amount` | "what is this station building for itself, and with what set aside" — join `station_munition` on `ware.component` = `macro` for target-vs-actual |
 | `v_station_supply_position` | `station_supply` (held) ⊔ `trade_offer` flagged `supplies` (on order) | `object_id`, `station_code`, `station_name`, `owner`, `ware`, `ware_name`, `held`, `on_order`, `allocation` | the station's self-supply **position** — what the game's Supplies tab shows. `allocation = held + on_order`; **neither term alone reproduces the tab** (E-126), which is what made GMJ-316 read as a defect it was not. `allocation` is a **LOWER BOUND** on the supply target, exactly as `stock + open buy amount` is for cargo: a satisfied station posts no offer, so with `on_order = 0` the sum is only a floor. 3,199 pairs over 1,045 stations; 378 carry both terms |
 | `v_trade_pending` | `trade_pending` + `ware` + 3× `component` | trade columns + `ware_name`, `buyer_code`/`buyer_faction`, `seller_code`/`seller_faction`, `ship_code` | "what is already committed but not yet delivered" — the supply curve's pending term, labeled |
@@ -1486,6 +1542,7 @@ From `db/schema.py`; all `CREATE INDEX IF NOT EXISTS`:
 | Index | On | Serves |
 |---|---|---|
 | `idx_build_entry_host` | `build_entry(save_id, host_id)` | per-station module lookups |
+| `idx_build_task_target` | `build_task(save_id, target_id)` | the build-storage → station link and the per-order joins (v29) |
 | `idx_offer_ware` | `trade_offer(save_id, ware)` | per-ware offer books |
 | `idx_tx_time` | `trade_tx(time)` | window merges and time-range queries |
 | `idx_tx_ware` | `trade_tx(ware)` | per-ware trade history |
@@ -1510,7 +1567,9 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"26"`) is stored in `meta`. At connect
+`SCHEMA_VERSION` (currently `"29"` — v27 `module_production`, v28 the
+host-keyed `build_entry`/`module_upgrade` fix, v29 `build_task`) is stored in
+`meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 
 1. **The version walk is complete**: `NEXT_VERSION` chains every

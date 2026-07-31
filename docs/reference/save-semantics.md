@@ -187,8 +187,13 @@ only works against the same save that produced them.
 
 Collaborative reverse-engineering (2026-07); CONFIRMED unless flagged.
 Storage allocation — the sibling model — is implemented
-(`analysis/storage.py`, db-schema.md § station_storage); pricing itself is
-knowledge, not yet a feature.
+(`analysis/storage.py`, db-schema.md § station_storage). **Pricing entered
+`src/` on 2026-07-30**: `analysis/pricing.py` implements the closed form and
+the book classification (main sequence with the value cap and the
+self-consumption exemption, `lockavgprice`, `supplies`, `shady`, build storage,
+yards, player) with a bin-median scoring harness. It is research-grade — no
+widget, no pipeline wiring, nothing else in the package imports it — and it is
+the place to check what the current parameter values actually are.
 
 - **Layer 1 — reference band.** Each ware has min/avg/max in
   `libraries/wares.xml` (energy cells 10/16/22). Bands come from base+DLC
@@ -351,24 +356,52 @@ knowledge, not yet a feature.
   database), where a missing row means "unknown" rather than "idle".
   Implemented v27 (`module_production`).
 
-  **War-pressure bonuses do not count toward storage — player-confirmed
-  2026-07-28.** EIJ-609 still reads 34,829 hull parts after the efficiency
-  change, so its allocation follows a multiplier of 1.0 while its modules
-  report 1.12634 and its production rate follows the full 1.12634. The mod's
-  war term therefore enters the RATE but not the ALLOCATION, and the two have
-  to be separated. `efficiency / (1 + work_effect)` is exactly 1.000 for the
-  plurality of modules in every faction, so the vanilla part is recoverable in
-  principle; the separation is not yet implemented. OPEN.
+  **War-pressure bonuses do not count toward storage —
+  SUPERSEDED 2026-07-30 (E-053 FALSIFIED). There is nothing to separate.**
+  The paragraph below is kept for its measurements, not its conclusion. Under
+  the mod-patched recipes the pipeline actually runs on, **0 of 1,630**
+  `module_production` rows exceed the ceiling `(1 + work_effect) × sunlight`
+  (1,019 sit exactly at it, 611 below — the sub-unity population is
+  *understaffing*, not a mod bonus); the 44 breaches visible against stock
+  recipes are all `advancedelectronics`, i.e. E-105's fingerprint, already
+  patched at runtime. This follows directly from E-106: Faction Fix Pack's war
+  term is a post-hoc `<add_cargo>` on production-finished events and is
+  **invisible in `<efficiency>`**. So the proposed separation is a *no-op* —
+  allocating on `min(efficiency, ceiling)` is bit-for-bit identical to the
+  current basis on 0 of 10,087 rows — and its only non-trivial generalisation,
+  allocating on the ceiling itself, is a regression (77.5 % save-wide within
+  1 % against 94.2 %, 121/132 readings against 131/132). Read the live
+  `<efficiency>` and nothing else.
+  *The historical statement:* EIJ-609 still reads 34,829 hull parts after the
+  efficiency change, so its allocation follows a multiplier of 1.0 while its
+  modules report 1.12634 and its production rate follows the full 1.12634 —
+  read at the time as the mod's war term entering the RATE but not the
+  ALLOCATION.
+  ([../reports/war-pressure-allocation-2026-07-30.md](../reports/war-pressure-allocation-2026-07-30.md) § 1.)
 
-  **Superseded — EIJ-609 as a lag.** Its allocation implies efficiency exactly
-  1.0 (in-game 34,829 hull parts; base model 34,829.1, and all three
-  offer-derived inputs within 0.6 units, pool closing to exactly 1,000,000 m3)
-  while its modules report 1.12634. HYPOTHESIS: the allocation is recomputed
-  lazily and lags a recent efficiency change (its workforce is starving — zero
-  medical supplies and zero soja husk — and the mod's war term looks recent).
-  FALSIFIABLE: re-read the hull-parts allocation in-game later; the lag
-  hypothesis predicts it drifts to ~37,228. If it stays at 34,829 the
-  efficiency basis is wrong for war-modified stations specifically.
+  **Superseded — EIJ-609 as a lag (E-051 FALSIFIED 2026-07-30); what it
+  really is, is a LATCH (E-136).** Its allocation is directly readable in
+  every archived save — its three production inputs post saturated buy offers
+  and move in exact lockstep — and over 13 epochs it did **not** drift toward
+  37,228 as the lag hypothesis predicted. It tracked its **live** efficiency
+  to 0.18–0.26 % from game time 78,583 to 81,948, then **stepped to a
+  multiplier of exactly 1.0** between 81,948 and 82,125 with the live
+  `efficiency` unchanged at 1.12634, and has stayed there. By 83,025 s the
+  station carries no `<production>` block at all, at which point the model's
+  own idle rule (multiplier 1.0) reproduces 34,829 / 9,477 / 4,738 / 33,170
+  **with no special case** — so the one reading the model "could not
+  reproduce" is reproduced on every epoch from 83,025 onward, and the readings
+  fixture holds a snapshot of the anomalous 82,125–82,688 window. What
+  survives is the *latch*: the allocation looks like a snapshot of the module
+  multiplier taken at some recompute event (stale high at 69,324, stale low
+  from 82,125 — the latch fired ~900 s before the block disappeared, while the
+  starving modules were stalled between cycles). A **general** one-epoch lag is
+  separately refuted: live efficiency beats previous-epoch efficiency at all 12
+  transitions, by 10–44 points on the rows where they differ.
+  *The historical statement:* its allocation implies efficiency exactly 1.0
+  (in-game 34,829 hull parts; base model 34,829.1, all three offer-derived
+  inputs within 0.6 units, pool closing to exactly 1,000,000 m3) while its
+  modules report 1.12634.
 
   **The offer-derived allocation is a LOWER BOUND, not an equality —
   CORRECTED 2026-07-28.** *(Scope clarified 2026-07-29: it is a lower bound in
@@ -485,11 +518,17 @@ knowledge, not yet a feature.
   It is `Σ (amount − transferred)` over `trade_pending` rows whose `buyer_id`
   is the station.
 
-  **Scope note (2026-07-27, agreed with the player):** pricing work is
-  currently confined to **basic production stations** — wharfs,
-  shipyards, equipment docks, trade stations and pirate bases are
+  **Scope note (2026-07-27, agreed with the player; PARTLY SUPERSEDED
+  2026-07-30):** pricing work was confined to **basic production stations** —
+  wharfs, shipyards, equipment docks, trade stations and pirate bases were
   excluded (they price by other rules: Layer 6, build price factor), as
-  are player and Xenon stations, and `supplies`-flagged offers.
+  were player and Xenon stations, and `supplies`-flagged offers.
+  *Three of those exclusions have since fallen:* `supplies` offers are the
+  band midpoint (E-129), wharfs/shipyards/docks run the ordinary cosine with a
+  yard station constant (E-131), and trade stations and pirate bases price on
+  the main sequence like everything else once their `lockavgprice` wares are
+  taken out (E-025). What remains genuinely out of scope is **player-owned**
+  stations, which use manual thresholds by design.
   **Workforce/food wares are tabled**: on habitats and trade hubs the
   model allots ~4 h of rations while the station stocks food as a trade
   good, so `station_storage` role='food' rows overshoot badly (219 rows
@@ -607,6 +646,35 @@ knowledge, not yet a feature.
   E-113/E-114/E-115;
   [../reports/price-categories-2026-07-29.md](../reports/price-categories-2026-07-29.md).
 
+  **Three refinements, 2026-07-30**
+  ([../reports/cap-scope-scavenger-2026-07-30.md](../reports/cap-scope-scavenger-2026-07-30.md),
+  [../reports/value-cap-solve-2026-07-30.md](../reports/value-cap-solve-2026-07-30.md)):
+
+  - **The cap holds ABOVE the capped target, not only below it.** Of the 49
+    saturated NPC supplier offers on snapshot 71, the 30 the station does not
+    itself consume sit at **exactly the band minimum**, bin-median error 0.0000
+    in all seven bins, where reverting to the allocation curve scores 0.4245.
+    "The cap applies only while net ≤ target" is therefore FALSIFIED (E-133);
+    its falsifiers are offers at fill 0.51–0.94 already past the capped target
+    (CAC-761, MBP-961, PAC-481, TFH-220, XXF-947 …).
+  - **Second predicate: a ware the station itself CONSUMES does not clamp at
+    the band minimum** — above the capped target it leaves the supplier book
+    for the consumer book (target = the storage allocation, offset = that
+    station's own input constant). The split on the same 49 offers is perfect
+    and needs no tuned parameter: 0/19 self-consumed at band min, 30/30
+    non-self-consumed at band min. *Below* the target the exemption does not
+    apply (51/51 fit the capped curve). Self-consumed means an input to one of
+    the station's own recipes, a build resource while it carries a built
+    `buildmodule*`, or a ration of a race present in its workforce. HYPOTHESIS
+    on the price *form* — E-132; the classification half is exact.
+  - **`V` is one global constant, but its value is still open.** No
+    per-station, per-ware or per-faction structure survives 153 multi-epoch
+    solves (IQR/median 0.008; E-130), yet `V` and the supplier offset `a` trade
+    off along an exact ridge — ≈ +0.0009 in `a` per +1 % in `V` — so
+    `(5.00 M, 0.048)` and `(5.05 M, 0.053)` are indistinguishable from save
+    data (E-116). Use 5,000,000 Cr, and treat both `V` and `a` as parameters
+    rather than measured constants.
+
   **Hours of cover does NOT explain it.** Tested because CCN-497 holds only
   1.15 h of every input yet bids at the ceiling: binning on hours of cover
   leaves a median deviation of 0.136 against fill fraction's 0.068, and the
@@ -647,6 +715,84 @@ knowledge, not yet a feature.
   `supplies`-flagged self-supply buys even ON locked wares (all 7 in
   save_008 at 1.105–1.222×avg, beside the locked regular pair — the v18
   discriminator composing with the lock; zero counterexamples).
+  **Book precedence, stated as a rule (2026-07-30):** an offer's own **flags
+  outrank the whitelist**. On snapshot 71 thirteen offers are both
+  `supplies`-flagged and on their station's `lockavgprice` list, and all
+  thirteen price at the band **midpoint** (hull parts 240.50, smart chips
+  63.00, missile components 11.00 — the self-supply book below), not at
+  `avg − 1`; booking the whitelist first puts them in the wrong book with a
+  residual of 0.5–0.75 band units. The order `analysis/pricing.py` applies is:
+  a manual `price_setting`/`ware_limit` (not a price book at all) → the
+  offer's flags → the station's whitelist → the host's kind.
+  **Corollary worth keeping in mind:** "prices at exactly band average" is
+  never evidence about the supply curve. RAN-388 carries **all 23** of its
+  traded wares on its whitelist (nividium sell 510.00 / buy 509.00 against a
+  band average of 510; claytronics 2,040.00 / 2,039.00), and so do FEL-543,
+  EBT-957, JBE-269, TTV-091, ZAA-170, UVM-983, DAN-547 and WSS-605 — the whole
+  "fits neither curve" group the 5 M cap triage turned up
+  ([../reports/cap-scope-scavenger-2026-07-30.md](../reports/cap-scope-scavenger-2026-07-30.md)
+  § 5).
+
+- **Self-supply (`supplies`) is the band MIDPOINT — CONFIRMED 2026-07-30,
+  E-129.** Every `supplies`-flagged buy prices at
+
+  > **`price = (price_avg + price_max) / 2`**, i.e. `s = +0.5` exactly
+
+  independent of stock, station, faction and game time — equivalently a fixed
+  point `u = 1.095·acos(0.5)/π = 0.3650` on the ordinary cosine, not a separate
+  book. Measured over **15,345 offers across all 13 archived saves**, 9,594
+  (station, save) pairs, 19 factions and 10 wares: **maximum deviation 0.000000
+  credits**, on every ware.
+
+  **SUPERSEDED — the "ten per-ware constants" reading.** The table below is
+  now *derived* values, not ten independent numbers: each is
+  `(avg + max)/(2·avg) = 1 + spread/2` and varies only with the ware's band
+  spread. The half-credit prices are the giveaway — only a midpoint rule
+  produces 53.50, 240.50 and 1,520.50.
+
+  | ware | n | price | band min / avg / max | price/avg = 1 + spread/2 |
+  |---|---:|---:|---|---:|
+  | smartchips | 6,295 | 63.00 | 46 / 57 / 69 | 1.1053 |
+  | missilecomponents | 4,636 | 11.00 | 6 / 9 / 13 | 1.2222 |
+  | dronecomponents | 2,888 | 1,028.00 | 685 / 914 / 1,142 | 1.1247 |
+  | energycells | 648 | 19.00 | 10 / 16 / 22 | 1.1875 |
+  | metallicmicrolattice | 392 | 53.50 | 42 / 50 / 57 | 1.0700 |
+  | siliconcarbide | 286 | 1,520.50 | 1,202 / 1,414 / 1,627 | 1.0753 |
+  | silicon | 92 | 140.00 | 111 / 130 / 150 | 1.0769 |
+  | ore | 87 | 54.00 | 43 / 50 / 58 | 1.0800 |
+  | hullparts | 17 | 240.50 | 146 / 209 / 272 | 1.1507 |
+  | claytronics | 4 | 2,193.00 | 1,734 / 2,040 / 2,346 | 1.0750 |
+
+  The price does not read the self-supply position at all: the 819 offers
+  carrying `amount = 0` (E-127's satisfied-station floor) price at the midpoint
+  like every other, which is what a constant does and a curve evaluated at zero
+  does not. One branch implements it — detect the flag, return
+  `avg + 0.5·(max − avg)`, no parameters.
+  [../reports/supplies-midpoint-2026-07-30.md](../reports/supplies-midpoint-2026-07-30.md).
+
+- **Yards / wharfs / docks are NOT a separate family — CONFIRMED 2026-07-30,
+  E-131.** They run the **ordinary main-sequence cosine on the storage
+  allocation**, with a yard-wide station constant `a ≈ −0.202`; their rations
+  take the usual +0.006 and their sell offers the usual +0.053. Scored like for
+  like (one fitted parameter each, whole yard buy book n = 675, bin medians on
+  a rule-independent x) it beats the clamped power `clamp(1 − fill^2.62)` on
+  the offer-derived proxy by **27×** on bin-median RMSE — 0.0054 against
+  0.1483 — 40× on MAD and 16× on the tail, and it *explains* the ~0.17 band
+  floor at full fill that the power form leaves as an anomaly (at fill 1 the
+  shifted cosine reaches only `s = cos(0.728π)`, band position 0.18). The
+  constant is a real cohort property: 41 stations sit within ±0.005 of −0.2026
+  and **all 41 carry a built `buildmodule`**; over all 61 non-player yards with
+  ≥ 2 unclamped input buys the median is −0.2019, MAD 0.0007, across
+  allocations differing by a median factor of 385×. Its *cause* is unknown —
+  the same open question as every other station's input constant.
+  **SUPERSEDED by this:** "yards price off outstanding build demand, same
+  clamped form, k ≈ 2.6" (E-028). The demand denominator was built and
+  refuted — the outstanding ship bill of materials is a median 0 % and a
+  maximum 69 % of a yard's own offer-derived allocation, it swings at CV 0.511
+  across epochs while the allocation holds at CV 0.0107, and yard queues turn
+  over **completely** in under 2,000 s.
+  ([../reports/build-demand-2026-07-30.md](../reports/build-demand-2026-07-30.md);
+  `analysis/pricing.py` § the yard book.)
 - **The `shady` book has TWO disjoint tiers — CONFIRMED 2026-07-29.** This
   resolves a contradiction between two earlier reports, and neither was wrong:
   they sampled different modes.
@@ -663,7 +809,30 @@ knowledge, not yet a feature.
   ceiling" recorded in open-items-2026-07-27 is this tier expressed against
   band max (2.75 / 1.55); the "1.055 × band max" in
   fill-price-spread-2026-07-28 is the common tier's median. Neither figure
-  describes the whole book. What sets a station's tier is unknown.
+  describes the whole book.
+
+  **The tier is MUTABLE STATE, not a permanent station property, and the
+  driver is the workforce — 2026-07-30, E-134.** On snapshot 71 all **94** of
+  the fixed-tier stations have **zero workforce** (median 0) against the common
+  tier's median 362 with only 6 of 728 unstaffed; across all 13 epochs **1,227
+  of 1,228 fixed-tier station-epochs are unstaffed**, the one exception being
+  the epoch immediately before that station switches. Two of 825 stations move
+  tier inside the corpus and both switches sit on a workforce crossing, in
+  opposite directions — RNJ-168 goes common → fixed as its workforce falls
+  540 → 0, EIP-860 goes fixed → common as it gains a habitat and 2,760 workers.
+  **Necessary, not sufficient:** 5–8 unstaffed stations per epoch stay on the
+  common tier, and all six on snapshot 71 sit at the *top* of the common
+  continuum (1.548–1.556 × average on all four wares), which is exactly where
+  an empty station on a fill-driven curve should read. Allow a transition lag
+  of up to one epoch. The fixed tier's offer amounts are a different book too
+  (median 100, max 200, against 254 and 2,387). Nothing in the `post` table
+  (28,689 rows) discriminates: each of the 822 shady stations has exactly one
+  `shadyguy` post and its own NPC, and post sets, factions, macros and sectors
+  straddle both tiers. Because the tier is state and not derivable from the
+  save, a price model must **read it off the observed price** — a
+  classification, not a prediction.
+  ([../reports/small-sweeps-2026-07-30.md](../reports/small-sweeps-2026-07-30.md)
+  § (b).)
 
 - **Deployables** (satellites/mines/…) are not stocked; a facility builds
   them on demand at
@@ -710,7 +879,25 @@ Why it matters: analysing a modded save against stock recipes silently
 produces wrong throughputs, and throughput feeds the storage allocation, which
 feeds fill %, which feeds every price conclusion.
 
-**Detection has two routes**, because mods fall into two camps:
+**Detection has two shapes and the patch has two targets** (updated
+2026-07-30, when the first `save="true"` mod was registered). Detection: an
+**extension id**, exact, for a `save="true"` mod; a **value fingerprint** for a
+`save="false"` one. The patch target: **recipes**, replaced wholesale, or
+**`modcaps` fields**, patched at the level of a single attribute — because that
+is the shape mod payloads actually take (`<diff><replace sel="…/@attr">`,
+E-108). `extract_modcaps` reads such a diff by file **basename** (X4's
+one-macro-per-file convention), mapping `workforce/@capacity → housing`,
+`workforce/@max → workers`, `cargo/@max`, `cargo/@tags`, `storage/@unit`; a
+diff for a macro no full document defines is dropped rather than inventing a
+half-empty row, and the glob's extension segment repeats so a mod's per-DLC
+overrides (`extensions/<mod>/extensions/ego_dlc_terran/assets/…`) match. On
+stock content the branch is dead code — no base or DLC macro file under
+`assets/structures` is a `<diff>`, and re-running the extractor reproduces
+`data/modcaps.csv` byte-for-byte. Details:
+[../reports/habitat-cap-boost-2026-07-30.md](../reports/habitat-cap-boost-2026-07-30.md);
+csv-reference.md § Extraction and override machinery.
+
+**The two detection camps:**
 
 - *`save="true"` mods register in the savegame* as
   `<patches><patch extension="ws_…" version=".." name=".."/></patches>`
@@ -760,13 +947,44 @@ The percentage shown in the station menu is a separate UI row fed by
 `$CatchupProdBonus` on the trade NPC blackboard. Do not model it as a
 multiplier.
 
-**Known gap, not yet registered:** `nd_habitat_cap_boost` (`ws_3737446888`,
-which *does* appear in the save's patch list) replaces habitat workforce
-capacity with S 2500 / M 5000 / L 10000 against a stock 333/666/999, a 7.5–10×
-housing boost. `modcaps.csv` is stale for it, and `extract_modcaps` cannot read
-it either — those are `<diff>` files with no `<macro>` element. Workforce
-drives the ration buffer and the efficiency, so this is the next candidate for
-the registry.
+**Also registered (2026-07-30): `nd_habitat_cap_boost`** (`ws_3737446888`,
+"Habitat Capacity Boost", v100) — the first `save="true"` mod in the registry,
+detected on the extension id alone (`fingerprint_ware=None`), so it fires iff
+the save's `<patches>` block names it. Its 26 files are each a `<diff>` with a
+single `<replace sel="/macros/macro/properties/workforce/@capacity">`, so it
+moves habitat **HOUSING** and nothing else — read the next paragraph before
+assuming it matters anywhere.
+
+| macro family | stock | mod | × |
+|---|---|---|---|
+| `hab_{arg,bor,pir,spl,tel}_{s,m,l}_01` | 250 / 500 / 1000 | 2500 / 5000 / 10000 | 10.0 |
+| `hab_par_{s,m,l}_01` | 333 / 666 / 999 | 2500 / 5000 / 10000 | 7.51 / 7.51 / 10.01 |
+| `hab_ter_{s,m,l}_01` | 100 / 250 / 500 | 2500 / 5000 / 10000 | 25.0 / 20.0 / 20.0 |
+| `landmarks_arg_antigonepillar_01` | 1000 | 15000 | 15.0 |
+| `landmarks_arg_antigonespire_01` | 2000 | 20000 | 10.0 |
+
+23 of the 247 `modcaps` rows change; 1,839 built modules over 1,254 stations on
+snapshot 71 are affected and save-wide built housing capacity goes 1,155,002 →
+11,754,500. Three of the mod's targets (`hab_par_m_02`, `hab_par_s_02`,
+`hab_par_s_03`) exist in no installed content and simply find no row to patch.
+
+**It does NOT feed the ration buffer or the efficiency** — the expectation
+that it would is not borne out. `<workforce capacity>` lands in
+`module_cap.housing`, whose single consumer in `src/` is `viz/audit.py`
+§ staffing; `analysis/storage.py` uses `workers`/`cargo_max`/`cargo_tags`,
+`analysis/drones.py` uses `unit_storage`, and E-124's employment target
+excludes housing **by law**. The mod never writes `<workforce max>`, so it
+cannot move the employment target however large its numbers get. Registering it
+corrects a known-wrong input and unblocks anything that later wants a true
+housing capacity; today it removes one false "not enough housing" warning
+(MXH-411, whose four Terran habitats really do house 40,000 in game).
+Readings unchanged at 131/132.
+
+**Still a gap:** `extract_wares` handles only `<add sel=…>` ops and never
+`<replace>`, so a mod that rewrites ware data that way is read as empty
+(E-139). No installed mod exercises it — `nd_habitat_cap_boost` ships no
+`wares.xml` — so it was left alone rather than extended speculatively, but ware
+payloads are exactly where the attribute-level diff shape dominates.
 
 ## Station drone/unit pool
 

@@ -1,5 +1,32 @@
 # Storage & pricing model gaps: triage and plan of action — 2026-07-29
 
+## STATUS — 2026-07-30: Phases 0–4 complete
+
+Executed as planned; the body below is left as written (it is the triage, not a
+record of outcomes). Each Phase-2 item has its own dated report in
+`../reports/`; the register is the authority on every status. Per item:
+
+| item | outcome |
+|---|---|
+| P0 | views refreshed; `v_station_supply_position` exists. |
+| P-corpus | 13 saves parsed. **Defect found and worked around everywhere: the scratch corpus stores every pending trade twice (`source='order'` + `'reservation'`) — dedupe on `trade_id` or every pending term doubles.** The analysis DB is keyed `(save_id, trade_id)` and is unaffected. |
+| P1 | **E-027 → SUPERSEDED by E-129 (CONFIRMED).** `supplies` = the band midpoint, `s = +0.5`, 15,345 offers × 13 saves, max deviation 0.00 Cr. |
+| P2 | **E-116 stays PENDING** — the (V, a) ridge is exact and 13 epochs do not break it; reading R6 still decisive. **New E-130 CONFIRMED:** V has no per-station/ware/faction structure. **E-007** narrowed: its drift is probably an allocation-model artifact. |
+| P3 | **E-011 → FALSIFIED** (fill fraction, not a unit reserve). **E-015 → CONFIRMED** (role/predicate-keyed). **E-017 stays PENDING** — the storage-only population is 3 stations wide. Incidental: the yard constant −0.202, handed to P8. |
+| P4 | Cap **strengthened**: confirmed above the target (30/30). **New E-132 (PENDING)** self-consumption exemption; **E-133 FALSIFIED** (net-saturation scope). The **"1.21–1.30× scavenger storage scale error" is WITHDRAWN** — it was the `a = +0.053` assumption, not the storage model. RAN-388 is `lockavgprice`; E-115's needs list is dead. Contradiction (8) narrowed to **DHI-588 alone**. **E-059 → FALSIFIED** as formulated. |
+| P5 | **E-035 → CONFIRMED.** Clamp [0.90, 1.15] with zero escapes, sticky bounds, 15-value alphabet, corr(new, prev) +0.888. MXH-411's 1.5 stays a player check (R10). |
+| P6 | **E-053 → FALSIFIED** (premise removed by E-106; the candidate is a no-op). **E-051 → FALSIFIED as stated**; replaced by **E-136 (PENDING)**, a latched allocation. Recommended and accepted: **no `analysis/storage.py` change**. |
+| P7 | **E-061 → CONFIRMED**, with corrections — the mod moves habitat *capacity*, not the employment target, and nothing in the storage or pricing model consumes housing. Second blocker split out as **E-139**. |
+| P8 | **E-028 → FALSIFIED as a mechanism** (BOM is a median 0 % of the allocation). **E-118 CONFIRMED on an independent denominator.** BOM-proportional build-station allocation **rejected**. **New E-135 (PENDING):** build storages fund loadout replacement. Promoted to `src/`: the build-task tree (schema v29). |
+| P9 | Multi-stage net rule **FALSIFIED (E-137)**; **new E-134 CONFIRMED** — fixed `shady` tier ⇒ unstaffed (necessary, not sufficient), and the tier is mutable state; **E-128** stays PENDING and player-blocked, now on 13 epochs. |
+| Phase 3 | `analysis/pricing.py` + `build_task` (schema v29) landed. Its own new result: **the yard book is the ordinary cosine, not a clamped power — E-131 CONFIRMED**, beating k = 2.62 by 27× on bin RMSE at equal parameter count. |
+| Phase 4 | register, `reference/`, `models/` and this block synced; one addendum appended to the readings report. |
+
+Net: 25 triaged items → 8 statuses moved, 11 new register entries (E-129…E-139),
+no in-game reading consumed. What still needs the player: **R1** (VOM-540,
+unchanged and still first), **R5**, **R6**, **R7–R11** — see the addendum to
+[../reports/high-value-readings-2026-07-29.md](../reports/high-value-readings-2026-07-29.md).
+
 Triage of **every open item** in the two subsystems — pricing (E-001…E-036,
 E-112…E-118) and storage allocation (E-037…E-063, E-119…E-128) — plus the
 recorded contradictions and the unmodelled areas, and a plan of action for the

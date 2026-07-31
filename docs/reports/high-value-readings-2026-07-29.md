@@ -285,3 +285,116 @@ outright. R4 attacks the price model's biggest unexplained parameter (the
 −0.039 family) at a timescale nothing offline can reach. R5 fixes a
 known-wrong implemented rule but costs a station build. R6–R8 are cheap and
 decisive but narrower; R9–R11 are housekeeping.
+
+---
+
+## Addendum, 2026-07-30 — re-ranking after the Phase 2–3 analyses
+
+*Appended, not edited: everything above is the state of knowledge on
+2026-07-29 and stays as written. The eight Phase-2 reports dated 2026-07-30 and
+the Phase-3 implementation moved four of these eleven readings. Register
+statuses are in
+[../experiments/README.md](../experiments/README.md); the per-item outcomes are
+summarised at the top of
+[../plans/model-gaps-2026-07-29.md](../plans/model-gaps-2026-07-29.md).*
+
+| reading | was | now |
+|---|---|---|
+| **R1** VOM-540 Protectyon | ONLY ROUTE, ranked #1 | **unchanged, still #1** |
+| **R2** Avarice LSO maxima | ONLY ROUTE (storage half) | **withdrawn as framed** — low-value confirmation only |
+| **R3** EIJ-609 third read | decides E-051 vs E-053 | **obsolete** — both entries falsified offline |
+| **R4** CCN-497 timed reads | E-011 + E-015 | **optional** — E-011 falsified, E-015 confirmed offline; keep as E-015's belt-and-braces |
+| **R5** player-built two-race station | ONLY ROUTE | **unchanged**, and now the *only* remaining route (corpus re-check exhausted the alternatives) |
+| **R6** AXO-574 / GUX-488 | ACCELERATOR | **decisive** for E-116, and cheaper |
+| **R7–R11** | — | **unchanged**; R10 gains relative value |
+
+**R1 — unchanged, and still the highest-value reading available.** Nothing in
+Phase 2 touched VOM-540: its stock has still never left the 1–22 range, the two
+hypotheses still differ by only 20–30 Cr there, and the m-vs-`a` degeneracy the
+mid-curve reading breaks is now *measured* rather than suspected (the (V, a)
+ridge, slope +0.0009 per 1 %, unbroken by 13 epochs). Contradiction (8) has
+narrowed around it: the producer-side "counterexamples" were re-absorbed, so
+VOM-540 and DHI-588 are once again the only two non-producers in the ledger and
+they still disagree. Predictions in § R1 stand unmodified.
+
+**R2 — withdrawn as framed.** The premise was that eight scavenger stations
+imply an allocation 1.21–1.30× the modelled one, so an LSO maximum would split
+"storage input wrong" from "pricing wrong". That inference **assumed
+`a = +0.053`**, and freeing `a` dissolves it: KWC-232's energy-cell allocation
+is already player-verified at 1,833,000 against a modelled 1,833,247 (so the
+scale error cannot be storage *there*), and corpus 2-parameter solves on the
+series with real leverage return `T ≈ the modelled allocation` with a negative
+offset — NDE-080 974,648 vs 960,935 (1.014×) at `a = −0.099`; CGW-678 scrap
+metal 29,804 vs 30,000; NDE-080 scrap metal 30,008 vs 30,000. The 1.2–1.3×
+figures survive only on the series with no leverage, where `T` and `a` are not
+separable. The eight stations are now the **self-consumption exemption**
+population (E-132), which is a pricing rule with no storage component. An LSO
+read of NDE-080 or CGW-678 would still *confirm* the storage model on two more
+stations — worth taking if the player is passing — but it is a low-value
+confirmation, not a discriminator, and it is no longer "ONLY ROUTE" for
+anything. **What would be worth reading in Avarice instead:** any recycler's
+energy-cell price *together with its production-input prices*, which would
+expose that station's input constant and turn E-132 from a classification into
+a closed form.
+
+**R3 — obsolete.** The reading was to decide between E-051 (lazy recompute) and
+E-053 (war-pressure never enters the allocation). **Both are now FALSIFIED**,
+and neither by this reading. E-053 lost its premise: there is no war-pressure
+term inside `<efficiency>` to separate (0 of 1,630 modules exceed the ceiling
+under mod-patched recipes; the mod's bonus is a post-hoc `<add_cargo>`,
+E-106). E-051's prediction is contradicted by EIJ-609's own 13-epoch history —
+the allocation did not drift up to ~37,228, it stepped **down** to a multiplier
+of exactly 1.0 at 82,125 s and stayed there, and from 83,025 s the station
+carries no `<production>` block at all, so the model's existing idle rule
+reproduces 34,829 with no special case. The surviving claim (the allocation is
+a *latched* snapshot, E-136) has **no reading that would settle it**: it is a
+timing property, and one more number read at one more moment cannot
+distinguish a latch from a coincidence. Do not spend a station visit on this.
+
+**R4 — downgraded to optional.** Its E-011 half is spent: the reserve reading
+is FALSIFIED on evidence the reading could not have produced (one `a` shared
+across allocations differing 1,764×; 169 of 909 stations with a *positive*
+offset), and the fine-timescale question it was designed for is answered by the
+corpus, which holds CCN-497 at 11–12 clean epochs including adjacent saves
+**177 s apart** with `a` flat to ±0.003. Its E-015 half is CONFIRMED offline
+(bin-median 0.0045 against 0.1074 on 445 discriminating stations) — but that
+test trusts the modelled ration allocation, so the reading keeps its value as
+the belt-and-braces check at a *directly-read* allocation. Take it if
+convenient; do not plan around it.
+
+**R5 — unchanged, and now the last route standing.** The corpus re-check found
+**zero** habitat-vs-workforce race-set mismatches in all 13 epochs across
+~1,200 habitat-bearing stations, the multi-race population is still exactly
+DHI-588 / DCO-580 / EMY-219, and DCO-580 is still player-unknown in the newest
+save. `hab_pir_*` habitats were checked and cannot discriminate — all 78 of
+them house single-race argon workforces. The design and prediction table in
+§ R5 stand unmodified.
+
+**R6 — promoted from accelerator to decisive, and cheaper than described.**
+Thirteen epochs per station did *not* break the (V, a) ridge: the corpus ridge
+and the single-snapshot ridge have the same slope, ≈ +0.0009 in `a` per +1 % in
+`V`, and per-station V intervals with `a` free are ~23 % wide. Conditional on
+`a` the answer is sharp (`a = 0.048 ⇒ V = 5.0018 M`; `a = 0.053 ⇒ ≈ 5.05 M`),
+so **the reading only has to pin one of the two, not both** — and because `V`
+has no per-station, per-ware or per-faction structure (E-130, IQR/median 0.008
+over 153 trajectories), it need not be a solar plant: any well-conditioned
+capped station read at two well-separated stocks will do. The § R6 predictions
+remain correct. It settles E-007's main branch at the same time.
+
+**R7–R9, R11 — unchanged.** Nothing in Phase 2 or 3 touched the deployable
+valuation vector (E-034), the drone-pool cap (E-062), the drone-order semantics
+(E-063) or the discount clamp (E-031).
+
+**R10 — same cost, more value.** E-035's NPC half is now CONFIRMED on 871
+observations, and MXH-411's stored **1.500** is the *single* value in the whole
+corpus outside the [0.90, 1.15] clamp, constant across all 9 epochs it exists
+for. The save cannot separate "the player's price-slider setting" from "the
+clamp does not apply to player stations", and this one look closes the last
+open clause of a now-confirmed entry.
+
+**One reading not previously listed, worth noting as newly available.** E-138
+(hybrid stations belong on a computed path once build demand enters the
+denominator) would need an in-game read of **ULG-519's hull-parts maximum** to
+*confirm* any replacement — the offer-derived 61,494 is a floor and can only
+refute. It is not worth seeking out until a build-demand denominator exists to
+test.

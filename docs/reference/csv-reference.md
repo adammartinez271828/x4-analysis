@@ -97,6 +97,29 @@ Stated once here, not repeated per file:
   adds a `boron` production method inside the existing `workunit_busy`
   ware. Recipe extraction scans these `add` blocks explicitly; missing
   them once overcounted Terran energy production 3.5×.
+  **Known gap:** `extract_wares` handles only `<add sel=…>` and never
+  `<replace>`, so a mod that rewrites ware data attribute-by-attribute is read
+  as empty (E-139). No installed mod currently exercises it, but that shape is
+  the *common* one for mod payloads (E-108).
+- **A whole macro file can BE a `<diff>`** (added 2026-07-30). Mods ship
+  per-macro overrides as documents whose root is `<diff>` with no `<macro>`
+  element at all, typically one op:
+  `<replace sel="/macros/macro/properties/workforce/@capacity">2500</replace>`.
+  `extract_modcaps` collects those ops keyed on the file's **basename** — X4's
+  one-macro-per-file convention is what makes that safe — and applies them
+  after the main pass, mapping `workforce/@capacity → housing`,
+  `workforce/@max → workers`, `cargo/@max`, `cargo/@tags` and `storage/@unit`.
+  A diff for a macro that no full document defines is **dropped**, not turned
+  into a half-empty row. Two structural notes: the glob's extension segment
+  **repeats**, `(extensions/[^/]+/)*assets/structures/…`, because a mod packs
+  its per-DLC overrides under the DLC's own path
+  (`extensions/<mod>/extensions/ego_dlc_terran/assets/…`) and a single-segment
+  pattern never matched them; and on stock content the whole branch is dead
+  code — no base or DLC macro file under `assets/structures` is a `<diff>`, and
+  re-running the extractor against base+DLC reproduces the committed
+  `modcaps.csv` byte-for-byte (247 rows, zero differing cells). Mod values
+  reach a run only through `gamedata/modpatch.py`, never through the committed
+  CSVs (save-semantics.md § Mod-aware reference data).
 - **Localization.** Display strings in game files are `{page,id}`
   references into the language t-files (`t/0001-l044.xml` = English, plus
   extension t-files, merged). The extractor resolves them at extraction

@@ -430,10 +430,29 @@ Direct children of a `station` component, in observed order:
 - `<economylog>` — self-closing per-station stub with attributes
   (`cargo="0" offer="0"`), not a structural variant of the top-level block.
 - `<buildtasks>` — in-progress build tasks (below, under build storages).
-- `<build>` — the station's **build configuration** (rare; not the build
-  *task* element of the same name, which lives under `buildprocessor`
-  components and carries `order`/`state`/`step`/… attributes). Written
-  only when the station deviates from its faction defaults:
+- `<build>` — **three different elements share this tag name**, in ONE id
+  space, and telling them apart is the whole trick (v29,
+  [../reports/build-demand-2026-07-30.md](../reports/build-demand-2026-07-30.md)):
+  1. the station's **build configuration**, directly under the station or
+     `buildstorage` component (rare, `@method` + optional `<ship>` list —
+     documented immediately below);
+  2. the **order wrapper**, under `<buildtasks><queue>` or
+     `<buildtasks><inprogress>`, carrying
+     `id`/`type`/`component`/`builder`/`faction`/`time`/`flags`;
+  3. the **processor progress**, on a `buildprocessor` component inside one of
+     the host's build/dock modules, carrying `order=` (which joins the
+     wrapper's `id` on the same host) plus
+     `state`/`step`/`steps`/`start`/`method`/`sequenceindex`.
+
+  Shapes 2 and 3 are one logical task in two rows; the join closed **618 of
+  618** on save_002. Observed `@type` vocabulary on that save: `expand` (593
+  inprogress + 11 queued, all on build storages), `buildship` (191 queued + 23
+  inprogress, on stations), `build` (306 + 24), `restock` (19 queued),
+  and a handful of `recycle` / `recycleship` / `recycleanchor`; 286 elements
+  carry no `type` at all. Parsed into `build_task` + `v_build_task`
+  (db-schema.md).
+- The build-configuration form, written only when the station deviates from its
+  faction defaults:
   `@method` = the per-station **build-method override**
   (savegame-structure § factions, save-semantics.md § Build method), and
   an optional `<ship absolute="…"/>` child lists the ship macros the yard
@@ -500,6 +519,13 @@ build storage exists — the storage's
 repeats its plan a third time under `<snapshot>`). Consumers must dedupe by
 entry id **per host** — and the storage's copy belongs to the station named
 in `<build component=>`, not to the storage.
+
+**The expand wrapper's `component=` IS the station it serves**, and it is the
+direct build-storage → station link that used to have to be inferred from plot
+geometry: **593 storages ↔ 593 distinct stations, 1:1**, on save_002
+(`v_build_storage_station`). A storage whose station has no expand task in
+flight emits no link — 181 of the 625 offer-posting storages on that save — and
+11 storages carry both an inprogress and a queued expand for the same station.
 
 **Entry ids are unique only PER STATION.** Every station running the same
 station plan carries the same entry ids (2,235 of 22,562 ids in one save are
@@ -584,11 +610,37 @@ with the same `<ware>` children; in this save it appears only under
 production-module `<queue>` elements (shown below), the
 shipyard-ship-order form under `<build><resources>` is **(unverified in this
 save)**. `type="buildship"` builds at wharfs repeat one wharf-wide aggregate
-per queued order — meaningless to sum. Consequently a per-order
-bill-of-materials model for wharf/shipyard construction demand is **closed,
-not a gap**: the save does not carry the quantities, and the stock +
-buy-offer proxy (`station_metric.source = 'proxy'`) is as accurate and far
-cheaper.
+per queued order — meaningless to sum. **E-068 stands as written: those amounts
+are not quantities.**
+
+> **SUPERSEDED 2026-07-30 — the conclusion drawn from it, not the warning.**
+> This section used to conclude: *"a per-order bill-of-materials model for
+> wharf/shipyard construction demand is closed, not a gap: the save does not
+> carry the quantities."* Right in outcome, wrong in premise. Only the
+> **per-order quantities** are absent; **the target's component tree IS
+> carried**. Each `<build type="buildship">` wrapper's `component=` resolves to
+> a real ship component — 214 of 214 on save_002 (118 ship_s, 73 ship_m, 12
+> ship_l, 11 ship_xl) — with its macro, spawntime and its full installed
+> equipment tree, so a per-order BOM is computable from the packaged CSVs
+> alone: hull recipe plus every fitted turret, shield, engine, weapon and
+> launcher, each itself a ware with a recipe. It was computed. The model is
+> closed because the resulting demand is **two orders of magnitude too small**
+> to be any yard's storage target — median 0.0 % and maximum 69 % of the
+> yard's own `stock + amount`, against a median energy-cell stock of 300,788
+> units and a whole outstanding hull BOM of 703 — not because it is
+> unreadable ([../reports/build-demand-2026-07-30.md](../reports/build-demand-2026-07-30.md)
+> § What the save actually carries; E-028 FALSIFIED). The stock + buy-offer
+> proxy (`station_metric.source = 'proxy'`) remains the right answer and is now
+> known to be stable to ~1 % over 15,300 s.
+>
+> Two further facts about those targets, worth knowing before joining on them:
+> a **queued** `buildship` target is usually a **connection-less** component —
+> an unplaced hull the yard holds — which `component` filters out by design
+> (191 of the 214 on save_002), which is why `build_task` denormalizes the
+> target's class/macro/code at load. And only **71** of the 235
+> buildship + restock tasks have `component@spawntime == build@time`, i.e. a
+> hull created for this order; the other 164 point at ships that existed long
+> before, because the same element also carries repair / refit / restock work.
 
 **Production modules** — each `production` component carries live cycle
 state, an efficiency factor, and its queue (with the shortage form above):

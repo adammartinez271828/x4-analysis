@@ -262,8 +262,49 @@ spans 205× across seven wares, median CV 0.80 against a trade station's
 52 build stations wear `station_gen_factory_base_01_macro`. For them
 `max ≈ stock + inbound + open buy amount` (`source='proxy'`) stands, verified
 genuinely allocated storage (two same-faction Argon wharves at Pearson
-**r = 0.9984** despite different fill). Their real driver is presumably the
-build bill of materials; that model does not exist yet.
+**r = 0.9984** despite different fill).
+
+**The build bill of materials is no longer "the presumed driver" — it has been
+measured and REJECTED** [OBS, 2026-07-30]. Allocating a build station's derived
+total *volume* across wares in proportion to its outstanding ship BOM — with
+the scale handed to it for free — puts **75.5 % of scored (station, ware) cells
+BELOW** the offer-derived lower bound, median model/derived **0.104**. Under
+the standing rule that is a straightforward refutation, and it is not a scale
+problem, since the scale was fitted. Two further refutations need no fitting at
+all: **24 of the 53** build stations with ≥ 4 buy offers have no ship queue
+whatever (BOM ≡ 0) and still hold a median **50.0 M Cr** of derived allocation,
+and over 15,319 s the derived allocation holds at median CV **0.0107** while
+the outstanding BOM swings at CV 0.511 with **zero** queue overlap between any
+two epochs. (Per-station Pearson(derived, BOM) across wares looks deceptively
+good — median 0.960 — because both vectors span four decades and are dominated
+by energy cells and hull parts; it is *below* what the plain proxy achieves
+cross-station, and correlation is not the discriminator here. Recorded so the
+0.96 is not mistaken for support later.)
+
+**What the allocations do look like, instead:**
+
+- **Design-determined and highly reproducible.** Cross-station Pearson of the
+  derived per-ware allocation vector, same built-`buildmodule` signature:
+  median **0.9986** over 134 pairs (p25 0.9857, 66 % above 0.99), against
+  0.9598 for different signatures. This generalises the two-Argon-wharf
+  r = 0.9984 above to the whole save.
+- **Approximately separable** into a per-station scale and a per-ware constant:
+  fitting `log alloc(s,w) = A_s + B_w` over 647 cells / 53 stations / 45 wares
+  gives residual sd 0.602 against a total sd of 1.836 — **R² 0.892**, a typical
+  **1.46× miss**. Mostly multiplicative, and nowhere near the trade-station
+  equal-hours law that reproduces player readings to 0.20 %.
+- **Not equal-share on any axis.** Per-station CV across wares: units 1.940,
+  volume 1.195, credit value 1.404 — against a trade station's 0.00004 in
+  volume. Volume is the least dispersed, so whatever the rule is it is closer
+  to a volume share than to a value or unit share; it is not one.
+- **`A_s` is unexplained.** corr with log built modules **−0.122**, log build
+  modules 0.264, log workforce 0.198, log queued BOM units 0.288. Nothing tried
+  accounts for it.
+
+So the proxy stays the right answer for build stations — and it is now known to
+be **stable to ~1 % over 15,300 s**, a materially stronger warrant than it had.
+([../reports/build-demand-2026-07-30.md](../reports/build-demand-2026-07-30.md)
+§ (c).)
 
 Excluded from both paths: **`supplies`-flagged** buys (self-supply for the
 station's own drones/munitions, delivered to a separate inventory — emitted as
@@ -319,6 +360,15 @@ and all eight match the reserve the save's own ration offers imply, exactly.
   **floored per race**: DHI-588's 250 over 179/33/39 → 178/32/38, and its four
   in-game ration maxima all land to the unit. DCO-580 disagrees and wants its
   *habitat* mix instead — recorded as contradiction (9) in the register.
+  **The autonomous side of that question is exhausted** [OBS, 2026-07-30]:
+  across all 13 archived saves and ~1,200 habitat-bearing stations per epoch
+  there are **zero** habitat-vs-workforce race-set mismatches in every epoch,
+  and the multi-race population is exactly the same three stations (DHI-588,
+  DCO-580, EMY-219) throughout. DCO-580 stays player-unknown in every epoch,
+  including the newest. `hab_pir_*` habitats do not help — all 78 of them, over
+  43 scavenger/loanshark stations, house **single-race argon** workforces, so a
+  pirate habitat does not imply a pirate race. The only experiment left is a
+  player-built two-race station (reading R5).
 
 This replaces the "the buffer lags the live workforce" reading (E-121,
 FALSIFIED): nothing lags. DHI-588 holds 179/33/39 in three snapshots 20,000 s
@@ -373,37 +423,89 @@ allocation. Coverage is 99.7 % below 90 % fill, 38 % at 100–110 %, 5 % above.
 | counting a scrap works' own energy draw in the split | misses by 5 % on energy cells and 15 % on hull parts |
 | "the engine sizes on the currently queued recipe" | killed by IRD-672's readings — the 50/50 alternation split reproduces them |
 | `<workforces><bonus busy=>` as a bonus on/off switch | `busy=0` on 1,132 of 1,244 workforce stations, including plainly bonused ones; it looks like a cycle phase |
+| **net** internal flow for a ware the station both makes and consumes | it puts **33 of 58** internally-cycled wares below their own offer-derived floor, several by an order of magnitude (SYX-439 quantum tubes 30 against 3,714; XBM-030 refined metals 4,351 against 27,329; ZZY-447 khaak scrap 12,000 against 36,000), and drags ~700 pool-mates out of the 1 % band as the freed volume is redistributed. The gross `max(out, in)` rule has **zero** violations on the same cohort (E-137) |
+| recovering a "vanilla" multiplier as `efficiency / (1 + work_effect)` | there is nothing to recover: under mod-patched recipes **0 of 1,630** modules exceed `(1 + work_effect) × sunlight`, the factor is identically ≤ 1 and is the workforce ratio, and the mod's war term is a post-hoc `<add_cargo>` invisible in `<efficiency>` (E-053, E-106) |
+| allocating on `min(efficiency, ceiling)` | bit-for-bit identical to the current basis — 0 of 10,087 storage rows differ |
+| allocating on the ceiling `(1 + work_effect) × sunlight` | 77.5 % save-wide within 1 % against 94.2 %, 22.5 % on the under-staffed cohort, and 121/132 in-game readings against 131/132 |
+| a global one-epoch **lag** on the multiplier | loses at all 12 corpus transitions, by 10–44 points on the rows it changes and 1–11 save-wide. Read the live `<efficiency>` |
+| **BOM-proportional** allocation for build stations | 75.5 % of scored cells below the offer-derived lower bound at a *fitted* scale, median model/derived 0.104; 24 of 53 such stations have no queue at all and still hold a median 50 M Cr of allocation (E-028's population) |
+| EIJ-609's sell price as a probe of its allocation | its book is on the 5 M Cr cap: the price-implied figure is 24.2–24.4 k in all 13 epochs (CV 0.0021) and never moves, because it is measuring `5 M / 209 Cr`, not storage |
 
 ## Known exceptions and open questions
 
-1. **EIJ-609** — its production *rate* follows the reported efficiency 1.12634
-   exactly (3,972/h) but its *allocation* follows a multiplier of 1.0: 34,829
-   hull parts read in game, twice, against a modelled 37,228. **HYPOTHESIS**:
-   the allocation is recomputed lazily and lags a recent efficiency change.
-   *Falsifiable* by re-reading after playing forward — the lag predicts a drift
-   to ~37,228. This is the one reading the model cannot reproduce.
-2. **War-pressure bonuses enter the rate but not the allocation** [EXP], so the
-   two must be separated. `efficiency / (1 + work_effect)` is exactly 1.000 for
-   the plurality of modules in every faction, so the vanilla part is
-   recoverable in principle. **Not yet implemented.**
-3. **`nd_habitat_cap_boost` is not registered** in `gamedata/modpatch.py`. It
-   replaces habitat workforce capacity with S 2500 / M 5000 / L 10000 against a
-   stock 333/666/999. Workforce drives both the ration buffer and the
-   efficiency, so this is a known-wrong input rather than an unknown rule.
-4. **Hybrid production + build stations** keep the computed path only; their
-   build inputs are omitted. MXH-411 cannot settle whether that is right
-   because it carries player-set `ware_limit` rows. *Needs* an NPC station with
-   both a production and a build module.
-5. **Multi-stage internally-cycled wares** (gross vs net flow) are not modelled.
-6. **How the employment target splits across races is unsettled.** DHI-588
-   (in game) needs the LIVE race mix; DCO-580 (save-derived) needs its HABITAT
-   capacity mix; EMY-219 cannot tell them apart. The model uses the live mix.
-   ±3 workers on a 250-worker reserve. *Settles it:* a third multi-race station
-   read in game. Register contradiction (9).
-7. **Build-station allocation** (wharfs / shipyards / equipment docks) has no
-   model at all — only the `stock + inbound + open buy` lower bound. The
-   equal-volume rule is *false* there. QJI-262's seven wares span 205× in
-   allocation-volume; a bill-of-materials model is the obvious candidate.
+1. **EIJ-609 — the model DOES reproduce it, and always did after 83,025 s**
+   [OBS, 2026-07-30]. Its allocation is directly readable in every archived
+   save (three saturated input buys moving in lockstep), and over 13 epochs it
+   tracked its **live** efficiency to 0.18–0.26 % from 78,583 to 81,948 s, then
+   **stepped to a multiplier of exactly 1.0** between 81,948 and 82,125 with
+   the live `efficiency` unchanged, and stayed there. By 83,025 s it carries no
+   `<production>` block at all, at which point the model's own **idle rule**
+   (multiplier 1.0) produces 34,829 / 9,477 / 4,738 / 33,170 with no exception
+   needed. The readings-fixture entry is a snapshot of the anomalous
+   82,125–82,688 window, not a permanent model failure — it remains a valid
+   record of what was read, and this note is not an argument for editing it.
+   The **lag** hypothesis is FALSIFIED (E-051): the allocation went the other
+   way, and a global one-epoch lag loses at all 12 transitions. What survives
+   is a **latch** — the allocation looks like a snapshot of the multiplier
+   taken at some recompute event (stale *high* at 69,324, stale *low* from
+   82,125, the latch firing ~900 s before the block disappeared while the
+   starving modules were stalled between cycles). That is a timing property of
+   the engine, not a rule the model can evaluate from one save: it would need
+   state the save does not carry. E-136, PENDING.
+2. ~~**War-pressure bonuses enter the rate but not the allocation.**~~
+   **STRUCK 2026-07-30 (E-053 FALSIFIED).** There is no war-pressure term
+   inside `<efficiency>` to separate: under mod-patched recipes 0 of 1,630
+   modules exceed `(1 + work_effect) × sunlight`, and Faction Fix Pack's bonus
+   is a post-hoc `<add_cargo>` on production-finished events, invisible in the
+   save (E-106). The proposed separation is a no-op on every row. Read the live
+   `<efficiency>`.
+3. **`nd_habitat_cap_boost` is registered** (2026-07-30) in
+   `gamedata/modpatch.py`, detected exactly on its extension id — and it turns
+   out **not to touch this model at all**. It replaces habitat
+   `<workforce capacity>` (housing), never `<workforce max>`, so it cannot move
+   the employment target (which excludes housing by law) and nothing in
+   `analysis/storage.py` reads housing. Its real numbers: S 2500 / M 5000 /
+   L 10000 against per-race stock of 250/500/1000 (par 333/666/999, ter
+   100/250/500) — 7.51×–25×, not a single ratio — over 1,839 built modules on
+   1,254 stations. Readings unchanged at 131/132, as they must be. E-061.
+4. **Hybrid production + build stations**: the computed path is **refuted as
+   currently formulated** [OBS, 2026-07-30]. ULG-519 (10 production modules +
+   an XL ship-build module) computes hull parts at 37,452 — or 45,044 by the
+   production model's own number — against an offer-derived lower bound of
+   **61,494** that is identical in all 13 corpus epochs, i.e. ≥ 27 % under a
+   floor, which is a real error. The cause is that the computed path cannot see
+   the build module's draw, so the exclusion is right for now and the fix is a
+   build-demand term in the denominator, not a reclassification. MXH-411 still
+   cannot settle it (player-set `ware_limit` rows). E-059 FALSIFIED / E-138
+   PENDING.
+5. ~~**Multi-stage internally-cycled wares** (gross vs net flow).~~ **CLOSED
+   2026-07-30 with a precise negative.** 192 (station, ware) pairs on 152
+   stations are internally cycled and the two rules genuinely differ (median
+   `|net − max|/max` = 0.290), but the net rule puts 33 of 58 scorable wares
+   *below* their own offer-derived floor while the gross `max(out, in)` rule
+   has zero violations. **No model change**; E-044 now has a save-wide
+   population behind it. E-137.
+6. **How the employment target splits across races is unsettled — and the
+   autonomous side is now exhausted.** DHI-588 (in game) needs the LIVE race
+   mix; DCO-580 (save-derived, and it *refutes* the live mix outright rather
+   than merely preferring the habitat one) needs its HABITAT capacity mix;
+   EMY-219 cannot tell them apart. The model uses the live mix, so it is
+   known-wrong at DCO-580; ±3 workers on a 250-worker reserve. Across all 13
+   archived saves there are **zero** habitat-vs-workforce race-set mismatches
+   in any epoch and the multi-race population is those same three stations, so
+   "read a third station" is not an available experiment. *Settles it:* a
+   player-built two-race station (reading R5). Register contradiction (9),
+   E-128.
+7. **Build-station allocation** (wharfs / shipyards / equipment docks) still
+   has no model — only the `stock + inbound + open buy` lower bound — but the
+   obvious candidate is now **dead**: a bill-of-materials model is rejected by
+   the lower-bound rule (75.5 % of cells below the floor at a fitted scale).
+   What is known instead is that the allocation is **design-determined**
+   (same-signature cross-station Pearson 0.9986 over 134 pairs), approximately
+   separable as `A_s × B_w` (R² 0.892, typical 1.46× miss), not an equal share
+   in units, volume or value, and stable to ~1 % over 15,300 s — with the
+   per-station scale `A_s` unexplained by module count, workforce or queue.
+   See § Build stations keep the proxy.
 
 ## A note on inputs versus rules
 
