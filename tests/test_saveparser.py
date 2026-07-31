@@ -275,7 +275,8 @@ def test_fixture_parse(save_file: Path) -> None:
     assert station[18] == "1"
     assert station[19] == "1"      # known flag (v20)
     assert ship[19] == ""          # absent known -> ""
-    # ships don't get positions
+    # owned ships don't get positions (they move constantly); derelicts do
+    # — see test_derelict_ships_get_sector_local_positions
     assert (ship[16], ship[17]) == (None, None)
     sector = next(c for c in d.components if c[1] == "sector")
     assert sector[7] == "1"  # contested
@@ -517,3 +518,72 @@ def test_entry_ids_do_not_collide_across_stations(tmp_path: Path) -> None:
     }
     # the expand copy repeats BRAVO's entry; it is recorded once per host
     assert sum(1 for u in d.module_upgrades if u[0] == "[0xB0]") == 1
+
+# --- v29: derelict ships get sector-local positions ---------------------
+# Ship components with owner="ownerless" are derelict (claimable) hulls; the
+# map's derelict overlay places them, so the parser runs the station-style
+# zone-offset walk for them (owned ships move constantly and stay
+# position-less). Two ownerless ships here: one nested in a zone (offset
+# summed like a station), one directly in the sector.
+DERELICT_FIXTURE = """<?xml version="1.0"?>
+<savegame>
+  <info>
+    <save name="#001" date="1700000000"/>
+    <game guid="DER-1" version="900" time="10.0"/>
+    <player name="P" money="1"/>
+  </info>
+  <universe>
+    <component class="galaxy" id="[0x1]" connection="space">
+      <connections><connection connection="galaxy">
+      <component class="cluster" macro="cluster_01_macro" id="[0x10]" connection="galaxy">
+        <connections><connection connection="cluster">
+        <component class="sector" macro="cluster_01_sector001_macro" id="[0x11]"
+                   connection="cluster">
+        <connections><connection connection="sector">
+        <component class="zone" macro="zone001_macro" id="[0x15]" connection="sector">
+          <offset><position x="1000" y="5" z="-2000"/></offset>
+          <connections><connection connection="zone">
+          <component class="ship_m" macro="ship_der_m_macro" id="[0x2d]"
+                     owner="ownerless" code="DER-001" knownto="player"
+                     spawntime="123456.5" connection="zone">
+            <offset><position x="-200" y="0" z="750"/></offset>
+            <connections/>
+          </component>
+          <component class="ship_s" macro="ship_own_s_macro" id="[0x2e]"
+                     owner="argon" code="OWN-002" connection="zone">
+            <offset><position x="-200" y="0" z="750"/></offset>
+            <connections/>
+          </component>
+          </connection></connections>
+        </component>
+        <component class="ship_s" macro="ship_der_s_macro" id="[0x2f]"
+                   owner="ownerless" code="DER-003" connection="sector">
+          <offset><position x="4000" y="0" z="-500"/></offset>
+          <connections/>
+        </component>
+        </connection></connections>
+        </component>
+        </connection></connections>
+      </component>
+      </connection></connections>
+    </component>
+  </universe>
+</savegame>
+"""
+
+
+def test_derelict_ships_get_sector_local_positions(tmp_path: Path) -> None:
+    p = tmp_path / "save.xml"
+    p.write_text(DERELICT_FIXTURE)
+    d = parse_savegame(p)
+    by_code = {c[4]: c for c in d.components if c[4]}
+
+    # own offset + the enclosing zone's offset (y dropped), like a station
+    der = by_code["DER-001"]
+    assert (der[16], der[17]) == (800.0, -1250.0)
+    assert der[9] == "123456.5"   # spawntime: >0 => a crew-bail derelict
+    # directly in the sector: its own offset, no spawntime => pre-placed
+    assert (by_code["DER-003"][16], by_code["DER-003"][17]) == (4000.0, -500.0)
+    assert by_code["DER-003"][9] == ""
+    # an OWNED ship in the same zone still gets no position
+    assert (by_code["OWN-002"][16], by_code["OWN-002"][17]) == (None, None)

@@ -154,6 +154,7 @@
   layers.vaults = el("g", {id: "ly-vaults"}, svg);
   layers.erlking = el("g", {id: "ly-erlking"}, svg);
   layers.warps = el("g", {id: "ly-warps"}, svg);
+  layers.derelicts = el("g", {id: "ly-derelicts"}, svg);
   // player station markers sit above the hover layer so they can take
   // pointer events for their tooltips (zoomed-in only: the zoomed-out
   // CSS hides them — the dashed ring + count badge covers that mode);
@@ -457,6 +458,39 @@
     ptMarkers.push({el: g, x: w.x, y: w.y});
   });
 
+  // derelict (ownerless) ship overlay: amber diamond-X markers. A ship
+  // that lost its crew mid-game ("bailed", spawntime > 0) draws solid —
+  // those are the ones worth flying out to claim; a game-start
+  // ("pre-placed") derelict draws hollow and dimmed so the natural bails
+  // stand out. A transparent hit disc keeps the hollow glyph hoverable.
+  var DERELICT_COL = "#FF9F1C";
+  (D.derelicts || []).forEach(function (d) {
+    var g = el("g", {}, layers.derelicts);
+    el("circle", {r: 5.5, fill: "transparent"}, g);
+    var bailed = d.origin === "bailed";
+    el("path", bailed
+      ? {d: diamondXPath(0, 0, 7), fill: DERELICT_COL,
+         stroke: "#1e1e1e", "stroke-width": 0.8}
+      : {d: diamondXPath(0, 0, 5), fill: "none", stroke: DERELICT_COL,
+         "stroke-width": 1, opacity: 0.45}, g);
+    g.addEventListener("mouseenter", function (ev) {
+      var h = "<b>Derelict: " + esc(d.ship || "Ship") +
+        (d.code ? " (" + esc(d.code) + ")" : "") + "</b>";
+      if (d.size) h += "<br>Size: " + esc(d.size);
+      h += "<br>" + (bailed
+        ? "Crew bailed &mdash; appeared at " +
+          (d.spawn / 3600).toFixed(1) + "h game time"
+        : "Pre-placed (game start)");
+      if (d.sector) h += "<br>" + esc(d.sector);
+      tip.innerHTML = h;
+      tip.style.display = "block";
+      moveTip(ev);
+    });
+    g.addEventListener("mousemove", moveTip);
+    g.addEventListener("mouseleave", hideTip);
+    ptMarkers.push({el: g, x: d.x, y: d.y});
+  });
+
   // resource overlay: one hidden group per resource; the LEFT-edge gauge
   // encodes mineable-NOW (live yields + respawned-but-full "overdue" areas),
   // and (when the reference data carries replenishment) a RIGHT-edge gauge
@@ -737,6 +771,7 @@
              clusters: true, labels: true,
              contested: false, police: false, pirates: false,
              player: false, vaults: false, erlking: false, warps: false,
+             derelicts: false,
              fac_hq: true, fac_shipyard: true, fac_wharf: true,
              fac_equipdock: true, fac_trading: true, fac_khaak: false},
     factions: {},
@@ -794,7 +829,7 @@
                 contested: layers.contested, police: layers.police,
                 pirates: layers.pirates, player: layers.player,
                 vaults: layers.vaults, erlking: layers.erlking,
-                warps: layers.warps};
+                warps: layers.warps, derelicts: layers.derelicts};
 
   function applyLayer(name) {
     var on = state.layers[name] ? "" : "none";
@@ -951,6 +986,16 @@
       "<svg width='18' height='14' viewBox='-9 -7 18 14'>" +
       "<circle r='5' fill='none' stroke='#c07df0' stroke-width='1.3'/>" +
       "<circle r='1.8' fill='#c07df0'/></svg>"]);
+  }
+  // derelicts: the label counts the crew-bail ones (the interesting kind)
+  // against the total
+  if ((D.derelicts || []).length) {
+    var nBail = D.derelicts.filter(function (d) {
+      return d.origin === "bailed";
+    }).length;
+    overlayRows.push(["derelicts",
+      "Derelict Ships (" + nBail + " bailed / " + D.derelicts.length + ")",
+      pathSwatch(diamondXPath, DERELICT_COL, 9)]);
   }
   overlayRows.forEach(function (row) {
     litem(gOver, row[1], row[2],

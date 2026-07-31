@@ -1101,3 +1101,33 @@ already uses on the production side. **Parsed since v21**:
 `v_build_method` / `frames.build_methods`, and `station_modules.method`
 now carries the resolved value (it was always empty before, so module
 build costs silently used the `default` recipe for every builder).
+
+## Derelict ships
+
+A ship component whose `owner` attribute is literally `ownerless` is a
+**derelict**: an unowned hull sitting in space that the player can claim
+(board/spacewalk). **CONFIRMED (E-143, 2026-07-31)**: the ownerless ships
+a save lists in a sector are exactly the derelicts visible there in game
+— save 8E0C…/73 lists 2 × `ship_xen_m_corvette_02_a_macro` plus a
+`ship_xen_m_miner_solid_01_a_macro` in `cluster_29_sector001_macro`,
+matching the player's own observation of unowned Xenon hulls in
+Hatikvah's Choice I. They keep a `code`, carry `knownto="player"` once
+discovered, and are ordinary universe components in every other respect.
+
+Two origins are worth telling apart:
+
+- **Crew bail** — the ship spawned during the playthrough and lost its
+  crew later, so it carries `spawntime > 0` (all six derelicts observed
+  across two playthroughs: 67k–1.8M s).
+- **Pre-placed** — put in the galaxy at game start, so (by the general
+  rule that game-start objects carry `spawntime = 0`) it should read
+  `spawntime` 0 or absent.
+
+The `spawntime == 0` ⇒ pre-placed signature is a **HYPOTHESIS (E-144,
+PENDING)**, not a confirmed rule: no pre-placed derelict survives in any
+available save (they were claimed long ago), so the signature has never
+been observed positively. It settles by parsing a fresh new-game save.
+The map's derelict overlay labels the two cases accordingly
+([viz-internals.md](viz-internals.md) § The sector map), and the parser
+gives ownerless ships the station-style sector-local position walk so
+they can be placed (owned ships stay position-less).

@@ -47,11 +47,11 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 |---|---:|---:|---:|---:|---:|
 | Pricing (E-001…E-036, E-112…E-118, E-129…E-135, E-141…E-142) | 24 | 15 | 7 | 6 | 52 |
 | Storage allocation (E-037…E-063, E-119…E-128, E-136…E-138, E-140) | 25 | 11 | 3 | 2 | 41 |
-| Parser / save format (E-064…E-080) | 9 | 4 | 4 | 0 | 17 |
+| Parser / save format (E-064…E-080, E-143…E-144) | 10 | 4 | 5 | 0 | 19 |
 | Faction / diplomacy (E-081…E-084) | 1 | 1 | 2 | 0 | 4 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111, E-139) | 5 | 5 | 5 | 0 | 15 |
-| **total** | **70** | **39** | **25** | **8** | **142** |
+| **total** | **71** | **39** | **26** | **8** | **144** |
 
 Nine entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -395,6 +395,12 @@ station without being resolved.
 
 **E-080 · PENDING** — `<stats>` `distance_*` are km and mission `reward` is cents.
 *Predicts:* prediction not stated; both flagged unverified. *Settles it:* open the in-game stats screen and compare total mission rewards and distance travelled against the save's figures. *Source:* [phase7-research-p1.md](../reports/phase7-research-p1.md) § Play checklist, B17.
+
+**E-143 · CONFIRMED** — A ship component with `owner="ownerless"` is a derelict (claimable) hull.
+*Predicts:* the ownerless ships a save lists in a sector are exactly the derelicts seen there in game. Save 8E0C…/73 lists 2 × `ship_xen_m_corvette_02_a_macro` (WUN-659, ONS-855) plus `ship_xen_m_miner_solid_01_a_macro` (SPH-430) in `cluster_29_sector001_macro` = Hatikvah's Choice I, matching the player's in-game observation of unowned Xenon hulls there; the second playthrough's save 14 lists a Teladi fighter and a Paranid corvette in Wretched Skies IV. All carry a `code` and `knownto="player"`. *Source:* [save-semantics.md](../reference/save-semantics.md) § Derelict ships.
+
+**E-144 · PENDING** — Pre-placed (game-start) derelicts carry `spawntime = 0`, crew-bail derelicts `spawntime > 0`.
+*Predicts:* all six derelicts observed across two playthroughs have `spawntime` 67k–1.8M s, i.e. they spawned mid-game and lost their crew later; a game-start derelict should read 0 or carry no `spawntime`, per the general rule that game-start objects spawn at t = 0. The zero side has never been observed — no pre-placed derelict survives in any available save. *Settles it:* parsing a fresh new-game save and reading the `spawntime` of its untouched pre-placed derelicts. *Source:* [save-semantics.md](../reference/save-semantics.md) § Derelict ships.
 
 ## Faction / diplomacy
 

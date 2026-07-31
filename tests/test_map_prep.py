@@ -36,6 +36,11 @@ def _ref(**over):
             "sector_a": ["sec_a1", "sec_b1"],
             "sector_b": ["sec_b1", "sec_b2"],
         }),
+        ships=pd.DataFrame({
+            "macro": ["ship_arg_s_scout_01_a_macro"],
+            "model": ["Discoverer"],
+            "class": ["S"],
+        }),
         faction_colour={"argon": "#0000ff", "player": "#00ff00"},
         faction_name={"argon": "Argon Federation"},
         ware_name={"ore": "Ore"},
@@ -54,18 +59,34 @@ def _frames(**over):
         "contested": [0, 1, 0],
         "ore": [100.0, 0.0, 50.0],
     })
+    # d1/d2/d3 are ownerless (derelict) ships — a known-macro bail with a
+    # position, an undiscovered pre-placed one (unknown modded macro, no
+    # offset) and a bail in sec_b1; s1 is a normal owned ship that must
+    # never reach the derelict overlay
     universe = pd.DataFrame({
-        "id": ["st1", "st2", "st3", "sec"],
-        "class": ["station", "station", "station", "sector"],
-        "name": ["Trade Post", "Hidden Base", "HQ", "Alpha"],
-        "code": ["AAA-111", "BBB-222", "CCC-333", ""],
-        "owner": ["argon", "argon", "player", "argon"],
-        "knownto": ["player", "unknown", "player", "player"],
-        "sector.macro": ["sec_a1", "sec_a1", "sec_b1", ""],
-        "stype": ["trading", "defence", pd.NA, pd.NA],
-        "sx": [10_000.0, None, None, None],
-        "sz": [5_000.0, None, None, None],
-        "faction_hq": [None, None, 1, None],
+        "id": ["st1", "st2", "st3", "sec", "d1", "d2", "d3", "s1"],
+        "class": ["station", "station", "station", "sector",
+                  "ship_s", "ship_m", "ship_m", "ship_s"],
+        "macro": ["", "", "", "sec_a1_macro",
+                  "ship_arg_s_scout_01_a_macro", "mod_ship_m_hauler_macro",
+                  "ship_arg_s_scout_01_a_macro",
+                  "ship_arg_s_scout_01_a_macro"],
+        "name": ["Trade Post", "Hidden Base", "HQ", "Alpha",
+                 "", "", "", "Mine"],
+        "code": ["AAA-111", "BBB-222", "CCC-333", "",
+                 "DER-001", "DER-002", "DER-003", "SHP-999"],
+        "owner": ["argon", "argon", "player", "argon",
+                  "ownerless", "ownerless", "ownerless", "argon"],
+        "knownto": ["player", "unknown", "player", "player",
+                    "player", "", "player", "player"],
+        "sector.macro": ["sec_a1", "sec_a1", "sec_b1", "",
+                         "sec_a1", "sec_a1", "sec_b1", "sec_a1"],
+        "spawntime": ["", "", "", "", "120000", "0", "5000.5", "90000"],
+        "stype": ["trading", "defence", pd.NA, pd.NA,
+                  pd.NA, pd.NA, pd.NA, pd.NA],
+        "sx": [10_000.0, None, None, None, 15_000.0, None, None, None],
+        "sz": [5_000.0, None, None, None, -8_000.0, None, None, None],
+        "faction_hq": [None, None, 1, None, None, None, None, None],
     })
     empty_events = pd.DataFrame(columns=["time", "sector.name"])
     datavaults = pd.DataFrame({
@@ -346,6 +367,42 @@ def test_payload_area_status_spoiler_filtered():
 def test_payload_vaults_spoilers_hidden():
     p = _payload(_frames(), _ref(), _cfg(spoilers_hide=True))
     assert [v["code"] for v in p["vaults"]] == ["VLT-001"]
+
+
+def test_payload_derelicts(payload):
+    ds = {d["code"]: d for d in payload["derelicts"]}
+    # owned ships never appear; all three ownerless ones do
+    assert set(ds) == {"DER-001", "DER-002", "DER-003"}
+    d1 = ds["DER-001"]
+    assert d1["ship"] == "Discoverer" and d1["size"] == "S"
+    assert d1["origin"] == "bailed" and d1["spawn"] == 120_000.0
+    assert d1["sector"] == "Alpha"
+    # offset east/south of the sector centre (negative z is down on
+    # screen), scaled inside the hex
+    a = next(s for s in payload["sectors"] if s["macro"] == "sec_a1")
+    assert d1["x"] > a["x"] and d1["y"] > a["y"]
+    assert abs(d1["x"] - a["x"]) < 31 and abs(d1["y"] - a["y"]) < 31
+    # unknown (modded) macro: name falls back to the macro, size to the
+    # component class; spawntime 0 -> pre-placed at game start
+    d2 = ds["DER-002"]
+    assert d2["ship"] == "mod_ship_m_hauler_macro" and d2["size"] == "M"
+    assert d2["origin"] == "preplaced" and d2["spawn"] == 0.0
+    # no recorded offset -> hex centre
+    assert (d2["x"], d2["y"]) == (a["x"], a["y"])
+    assert ds["DER-003"]["origin"] == "bailed"
+
+
+def test_payload_derelicts_spoilers_hidden():
+    p = _payload(_frames(), _ref(), _cfg(spoilers_hide=True))
+    assert {d["code"] for d in p["derelicts"]} == {"DER-001", "DER-003"}
+
+
+def test_payload_derelicts_without_ship_reference():
+    # refdata predating/lacking ships: never crash, fall back to macro/class
+    ref = _ref(ships=pd.DataFrame(columns=["macro", "model", "class"]))
+    p = _payload(_frames(), ref, _cfg())
+    d1 = next(d for d in p["derelicts"] if d["code"] == "DER-001")
+    assert d1["ship"] == "ship_arg_s_scout_01_a_macro" and d1["size"] == "S"
 
 
 def test_payload_wormholes(payload):

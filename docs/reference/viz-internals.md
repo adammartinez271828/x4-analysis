@@ -163,6 +163,22 @@ Interactivity:
   arrow backwards). Links spoiler-dropped if either endpoint is
   undiscovered — see
   [../models/wormhole-connection-model.md](../models/wormhole-connection-model.md).
+- Derelict-ship overlay (payload `derelicts`, default off): every
+  `owner="ownerless"` ship component in a plotted sector (see
+  [save-semantics.md](save-semantics.md) § Derelict ships), drawn at all zoom
+  levels as amber (`#FF9F1C`) diamond-X markers — solid for a **bailed**
+  derelict (`spawntime > 0`: it spawned mid-game and lost its crew, the kind
+  worth flying out to claim), smaller dimmed hollow for a **pre-placed** one
+  (`spawntime` 0/absent, the game-start hypothesis E-144). Records carry
+  code, ship model (ref.ships `model` by macro, falling back to the macro for
+  modded hulls), size (ref.ships `class`, falling back to the component
+  class suffix), origin, spawntime and sector name; tooltip shows all of
+  them (spawn time in game-hours), legend label counts bailed/total.
+  Positions use the same shared per-sector normalization as gates, stations
+  and vaults — the parser runs the station-style zone-offset walk for
+  ownerless ships only (owned ships move constantly and stay position-less),
+  so a snapshot taken before that change falls back to the hex centre.
+  Spoiler-filtered like everything else (`knownto == "player"` only).
 - Search/jump; sessionStorage view persistence.
 
 Gate lines attach at the gates' approximate in-sector positions (endpoint

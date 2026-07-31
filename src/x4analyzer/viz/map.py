@@ -611,6 +611,51 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             reach[si] = max(reach.get(si, 0.0),
                             (off[0] ** 2 + off[1] ** 2) ** 0.5)
 
+    # derelict ships for the derelict overlay: ship components the save
+    # marks owner="ownerless" are unowned, claimable hulls
+    # (docs/reference/save-semantics.md § Derelict ships). Two origins:
+    # spawntime > 0 means the ship spawned mid-game and lost its crew (a
+    # bail — the ones a player hunts), spawntime 0/missing means it was
+    # placed at game start. Spoiler-filtered like everything else.
+    der_recs: list[tuple] = []   # (sector idx, record, offset)
+    dr = uni[uni["class"].astype(str).str.startswith("ship_")].copy()
+    dr = dr[dr["owner"] == "ownerless"]
+    if cfg.spoilers_hide:
+        dr = dr[dr["knownto"] == "player"]
+    dr = dr[dr["sector.macro"].isin(index)]
+    if len(dr):
+        ship_model, ship_size = {}, {}
+        sh = getattr(ref, "ships", None)
+        if sh is not None and len(sh) and "macro" in sh.columns:
+            if "model" in sh.columns:
+                ship_model = dict(zip(sh["macro"], sh["model"]))
+            if "class" in sh.columns:
+                ship_size = dict(zip(sh["macro"], sh["class"]))
+        for _, r in dr.iterrows():
+            off = None
+            if "sx" in dr.columns and pd.notna(r["sx"]) and pd.notna(r["sz"]):
+                off = (float(r["sx"]), float(r["sz"]))
+            macro = str(r["macro"])
+            # unknown (modded) macro: fall back to the macro itself and to
+            # the component class, which already encodes the size (ship_s/…)
+            size = ship_size.get(macro)
+            if not isinstance(size, str) or not size:
+                size = str(r["class"]).split("_")[-1].upper()
+            spawn = pd.to_numeric(r.get("spawntime"), errors="coerce")
+            spawn = 0.0 if pd.isna(spawn) else float(spawn)
+            der_recs.append((index[r["sector.macro"]], {
+                "code": str(r["code"]),
+                "ship": str(ship_model.get(macro) or macro),
+                "size": size,
+                "origin": "bailed" if spawn > 0 else "preplaced",
+                "spawn": round(spawn, 1),
+                "sector": sectors[index[r["sector.macro"]]]["name"],
+            }, off))
+    for si, _rec, off in der_recs:
+        if off:
+            reach[si] = max(reach.get(si, 0.0),
+                            (off[0] ** 2 + off[1] ** 2) ** 0.5)
+
     # wormholes / anomalies for the warp overlay, spoiler-filtered like
     # everything else. Three tiers: "linked" (a resolved partner warp),
     # "dormant" (a story <transition> not yet wired up) and "inert" (a
@@ -711,6 +756,12 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         rec["x"], rec["y"] = in_hex_pt(si, off) if off \
             else (sectors[si]["x"], sectors[si]["y"])
         vaults.append(rec)
+
+    derelicts: list[dict] = []
+    for si, rec, off in der_recs:
+        rec["x"], rec["y"] = in_hex_pt(si, off) if off \
+            else (sectors[si]["x"], sectors[si]["y"])
+        derelicts.append(rec)
 
     # wormhole markers (positions in-hex) + directional warp edges. An edge is
     # drawn once per "destination"-role link (the enterable end pointing at its
@@ -840,6 +891,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
         "resources": resources, "factions": factions, "stations": stations,
         "vaults": vaults, "hws": hws, "area_status": area_status,
         "wormholes": wormholes, "wlinks": wlinks,
+        "derelicts": derelicts,
     }
 
 

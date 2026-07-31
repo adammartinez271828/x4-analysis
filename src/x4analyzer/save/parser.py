@@ -645,11 +645,16 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         if pcls in _UNIVERSE_CLASSES or _SHIP_RE.match(pcls):
                             parent_id = pid
                             break
-                    # sector-local position for stations/build plots: own
-                    # offset plus any zone offsets between sector and here
+                    # sector-local position for stations/build plots and for
+                    # DERELICT ships (owner="ownerless" — the map's derelict
+                    # overlay needs to place them; owned ships move constantly
+                    # and are deliberately left position-less): own offset plus
+                    # any zone offsets between sector and here
                     # (landmarks.py does the same walk for the find cmd)
                     sx = sz = None
-                    if clazz in ("station", "buildstorage") \
+                    if (clazz in ("station", "buildstorage")
+                            or (_SHIP_RE.match(clazz)
+                                and elem.get("owner") == "ownerless")) \
                             and sector_depth >= 0:
                         sx = own_pos[0] if own_pos else 0.0
                         sz = own_pos[1] if own_pos else 0.0
