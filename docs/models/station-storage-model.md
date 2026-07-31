@@ -452,6 +452,17 @@ allocation. Coverage is 99.7 % below 90 % fill, 38 % at 100–110 %, 5 % above.
    starving modules were stalled between cycles). That is a timing property of
    the engine, not a rule the model can evaluate from one save: it would need
    state the save does not carry. E-136, PENDING.
+   **Third in-game read, 2026-07-31 [EXP]:** still **34,829** at game time
+   84,968, with all modules still idle in the flanking save — the idle rule
+   remains exact, E-051's predicted drift to ~37,228 never materialized over
+   several game-days, and war pressure is corroborated as irrelevant to the
+   allocation. The read does **not** discriminate E-136: with every module
+   idle, a live recompute and a latched snapshot predict the same 34,829.
+   The discriminating moment is when its modules regain a `<production>`
+   block with efficiency > 1 — an immediate follow kills the latch, a held
+   34,829 confirms it. (Same visit: its sell price 230.11 at stock 9,107
+   sits on the *capped* curve with the read allocation — predicted 229.2
+   vs the uncapped 248.1 — so the producer-capper classification holds.)
 2. ~~**War-pressure bonuses enter the rate but not the allocation.**~~
    **STRUCK 2026-07-30 (E-053 FALSIFIED).** There is no war-pressure term
    inside `<efficiency>` to separate: under mod-patched recipes 0 of 1,630
