@@ -27,6 +27,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # A release is drafted by hand in the UI, so the tag can disagree with
+      # the version in pyproject.toml. Catch that before spending build time.
+      - name: Check tag matches package version
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          tag_version=${TAG#v}
+          pkg_version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "Tag $TAG says version $tag_version, but pyproject.toml says $pkg_version."
+            echo "Bump the version in pyproject.toml and src/x4analyzer/__init__.py, or retag."
+            exit 1
+          fi
+          echo "Tag $TAG matches pyproject.toml version $pkg_version."
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
