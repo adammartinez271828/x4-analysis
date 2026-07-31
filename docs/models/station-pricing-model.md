@@ -315,13 +315,16 @@ sell offer reads −38.70 % against a panel showing −38.9 % supply plus −9.1
 reputation. **Resolved 2026-07-31: the tiers are real** — the save stores them
 as md-created records on the *player* component, one per faction
 (`md_relation_discount_1/2/3`, amounts 0.05/0.15/0.25) — **and the base the
-tier multiplies is the band WIDTH, not the price**: `discount = tier ×
-(price_max − price_min)`, displayed as a % of avg (which is why the shown
-percentage varies per ware), applied against the player on buys as "Discount
-offset". Twelve same-day panels reproduce it to the cent across two factions,
-two tiers, ten wares, both sides and both books (E-142). One recorded panel
-(UDX-946, −9.1 %) instead matches `tier × price` and awaits a decisive
-re-read: the width law predicts a stock-independent −12.0 % there.
+tier multiplies is `min(offer_price, price_max − price_min)`** — the band
+WIDTH, capped by the price itself: `discount = tier × min(price, max − min)`,
+displayed as a % of avg (which is why the shown percentage varies per ware),
+applied against the player on buys as "Discount offset". Thirteen panels
+reproduce it to the cent across two factions, two tiers, eleven wares, both
+sides and both books (E-142): twelve on the width branch, plus UDX-946's
+refined metals — the one observed price-below-width case (deep glut, wide
+band) — on the price branch, read −9.1 % (2026-07-27) and −9.2 % (2026-07-31)
+where an uncapped width law would say −12.0 %. PENDING on one graphene-glut
+discriminator; EBT-957's old microlattice line is the lone outlier.
 
 **The panel rounds its percentages UP [EXP].** Tidebreak displays "Low Supply
 +9.2 %" against a true +9.109 %. A panel figure is a *ceiling* on the true

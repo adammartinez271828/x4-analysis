@@ -604,11 +604,14 @@ the place to check what the current parameter values actually are.
   FALSIFIED, E-142):** the tiers are real and stored — the save carries
   one md-created `<discount>` record per faction on the PLAYER component
   (`md_relation_discount_1/2/3`, amounts 0.05/0.15/0.25) — and the
-  amount is `tier × (price_max − price_min)` (band WIDTH, not price),
-  shown as a % of avg, applied against the player on buy offers under
-  the "Discount offset" label. Twelve same-day panels exact (E-142);
-  UDX-946's recorded −9.1% instead fits `tier × price` and awaits a
-  decisive re-read (width law predicts −12.0% there, stock-independent).
+  amount is `tier × min(offer_price, price_max − price_min)` — band
+  WIDTH, capped by the price itself — shown as a % of avg, applied
+  against the player on buy offers under the "Discount offset" label.
+  Thirteen panels exact (E-142): twelve on the width branch, and
+  UDX-946's refined metals (the one case with price < width, deep glut
+  on a wide band) on the price branch, read −9.1% and re-read −9.2%.
+  Still PENDING on one graphene-glut discriminator; EBT-957's old
+  microlattice line is the lone outlier.
 - **Layer 4 — buy side: the modifier is a COSINE in fill.** Measured
   2026-07-28 over 5,428 buy offers, on the normalised coordinate
   (`s = price/avg − 1` divided by the band half-width on the relevant side, so
