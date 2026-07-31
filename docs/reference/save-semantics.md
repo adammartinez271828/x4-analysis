@@ -451,7 +451,19 @@ the place to check what the current parameter values actually are.
   storage model entirely** — the scrap works' own 90,000 energy cells/h is
   excluded (counting it misses by 5% on energy cells and 15% on hull
   parts), matching the fact that its `rawscrap` feedstock is never stocked
-  either. Its *output* (scrap metal) is stored normally.
+  either. Its *output* (scrap metal) is stored normally. **But the
+  processor's draw DOES drive the station's market behaviour (E-140,
+  CONFIRMED 2026-07-31):** the active offer *side* for a dual-role ware
+  follows the running net flow *including* the processor's 90k/h — which
+  the Logical Station Overview's consumption line omits, so a station the
+  LSO shows as a small net producer (NDE-080/KWC-232, +22.7k/h shown) can
+  be a persistent active *buyer* (true net −67.3k/h). 171/178
+  station-epochs across 13 saves; consumption counts modules with a
+  `<production>` block that are not `waitingforresources` (a rated-basis
+  variant is refuted by MDS-738/QIB-162, sellers in all 13 epochs with
+  starved recyclers). Net consumers keep a zero-amount sell beside the
+  active buy. In-game allocations at NDE-080/CGW-678/KWC-232 (≈960,935 /
+  1,128,024 / 1,833,247) confirm the storage split stays processor-free.
 
   | ware | rate used | model | in-game |
   |---|---:|---:|---:|
