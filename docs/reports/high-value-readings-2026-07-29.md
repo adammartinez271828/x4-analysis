@@ -424,3 +424,16 @@ Four readings were taken at game time 84,967.8 and are analysed in
 Still open on this list: **R1** (VOM-540, unchanged and still first), **R5**
 (player-built two-race station), **R6** (solar double-read for E-116), **R11**
 (opportunistic), and the re-armed R7 successor above.
+
+---
+
+# Addendum 3 (2026-07-31): R6 dissolved
+
+E-116 was settled **offline** — no reading taken or needed. The V/a ridge was
+broken by an uncapped same-ware control (26 energy-cell sellers with
+allocations just below the capped target pin a = 0.0483; the capped anchors
+then return V ≈ 5.005 M ± 0.1 %, refuting 5.05 M): **V = 5,000,000 Cr, E-116
+CONFIRMED** — see [readings-2026-07-31.md](readings-2026-07-31.md) Addendum 4.
+Remaining on this list: **R1** (unchanged, still first — and still the only
+route to E-117's m-vs-a question), **R5**, **R11**, the re-armed R7 successor,
+and the E-136/E-141 opportunistic watches.

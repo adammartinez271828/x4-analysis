@@ -234,11 +234,13 @@ beats it. The per-(ware, role) "constants" previously listed here
 0.95 to **0.014**.
 
 **`m` and `a` trade off at any single fill** — the decomposition `u = fill/m + a`
-is a convention, not a derived fact. That trade-off is why `V` fits best at
-5.05–5.10 M with `a` fixed at the rule value while the one cohort with a
-verified allocation and a wide fill range returns 5.0026 M; it is also why
-Tidebreak's target reads 200 (cap, zero parameters) against E-018's 173.1 (two
-free parameters). Which of the two the engine carries is **[INF]** and open.
+is a convention, not a derived fact. That trade-off is why `V` fitted best at
+5.05–5.10 M with `a` fixed at the pooled rule value while the one cohort with
+a verified allocation and a wide fill range returned 5.0026 M — resolved
+2026-07-31 by the uncapped same-ware control: **V = 5.00 M with the EC-cohort
+a = 0.0483** (E-116 CONFIRMED, open question 1). For Tidebreak specifically —
+200 units (cap, zero parameters) against E-018's fitted 173.1 — the m-vs-a
+question is still open and is reading R1 (E-117).
 
 #### `V` is one global constant — of an unsettled value [OBS, 2026-07-30]
 
@@ -601,12 +603,16 @@ Two constraints, both learned the hard way:
 
 ## Open questions
 
-1. **Is `V` exactly 5,000,000 Cr?** Still open, and now precisely bounded:
-   `V` and `a` lie on a measured ridge of slope +0.0009 per 1 %, 13 epochs of
-   per-station trajectories do not break it, and `(5.00 M, 0.048)` and
-   `(5.05 M, 0.053)` are indistinguishable from save data. It needs one capped
-   station read at two well-separated stock levels — any one will do, since `V`
-   has no cohort structure (E-116, E-130).
+1. ~~**Is `V` exactly 5,000,000 Cr?**~~ **SETTLED 2026-07-31 (E-116
+   CONFIRMED): V = 5,000,000 Cr.** The ridge was broken offline by an
+   *uncapped same-ware control*: 26 uncapped energy-cell sellers (allocations
+   250k–296k, seven factions, 329 station-epochs) pin the supplier offset at
+   **a = +0.0483 (IQR 0.0480–0.0486)** against their known allocations, which
+   excludes the pooled a = 0.052 behind the 5.05 M optimum (a composition
+   artifact). With `a` pinned, the capped anchors return implied V =
+   5,004,974 / 5,004,155 (13-epoch medians, IQR ≈ ±0.1 %) — 5.05 M refuted at
+   ~10× the IQR; the +0.1 % residual is inside the V↔a coupling. No reading
+   was needed (the old R6 is dissolved).
 2. **What the per-station input offset physically is.** Confirmed as a station
    constant with a 0.78 h ceiling; **four** hypotheses now killed (staleness,
    recipe properties, `hacked=`, per-module unit reserve), and the
