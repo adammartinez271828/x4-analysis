@@ -1370,12 +1370,15 @@ The combat-relevant ids, with the reference save's values:
 | `pilots_bailed` | 43 | pilots forced out of their ship |
 | `fight_rank` / `fight_score` | 16 / 780 | combat rank and score |
 
-**Scope is unverified (E-147):** whether these count the WHOLE empire's
-kills (any ship you own) or only the actions the player took personally
-is not established. `bullets_fired` and `time_playership` are clearly
-personal, `trades_executed` (4,688) is clearly empire-wide, so the block
-mixes both scopes and the combat rows cannot be assigned by analogy.
-Settling it needs the in-game stats screen read against the save.
+**The combat counters are PERSONAL (E-148; E-147 falsified):** they count
+the player's own actions, not the fleet's. Settled 2026-07-31: the
+fleet's bounty-paid kills alone (259 Combat Reward entries crediting
+ships the player was not flying) exceed `ships_destroyed` = 143, and the
+fleet has destroyed capitals while `capships_destroyed` reads 0 — an
+empire-wide counter allows neither. The block still mixes scopes overall
+(`trades_executed` and `stations_owned` ARE empire-wide), so each row's
+scope is an observation, not an inference; the exact boundary of
+"personal" (turret kills with the player aboard, etc.) is unprobed.
 
 The DB stores the block verbatim in the snapshot-scoped `player_stat`
 table ([db-schema.md](db-schema.md) § player_stat).

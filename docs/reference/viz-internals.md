@@ -92,15 +92,15 @@ v1.4.0 — Empire → Combat § Losses shows the full history instead.
 **Empire → Combat**, four sections, dark DataTables + the iframe
 height-postMessage pattern of `audit.py`:
 
-1. **Empire combat record** — stat cards straight from
+1. **Personal combat record** — stat cards straight from
    `frames.player_stats` (the save's `<stats>` block, DB table
    `player_stat`): kills split (ships / capital / Xenon / Kha'ak /
    modules / turrets / ad signs), boarding (attempts / boarded / claimed
    / pilots bailed) and gunnery + fight rank. A missing counter shows a
-   dash. The card carries the **scope caveat**: whether these count the
-   whole empire's kills or only the player's personal actions is
-   unverified (E-147), and the reader is invited to compare with the
-   in-game stats screen.
+   dash. The counters are the player's PERSONAL actions, not the
+   fleet's (E-148; the empire-wide reading was falsified by the fleet's
+   bounty-paid kills alone exceeding `ships_destroyed`) — the card says
+   so, and the empire's attributable kills are section 3.
 2. **Losses** — the FULL merged loss history from `frames.destroyed`
    (not the last 50: this section replaced the old "Last 50 Destroyed
    Objects" table in `viz/tables.py`, removed in v1.4.0). Hours ago,

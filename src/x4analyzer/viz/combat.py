@@ -3,11 +3,11 @@
 Four sections, all fed by the merged log history (which outlives the
 game's own rolling window) plus the save's lifetime counters:
 
-- **Empire combat record** — the save's own `<stats>` counters (kills,
-  boarding, ranks). Their SCOPE is unverified: whether they count the
-  whole empire's kills or only the player's personal ones is open
-  (experiments register E-147), so the card says so and invites a
-  comparison with the in-game stats screen.
+- **Personal combat record** — the save's own `<stats>` counters (kills,
+  boarding, ranks). These are the PLAYER'S OWN actions, not the fleet's
+  (E-148; the empire-wide reading E-147 was falsified by the fleet's
+  bounty-paid kills alone exceeding `ships_destroyed`), and the card
+  says so.
 - **Losses** — every player object the log ever recorded as destroyed,
   with the killer and a killer-faction summary. This is the full merged
   history, not the old "Last 50 Destroyed Objects" table it replaced.
@@ -217,14 +217,15 @@ def build_combat(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     ])
 
     body = [
-        "<h3>Empire combat record</h3>",
+        "<h3>Personal combat record</h3>",
         "<p class='note'>The game's own lifetime counters, straight from "
-        "the save's <code>&lt;stats&gt;</code> block. <b>Caveat:</b> "
-        "whether these count the WHOLE empire's kills or only the actions "
-        "you personally took is <b>unverified</b> (experiments register "
-        "E-147) — compare them with the in-game stats screen and with the "
-        "kills your fleets are known to have made. A dash means the save "
-        "carries no such counter.</p>",
+        "the save's <code>&lt;stats&gt;</code> block. These count "
+        "<b>your personal actions only</b> — your fleet's kills are not "
+        "in them (its bounty-paid kills alone exceed the ships-destroyed "
+        "counter, and capital kills by your fleet leave the capital "
+        "counter untouched). The empire's attributable kills are the "
+        "bounty table below. A dash means the save carries no such "
+        "counter.</p>",
         _stat_cards(stats) if stats
         else "<p class='ok'>No &lt;stats&gt; block in this save.</p>",
 

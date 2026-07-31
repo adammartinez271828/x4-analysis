@@ -1035,12 +1035,13 @@ which also lists the combat ids. Planets' own nested `<stats>` blocks
 lands NULL rather than failing the import. Being a W table, a re-import
 of the same save rewrites the rows and adds nothing.
 
-**Scope caveat (E-147):** whether the combat counters
+**Scope (E-148; E-147 falsified):** the combat counters
 (`ships_destroyed`, `capships_destroyed`, `khaak_ships_destroyed`,
-`modules_destroyed`, `turrets_destroyed`) cover the whole empire's kills
-or only the player's personal ones is unverified. The Empire → Combat
-page states this on the card; do not build attribution on these numbers
-until it is settled.
+`modules_destroyed`, `turrets_destroyed`) are the player's PERSONAL
+record — the fleet's kills are not in them (its bounty-paid kills alone
+exceed `ships_destroyed`, and `capships_destroyed` stays 0 despite fleet
+capital kills). Do not build empire-wide attribution on these numbers;
+per-ship attribution exists only via Combat Reward bounty credits.
 
 | Column | Type | Meaning | Provenance |
 |---|---|---|---|

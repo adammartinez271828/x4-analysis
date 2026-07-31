@@ -254,8 +254,8 @@ class SaveData:
     # Planets carry their own nested <stats><stat id="population"> blocks
     # inside components; only the top-level block is collected (see
     # savegame-structure.md § stats). Values are kept as raw strings here
-    # and converted in the store. Whether the combat counters cover the
-    # whole empire or only the player's own actions is UNVERIFIED (E-147).
+    # and converted in the store. The combat counters record the player's
+    # PERSONAL actions, not the fleet's (E-148).
     player_stats: list = field(default_factory=list)   # (id, value)
     # False when the save was started with local (ring) highways
     # disabled: such saves contain no class="highway" components

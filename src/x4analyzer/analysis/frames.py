@@ -53,7 +53,8 @@ class Frames:
     ship_claims: pd.DataFrame = None
     pilot_bails: pd.DataFrame = None
     # the save's lifetime <stats> counters for the CURRENT snapshot:
-    # id -> value (float). Combat counter scope is unverified — E-147.
+    # id -> value (float). The combat counters are the player's PERSONAL
+    # record, not the fleet's — E-148.
     player_stats: dict = field(default_factory=dict)
 
     # entity registry: one row per physical ship/station/buildstorage ever

@@ -110,9 +110,8 @@ import hashlib
 # v30: player_stat — the save's top-level <stats> block (~105 lifetime
 #      playthrough counters: playtime, distances, discovery, economy,
 #      combat kills, boarding, ranks). Snapshot-scoped like every other
-#      W table; the combat counters feed the Empire -> Combat page, whose
-#      scope (whole empire vs the player's own actions) is unverified
-#      (E-147).
+#      W table; the combat counters feed the Empire -> Combat page and
+#      record the player's PERSONAL actions, not the fleet's (E-148).
 SCHEMA_VERSION = "30"
 
 # E tables survive schema resets; everything else is rebuildable from the
@@ -778,9 +777,9 @@ TABLES: dict[str, str] = {
     # block, one row per <stat id= value=>. Planet population stats (the
     # nested <stats> blocks inside components) are NOT collected. value is
     # the counter as a number; a non-numeric value (mod content) lands
-    # NULL. Scope caveat: whether ships_destroyed & friends count the whole
-    # empire's kills or only the player's personal ones is unverified
-    # (E-147) — see savegame-structure.md § stats.
+    # NULL. Scope: ships_destroyed & friends count the player's PERSONAL
+    # actions — the fleet's kills are not in them (E-148; see
+    # savegame-structure.md § stats).
     "player_stat": """CREATE TABLE IF NOT EXISTS player_stat (
   save_id INTEGER NOT NULL,
   id      TEXT NOT NULL,
