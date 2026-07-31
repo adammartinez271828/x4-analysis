@@ -30,6 +30,12 @@ its observed inflow collapses for reasons that have nothing to do with the
 miner fleet. Each ware therefore also carries what the station holds
 (`stock`), the ceiling that applies to it (`limit`) and how much it is
 still asking for (`want`, its open buy offer) — see `storage_blocked`.
+Only stock sitting AT a trusted ceiling counts as blocked: a buy offer at
+0 units is NOT evidence of full storage — offer amount = allocation −
+stock − inbound, so in-flight deliveries zero the bid on a draining,
+half-empty station (seen on MXH-411 at 37% fill and −103k/h) — and
+proxy-sourced allocations (build stations, max ≈ stock + inbound + open
+buys) are circular and never trusted as a ceiling.
 
 Units: ship holds are measured in m³, not units — an 8,800 m³ hold carries
 880 ore at 10 m³/unit — so every capacity-to-rate conversion goes through
@@ -63,9 +69,7 @@ OBSERVED_WINDOW_H = 6.0
 # the station has none (the assignable mining workhorses)
 OPTION_SIZES = ("M", "L")
 
-# a buy offer at (effectively) zero units is the station saying it wants
-# nothing more; stock this close to its ceiling leaves no room either
-_WANT_EPS = 0.5
+# stock this close to a trusted ceiling leaves no room for deliveries
 _FULL_FRAC = 0.95
 
 _SIZE_ORDER = {"S": 0, "M": 1, "L": 2, "XL": 3}
@@ -85,11 +89,12 @@ _COLS = ["id", "ware", "class", "observed", "own", "theoretical", "cons",
 # stock      units of the ware held at the station right now (0 = none)
 # limit      effective per-ware ceiling in units: the manual buy limit if
 #            set, else the manual storage allocation, else the modelled
-#            station_storage max_units; NaN when none is known
-# want       the station's open buy-offer amount (units) for the ware; the
-#            game's own "I am requesting this much more", already net of
-#            allocation, manual limits and inbound deliveries. NaN when the
-#            station posts no buy offer for the ware.
+#            station_storage max_units (computed rows only — proxy rows
+#            are circular, see the module docstring); NaN when none known
+# want       the station's open buy-offer amount (units) for the ware —
+#            allocation − stock − inbound, so 0 can just mean "in-flight
+#            deliveries have the room spoken for". Display/debug only;
+#            NEVER a blocked signal. NaN when no buy offer exists.
 
 _PCOLS = ["id", "class", "size", "miners", "cap", "avg_cap", "measured",
           "rate", "rate_src", "class_cons", "class_obs", "more_miners"]
@@ -107,13 +112,12 @@ _PCOLS = ["id", "class", "size", "miners", "cap", "avg_cap", "measured",
 
 
 def storage_blocked(row) -> bool:
-    """Is the station out of room for this ware? True when it asks for
-    nothing more (buy offer at ~0) or its stock has reached the ceiling
-    that applies to it. Unknown on both signals -> False (accepting), so
-    stations we have no storage data for read exactly as before."""
-    want = row.get("want")
-    if pd.notna(want) and float(want) <= _WANT_EPS:
-        return True
+    """Is the station out of room for this ware? True only when its stock
+    sits at a trusted ceiling (manual buy limit / manual allocation /
+    computed model). A zero buy offer is deliberately NOT enough: the bid
+    is allocation − stock − inbound, so in-flight deliveries zero it on a
+    station that is nowhere near full (MXH-411 read "storage full" at 37%
+    fill while draining). No known ceiling -> False (accepting)."""
     lim = row.get("limit")
     return bool(pd.notna(lim) and float(lim) > 0
                 and float(row.get("stock") or 0.0) >= _FULL_FRAC * float(lim))
@@ -258,8 +262,12 @@ def raw_inflow(frames, ref,
     offers = getattr(frames, "trade_offers", None)
     lim_buy = _pairs(_where(limits, "kind", "buy"), "amount")
     lim_max = _pairs(_where(limits, "kind", "max"), "amount")
-    lim_alloc = _pairs(getattr(frames, "station_storage", None), "max_units",
-                       id_col="station_id")
+    # proxy allocations (build stations) are stock + inbound + open buys —
+    # a ceiling derived from the stock itself can never evidence fullness
+    alloc = getattr(frames, "station_storage", None)
+    if alloc is not None and not alloc.empty and "source" in alloc.columns:
+        alloc = alloc[alloc["source"].astype(str) != "proxy"]
+    lim_alloc = _pairs(alloc, "max_units", id_col="station_id")
     want = _pairs(_where(offers, "side", "buy"), "amount")
 
     wings = frames.wings

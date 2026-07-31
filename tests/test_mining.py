@@ -222,13 +222,36 @@ def _starved(**kw):
         **kw)
 
 
-def test_storage_blocked_by_zero_buy_offer():
+def test_zero_buy_offer_alone_does_not_block():
+    # offer amount = allocation - stock - inbound: in-flight deliveries
+    # zero the bid on a station that is nowhere near full (MXH-411 read
+    # "storage full" at 37% fill while draining), so a zero offer without
+    # a trusted ceiling must NOT read as blocked
     frames = _starved(offers=[["st1", "buy", "ore", 0]])
     df, _pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
     r = df.set_index("ware").loc["ore"]
     assert r["stock"] == 39_610.0
     assert r["want"] == 0.0
     assert pd.isna(r["limit"])
+    assert not storage_blocked(r)
+
+
+def test_proxy_allocation_is_not_a_ceiling():
+    # build stations' proxy model is stock + inbound + open buys — a
+    # ceiling derived from the stock itself can never evidence fullness
+    frames = _starved()
+    frames.station_storage = pd.DataFrame(
+        [["st1", "ore", 40_000.0, "proxy"]],
+        columns=["station_id", "ware", "max_units", "source"])
+    df, _pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
+    r = df.set_index("ware").loc["ore"]
+    assert pd.isna(r["limit"])
+    assert not storage_blocked(r)
+    # the same allocation from the computed model IS trusted
+    frames.station_storage["source"] = "computed"
+    df, _pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
+    r = df.set_index("ware").loc["ore"]
+    assert r["limit"] == 40_000.0
     assert storage_blocked(r)
 
 
@@ -260,7 +283,8 @@ def test_storage_columns_absent_frames_means_accepting():
 def test_mining_cards_flags_storage_full_pool():
     ref, rates = _ref(), _rates([["st1", "ore", 600.0]])
     short = raw_inflow(_starved(), ref, rates)
-    full = raw_inflow(_starved(offers=[["st1", "buy", "ore", 0]]), ref, rates)
+    full = raw_inflow(_starved(limits=[["st1", "buy", "ore", 40_000.0]]),
+                      ref, rates)
     name = {"st1": "Refinery (STA-001)"}
     sector = {"st1": "Grand Exchange I"}
 

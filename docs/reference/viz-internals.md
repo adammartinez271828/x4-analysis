@@ -140,10 +140,14 @@ liquid identifies miner type); `cargo` is hold VOLUME in m³, not units.
 
 A station with no ROOM for a ware also shows low inflow, so each ware
 carries `stock` / `limit` / `want`: held units, its effective ceiling
-(manual buy limit → manual max allocation → `station_storage.max_units`),
-and its open buy-offer amount. `mining.storage_blocked()` calls a ware
-space-limited when the buy offer is ≈0 or stock ≥ 95% of the ceiling
-(unknown on both ⇒ accepting). A class whose consumed wares are ALL blocked
+(manual buy limit → manual max allocation → `station_storage.max_units`,
+computed rows only — `source='proxy'` allocations are stock + inbound +
+open buys and therefore circular), and its open buy-offer amount.
+`mining.storage_blocked()` calls a ware space-limited ONLY when stock ≥
+95% of a trusted ceiling (no ceiling ⇒ accepting). The buy offer is
+display-only: its amount is allocation − stock − inbound, so in-flight
+deliveries zero the bid on a half-empty draining station (MXH-411 read
+"storage full" at 37% fill). A class whose consumed wares are ALL blocked
 is headlined "⚠ storage full — inflow limited by space, not miners", drops
 the "+N miners" advice, and is excluded from the section's finding count;
 partially blocked classes keep the advice plus a warn line naming the

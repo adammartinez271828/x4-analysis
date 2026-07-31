@@ -117,9 +117,8 @@ def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
 
             opts = pgrp[pgrp["more_miners"] > 0] if short else pgrp.iloc[0:0]
             if all_blocked:
-                head = ("<span class='warn'>⚠ storage full — the station "
-                        "accepts no more (space or deliveries already "
-                        "under way), not a miner shortfall</span>")
+                head = ("<span class='warn'>⚠ storage full — stock at its "
+                        "limit, not a miner shortfall</span>")
             elif short:
                 n_need += 1
                 if opts.empty:
@@ -550,10 +549,10 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "size, ~ = assumed, nothing measured). One solid pool feeds all "
          "mineral wares and one liquid pool all gases — the per-ware "
          "rates are the fine print inside each card. A pool whose consumed "
-         "wares have all hit their storage ceiling (buy offer at 0, or "
-         "stock at its allocation / manual limit) is flagged as space-"
-         "limited instead of counted as a miner shortfall — its deliveries "
-         "have nowhere to go", inflow, "t8"),
+         "wares all sit at their storage ceiling (stock at ≥95% of the "
+         "allocation or manual limit) is flagged as space-limited instead "
+         "of counted as a miner shortfall — its deliveries have nowhere "
+         "to go", inflow, "t8"),
         ("Storage saturated",
          f"storage classes above {STORAGE_FULL_PCT:g}% of module capacity — "
          "output piling up shows here, since a full class stalls the "
