@@ -484,6 +484,14 @@ def write_snapshot(conn: sqlite3.Connection, save: SaveData, ref: RefData,
             "INSERT OR REPLACE INTO player_scan VALUES (?,?,?)",
             [(save_id, oid, level) for oid, level in save.player_scans])
 
+        # lifetime counters: one row per stat id (the game writes each id
+        # once; OR REPLACE keeps a malformed modded save from tripping the
+        # primary key). Non-numeric values land NULL rather than failing.
+        conn.executemany(
+            "INSERT OR REPLACE INTO player_stat VALUES (?,?,?)",
+            [(save_id, sid, _f(value)) for sid, value in save.player_stats
+             if sid])
+
         conn.executemany(
             "INSERT OR REPLACE INTO station_trade_setting VALUES (?,?,?,?)",
             [(save_id, oid, setting, ware)

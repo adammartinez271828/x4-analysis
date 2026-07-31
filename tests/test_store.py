@@ -8,7 +8,7 @@ from x4analyzer.config import Config
 from x4analyzer.gamedata.refdata import load_refdata
 from x4analyzer.save.parser import parse_savegame
 
-from test_saveparser import FIXTURE
+from test_saveparser import FIXTURE, STATS_FIXTURE
 
 
 @pytest.fixture(scope="module")
@@ -62,6 +62,7 @@ EXPECTED_COUNTS = {
     "player_subscription": 3,   # timed + expired + permanent
     "build_price_factor": 1,
     "player_scan": 1,
+    "player_stat": 0,    # the shared fixture carries no <stats> block
     "station_trade_setting": 3,  # buy x2 wares + lockavgprice x1
     "trade_pending": 2,   # one escrow-stage + one plain, each merged
                           # from its order and reservation copies
@@ -1382,4 +1383,27 @@ def test_shared_entry_ids_do_not_cross_contaminate_built_state(cfg, ref):
         ("[0xA0]", "[0x51]", "turret_a_macro"),
         ("[0xB0]", "[0x51]", "turret_b_macro"),
     ]
+    conn.close()
+
+
+def test_player_stat_roundtrip_and_rerun_adds_nothing(cfg, ref, tmp_path):
+    """The top-level <stats> block lands as a snapshot-scoped table, and
+    re-importing the same save adds no rows (W tables are rewritten)."""
+    p = tmp_path / "stats.xml"
+    p.write_text(STATS_FIXTURE)
+    save = parse_savegame(p)
+    conn = store.open_db(cfg, save.guid)
+    store.write_reference(conn, ref)
+    store.write_snapshot(conn, save, ref, "stats.xml")
+
+    rows = dict(conn.execute(
+        "SELECT id, value FROM player_stat ORDER BY id").fetchall())
+    assert rows["ships_destroyed"] == 143.0
+    assert rows["khaak_ships_destroyed"] == 8.0
+    assert rows["bullets_hit_percent"] == 84.0456
+    assert rows["population"] == 7.0      # top-level, not the planet's
+    assert len(rows) == 7
+
+    store.write_snapshot(conn, save, ref, "stats.xml")
+    assert count(conn, "player_stat") == 7
     conn.close()

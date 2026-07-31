@@ -77,7 +77,14 @@ archived history + cache logs): destroyed-object rewritten to the v9
 form and verified (323/323 archived rows parse); resupply and
 pirate/police verified v9; ship construction/repair and surplus-transfer
 have **zero archived instances**, so their (v5.10-ported) wording remains
-unverifiable — if those dashboards stay empty on a save that should have
+unverifiable. Three combat parsers were added 2026-07-31 and are
+v9-verified against the merged history of both playthroughs:
+`parse_combat_rewards` (title `Combat Reward` — faction bounty payouts,
+one row per credited ship, the only per-ship kill attribution the game
+logs), `parse_ship_claims` (`Found Abandoned Ship`) and
+`parse_pilot_bails` (`Forced pilot to leave ship … in sector ….`, whose
+category is `upkeep`, not `alerts`). Wordings in
+[savegame-structure.md](savegame-structure.md) § Log text formats — if those dashboards stay empty on a save that should have
 them, check the actual log text first (see
 [save-semantics.md](save-semantics.md)).
 

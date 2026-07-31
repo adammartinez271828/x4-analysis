@@ -41,6 +41,21 @@ class Frames:
     pirates: pd.DataFrame
     police: pd.DataFrame
 
+    # combat history, all parsed from the merged log (Empire -> Combat):
+    #   combat_rewards: faction bounty payouts, one row per credited ship —
+    #     the only per-ship kill attribution the game logs. bounty_cr
+    #     repeats the whole payout on every credited row, so sum it per
+    #     `reward` (the log row's ordinal), never across ships.
+    #   ship_claims: "Found Abandoned Ship" sightings (finder -> claimed);
+    #     the log does not record whether the claim succeeded.
+    #   pilot_bails: pilots forced out of their ship; no actor recorded.
+    combat_rewards: pd.DataFrame = None
+    ship_claims: pd.DataFrame = None
+    pilot_bails: pd.DataFrame = None
+    # the save's lifetime <stats> counters for the CURRENT snapshot:
+    # id -> value (float). Combat counter scope is unverified — E-147.
+    player_stats: dict = field(default_factory=dict)
+
     # entity registry: one row per physical ship/station/buildstorage ever
     # observed, surrogate entity_id (codes recycle, ids remap, names/owners
     # mutate — the registry is the durable identity)
@@ -568,6 +583,22 @@ def build_frames(save: SaveData, ref: RefData,
     name_to_short = {ref.faction_name[o]: s for o, s in ref.faction_short.items()}
     police = logparse.parse_police(df_log, sectors_for_join, name_to_short)
 
+    # combat history (Empire -> Combat). All three titles live in the
+    # categories df_log already keeps: "Combat Reward" and "Found
+    # Abandoned Ship" carry no category, the forced-bail titles are
+    # `upkeep` (NOT `alerts` — verified across both playthroughs' merged
+    # histories, 45 + 64 rows, 2026-07-31).
+    log("Parsing combat rewards/claims/bails from log")
+    combat_rewards = logparse.parse_combat_rewards(df_log)
+    ship_claims = logparse.parse_ship_claims(df_log)
+    pilot_bails = logparse.parse_pilot_bails(df_log)
+
+    # lifetime counters of the CURRENT snapshot (the save's <stats> block)
+    ps = _read(conn, f"""
+        SELECT id, value FROM player_stat WHERE save_id = {_CUR}
+        ORDER BY rowid""")
+    player_stats = dict(zip(ps["id"], ps["value"])) if not ps.empty else {}
+
     time_now = float(df_log["time"].max()) if not df_log.empty else save.game_time
     logged_hours = (
         (time_now - float(df_log["time"].min())) / 3600.0 if not df_log.empty else 0.0
@@ -687,6 +718,9 @@ def build_frames(save: SaveData, ref: RefData,
         wings=wings, npcs=npcs, stations=stations, ships=ships, log=df_log,
         tradelog=tradelog, sales=sales, buys=buys, destroyed=destroyed,
         transfers=transfers, pirates=pirates, police=police,
+        combat_rewards=combat_rewards, ship_claims=ship_claims,
+        pilot_bails=pilot_bails,
+        player_stats=player_stats,
         entities=entities,
         station_modules=module_list, global_trades=gt,
         station_cargo=_read(conn, f"""

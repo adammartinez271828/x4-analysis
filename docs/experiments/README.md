@@ -50,8 +50,8 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | Parser / save format (E-064…E-080, E-143…E-144) | 10 | 4 | 5 | 0 | 19 |
 | Faction / diplomacy (E-081…E-084, E-145…E-146) | 2 | 2 | 2 | 0 | 6 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
-| Other (E-098…E-111, E-139) | 5 | 5 | 5 | 0 | 15 |
-| **total** | **72** | **40** | **26** | **8** | **146** |
+| Other (E-098…E-111, E-139, E-147) | 5 | 5 | 6 | 0 | 16 |
+| **total** | **72** | **40** | **27** | **8** | **147** |
 
 Nine entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -509,6 +509,9 @@ station without being resolved.
 
 **E-139 · PENDING** — `extract_wares` cannot read a mod that rewrites ware data with `<replace>`: it handles only `<add sel=…>` ops.
 *Predicts:* prediction not stated — no installed mod currently exercises it. Split out of E-061 on 2026-07-30, whose *other* blocker (`extract_modcaps` could not read `<diff>` files with no `<macro>` element) is now fixed. `nd_habitat_cap_boost` ships no `wares.xml`, so this path was left alone rather than extended speculatively; but ware payloads are exactly where the attribute-level `<diff><replace sel="…/@attr">` shape dominates (E-108), and a future recipe- or band-rewriting mod will hit it — silently, producing wrong throughputs, which feed the storage allocation, which feeds every price conclusion. *Needs:* a mod in this playthrough that `<replace>`s ware data, or a synthetic diff document to develop against; the fix is the same shape as `macro_attr_diffs` in `gamedata/extract.py`. *Falsified by:* nothing — it is a tooling gap, closed by implementing it. *Source:* [csv-reference.md](../reference/csv-reference.md) § Extraction and override machinery; [habitat-cap-boost-2026-07-30.md](../reports/habitat-cap-boost-2026-07-30.md) § 3.
+
+**E-147 · PENDING** — The save's `<stats>` combat counters cover the WHOLE empire's kills, not only the ones the player made personally.
+*Predicts:* on save 8E0C…/save_002 the block reads `ships_destroyed` 143, `xenon_ships_destroyed` 71, `khaak_ships_destroyed` 8, `capships_destroyed` 0, `modules_destroyed` 2, `turrets_destroyed` 146, `ships_claimed` 36, `pilots_bailed` 43, `boarding_attempts`/`ships_boarded` 0, `fight_rank` 16 / `fight_score` 780. The empire-wide reading predicts 143 ≥ the kills attributable to the player's own guns; the personal reading predicts 143 ≈ them, with the fleet's kills absent. The block demonstrably mixes scopes — `bullets_fired` (38,961) and `time_playership` are personal, `trades_executed` (4,688) and `stations_owned` are empire-wide — so the combat rows cannot be assigned by analogy with their neighbours. Corroborating but not decisive: the log's own bounty record (259 `Combat Reward` entries, 331 ship credits, 12.24 M Cr) credits ships the player was not flying — D-01-Phoenix E, the Behemoths, the Honshu — which means kills by subordinates exist; whether the counters saw them is exactly the open question. *Settles it:* open the in-game stats screen on this save and read the same counters, then compare against the empire's known kill history (the bounty credits above give a floor for fleet kills; if the screen's `ships_destroyed` is below the player-plus-fleet total the counter is personal). Related but separate: **E-080**, which asks about the *units* of the same block's `distance_*` and mission `reward` fields. *Source:* [savegame-structure.md](../reference/savegame-structure.md) § `<stats>`; [db-schema.md](../reference/db-schema.md) § player_stat.
 
 ---
 

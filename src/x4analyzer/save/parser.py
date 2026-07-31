@@ -248,6 +248,15 @@ class SaveData:
     # or buildstorage component, absent when the station inherits.
     faction_build_rules: list = field(default_factory=list)   # (faction, method)
     station_build_methods: list = field(default_factory=list)  # (id, method)
+    # the playthrough's lifetime counters: the TOP-LEVEL <stats> block
+    # (savegame/stats/stat id= value=), ~105 rows — playtime, distances,
+    # discovery, economy, combat kills, boarding and the fight/trade ranks.
+    # Planets carry their own nested <stats><stat id="population"> blocks
+    # inside components; only the top-level block is collected (see
+    # savegame-structure.md § stats). Values are kept as raw strings here
+    # and converted in the store. Whether the combat counters cover the
+    # whole empire or only the player's own actions is UNVERIFIED (E-147).
+    player_stats: list = field(default_factory=list)   # (id, value)
     # False when the save was started with local (ring) highways
     # disabled: such saves contain no class="highway" components
     has_highways: bool = False
@@ -549,6 +558,17 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                         elem.get("component"),
                         int(float(elem.get("level", 0) or 0)),
                     ))
+
+            elif tag == "stat":
+                # lifetime playthrough counters: savegame/stats/stat.
+                # tag_stack has already popped this element, so the
+                # top-level block is exactly [savegame, stats] — planets'
+                # own <stats><stat id="population"> blocks sit deep inside
+                # the component tree and never match.
+                if len(tag_stack) == 2 and tag_stack[-1] == "stats" \
+                        and elem.get("id"):
+                    d.player_stats.append(
+                        (elem.get("id", ""), elem.get("value", "")))
 
             elif tag == "patch":
                 # <patches><patch extension= version= name=>: the mods the

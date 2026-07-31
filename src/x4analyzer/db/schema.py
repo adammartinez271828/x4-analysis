@@ -107,7 +107,13 @@ import hashlib
 #      'recycleship'). The <resources><insufficient>/<shortage> amounts
 #      under these elements are NOT quantities (E-068) and are not read;
 #      the per-entry <upgrades><groups> loadout plans are not read either.
-SCHEMA_VERSION = "29"
+# v30: player_stat — the save's top-level <stats> block (~105 lifetime
+#      playthrough counters: playtime, distances, discovery, economy,
+#      combat kills, boarding, ranks). Snapshot-scoped like every other
+#      W table; the combat counters feed the Empire -> Combat page, whose
+#      scope (whole empire vs the player's own actions) is unverified
+#      (E-147).
+SCHEMA_VERSION = "30"
 
 # E tables survive schema resets; everything else is rebuildable from the
 # save + game files and is dropped on a schema_version mismatch.
@@ -368,7 +374,7 @@ WORLD_TABLES = (
     "faction_relation", "faction_meta", "faction_licence",
     "player_subscription", "build_price_factor",
     "player_scan", "station_trade_setting", "trade_pending",
-    "module_production", "build_task",
+    "module_production", "build_task", "player_stat",
 )
 
 REFERENCE_TABLES = (
@@ -767,6 +773,19 @@ TABLES: dict[str, str] = {
   object_id TEXT NOT NULL,
   level     INTEGER NOT NULL,
   PRIMARY KEY (save_id, object_id)
+)""",
+    # lifetime playthrough counters (v30): the save's TOP-LEVEL <stats>
+    # block, one row per <stat id= value=>. Planet population stats (the
+    # nested <stats> blocks inside components) are NOT collected. value is
+    # the counter as a number; a non-numeric value (mod content) lands
+    # NULL. Scope caveat: whether ships_destroyed & friends count the whole
+    # empire's kills or only the player's personal ones is unverified
+    # (E-147) — see savegame-structure.md § stats.
+    "player_stat": """CREATE TABLE IF NOT EXISTS player_stat (
+  save_id INTEGER NOT NULL,
+  id      TEXT NOT NULL,
+  value   REAL,
+  PRIMARY KEY (save_id, id)
 )""",
     # trade-station / pirate-base ware whitelists (v20): <trade><settings>.
     # setting in (buy, sell, lockavgprice). lockavgprice pegs the economy

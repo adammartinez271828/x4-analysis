@@ -463,7 +463,7 @@ only source of the rate-denominator window.
 
 ## World state (W) — rebuilt per snapshot
 
-All 22 tables carry `save_id` and hold **only the latest snapshot**: every
+All 23 tables carry `save_id` and hold **only the latest snapshot**: every
 import deletes all W rows, then inserts the new ones. Runtime ids (`[0x…]`)
 join these tables to each other *within* one snapshot only — across saves
 they remap (use the entity registry instead).
@@ -1021,6 +1021,33 @@ savegame-structure.md § The player component (`<memory><scan>`).
 | `object_id` | TEXT PK, FK → `component.id` | the scanned component | `memory/scan/item@component` |
 | `level` | INTEGER | scan level 0–3 | same element `@level` |
 
+### player_stat
+
+The save's lifetime playthrough counters (v30) — the top-level `<stats>`
+block, one row per `<stat id= value=>` (105 in the reference save):
+playtime, distances, discovery, economy totals, combat kills, boarding
+and the fight/trade ranks. Save-side: savegame-structure.md § `<stats>`,
+which also lists the combat ids. Planets' own nested `<stats>` blocks
+(`stat id="population"`) are **not** collected — the parser keys on the
+`savegame/stats/stat` depth.
+
+`value` is the counter as a REAL; a non-numeric value (mod content)
+lands NULL rather than failing the import. Being a W table, a re-import
+of the same save rewrites the rows and adds nothing.
+
+**Scope caveat (E-147):** whether the combat counters
+(`ships_destroyed`, `capships_destroyed`, `khaak_ships_destroyed`,
+`modules_destroyed`, `turrets_destroyed`) cover the whole empire's kills
+or only the player's personal ones is unverified. The Empire → Combat
+page states this on the card; do not build attribution on these numbers
+until it is settled.
+
+| Column | Type | Meaning | Provenance |
+|---|---|---|---|
+| `save_id` | INTEGER PK, FK → `save` | snapshot | — |
+| `id` | TEXT PK | counter id (`ships_destroyed`, `fight_rank`, …) | `stats/stat@id` |
+| `value` | REAL | counter value (NULL when non-numeric) | same element `@value` |
+
 ### station_trade_setting
 
 Trade-station / pirate-base ware whitelists (v20), one row per
@@ -1567,8 +1594,9 @@ The E-table indices are applied through the idempotent
 
 ## Schema versioning and migrations
 
-`SCHEMA_VERSION` (currently `"29"` — v27 `module_production`, v28 the
-host-keyed `build_entry`/`module_upgrade` fix, v29 `build_task`) is stored in
+`SCHEMA_VERSION` (currently `"30"` — v27 `module_production`, v28 the
+host-keyed `build_entry`/`module_upgrade` fix, v29 `build_task`, v30
+`player_stat`) is stored in
 `meta`. At connect
 (`db/store.py`), a version mismatch triggers the reset path:
 

@@ -217,14 +217,9 @@ def build_tables(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         out.append(save_table(_earnings_table(ships_sold, keys, window),
                               files_dir, title, guid))
 
-    if not frames.destroyed.empty:
-        title = "Last 50 Destroyed Objects"
-        log("->", title)
-        df = (frames.destroyed.sort_values("HoursAgo").head(50)
-              [["HoursAgo", "object", "location", "killer", "time"]])
-        df["HoursAgo"] = df["HoursAgo"].round(1)
-        df.columns = ["Hours Ago", "Object", "Location", "Killer", "Timestamp"]
-        out.append(save_table(df, files_dir, title, guid))
+    # (the "Last 50 Destroyed Objects" table lived here until v1.4.0;
+    # Empire -> Combat now shows the FULL loss history with killer
+    # factions, so this partial view was dropped rather than duplicated)
 
     contested = frames.sectors[frames.sectors["contested"] == 1]
     if cfg.spoilers_hide:

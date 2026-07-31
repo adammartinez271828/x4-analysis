@@ -124,6 +124,164 @@ def parse_destroyed(df_log: pd.DataFrame) -> pd.DataFrame:
     })
 
 
+COMBAT_REWARD_COLS = ["time", "reward", "faction", "station", "sector",
+                      "kind", "ship.name", "ship.code", "bounty_cr",
+                      "reputation"]
+
+
+def parse_combat_rewards(df_log: pd.DataFrame) -> pd.DataFrame:
+    """Faction bounty payouts — the ONLY per-ship kill attribution the log
+    carries (the game logs no general kill feed).
+
+    v9 wording (harvested 2026-07-31 from the reference playthrough's
+    merged history, 259/259 rows; category is absent): title
+    `Combat Reward`, text lines joined by `[\\012]`:
+    `Faction: <faction name>`, `Station: <station> (<CODE>)` — the paying
+    station, sometimes with a trailing role suffix like
+    `(Police Representative)` —, `Sector: <sector>`,
+    `Credited To: Ships: <name> (<CODE>)[, <name> (<CODE>)…]` (253 rows)
+    or `Credited To: Stations: <name> (<CODE>)` (6 rows), then the
+    optional `Bounty: <N,NNN> Cr` (7 rows have none) and the optional
+    `Reputation: +<N>` / `+<1` (19 rows have none).
+
+    One row per CREDITED ship (a shared kill credits several), with
+    `reward` the log row's ordinal so a consumer can count distinct
+    rewards — `bounty_cr` repeats the whole payout on every credited row,
+    so summing it across ships double-counts shared kills. `kind` is
+    'ship' or 'station' after the `Credited To:` label. `bounty_cr` comes
+    from the entry's `money` (cents, like every other money field), which
+    carries the exact amount the rounded text does not. `reputation`
+    records `+<1` — the game's "less than one rank point" — as **0.5**, a
+    placeholder that must not be summed into a rank total.
+
+    Credited names are matched as `<name> (<CODE>)` pairs; a ship whose
+    NAME contains a comma loses the part before it (no such name is
+    observed) rather than breaking the row.
+    """
+    df = df_log[df_log["title"].fillna("") == "Combat Reward"]
+    if df.empty:
+        return _empty(COMBAT_REWARD_COLS)
+    df = df.copy()
+    text = (df["text"] if "text" in df
+            else pd.Series("", index=df.index)).fillna("")
+    ok = text.str.contains("Credited To: ", regex=False)
+    _dump_unparsed("combat-reward log entries", text[~ok])
+    df, text = df[ok], text[ok]
+    if df.empty:
+        return _empty(COMBAT_REWARD_COLS)
+
+    money = (pd.to_numeric(df["money"], errors="coerce") if "money" in df
+             else pd.Series(float("nan"), index=df.index))
+    rep_raw = text.str.extract(r"Reputation: \+([^[]+)", expand=False)
+    rep = pd.to_numeric(rep_raw, errors="coerce").where(
+        rep_raw.fillna("").str.strip() != "<1", 0.5)
+    # "[" opens the [\012] newline token, so a line's payload is [^[]*
+    base = pd.DataFrame({
+        "time": df["time"].values,
+        "reward": range(len(df)),
+        "faction": text.str.extract(r"Faction: ([^[]+)", expand=False)
+                       .str.strip().values,
+        "station": text.str.extract(r"Station: ([^[]+)", expand=False)
+                       .str.strip().values,
+        "sector": text.str.extract(r"Sector: ([^[]+)", expand=False)
+                      .str.strip().values,
+        "credited": text.str.extract(r"Credited To: ([^[]+)", expand=False)
+                        .str.strip().values,
+        "bounty_cr": (money / 100.0).values,
+        "reputation": rep.values,
+    })
+    rows = []
+    for _i, r in base.iterrows():
+        credited = str(r["credited"] or "")
+        kind = ("station" if credited.startswith("Stations:")
+                else "ship" if credited.startswith("Ships:") else "")
+        who = credited.split(":", 1)[1] if ":" in credited else credited
+        for name, code in re.findall(rf"([^,]*?)\s*\(({CODE_RE})\)", who):
+            rows.append({
+                "time": r["time"], "reward": r["reward"],
+                "faction": r["faction"], "station": r["station"],
+                "sector": r["sector"], "kind": kind,
+                "ship.name": name.strip(), "ship.code": code,
+                "bounty_cr": r["bounty_cr"], "reputation": r["reputation"],
+            })
+    if not rows:
+        return _empty(COMBAT_REWARD_COLS)
+    return pd.DataFrame(rows)[COMBAT_REWARD_COLS]
+
+
+SHIP_CLAIM_COLS = ["time", "finder", "finder.code", "sector", "claimed",
+                   "claimed.code"]
+
+
+def parse_ship_claims(df_log: pd.DataFrame) -> pd.DataFrame:
+    """Abandoned ships one of your ships spotted and was told to claim.
+
+    v9 wording (harvested 2026-07-31; 39/39 rows in the reference
+    playthrough, 21/21 in the second; category is absent): title
+    `Found Abandoned Ship`, text
+    `<finder> <CODE> in <sector>[\\012]Found abandoned ship <name>
+    <CODE>.[\\012]Response: Claim if possible`.
+
+    The entry records the SIGHTING and the standing response, not the
+    outcome: whether the claim succeeded is not in the log (the save's
+    `ships_claimed` counter is the only total).
+    """
+    df = df_log[df_log["title"].fillna("") == "Found Abandoned Ship"]
+    if df.empty:
+        return _empty(SHIP_CLAIM_COLS)
+    df = df.copy()
+    text = (df["text"] if "text" in df
+            else pd.Series("", index=df.index)).fillna("")
+    finder = text.str.extract(rf"^(.*?)\s+({CODE_RE})\s+in\s+([^[]+)")
+    claimed = text.str.extract(
+        rf"Found abandoned ship\s+(.*?)\s+({CODE_RE})")
+    ok = finder[0].notna() & claimed[0].notna()
+    _dump_unparsed("abandoned-ship log entries", text[~ok])
+    df, finder, claimed = df[ok], finder[ok], claimed[ok]
+    if df.empty:
+        return _empty(SHIP_CLAIM_COLS)
+    return pd.DataFrame({
+        "time": df["time"].values,
+        "finder": finder[0].str.strip().values,
+        "finder.code": finder[1].values,
+        "sector": finder[2].str.strip().values,
+        "claimed": claimed[0].str.strip().values,
+        "claimed.code": claimed[1].values,
+    })
+
+
+PILOT_BAIL_COLS = ["time", "ship", "sector"]
+
+
+def parse_pilot_bails(df_log: pd.DataFrame) -> pd.DataFrame:
+    """Enemy pilots forced out of their ship by your attack or boarding.
+
+    v9 wording (harvested 2026-07-31; 45 rows in the reference
+    playthrough, 64 in the second, all `category="upkeep"` — NOT
+    `alerts`): the whole record is in the title,
+    `Forced pilot to leave ship <ship> in sector <sector>.`, and the text
+    is empty. No actor is recorded: the log does not say WHICH of your
+    ships made the pilot bail, so these events cannot be attributed per
+    ship.
+    """
+    title = df_log["title"].fillna("")
+    df = df_log[title.str.startswith("Forced pilot to leave ship ")]
+    if df.empty:
+        return _empty(PILOT_BAIL_COLS)
+    parts = df["title"].fillna("").str.extract(
+        r"^Forced pilot to leave ship (.+) in sector (.+?)\.?$")
+    ok = parts[0].notna()
+    _dump_unparsed("forced-bail log entries", df.loc[~ok, "title"])
+    df, parts = df[ok], parts[ok]
+    if df.empty:
+        return _empty(PILOT_BAIL_COLS)
+    return pd.DataFrame({
+        "time": df["time"].values,
+        "ship": parts[0].str.strip().values,
+        "sector": parts[1].str.strip().values,
+    })
+
+
 def parse_transfers(df_log: pd.DataFrame, df_npcs: pd.DataFrame | None,
                     df_stations: pd.DataFrame | None) -> pd.DataFrame:
     """Station manager surplus transfers; two wordings (changed ~v4 -> v5)."""

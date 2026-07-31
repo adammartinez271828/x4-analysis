@@ -201,11 +201,143 @@ def test_transfers_unmatched_wording_skips_and_dumps(capsys):
     assert "surplus from beyond" in err
 
 
+def test_combat_rewards_v9_wording():
+    # verbatim v9 shapes from the reference playthrough's merged history:
+    # single ship, two ships sharing one reward, a station credit with a
+    # role-suffixed paying station, and a reward with no bounty at all
+    df = log_df([
+        {"time": 4646.1, "category": "", "title": "Combat Reward",
+         "money": 2653090.0,
+         "text": (r"Faction: Antigone Republic[\012]"
+                  r"Station: ANT Turret Component Factory I (TLT-325)[\012]"
+                  r"Sector: The Void[\012]"
+                  r"Credited To: Ships: D-01-Phoenix E (PIE-222)[\012]"
+                  r"Bounty: 26,530 Cr[\012]Reputation: +2")},
+        {"time": 5476.9, "category": "", "title": "Combat Reward",
+         "money": 3441242.0,
+         "text": (r"Faction: Antigone Republic[\012]"
+                  r"Station: ANT Engine Part Factory I (KYY-940)[\012]"
+                  r"Sector: The Void[\012]"
+                  r"Credited To: Ships: 00-Honshu (GCG-310), "
+                  r"D-01-Phoenix E (PIE-222)[\012]"
+                  r"Bounty: 34,412 Cr[\012]Reputation: +2")},
+        {"time": 6000.0, "category": "", "title": "Combat Reward",
+         "money": 4745870.0,
+         "text": (r"Faction: Holy Order of the Pontifex[\012]"
+                  r"Station: HOP Paranid Wharf (THO-697) "
+                  r"(Police Representative)[\012]"
+                  r"Sector: Holy Vision[\012]"
+                  r"Credited To: Stations: Holy Vision Defense Platform "
+                  r"(TXG-185)[\012]Bounty: 47,458 Cr")},
+        {"time": 7000.0, "category": "", "title": "Combat Reward",
+         "text": (r"Faction: Argon Federation[\012]"
+                  r"Station: ARG Argon Trading Station (GMJ-316)[\012]"
+                  r"Sector: Silent Witness I[\012]"
+                  r"Credited To: Ships: 03-Hyperion (LRY-339)[\012]"
+                  r"Reputation: +<1")},
+    ])
+    out = logparse.parse_combat_rewards(df)
+    # one row per credited ship: the shared reward yields two
+    assert len(out) == 5
+    assert out["reward"].nunique() == 4
+
+    first = out.iloc[0]
+    assert first["faction"] == "Antigone Republic"
+    assert first["station"] == "ANT Turret Component Factory I (TLT-325)"
+    assert first["sector"] == "The Void"
+    assert first["kind"] == "ship"
+    assert first["ship.name"] == "D-01-Phoenix E"
+    assert first["ship.code"] == "PIE-222"
+    assert first["bounty_cr"] == 26530.90   # money is cents, like elsewhere
+    assert first["reputation"] == 2.0
+
+    shared = out[out["reward"] == 1]
+    assert list(shared["ship.name"]) == ["00-Honshu", "D-01-Phoenix E"]
+    assert list(shared["ship.code"]) == ["GCG-310", "PIE-222"]
+    # the payout repeats on every credited row (documented double-count)
+    assert list(shared["bounty_cr"]) == [34412.42, 34412.42]
+
+    # station credit: the paying station's role suffix must not be
+    # mistaken for the credited party
+    station = out[out["kind"] == "station"].iloc[0]
+    assert station["ship.name"] == "Holy Vision Defense Platform"
+    assert station["ship.code"] == "TXG-185"
+    assert station["station"] == ("HOP Paranid Wharf (THO-697) "
+                                  "(Police Representative)")
+    assert pd.isna(station["reputation"])   # no Reputation line
+
+    # no Bounty line at all -> no money on the entry either
+    norep = out.iloc[-1]
+    assert pd.isna(norep["bounty_cr"])
+    assert norep["reputation"] == 0.5       # "+<1" placeholder
+
+
+def test_combat_rewards_unmatched_wording_skips_and_dumps(capsys):
+    df = log_df([{"time": 1.0, "category": "", "title": "Combat Reward",
+                  "text": "reworded reward text"}])
+    assert logparse.parse_combat_rewards(df).empty
+    assert "reworded reward text" in capsys.readouterr().err
+
+
+def test_ship_claims_v9_wording():
+    df = log_df([
+        {"time": 4712.2, "category": "", "title": "Found Abandoned Ship",
+         "text": (r"RS-PE JVC-254 in Antigone Memorial[\012]"
+                  r"Found abandoned ship B IAY-307.[\012]"
+                  r"Response: Claim if possible")},
+        {"time": 6273.9, "category": "", "title": "Found Abandoned Ship",
+         "text": (r"02-Hyperion LRY-339 in Silent Witness XII[\012]"
+                  r"Found abandoned ship Falcon Vanguard XER-389.[\012]"
+                  r"Response: Claim if possible")},
+    ])
+    out = logparse.parse_ship_claims(df)
+    assert len(out) == 2
+    assert list(out["finder"]) == ["RS-PE", "02-Hyperion"]
+    assert list(out["finder.code"]) == ["JVC-254", "LRY-339"]
+    assert list(out["sector"]) == ["Antigone Memorial", "Silent Witness XII"]
+    assert list(out["claimed"]) == ["B", "Falcon Vanguard"]
+    assert list(out["claimed.code"]) == ["IAY-307", "XER-389"]
+
+
+def test_ship_claims_unmatched_wording_skips_and_dumps(capsys):
+    df = log_df([{"time": 1.0, "category": "", "title": "Found Abandoned Ship",
+                  "text": "reworded claim text"}])
+    assert logparse.parse_ship_claims(df).empty
+    assert "reworded claim text" in capsys.readouterr().err
+
+
+def test_pilot_bails_v9_wording():
+    # the whole record is in the title and the category is upkeep
+    df = log_df([
+        {"time": 2257.6, "category": "upkeep",
+         "title": "Forced pilot to leave ship XEN Raiding Party PE in "
+                  "sector The Void."},
+        {"time": 4958.4, "category": "upkeep",
+         "title": "Forced pilot to leave ship BUC Recon Fighter Pegasus "
+                  "Vanguard in sector Trinity Sanctum III."},
+    ])
+    out = logparse.parse_pilot_bails(df)
+    assert len(out) == 2
+    assert list(out["ship"]) == ["XEN Raiding Party PE",
+                                 "BUC Recon Fighter Pegasus Vanguard"]
+    assert list(out["sector"]) == ["The Void", "Trinity Sanctum III"]
+
+
+def test_pilot_bails_unmatched_wording_skips_and_dumps(capsys):
+    df = log_df([{"time": 1.0, "category": "upkeep",
+                  "title": "Forced pilot to leave ship somewhere odd"}])
+    assert logparse.parse_pilot_bails(df).empty
+    assert "somewhere odd" in capsys.readouterr().err
+
+
 def test_empty_log_gives_empty_frames():
     df = log_df([{"time": 1.0, "category": "", "title": "Nothing"}])
     assert logparse.parse_destroyed(df).empty
     assert logparse.parse_pirates(df, SECTORS).empty
     assert logparse.parse_police(df, SECTORS, {}).empty
+    assert logparse.parse_combat_rewards(df).empty
+    assert logparse.parse_ship_claims(df).empty
+    assert logparse.parse_pilot_bails(df).empty
     assert logparse.parse_ship_services(
         df, "Ship constructed", " finished construction at station: ",
         "Ship construction").empty

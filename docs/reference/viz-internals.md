@@ -12,7 +12,8 @@ Each widget is written as its own HTML file under `output/files/` sharing
 `src/x4analyzer/vendor/` — dashboards are fully offline), embedded in the
 dashboard via iframes. The dashboard is **tabbed two-level** — Map; Trade:
 Opportunities/Earnings/History/Charts/Starburst Charts (in that order —
-opens on Opportunities); Empire: Audit/Station P&L/Fleet/Standings; Market:
+opens on Opportunities); Empire: Audit/Station P&L/Fleet/Combat/Standings;
+Market:
 Overview/Build Advisor; Universe: Overview/Contested/Relations — vanilla
 JS, iframes lazy-load on first SUB-tab open, active view persists in
 sessionStorage and the `#tab/sub` URL hash. It is **dark-themed**: theme
@@ -83,7 +84,47 @@ into the same page by `save_table_variants()`; the checkbox only swaps which
 one is visible (default OFF = today's external-only numbers) and re-posts the
 iframe height. An empty internal set makes the two variants identical.
 "Gross Earnings per Constructed Ship Type" and the non-earnings tables keep
-plain `save_table()`.
+plain `save_table()`. The "Last 50 Destroyed Objects" table was removed in
+v1.4.0 — Empire → Combat § Losses shows the full history instead.
+
+## Combat record (`viz/combat.py`)
+
+**Empire → Combat**, four sections, dark DataTables + the iframe
+height-postMessage pattern of `audit.py`:
+
+1. **Empire combat record** — stat cards straight from
+   `frames.player_stats` (the save's `<stats>` block, DB table
+   `player_stat`): kills split (ships / capital / Xenon / Kha'ak /
+   modules / turrets / ad signs), boarding (attempts / boarded / claimed
+   / pilots bailed) and gunnery + fight rank. A missing counter shows a
+   dash. The card carries the **scope caveat**: whether these count the
+   whole empire's kills or only the player's personal actions is
+   unverified (E-147), and the reader is invited to compare with the
+   in-game stats screen.
+2. **Losses** — the FULL merged loss history from `frames.destroyed`
+   (not the last 50: this section replaced the old "Last 50 Destroyed
+   Objects" table in `viz/tables.py`, removed in v1.4.0). Hours ago,
+   object, sector, killer, and a killer faction derived by
+   `killer_faction()` — the leading `[A-Z]{3}` tag of the killer name
+   matched against `ref.faction_short`, `"?"` → "unknown" otherwise —
+   plus a "losses by killer faction" summary.
+3. **Bounty-confirmed kills per ship** — `frames.combat_rewards`
+   grouped per credited ship: rewards, Σ bounty, distinct paying
+   factions, last time. Two things the copy states because the data
+   demands it: only kills a faction *witnessed and paid for* are
+   attributable per ship (the rest exist only in the counters above, so
+   this is a lower bound), and a reward shared by several ships credits
+   the full payout to each, so the Bounty column double-counts across
+   rows while the heading total counts each `reward` once. Rows key on
+   the logged (name, code) pair — a heuristic, not identity: the
+   reference save shows `PIE-222` under two names after a rename, and
+   codes are recycled after a death (see db-schema.md § entity).
+4. **Captures & claims** — `frames.ship_claims` (finder → abandoned
+   ship, sector, time; the sighting, not the outcome) and
+   `frames.pilot_bails` (no actor is logged, so no attribution).
+
+`spoilers_hide` has nothing to hide here: every row is about the
+player's own assets and the log text the game wrote for them.
 
 ## Build Advisor (`viz/advisor.py` + `analysis/sectorgraph.py`)
 

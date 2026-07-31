@@ -587,3 +587,65 @@ def test_derelict_ships_get_sector_local_positions(tmp_path: Path) -> None:
     assert by_code["DER-003"][9] == ""
     # an OWNED ship in the same zone still gets no position
     assert (by_code["OWN-002"][16], by_code["OWN-002"][17]) == (None, None)
+
+
+# --- v30: lifetime <stats> counters ------------------------------------
+# The player's counters sit in the TOP-LEVEL <stats> block (savegame/stats).
+# Planets carry their own nested <stats><stat id="population"> blocks deep
+# inside the component tree; those must not be collected. Kept as its own
+# fixture so the shared FIXTURE's row counts (test_store.py) stay put.
+STATS_FIXTURE = """<?xml version="1.0"?>
+<savegame>
+  <info>
+    <save name="#001" date="1700000000"/>
+    <game guid="STA-1" version="900" time="10.0"/>
+    <player name="P" money="1"/>
+  </info>
+  <universe>
+    <component class="galaxy" id="[0x1]" connection="space">
+      <connections><connection connection="galaxy">
+      <component class="cluster" macro="cluster_01_macro" id="[0x10]" connection="galaxy">
+        <planets>
+          <planet name="Somewhere">
+            <terraforming part="planet" seed="1" active="">
+              <stats>
+                <stat id="population" value="25000000"/>
+              </stats>
+            </terraforming>
+          </planet>
+        </planets>
+      </component>
+      </connection></connections>
+    </component>
+  </universe>
+  <economylog/>
+  <stats>
+    <stat id="ships_destroyed" value="143"/>
+    <stat id="capships_destroyed" value="0"/>
+    <stat id="khaak_ships_destroyed" value="8"/>
+    <stat id="pilots_bailed" value="43"/>
+    <stat id="fight_rank" value="16"/>
+    <stat id="bullets_hit_percent" value="84.0456"/>
+    <stat id="population" value="7"/>
+  </stats>
+</savegame>
+"""
+
+
+def test_top_level_stats_are_collected_and_planet_stats_are_not(
+        tmp_path: Path) -> None:
+    p = tmp_path / "save.xml"
+    p.write_text(STATS_FIXTURE)
+    d = parse_savegame(p)
+
+    stats = dict(d.player_stats)
+    assert len(d.player_stats) == 7           # every top-level stat, once
+    assert stats["ships_destroyed"] == "143"
+    assert stats["capships_destroyed"] == "0"
+    assert stats["khaak_ships_destroyed"] == "8"
+    assert stats["pilots_bailed"] == "43"
+    assert stats["fight_rank"] == "16"
+    assert stats["bullets_hit_percent"] == "84.0456"
+    # the planet's nested <stats> block is NOT collected: the same id in
+    # the top-level block is the only "population" row that lands
+    assert stats["population"] == "7"

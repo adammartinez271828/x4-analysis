@@ -21,6 +21,7 @@ from ..gamedata.refdata import RefData
 from ..save.parser import SaveData
 from .advisor import build_advisor
 from .charts import build_charts
+from .combat import build_combat
 from .common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
 from .audit import build_audit
 from .diplomacy import build_diplomacy
@@ -177,7 +178,7 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
         "Trade": {"Opportunities": [], "Earnings": [], "History": [],
                   "Charts": [], "Starburst Charts": []},
         "Empire": {"Audit": [], "Station P&L": [], "Fleet": [],
-                   "Standings": []},
+                   "Combat": [], "Standings": []},
         "Market": {"Overview": [], "Build Advisor": []},
         "Universe": {"Overview": [], "Contested": [], "Relations": []},
     }
@@ -206,6 +207,13 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     if audit:
         tabs["Empire"]["Audit"].append(
             "<p>" + _iframe(audit, "width:100%;height:1600px;", lazy=True)
+            + "</p>")
+
+    log("Generating combat record")
+    combat = build_combat(frames, ref, cfg, files_dir, guid)
+    if combat:
+        tabs["Empire"]["Combat"].append(
+            "<p>" + _iframe(combat, "width:100%;height:1400px;", lazy=True)
             + "</p>")
 
     log("Generating build advisor")

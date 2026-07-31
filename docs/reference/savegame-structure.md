@@ -1325,7 +1325,10 @@ entries still resolve to a name (`offer` looks like a game time —
 
 ## `<stats>`
 
-Flat list of lifetime playthrough counters (~100):
+A flat list of lifetime playthrough counters (105 in the reference save),
+**directly under `<savegame>`**, immediately after `</economylog>` and
+before `<log>`. One `<stat id= value=>` per counter, values numeric
+strings:
 
 ```xml
 <stats>
@@ -1341,7 +1344,41 @@ Flat list of lifetime playthrough counters (~100):
 ```
 
 `money_player` matches `info/player@money` (cents); `time_*` are game
-seconds; `distance_*` km **(unit unverified)**.
+seconds; `distance_*` km **(unit unverified — E-080)**.
+
+**`<stats>` is not a unique element name.** Planets carry their own
+`<stats>` block nested deep in the component tree
+(`…/planet/terraforming/stats/stat id="population"`) — two of them in the
+reference save. A reader must key on the ancestor path, not the tag: only
+`savegame/stats/stat` is the player block (`save/parser.py`'s handler
+requires exactly that depth).
+
+The combat-relevant ids, with the reference save's values:
+
+| id | reference value | meaning |
+|---|---:|---|
+| `ships_destroyed` | 143 | ships killed |
+| `capships_destroyed` | 0 | of which capital ships |
+| `xenon_ships_destroyed` | 71 | of which Xenon |
+| `khaak_ships_destroyed` | 8 | of which Kha'ak |
+| `modules_destroyed` | 2 | station modules killed |
+| `turrets_destroyed` | 146 | turrets killed |
+| `adsigns_destroyed` | 0 | advertisement signs shot |
+| `boarding_attempts` | 0 | boarding operations started |
+| `ships_boarded` | 0 | boarding operations that succeeded |
+| `ships_claimed` | 36 | ships claimed (abandoned or bailed) |
+| `pilots_bailed` | 43 | pilots forced out of their ship |
+| `fight_rank` / `fight_score` | 16 / 780 | combat rank and score |
+
+**Scope is unverified (E-147):** whether these count the WHOLE empire's
+kills (any ship you own) or only the actions the player took personally
+is not established. `bullets_fired` and `time_playership` are clearly
+personal, `trades_executed` (4,688) is clearly empire-wide, so the block
+mixes both scopes and the combat rows cannot be assigned by analogy.
+Settling it needs the in-game stats screen read against the save.
+
+The DB stores the block verbatim in the snapshot-scoped `player_stat`
+table ([db-schema.md](db-schema.md) § player_stat).
 
 ## `<log>` — the player logbook
 
@@ -1397,6 +1434,31 @@ both playthroughs' archived history where events exist):
 - Police interdiction (title `Police Interdiction`, text):
   `<ship> <CODE> in <sector>[\012]Ordered by <faction> police to stop
   …[\012]Response: <response>`
+- Faction bounty payouts (title `Combat Reward`, **no category**;
+  v9-verified 2026-07-31, 259/259 rows of the reference playthrough's
+  merged history): text `Faction: <faction name>[\012]Station: <station>
+  (<CODE>)[\012]Sector: <sector>[\012]Credited To: Ships: <name>
+  (<CODE>)[, <name> (<CODE>)…]` — or `Credited To: Stations: <name>
+  (<CODE>)` (6/259) — then the optional `[\012]Bounty: <N,NNN> Cr`
+  (7/259 absent) and the optional `[\012]Reputation: +<N>`, which the
+  game writes as `+<1` for a sub-unit gain (19/259 absent). The paying
+  `Station:` may carry a role suffix, e.g.
+  `HOP Paranid Wharf (THO-697) (Police Representative)`. The entry's
+  `money` attribute (cents) is the exact bounty; the text is rounded.
+  **This is the only per-ship kill attribution the log carries** — the
+  game logs no general kill feed, so unwitnessed kills appear nowhere but
+  the `<stats>` counters.
+- Abandoned ships found (title `Found Abandoned Ship`, **no category**;
+  39/39 + 21/21 rows across both playthroughs): text `<finder> <CODE> in
+  <sector>[\012]Found abandoned ship <name> <CODE>.[\012]Response: Claim
+  if possible`. It records the SIGHTING and the standing response, never
+  the outcome — `<stats>`' `ships_claimed` is the only total of
+  successful claims.
+- Pilots forced to bail (`category="upkeep"` — **not** `alerts`; 45 + 64
+  rows across both playthroughs): the whole record is the title,
+  `Forced pilot to leave ship <ship> in sector <sector>.`, and the text
+  is empty. No actor is recorded, so a bail cannot be attributed to one
+  of your ships.
 
 Object codes in log text match `[A-Z]{3}-[0-9]{3}`.
 
