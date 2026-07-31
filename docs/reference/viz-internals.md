@@ -51,6 +51,28 @@ time at 90% travel speed (log-validated) with S/M riding highways at an
 assumed 10 km/s (one-way, no spool-up/docking). DataTables `ext.search`
 filters on this page must guard on the table id — there are two tables.
 
+## Sortable tables (`viz/tables.py`)
+
+One DataTables page per table (`save_table`), dark-themed, height reported
+to the dashboard via `parent.postMessage({x4h: …})` on every draw. Earnings
+are aggregated by the pure `_earnings_table()` (Earnings/Trades/Items plus
+the per-trade, per-item and per-hour rates) over `frames.sales`, which is
+**external only** (seller PLA, buyer not PLA) — the rule everywhere else in
+the dashboard (History, Charts, Sunbursts, P&L).
+
+The two **Trade → Earnings** tables (per Seller, per Ware or Service) are the
+one exception: they carry an "include internal trades" checkbox. Internal
+= player→player rows pulled straight from `frames.tradelog`
+(`internal_sales()`, same window and `money > 0` filter), attributed to the
+save-time commander by the tradelog's existing "Executed by" redirect, so a
+station miner's delivery earns for the station it supplies. Both aggregates
+are computed up front (`earnings_variants()`) and both tables are rendered
+into the same page by `save_table_variants()`; the checkbox only swaps which
+one is visible (default OFF = today's external-only numbers) and re-posts the
+iframe height. An empty internal set makes the two variants identical.
+"Gross Earnings per Constructed Ship Type" and the non-earnings tables keep
+plain `save_table()`.
+
 ## Build Advisor (`viz/advisor.py` + `analysis/sectorgraph.py`)
 
 Scores "build ware W in sector S" for every producible economy ware ×
