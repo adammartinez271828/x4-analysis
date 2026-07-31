@@ -233,8 +233,10 @@ class SaveData:
     # ships; the store keeps player ships only — speed-from-loadout)
     ship_engines: list = field(default_factory=list)
     # faction diplomacy (universe/factions block). base relations, temporary
-    # boosters (additive, decay toward base — the stored value is current as
-    # of the save) and trade discounts, one row each:
+    # boosters (a booster REPLACES the base while it exists and decays over
+    # time — drift target unobserved, E-146; the stored value is current as
+    # of the save; E-145, and the old additive reading is E-083 FALSIFIED)
+    # and trade discounts, one row each:
     faction_relations: list = field(default_factory=list)  # (faction, other, relation)
     faction_boosters: list = field(default_factory=list)   # (faction, other, relation, time)
     faction_discounts: list = field(default_factory=list)  # (faction, other, amount, time)

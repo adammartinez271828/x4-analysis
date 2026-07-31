@@ -645,6 +645,10 @@ evidence do not.**
   save field stores the game's own effective standing; the equality has
   never been checked against the rep bar. TESTED (clamp scan) /
   UNTESTED (in-game half). Severity: unsupported (should be [INF]).
+  [2026-07-31: settled, and the composition it refers to is superseded —
+  effective standing is the booster when present, replacing the base;
+  E-145, faction-relations-model.md. The additive law (`base +
+  Σboosters`) was falsified by the in-game rep-bar readings (E-083).]
 
 ### docs/models/wormhole-connection-model.md
 
@@ -993,7 +997,10 @@ unit/provenance questions.
    dated saves for any (pair, time=)-stable booster whose value drops.
    Method (play): trigger a known rep event, save twice ≥1 game-hour
    apart untouched. Also (play): compare clamp(base+Σboosters) to the
-   in-game rep bar for 3 factions. Settles: faction F1/F7 and the
+   in-game rep bar for 3 factions. [2026-07-31: done — the comparison
+   killed the additive law (E-083 FALSIFIED); effective standing is the
+   booster when present, replacing the base (E-145 CONFIRMED,
+   faction-relations-model.md).] Settles: faction F1/F7 and the
    five-document X3 propagation. Upgrades: faction-relations-model.md +
    four downstream docs.
 10. **Gatherspeed semantics for solids.** Method (agent): game-file

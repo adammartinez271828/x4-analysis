@@ -303,7 +303,11 @@ finishes or hardens a research item when done.
 - **B9** (P2) — booster decay: observe or kill. Agent half is passive
   (diff future dated saves as they appear); the decisive halves are
   play: trigger a rep event + save twice ≥1 game-hour apart; compare
-  clamp(base+Σboosters) to the in-game rep bar. · unblocks/upgrades
+  clamp(base+Σboosters) to the in-game rep bar. [2026-07-31: that
+  comparison was run and superseded the additive law — effective
+  standing is the booster when present, replacing the base; E-145
+  CONFIRMED, E-083 FALSIFIED, faction-relations-model.md.]
+  · unblocks/upgrades
   when done: faction-model F1/F7 and the X3 propagation across the four
   remaining docs (DF-2); T7 needs no change either way (already
   decoupled).

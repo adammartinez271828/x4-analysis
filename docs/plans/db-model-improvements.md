@@ -143,6 +143,9 @@ done in pandas, per run, invisible to SQL consumers:
   T6/v_stock_flow.
 - **Faction standing pivot** (`frames.py:624-651`): effective standing =
   base + boosters clamped to [−1, 1] — a three-line GROUP BY. See T7.
+  [2026-07-31: superseded — effective standing is the booster when
+  present, replacing the base; E-145, faction-relations-model.md. The
+  additive law described here was falsified (E-083).]
 - **Resource-area classification** (`frames.py:212-283`): the
   live/full/respawning/never state machine needs `(level, ware) →
   (capacity, respawndelay)` from `ref.region_yields`
@@ -771,6 +774,11 @@ are non-NULL for all 2,038 proxied seller rows; `v_entity_life` returns
 > view clones). `v_stock_delta` alias kept for one release.
 
 ### T7. Diplomacy view
+
+[2026-07-31: superseded — effective standing is the booster when present,
+replacing the base; E-145, faction-relations-model.md. The additive law
+described in the SQL and prose below was falsified (E-083); the shipped
+`v_faction_standing` (db-schema.md) already uses the replace rule.]
 
 ```sql
 CREATE VIEW v_faction_standing AS
