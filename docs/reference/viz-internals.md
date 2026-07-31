@@ -102,6 +102,39 @@ ratios ALWAYS use actual net flow (production − existing consumption
 nearby) — capacity-based input ratios would count starved producers' output
 that cannot be bought.
 
+**Logistics columns** (fleet sizing) reuse the Trade Opportunities
+machinery rather than duplicating it: `opportunities._Router` for route
+km and `opportunities.player_trade_ships` for the presets.
+
+- **Haul m³/h** — the active-basis shortfall (demand − competition, so it
+  follows the actual-flows checkbox) × the ware's `volume` from
+  `wares.csv` (defensively 1 m³ when missing/unparseable — never 0).
+- **≈ Traders** — haul ÷ what one ship of the selected preset moves per
+  hour, rounded up. Presets are the player's real container ships (cargo
+  m³ + loadout travel speed); ships whose engines don't resolve to a
+  speed are dropped (they could never size a fleet), and a save with none
+  left gets one clearly-labelled generic M freighter (8,000 m³ @ 3,000
+  m/s) instead. The trip arithmetic mirrors the Opportunities page
+  EXACTLY — plain km at 0.9 × travel speed, highway-sector km at 10 km/s
+  for S/M only (L/XL fly everything at travel speed) — minus its dock-time
+  overhead, so the count is a lower bound (said so on the page).
+- **Distance** — per row, `route_km` from the candidate sector's CENTRE
+  ((0,0) sector-local: the advisor scores a sector, not a plot, so there
+  is no station position yet) to each in-radius sector with demand,
+  averaged with that sector's share of the demand factor as the weight
+  (hop-discounted consumption + backlog/24, capacity basis) — the
+  numerator of `nd`. Demand in the build sector itself would be a
+  degenerate 0 km centre-to-centre leg, so it is charged a flat
+  `IN_SECTOR_KM` = 50 km one way (~100 km round trip, a typical
+  intra-sector hop). km are computed once under S/M routing and reused at
+  L/XL speeds client-side (the split is ship-independent). Rows whose
+  demand is unreachable get null km and an em-dash trader count.
+
+The row's ℹ detail gains a **Logistics** block: the weighted one-way
+route, the preset's round-trip/m³-per-hour arithmetic, and the INPUT haul
+(Σ recipe inputs/h × their volumes) — the latter stated **per production
+module**, since the advisor sizes no station.
+
 ## Empire audit & station P&L (`viz/audit.py`, `viz/pnl.py`, `analysis/mining.py`)
 
 Empire bottleneck audit: input starvation, raw resource supply, storage
