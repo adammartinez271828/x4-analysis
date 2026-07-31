@@ -262,7 +262,11 @@ in-game-anchored solar plants both return 5,001,8xx Cr as 13-epoch medians; at
 no `V` at all, prefer `a = 0.052` and hence `V ≈ 5.05 M` — but their `a` is
 measured *through* the storage-allocation model, so a 1 % bias there would move
 it by the whole disputed amount. **Use `V = 5,000,000` and treat both numbers
-as parameters** (which is what `pricing.py` does, with `a = 0.053`). E-116.
+as parameters** (which is what `pricing.py` does, with `a = 0.053`). E-116 —
+**settled 2026-07-31**: the uncapped same-ware control pins `a = 0.0483` and
+breaks the ridge (see § Open questions item 1), and the constant is in the
+game files verbatim: `libraries/parameters.xml` `<economy><prices><product
+factor="5000000"/>`.
 
 #### Above the capped target: the cap holds, unless the station eats the ware
 
@@ -308,11 +312,16 @@ economy price × (1 − tier% − event%)`. Tiers: Known Associate 5 % (relation
 ≥ 0.01), Prized Investor 15 % (≥ 0.1), Partnership Agreement 25 % (≥ 1.0).
 The savegame's offer price does **not** include it: UDX-946's refined-metals
 sell offer reads −38.70 % against a panel showing −38.9 % supply plus −9.1 %
-reputation. **The tier percentages themselves are in doubt (E-141):** both
-panel observations on record undercut their tier — UDX-946's −9.1 % against
-the stated 15 %, CCN-497's applied −1.77 % (displayed −2 %) against the
-stated 5 % — so the discount looks relation-scaled, not stepped. Treat the
-5/15/25 figures as unverified until E-141 settles.
+reputation. **Resolved 2026-07-31: the tiers are real** — the save stores them
+as md-created records on the *player* component, one per faction
+(`md_relation_discount_1/2/3`, amounts 0.05/0.15/0.25) — **and the base the
+tier multiplies is the band WIDTH, not the price**: `discount = tier ×
+(price_max − price_min)`, displayed as a % of avg (which is why the shown
+percentage varies per ware), applied against the player on buys as "Discount
+offset". Twelve same-day panels reproduce it to the cent across two factions,
+two tiers, ten wares, both sides and both books (E-142). One recorded panel
+(UDX-946, −9.1 %) instead matches `tier × price` and awaits a decisive
+re-read: the width law predicts a stock-independent −12.0 % there.
 
 **The panel rounds its percentages UP [EXP].** Tidebreak displays "Low Supply
 +9.2 %" against a true +9.109 %. A panel figure is a *ceiling* on the true

@@ -600,10 +600,15 @@ the place to check what the current parameter values actually are.
   ≥0.01), Prized Investor 15% (≥0.1), Partnership Agreement 25% (≥1.0);
   the UI shows the discount as a % of AVG, which makes the same tier look
   variable across stations. Per-station economy events add temporary
-  `<modifier type="discount">` records. **Tier percentages in doubt
-  (E-141):** the two panels on record undercut their tier (UDX-946 −9.1%
-  vs the stated 15%; CCN-497 −1.77% applied vs the stated 5%, 2026-07-31)
-  — the discount looks relation-scaled; treat 5/15/25 as unverified.
+  `<modifier type="discount">` records. **Resolved 2026-07-31 (E-141
+  FALSIFIED, E-142):** the tiers are real and stored — the save carries
+  one md-created `<discount>` record per faction on the PLAYER component
+  (`md_relation_discount_1/2/3`, amounts 0.05/0.15/0.25) — and the
+  amount is `tier × (price_max − price_min)` (band WIDTH, not price),
+  shown as a % of avg, applied against the player on buy offers under
+  the "Discount offset" label. Twelve same-day panels exact (E-142);
+  UDX-946's recorded −9.1% instead fits `tier × price` and awaits a
+  decisive re-read (width law predicts −12.0% there, stock-independent).
 - **Layer 4 — buy side: the modifier is a COSINE in fill.** Measured
   2026-07-28 over 5,428 buy offers, on the normalised coordinate
   (`s = price/avg − 1` divided by the band half-width on the relevant side, so

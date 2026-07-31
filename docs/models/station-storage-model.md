@@ -130,6 +130,12 @@ max(production ware) = throughput × T
 max(ration)          = consumption × FOOD_HOURS          FOOD_HOURS = 4
 ```
 
+`FOOD_HOURS = 4` is the engine's own constant, found 2026-07-31 in
+`libraries/parameters.xml`: `<economy><storage workforce="14400"/>` (seconds).
+Its siblings `max="18000" normalize="43200" factor="0.1"` are recorded but not
+yet interpreted — observed `T` values run 0.87–9 h, so `max` is not simply a
+cap on the equal-hours factor.
+
 - `pool_capacity` = Σ `module_cap.cargo_max` over the station's **built**
   modules whose `cargo_tags` name that pool.
 - `T` is the pool's **equal-hours factor**, typically 4–9 h.
