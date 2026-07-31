@@ -28,6 +28,12 @@ serialises `<production><efficiency product="X"/></production>`, and X is
 exceed `1 + work_effect` under stock data. When it does, that ware's work
 effect is not the stock one and the recipe has been replaced.
 
+Two kinds of value are patched: production `recipes` (wholesale replacement of
+a `(ware, method)` entry) and `modcaps` fields (one attribute of one macro's
+capacity row, e.g. `nd_habitat_cap_boost` raising habitat housing). The
+`modcaps` patch is field-level precisely because the mods that write it ship
+attribute `<replace>` diffs; `gamedata/extract.py` reads the same diffs.
+
 Everything here is derived from reading the mod's own packed XML, not inferred
 from arithmetic. See docs/reference/save-semantics.md § Mod-aware reference
 data for the provenance and the measured effect.
@@ -53,11 +59,20 @@ class RecipeOverride:
 
 
 @dataclass(frozen=True)
+class ModCapOverride:
+    """One field of one `modcaps` row (a station/module macro capacity)."""
+    macro: str
+    field: str                  # modcaps column: housing/workers/cargo_max/...
+    value: float
+
+
+@dataclass(frozen=True)
 class ModPatch:
     mod_id: str                 # extension id, for the save's <patch> list
     name: str
     source: str                 # where the values were read from
     recipes: tuple[RecipeOverride, ...] = ()
+    modcaps: tuple[ModCapOverride, ...] = ()
     # ware whose efficiency ceiling gives the mod away; None = detect by id
     fingerprint_ware: str | None = None
     note: str = ""
@@ -95,7 +110,52 @@ _ECON_BAL = ModPatch(
     ),
 )
 
-KNOWN_MODS: tuple[ModPatch, ...] = (_ECON_BAL,)
+# nd_habitat_cap_boost ships `save="true"` -- the save records
+# `<patch extension="ws_3737446888" version="100" name="Habitat Capacity
+# Boost"/>`, so detection is exact on the id and NO fingerprint is used: a save
+# without the mod never matches, and a save with it always does.
+#
+# Every one of its 26 files is a `<diff>` with a single
+# `<replace sel="/macros/macro/properties/workforce/@capacity">`, i.e. it moves
+# housing CAPACITY only. It does not touch `<workforce max>`, so the employment
+# target of E-124 -- which sums production/build modules and the station macro,
+# and deliberately excludes habitat housing -- is unaffected by construction.
+#
+# Stock housing is per race, not one triple: arg/bor/pir/spl/tel 250/500/1000,
+# par 333/666/999, ter 100/250/500, Antigone pillar 1000 and spire 2000. The
+# mod flattens them by SIZE (2500/5000/10000) and gives the two landmarks
+# 15000/20000, so the boost ranges 7.5x (par L) to 25x (ter S).
+#
+# hab_par_{m_02,s_02,s_03}_macro are in the mod but in no installed content;
+# they are kept verbatim and simply find no row to patch.
+_HAB_S, _HAB_M, _HAB_L = 2500.0, 5000.0, 10000.0
+_HAB_BOOST = ModPatch(
+    mod_id="ws_3737446888",
+    name="Habitat Capacity Boost",
+    source=("nd_habitat_cap_boost/ext_01.cat -> assets/structures/habitat/"
+            "macros/hab_*.xml (26 <diff><replace> files)"),
+    note=("save=\"true\", so the save's <patches> list names it; detected by "
+          "id only. Housing capacity is not an input to the ration reserve or "
+          "the production rate (E-124) -- it feeds the audit staffing panel "
+          "and module_cap.housing."),
+    modcaps=tuple(
+        ModCapOverride(macro=f"hab_{race}_{size}_{idx}_macro",
+                       field="housing", value=cap)
+        for race in ("arg", "bor", "par", "pir", "spl", "tel", "ter")
+        for size, cap in (("s", _HAB_S), ("m", _HAB_M), ("l", _HAB_L))
+        for idx in ("01",)
+    ) + (
+        ModCapOverride("hab_par_m_02_macro", "housing", _HAB_M),
+        ModCapOverride("hab_par_s_02_macro", "housing", _HAB_S),
+        ModCapOverride("hab_par_s_03_macro", "housing", _HAB_S),
+        ModCapOverride("landmarks_arg_antigonepillar_01_macro", "housing",
+                       15000.0),
+        ModCapOverride("landmarks_arg_antigonespire_01_macro", "housing",
+                       20000.0),
+    ),
+)
+
+KNOWN_MODS: tuple[ModPatch, ...] = (_ECON_BAL, _HAB_BOOST)
 
 
 # --- detection ------------------------------------------------------------
@@ -166,15 +226,44 @@ def apply_recipes(ref, mods) -> object:
                          o.work_effect])
     patched = pd.concat([kept, pd.DataFrame(rows, columns=_COLS)],
                         ignore_index=True)
-    return replace(ref, recipes=patched) if hasattr(ref, "__dataclass_fields__") \
-        else _shallow_with_recipes(ref, patched)
+    return _with(ref, recipes=patched)
 
 
-def _shallow_with_recipes(ref, recipes):
-    """Fallback for a hand-built namespace (tests)."""
+def apply_modcaps(ref, mods) -> object:
+    """A copy of `ref` whose `modcaps` carry the mods' capacity overrides.
+
+    Field-level, unlike the recipe patch: a mod's `<diff>` replaces ONE
+    attribute of a macro, so everything else on the row must survive. Macros
+    the reference data does not know are skipped (a mod may ship overrides for
+    content that is not installed).
+    """
+    overrides = [o for m in mods for o in m.modcaps]
+    caps = getattr(ref, "modcaps", None)
+    if not overrides or caps is None or caps.empty:
+        return ref
+    out = caps.copy()
+    macro = out["macro"].astype(str).str.lower()
+    for o in overrides:
+        if o.field not in out.columns:
+            continue
+        hit = macro == o.macro.lower()
+        if not hit.any():
+            continue
+        if out[o.field].dtype == object:
+            out.loc[hit, o.field] = str(o.value)
+        else:
+            out.loc[hit, o.field] = o.value
+    return _with(ref, modcaps=out)
+
+
+def _with(ref, **fields):
+    """`ref` with fields replaced -- dataclass or hand-built namespace (tests)."""
+    if hasattr(ref, "__dataclass_fields__"):
+        return replace(ref, **fields)
     import copy
     out = copy.copy(ref)
-    out.recipes = recipes
+    for k, v in fields.items():
+        setattr(out, k, v)
     return out
 
 
@@ -186,6 +275,7 @@ def patch_reference(save, ref, log=None):
     for m in mods:
         if log:
             log(f"Mod detected: {m.name} ({m.mod_id}) — applying "
-                f"{len(m.recipes)} recipe override(s) to this run only "
+                f"{len(m.recipes)} recipe override(s) and {len(m.modcaps)} "
+                f"module-capacity override(s) to this run only "
                 f"(bundled CSVs stay stock). Source: {m.source}")
-    return apply_recipes(ref, mods)
+    return apply_modcaps(apply_recipes(ref, mods), mods)

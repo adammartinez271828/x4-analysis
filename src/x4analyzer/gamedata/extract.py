@@ -618,6 +618,42 @@ def extract_recipes(gf: GameFiles) -> list[list]:
     return [list(r) for r in dict.fromkeys(rows)]
 
 
+# A macro file may be a `<diff>` patch instead of a `<macros>` document --
+# that is how extensions (and mods) override a single property. The ops we
+# understand are attribute replacements, `<replace sel=".../@attr">value</>`;
+# the macro they apply to is the file's own basename (X4's convention: one
+# macro per file, named after it).
+_MACRO_ATTR_SEL = re.compile(
+    r"^/macros/macro/properties/(\w+)/@(\w+)$"
+)
+# (properties child, attribute) -> column index in the modcaps row below
+_MODCAP_DIFF_FIELDS = {
+    ("workforce", "capacity"): 2,   # housing
+    ("workforce", "max"): 3,        # workers used
+    ("cargo", "max"): 4,
+    ("cargo", "tags"): 5,
+    ("storage", "unit"): 6,
+}
+
+
+def macro_attr_diffs(root) -> dict[tuple[str, str], str]:
+    """`{(properties child, attribute): value}` from a `<diff>` macro file.
+
+    Returns `{}` for anything that is not a diff of attribute replacements,
+    so callers can hand it any parsed macro file.
+    """
+    out: dict[tuple[str, str], str] = {}
+    if root is None or root.tag != "diff":
+        return out
+    for op in root:
+        if not isinstance(op.tag, str) or op.tag != "replace":
+            continue
+        m = _MACRO_ATTR_SEL.match(op.get("sel", "") or "")
+        if m:
+            out[(m.group(1), m.group(2))] = (op.text or "").strip()
+    return out
+
+
 def extract_modcaps(gf: GameFiles) -> list[list]:
     """Station module capacities: housing/needed workforce and storage.
 
@@ -630,14 +666,29 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
     station_{arg,bor}_tradestation 250, station_gen_piratebase 150,
     station_par_tradestation 400, station_{spl,ter}_tradestation 300,
     station_tel_tradestation 1000.
+
+    Files that are `<diff>` patches rather than `<macros>` documents are
+    applied on top, keyed on the file's basename (E-061: `nd_habitat_cap_boost`
+    ships nothing but such diffs, and the old reader saw no `<macro>` element
+    in them and skipped the file entirely). Only macros that a full document
+    defined somewhere are patched -- a diff for a macro that does not exist in
+    the loaded content has nothing to attach to and is ignored. The extension
+    segment repeats (`extensions/*/extensions/*/assets/...`) because a mod
+    packs its per-DLC overrides under the DLC's own path.
     """
     rows = {}
+    diffs: dict[str, dict[tuple[str, str], str]] = {}
     paths = gf.glob(
-        r"(extensions/[^/]+/)?assets/structures/(.*/)?macros/.*\.xml$"
+        r"(extensions/[^/]+/)*assets/structures/(.*/)?macros/.*\.xml$"
     )
     for path in paths:
         root = _parse(gf, path)
         if root is None:
+            continue
+        ops = macro_attr_diffs(root)
+        if ops:
+            name = path.rsplit("/", 1)[-1][:-len(".xml")].lower()
+            diffs.setdefault(name, {}).update(ops)
             continue
         for m in root.iter("macro"):
             macro = (m.get("name") or "").lower()
@@ -663,6 +714,14 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
                 cargo.get("tags", "") if cargo is not None else "",
                 unit.get("unit", "") if unit is not None else "",  # drone slots
             ]
+    for macro, ops in diffs.items():
+        row = rows.get(macro)
+        if row is None:
+            continue
+        for key, value in ops.items():
+            col = _MODCAP_DIFF_FIELDS.get(key)
+            if col is not None:
+                row[col] = value
     return list(rows.values())
 
 
