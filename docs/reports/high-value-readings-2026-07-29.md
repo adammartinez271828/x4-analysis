@@ -398,3 +398,29 @@ denominator) would need an in-game read of **ULG-519's hull-parts maximum** to
 *confirm* any replacement — the offer-derived 61,494 is a floor and can only
 refute. It is not worth seeking out until a build-demand denominator exists to
 test.
+
+---
+
+# Addendum 2 (2026-07-31): R7–R10 taken
+
+Four readings were taken at game time 84,967.8 and are analysed in
+[readings-2026-07-31.md](readings-2026-07-31.md):
+
+- **R8 — taken, decisive.** EWQ-469 read **503** and DIS-888 **361**, both
+  exactly the floor + 10/production-module predictions → **E-062 CONFIRMED**
+  and promoted into `analysis/drones.py`.
+- **R9 — taken, decisive.** ABR-398's cargo-drone target raised 30 → 60
+  between paused saves; `<orders>` reads 60 with 30 built → **E-063
+  CONFIRMED** (target semantics), with the closedloop input set-aside and the
+  midpoint-priced fresh supplies offer as bonus evidence.
+- **R10 — taken.** MXH-411's slider shows 1.5 = the stored value → E-035's
+  player half closed.
+- **R7 — taken, armed rather than settled.** The nine QJI-262 quotes fit the
+  recipe model at rms 1.44 % (M = 0.983), but the 2026-07-27 raw quotes were
+  never archived, so the drift comparison was undecidable. The quotes and the
+  fitted E-vector are now on record; **the next re-read settles E-034 by
+  direct comparison** — that reading replaces R7 on this list.
+
+Still open on this list: **R1** (VOM-540, unchanged and still first), **R5**
+(player-built two-race station), **R6** (solar double-read for E-116), **R11**
+(opportunistic), and the re-armed R7 successor above.

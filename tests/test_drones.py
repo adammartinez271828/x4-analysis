@@ -2,9 +2,10 @@
 
 Every item in a station's <ammunition> is captured with a category and is_unit
 flag; only drones + police (is_unit=1) count toward the shared units.maxcount
-pool. capacity_floor = Sum module_cap.unit_storage over built modules -- exact for
-stations without production modules (validated in-game: ABR-398 40, EBT-957 92,
-QJI-262 220), a lower bound otherwise (MXH-411 40 floor vs 310 true cap).
+pool. capacity = Sum module_cap.unit_storage + 10 per built production module,
+validated in-game to the unit (E-062, 2026-07-31): EWQ-469 273 + 230 = 503,
+DIS-888 141 + 220 = 361, on top of the floor-only validations ABR-398 40,
+EBT-957 92, QJI-262 220. capacity_floor keeps the unit-storage sum alone.
 """
 from types import SimpleNamespace
 
@@ -70,6 +71,8 @@ def test_counts_flags_and_floor():
     assert rows["missile_gen_l_dumbfire_01_mk1_macro"].count == 30000
     # capacity_floor = dockarea 20 + pier 20 + defence 15; production adds none
     assert all(r.capacity_floor == 55 for r in rows.values())
+    # capacity adds 10 per built production module (two prod_x in the fixture)
+    assert all(r.capacity == 75 for r in rows.values())
 
 
 def test_count_may_exceed_floor():
@@ -79,8 +82,14 @@ def test_count_may_exceed_floor():
     assert r.count == 300 and r.capacity_floor == 55   # 300 > floor allowed
 
 
+def test_capacity_ingame_validated():
+    # E-062 in-game reference numbers (2026-07-31): floor + 10/production module
+    assert 273 + 10 * 23 == 503   # EWQ-469, read 503
+    assert 141 + 10 * 22 == 361   # DIS-888, read 361
+
+
 def test_empty_returns_empty():
     out = station_munition(_save([]), _frames(), _ref())
     assert out.empty
     assert list(out.columns) == ["station_id", "macro", "category", "is_unit",
-                                 "count", "capacity_floor"]
+                                 "count", "capacity_floor", "capacity"]

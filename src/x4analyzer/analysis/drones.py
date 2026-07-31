@@ -14,18 +14,17 @@ unitcategories transport/repair/build/defence/mining + police). Missiles,
 countermeasures and deployables are separate inventories, captured here for
 reference but never counted toward the drone pool.
 
-CAPACITY: the pool's hard cap (``units.maxcount``) is mostly readable --
-dock / pier / build / **defence** modules declare ``<storage unit="N">``
-(modcaps.unit_storage; defence discs/tubes = 15 each), and their sum matches the
-in-game cap exactly for stations without production modules (validated: ABR-398
-40, EBT-957 92, QJI-262 220). The one unexposed term is production modules: each
-adds ~10 to the cap that appears in no module field (MXH-411 = 40 unit sum +
-27 production x 10 = 310). So ``capacity_floor`` = Sum module_cap.unit_storage over
-the station's built modules is a readable LOWER BOUND (exact unless the station
-has production modules); the unit ``count`` can exceed it by ~10 per production
-module. There is no reliable per-category *desired* to extract -- the player's
-supply config is not persisted and NPC stations just fill the pool -- so this
-models the observable state (actual counts + capacity floor).
+CAPACITY: the pool's hard cap (``units.maxcount``) is readable -- dock / pier /
+build / **defence** modules declare ``<storage unit="N">`` (modcaps.unit_storage;
+defence discs/tubes = 15 each), and each built production module adds a flat 10
+that appears in no module field. ``capacity`` = Sum module_cap.unit_storage +
+10 x built production modules, validated in-game on two production-heavy NPC
+stations to the unit (E-062, 2026-07-31: EWQ-469 273 + 23x10 = 503, DIS-888
+141 + 22x10 = 361) on top of the floor-only validations (ABR-398 40, EBT-957
+92, QJI-262 220). ``capacity_floor`` (the unit-storage sum alone) is kept as
+the conservative persisted value. The build TARGET is persisted per product
+ware in ``<supplies><orders>`` (E-063; parser ``station_supplies``); what is
+not persisted is any per-category *desired* inside the ammunition block itself.
 """
 from __future__ import annotations
 
@@ -34,7 +33,10 @@ import pandas as pd
 from ..gamedata.refdata import RefData
 
 _COLS = ["station_id", "macro", "category", "is_unit", "count",
-         "capacity_floor"]
+         "capacity_floor", "capacity"]
+
+# each built production module adds a flat 10 to units.maxcount (E-062)
+_PRODUCTION_UNITS = 10.0
 
 # macro fragment -> (category, is_unit). Order matters (first match wins).
 # is_unit rows count toward the shared drone pool (units.maxcount); the rest are
@@ -72,18 +74,24 @@ def station_munition(save, frames, ref: RefData) -> pd.DataFrame:
     if not items:
         return pd.DataFrame(columns=_COLS)
 
-    # capacity floor per station: Sum module_cap.unit_storage over built modules.
+    # capacity floor per station: Sum module_cap.unit_storage over built modules;
+    # full capacity adds a flat 10 per built production module (E-062).
     floor: dict[str, float] = {}
+    prod_units: dict[str, float] = {}
     mc = ref.modcaps
     mods = frames.built_modules
     if (mc is not None and not mc.empty and "unit_storage" in mc.columns
             and mods is not None and not mods.empty):
         unit = (pd.to_numeric(mc.set_index("macro")["unit_storage"],
                               errors="coerce").fillna(0.0).to_dict())
+        is_prod = (mc.set_index("macro")["class"] == "production").to_dict() \
+            if "class" in mc.columns else {}
         for m in mods.itertuples():
             u = unit.get(m.macro, 0.0)
             if u:
                 floor[m.id] = floor.get(m.id, 0.0) + u
+            if is_prod.get(m.macro, False):
+                prod_units[m.id] = prod_units.get(m.id, 0.0) + _PRODUCTION_UNITS
 
     counts: dict[tuple[str, str], float] = {}
     for sid, macro, amount in items:
@@ -100,5 +108,6 @@ def station_munition(save, frames, ref: RefData) -> pd.DataFrame:
             "station_id": sid, "macro": macro, "category": cat,
             "is_unit": is_unit, "count": n,
             "capacity_floor": floor.get(sid, 0.0),
+            "capacity": floor.get(sid, 0.0) + prod_units.get(sid, 0.0),
         })
     return pd.DataFrame(rows, columns=_COLS)

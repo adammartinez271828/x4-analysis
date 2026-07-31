@@ -864,6 +864,15 @@ the place to check what the current parameter values actually are.
     subscriptions do not exist in the save (player-only concept), so E
     is engine-runtime state; with E fitted from a handful of quotes,
     every other deployable at that station predicts to ~1–3%.
+    **Re-validated 2026-07-31** on a fresh nine-quote QJI-262 read
+    (rms 1.44%, M = 0.983 pinned by flanking paused saves): E-now =
+    energycells 15.03 / metallicmicrolattice 47.91 / siliconcarbide
+    1,453.0 / computronicsubstrate 8,225.3 (−6.0%…+2.8% off band
+    averages, so still not the band-average vector). The 2026-07-27
+    study's raw quotes were never archived, so whether E *drifted* is
+    undecidable from that pair — the recorded quotes/vector in
+    [readings-2026-07-31.md](../reports/readings-2026-07-31.md) § R7
+    are the anchor the next re-read compares against (E-034).
 
 ## Mod-aware reference data (runtime patching, not CSV edits)
 
@@ -994,28 +1003,32 @@ share ONE pool — the engine property `units.maxcount`, no per-type caps
 `<ammunition><available>` block (which also holds turret munitions and
 deployables — separate inventories, flagged `is_unit=0` in the census).
 Capacity formula: `cap = Σ module_cap.unit_storage (dock/pier/build/
-defence modules) + 10 × built production modules` — the `+10/production`
-term is FIT from a single data point (MXH-411: floor 40 vs true cap
-310), so only the readable floor (Σ `unit_storage`) is persisted
-(`capacity_floor`). The floor is validated in-game on ABR-398 40,
-EBT-957 92, QJI-262 220; MXH-411's 310 is the fit's source, **not** an
-independent validation of the production term (review X19 — an earlier
-revision listed it under "validated", which was circular; the term
-remains a one-point hypothesis, matching tests/test_drones.py's
-framing). **Desired levels**: the earlier claim that they are "not
-persisted anywhere" was wrong — `$config_supply_*` was the wrong needle.
-A station's `<supplies><orders>` block persists its drone build orders
-by product ware, and the evidence says it IS the build target: in
-save_007, 37/40 order rows across 21 stations exactly equal the
-station's current drone count (zero exceed it), the 3 short rows are
-ABR-398 mid-gather, and ABR-398's orders sum (50) matches its in-game
-build target. Reinforced by the v22 import of save_009: five full, idle player
-stations carry order rows exactly equal to their drone counts — an
-*outstanding*-orders reading would put those at 0. Caveat: only ~21 of
-the universe's stations carry the block, so absence ≠ no target; whether
-the block survives a target change on a full station is a play-checklist
-item
-([../reports/supply-offer-discriminator.md](../reports/supply-offer-discriminator.md)).
+defence modules) + 10 × built production modules` — **CONFIRMED in game
+(E-062, 2026-07-31)**: EWQ-469 reads 503 = 273 + 23 × 10 and DIS-888
+reads 361 = 141 + 22 × 10, both exact to the unit. The `+10/production`
+term had been fit from a single point (MXH-411, 2026-07-22: floor 40 +
+27 × 10 = 310); those two readings replace it as evidence. The floor is
+separately validated in-game on ABR-398 40, EBT-957 92, QJI-262 220.
+`analysis/drones.py` computes both: `capacity` (the full formula) and
+`capacity_floor` (the unit-storage sum, the persisted column). **Desired
+levels**: the earlier claim that they are "not persisted anywhere" was
+wrong — `$config_supply_*` was the wrong needle. A station's
+`<supplies><orders>` block persists the drone build **TARGET** by
+product ware — **CONFIRMED by controlled experiment (E-063,
+2026-07-31)**: ABR-398's cargo-drone target raised 30 → 60 between two
+paused saves reads `<orders>` = 60 with built drones unchanged at 30
+(an *outstanding*-orders semantics would read 30). The corroborating
+save-side evidence stands: 37/40 order rows across 21 stations equal
+the current drone count because full idle stations sit at target.
+Caveat: only ~21 of the universe's stations carry the block, so
+absence ≠ no target. The same experiment showed the input side end to
+end: a `<supplies><wares>` set-aside of exactly 3,120 energy cells
+appeared (30 drones × 104) with station cargo down by the same amount,
+and the missing hull parts surfaced as a `supplies`-flagged buy with
+`desired = 90` (30 × 3) at the E-129 midpoint price — per the
+**closedloop** recipe, i.e. self-supply demand follows the station's
+*resolved build method* (§ Build method), not the owner race's default
+([../reports/readings-2026-07-31.md](../reports/readings-2026-07-31.md)).
 The missing *inputs* for those orders surface as `supplies`-flagged buy
 offers with exact recipe math (Market data above), and inputs already
 set aside sit in `<supplies><wares>`. Both are parsed since v22
