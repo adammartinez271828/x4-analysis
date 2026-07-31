@@ -19,11 +19,12 @@ Claims are tagged by confidence:
 - **[EXP]** — established by an in-game reading or controlled action.
 - **[INF]** — inferred, consistent with the data, not independently verified.
 
-**This model is the best-validated thing in the project: 131 of 132 in-game
-readings within 1 %** (`uv run python tests/readings.py`), across **thirteen
+**This model is the best-validated thing in the project: 137 of 138 in-game
+readings within 1 %** (`uv run python tests/readings.py`), across **fourteen
 stations and eight factions**, single- and multi-ware producers, three trade
 stations (one of them multi-species), and all four transport pools. The single
-failure is EIJ-609's hull parts, below.
+failure is EIJ-609's hull parts, below — a historical snapshot of a transient
+window the model now reproduces (E-136).
 
 ## The mechanic in one paragraph
 
@@ -662,6 +663,6 @@ build stations (a built buildmodule*): max ≈ stock + inbound + open buy amount
 pools are GROUPS of transport tags: a module tagged "container liquid solid"
   is ONE shared space, so union the tags it links and divide once
 
-validate against: tests/readings.py (131/132 in game), and
+validate against: tests/readings.py (137/138 in game), and
   stock + inbound + buy amount — a LOWER BOUND, saturated for input buyers
 ```

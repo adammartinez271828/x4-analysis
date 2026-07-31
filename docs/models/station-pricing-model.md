@@ -306,7 +306,11 @@ economy price × (1 − tier% − event%)`. Tiers: Known Associate 5 % (relation
 ≥ 0.01), Prized Investor 15 % (≥ 0.1), Partnership Agreement 25 % (≥ 1.0).
 The savegame's offer price does **not** include it: UDX-946's refined-metals
 sell offer reads −38.70 % against a panel showing −38.9 % supply plus −9.1 %
-reputation.
+reputation. **The tier percentages themselves are in doubt (E-141):** both
+panel observations on record undercut their tier — UDX-946's −9.1 % against
+the stated 15 %, CCN-497's applied −1.77 % (displayed −2 %) against the
+stated 5 % — so the discount looks relation-scaled, not stepped. Treat the
+5/15/25 figures as unverified until E-141 settles.
 
 **The panel rounds its percentages UP [EXP].** Tidebreak displays "Low Supply
 +9.2 %" against a true +9.109 %. A panel figure is a *ceiling* on the true

@@ -99,6 +99,43 @@
   }
  },
  "observed": {
+  "CCN-497": {
+   "alloc": {
+    "advancedcomposites": [
+     1980,
+     "ingame",
+     ""
+    ],
+    "energycells": [
+     1375,
+     "ingame",
+     ""
+    ],
+    "graphene": [
+     2200,
+     "ingame",
+     ""
+    ],
+    "medicalsupplies": [
+     3402,
+     "ingame",
+     ""
+    ],
+    "refinedmetals": [
+     2200,
+     "ingame",
+     ""
+    ],
+    "sojahusk": [
+     3628,
+     "ingame",
+     ""
+    ]
+   },
+   "date": "2026-07-31",
+   "note": "R4 visit, game time 84,967.8 (flanking save_007). Both advanced-composites modules waitingforresources (starved of energy cells: stock 25); the EC buy offer is present at amount=0 because one pending trade has 1,375 EC inbound (net = allocation), priced 14.94 on the station's a=-0.39 input constant at fill 1.0 - the cleanest net-position (E-023) demonstration on record. Same visit: rations priced on the +0.006 cosine (medical 70.66, soja 19.96-19.97) while inputs sit at the -0.39 station constant (graphene implied -0.388), the E-015/E-009 in-game check.",
+   "rate": {}
+  },
   "DHI-588": {
    "alloc": {
     "advancedcomposites": [
@@ -1595,6 +1632,86 @@
     null,
     300000.0,
     "container liquid solid"
+   ],
+   [
+    "hab_par_s_01_macro",
+    "habitation",
+    333.0,
+    null,
+    null,
+    null
+   ],
+   [
+    "prod_gen_advancedcomposites_macro",
+    "production",
+    null,
+    315.0,
+    null,
+    null
+   ],
+   [
+    "storage_par_s_container_01_macro",
+    "storage",
+    null,
+    null,
+    50000.0,
+    "container"
+   ],
+   [
+    "struct_gen_observationdeck_02_macro",
+    "",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "struct_par_base_01_macro",
+    "",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "struct_par_base_02_macro",
+    "",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "struct_par_cross_01_macro",
+    "",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "struct_par_cross_02_macro",
+    "",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "struct_par_cross_03_macro",
+    "",
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "struct_par_vertical_02_macro",
+    "",
+    null,
+    null,
+    null,
+    null
    ]
   ],
   "module_ref": [
@@ -1710,6 +1827,12 @@
     "prod_tel_nostropoil_macro",
     "nostropoil",
     "teladi",
+    1.0
+   ],
+   [
+    "prod_gen_advancedcomposites_macro",
+    "advancedcomposites",
+    "default",
     1.0
    ]
   ],
@@ -3434,7 +3557,12 @@
     null
    ]
   ],
-  "sector_ref": [],
+  "sector_ref": [
+   [
+    "cluster_36_sector001_macro",
+    0.88
+   ]
+  ],
   "ware": [
    [
     "advancedcomposites",
@@ -3817,6 +3945,145 @@
   ]
  },
  "stations": {
+  "CCN-497": {
+   "cargo": [
+    [
+     "advancedcomposites",
+     474.0
+    ],
+    [
+     "energycells",
+     25.0
+    ],
+    [
+     "graphene",
+     2006.0
+    ],
+    [
+     "medicalsupplies",
+     1599.0
+    ],
+    [
+     "refinedmetals",
+     2200.0
+    ],
+    [
+     "sojahusk",
+     3422.0
+    ]
+   ],
+   "id": "[0x9edbf]",
+   "macro": "",
+   "modules": [
+    [
+     "defence_par_disc_01_macro",
+     2
+    ],
+    [
+     "dockarea_arg_m_station_02_hightech_macro",
+     1
+    ],
+    [
+     "hab_par_s_01_macro",
+     1
+    ],
+    [
+     "pier_par_harbor_03_macro",
+     1
+    ],
+    [
+     "prod_gen_advancedcomposites_macro",
+     2
+    ],
+    [
+     "storage_par_s_container_01_macro",
+     3
+    ],
+    [
+     "struct_gen_observationdeck_02_macro",
+     1
+    ],
+    [
+     "struct_par_base_01_macro",
+     5
+    ],
+    [
+     "struct_par_base_02_macro",
+     1
+    ],
+    [
+     "struct_par_cross_01_macro",
+     3
+    ],
+    [
+     "struct_par_cross_02_macro",
+     3
+    ],
+    [
+     "struct_par_cross_03_macro",
+     1
+    ],
+    [
+     "struct_par_vertical_02_macro",
+     1
+    ]
+   ],
+   "offers": [
+    [
+     "sell",
+     "advancedcomposites",
+     474.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "energycells",
+     0.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "graphene",
+     194.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "medicalsupplies",
+     1803.0,
+     "invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "missilecomponents",
+     16915.0,
+     "supplies|invertfactionrestriction"
+    ],
+    [
+     "buy",
+     "sojahusk",
+     206.0,
+     "invertfactionrestriction"
+    ]
+   ],
+   "owner": "holyorder",
+   "production": [
+    [
+     "prod_gen_advancedcomposites_macro",
+     "advancedcomposites",
+     1.34,
+     "waitingforresources",
+     2
+    ]
+   ],
+   "sector_macro": "cluster_36_sector001_macro",
+   "workforce": [
+    [
+     "paranid",
+     630.0
+    ]
+   ]
+  },
   "DHI-588": {
    "cargo": [
     [

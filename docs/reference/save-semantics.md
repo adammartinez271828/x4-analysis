@@ -600,7 +600,10 @@ the place to check what the current parameter values actually are.
   ≥0.01), Prized Investor 15% (≥0.1), Partnership Agreement 25% (≥1.0);
   the UI shows the discount as a % of AVG, which makes the same tier look
   variable across stations. Per-station economy events add temporary
-  `<modifier type="discount">` records.
+  `<modifier type="discount">` records. **Tier percentages in doubt
+  (E-141):** the two panels on record undercut their tier (UDX-946 −9.1%
+  vs the stated 15%; CCN-497 −1.77% applied vs the stated 5%, 2026-07-31)
+  — the discount looks relation-scaled; treat 5/15/25 as unverified.
 - **Layer 4 — buy side: the modifier is a COSINE in fill.** Measured
   2026-07-28 over 5,428 buy offers, on the normalised coordinate
   (`s = price/avg − 1` divided by the band half-width on the relevant side, so
