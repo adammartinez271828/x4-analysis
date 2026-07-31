@@ -25,6 +25,12 @@ at very different rates (an L fills a far bigger hold and travels/docks
 slower), so each size keeps its own measured rate and the shortfall is
 quoted in alternatives — "+32 M or +12 L miners".
 
+A station whose storage for a ware is FULL stops accepting deliveries, so
+its observed inflow collapses for reasons that have nothing to do with the
+miner fleet. Each ware therefore also carries what the station holds
+(`stock`), the ceiling that applies to it (`limit`) and how much it is
+still asking for (`want`, its open buy offer) — see `storage_blocked`.
+
 Units: ship holds are measured in m³, not units — an 8,800 m³ hold carries
 880 ore at 10 m³/unit — so every capacity-to-rate conversion goes through
 the ware's volume. "measured" is a pool's real full-load rate: its own
@@ -57,11 +63,16 @@ OBSERVED_WINDOW_H = 6.0
 # the station has none (the assignable mining workhorses)
 OPTION_SIZES = ("M", "L")
 
+# a buy offer at (effectively) zero units is the station saying it wants
+# nothing more; stock this close to its ceiling leaves no room either
+_WANT_EPS = 0.5
+_FULL_FRAC = 0.95
+
 _SIZE_ORDER = {"S": 0, "M": 1, "L": 2, "XL": 3}
 
 _COLS = ["id", "ware", "class", "observed", "own", "theoretical", "cons",
          "balance", "share", "class_cons", "class_obs", "deliveries",
-         "window_h"]
+         "window_h", "stock", "limit", "want"]
 # own        units/h delivered by the station's currently assigned miners
 # share      the ware's slice of its class pools (volume-weighted Σ = 1)
 # class_cons Σ consumption of the class's wares at the station, in m³/h
@@ -71,6 +82,14 @@ _COLS = ["id", "ware", "class", "observed", "own", "theoretical", "cons",
 #            allocated by share and converted to units/h
 # deliveries own-fleet delivery count inside the window (per ware)
 # window_h   the rolling window actually used for this ware
+# stock      units of the ware held at the station right now (0 = none)
+# limit      effective per-ware ceiling in units: the manual buy limit if
+#            set, else the manual storage allocation, else the modelled
+#            station_storage max_units; NaN when none is known
+# want       the station's open buy-offer amount (units) for the ware; the
+#            game's own "I am requesting this much more", already net of
+#            allocation, manual limits and inbound deliveries. NaN when the
+#            station posts no buy offer for the ware.
 
 _PCOLS = ["id", "class", "size", "miners", "cap", "avg_cap", "measured",
           "rate", "rate_src", "class_cons", "class_obs", "more_miners"]
@@ -85,6 +104,19 @@ _PCOLS = ["id", "class", "size", "miners", "cap", "avg_cap", "measured",
 #            elsewhere) / "assumed" (ASSUMED_TRIPS_PER_H)
 # more_miners miners of THIS size that would close the class shortfall
 #            (class_cons - class_obs; external purchases count as supply)
+
+
+def storage_blocked(row) -> bool:
+    """Is the station out of room for this ware? True when it asks for
+    nothing more (buy offer at ~0) or its stock has reached the ceiling
+    that applies to it. Unknown on both signals -> False (accepting), so
+    stations we have no storage data for read exactly as before."""
+    want = row.get("want")
+    if pd.notna(want) and float(want) <= _WANT_EPS:
+        return True
+    lim = row.get("limit")
+    return bool(pd.notna(lim) and float(lim) > 0
+                and float(row.get("stock") or 0.0) >= _FULL_FRAC * float(lim))
 
 
 def _miner_class(macro: str, cargo_tags: str) -> str:
@@ -107,6 +139,24 @@ def _miner_size(macro: str, size_map: dict) -> str:
         return size
     m = _MACRO_SIZE.search(macro)
     return m.group(1).upper() if m else "M"
+
+
+def _where(df, col: str, value: str):
+    """Rows of an optional frame whose `col` equals `value` (None-safe)."""
+    if df is None or df.empty or col not in df.columns:
+        return None
+    return df[df[col].astype(str) == value]
+
+
+def _pairs(df, col: str, id_col: str = "id") -> dict[tuple[str, str], float]:
+    """(object id, ware) -> numeric `col`, from an optional frame; last row
+    wins. Missing frame/columns give an empty map, never a crash."""
+    if df is None or df.empty or not {id_col, "ware", col} <= set(df.columns):
+        return {}
+    vals = pd.to_numeric(df[col], errors="coerce")
+    return {(i, w): float(v)
+            for i, w, v in zip(df[id_col], df["ware"], vals)
+            if pd.notna(v)}
 
 
 def typical_miner_capacity(frames, ref) -> dict[tuple[str, str], float]:
@@ -199,6 +249,18 @@ def raw_inflow(frames, ref,
                 .groupby("id")["m3"].sum()
                 if not sc.empty else pd.Series(dtype=float))
     typical = typical_miner_capacity(frames, ref)
+
+    # how much room the station has for each ware — see storage_blocked
+    stock = ({k: float(v) for k, v in
+              sc.groupby(["id", "ware"])["amount"].sum().items()}
+             if not sc.empty else {})
+    limits = getattr(frames, "ware_limits", None)
+    offers = getattr(frames, "trade_offers", None)
+    lim_buy = _pairs(_where(limits, "kind", "buy"), "amount")
+    lim_max = _pairs(_where(limits, "kind", "max"), "amount")
+    lim_alloc = _pairs(getattr(frames, "station_storage", None), "max_units",
+                       id_col="station_id")
+    want = _pairs(_where(offers, "side", "buy"), "amount")
 
     wings = frames.wings
     time_now = frames.time_now
@@ -297,6 +359,11 @@ def raw_inflow(frames, ref,
                          if cons_m3 > 0 else 1.0 / len(cls_wares))
                 obs = observed.get(w, 0.0)
                 need = cons.get(w, 0.0)
+                # manual buy limit beats manual allocation beats the model
+                lim = next((v for v in (lim_buy.get((sid, w)),
+                                        lim_max.get((sid, w)),
+                                        lim_alloc.get((sid, w)))
+                            if v is not None), math.nan)
                 wrows.append({
                     "id": sid, "ware": w, "class": cls,
                     "observed": obs, "own": own.get(w, 0.0),
@@ -305,6 +372,9 @@ def raw_inflow(frames, ref,
                     "class_cons": cons_m3, "class_obs": obs_m3,
                     "deliveries": n_deliv.get(w, 0),
                     "window_h": window.get(w, 0.0),
+                    "stock": stock.get((sid, w), 0.0),
+                    "limit": lim,
+                    "want": want.get((sid, w), math.nan),
                 })
 
     if not wrows:

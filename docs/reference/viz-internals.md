@@ -88,6 +88,17 @@ lives on storage macros linked from the ship macro's connections —
 extract-gamedata resolves it into ships.csv `cargo`/`cargo_tags` (solid vs
 liquid identifies miner type); `cargo` is hold VOLUME in m³, not units.
 
+A station with no ROOM for a ware also shows low inflow, so each ware
+carries `stock` / `limit` / `want`: held units, its effective ceiling
+(manual buy limit → manual max allocation → `station_storage.max_units`),
+and its open buy-offer amount. `mining.storage_blocked()` calls a ware
+space-limited when the buy offer is ≈0 or stock ≥ 95% of the ceiling
+(unknown on both ⇒ accepting). A class whose consumed wares are ALL blocked
+is headlined "⚠ storage full — inflow limited by space, not miners", drops
+the "+N miners" advice, and is excluded from the section's finding count;
+partially blocked classes keep the advice plus a warn line naming the
+blocked wares. The per-ware fine print shows stock as `held / ceiling`.
+
 ## The sector map (`viz/map.py` + `viz/map_page.js`)
 
 A self-contained interactive SVG page (no plotly, no lib/ assets):

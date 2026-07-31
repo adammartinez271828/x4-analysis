@@ -4,7 +4,9 @@ import pandas as pd
 
 from x4analyzer.analysis.mining import (ASSUMED_TRIPS_PER_H,
                                         OBSERVED_WINDOW_H, raw_inflow,
+                                        storage_blocked,
                                         typical_miner_capacity)
+from x4analyzer.viz.audit import _mining_cards
 
 NOW = 100_000.0
 H = 3600.0
@@ -33,10 +35,11 @@ def _ref(ships=None):
     )
 
 
-def _frames(stations, wings, ships, tradelog, cargo=None, time_now=NOW):
+def _frames(stations, wings, ships, tradelog, cargo=None, time_now=NOW,
+            limits=None, offers=None, storage=None):
     tl_cols = ["time", "commodity", "amount", "buyer.code", "seller.code",
                "seller.proxy.code"]
-    return SimpleNamespace(
+    f = SimpleNamespace(
         stations=pd.DataFrame(stations, columns=["id", "code", "name"]),
         wings=pd.DataFrame(wings, columns=["leader", "follower"]),
         ships=pd.DataFrame(ships, columns=["id", "macro", "code"]),
@@ -45,6 +48,18 @@ def _frames(stations, wings, ships, tradelog, cargo=None, time_now=NOW):
                                    columns=["id", "ware", "amount"]),
         time_now=time_now,
     )
+    # the storage-acceptance frames are optional everywhere: raw_inflow
+    # reads them defensively, so most fixtures leave them off entirely
+    if limits is not None:
+        f.ware_limits = pd.DataFrame(limits,
+                                     columns=["id", "kind", "ware", "amount"])
+    if offers is not None:
+        f.trade_offers = pd.DataFrame(
+            offers, columns=["id", "side", "ware", "amount"])
+    if storage is not None:
+        f.station_storage = pd.DataFrame(
+            storage, columns=["station_id", "ware", "max_units"])
+    return f
 
 
 def _rates(rows):
@@ -195,6 +210,87 @@ def test_even_split_without_consumption():
     assert pl.at[("solid", "M"), "more_miners"] == 0    # nothing consumed
 
 
+def _starved(**kw):
+    """A station consuming ore it barely receives — short on miners unless
+    its ore storage turns out to be full."""
+    return _frames(
+        stations=[["st1", "STA-001", "Refinery"]],
+        wings=[["st1", "m1"]],
+        ships=[["m1", "miner_solid_a", "MIN-001"]],
+        tradelog=[[NOW - 1 * H, "Ore", 100, "STA-001", "MIN-001", None]],
+        cargo=[["st1", "ore", 39_610.0]],
+        **kw)
+
+
+def test_storage_blocked_by_zero_buy_offer():
+    frames = _starved(offers=[["st1", "buy", "ore", 0]])
+    df, _pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
+    r = df.set_index("ware").loc["ore"]
+    assert r["stock"] == 39_610.0
+    assert r["want"] == 0.0
+    assert pd.isna(r["limit"])
+    assert storage_blocked(r)
+
+
+def test_storage_blocked_by_stock_at_limit():
+    # the manual buy limit wins over the modelled allocation: 39,610 of
+    # 40,000 is 99% full, while the 80,000 model ceiling would read as room
+    frames = _starved(limits=[["st1", "buy", "ore", 40_000.0],
+                              ["st1", "max", "ore", 60_000.0]],
+                      storage=[["st1", "ore", 80_000.0]])
+    df, _pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
+    r = df.set_index("ware").loc["ore"]
+    assert r["limit"] == 40_000.0
+    assert storage_blocked(r)
+    # well below the same limit -> accepting again
+    r2 = r.copy()
+    r2["stock"] = 1_000.0
+    assert not storage_blocked(r2)
+
+
+def test_storage_columns_absent_frames_means_accepting():
+    frames = _starved()          # no ware_limits / trade_offers / storage
+    df, _pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
+    r = df.set_index("ware").loc["ore"]
+    assert r["stock"] == 39_610.0
+    assert pd.isna(r["limit"]) and pd.isna(r["want"])
+    assert not storage_blocked(r)
+
+
+def test_mining_cards_flags_storage_full_pool():
+    ref, rates = _ref(), _rates([["st1", "ore", 600.0]])
+    short = raw_inflow(_starved(), ref, rates)
+    full = raw_inflow(_starved(offers=[["st1", "buy", "ore", 0]]), ref, rates)
+    name = {"st1": "Refinery (STA-001)"}
+
+    html_short, n_short = _mining_cards(*short, name, str)
+    html_full, n_full = _mining_cards(*full, name, str)
+    assert n_short == 1 and "assign +" in html_short
+    assert "storage full" not in html_short
+    # storage-blocked: flagged, no advice, and not counted as a finding
+    assert n_full == 0
+    assert "storage full" in html_full and "assign +" not in html_full
+
+
+def test_mining_cards_partial_block_keeps_advice():
+    # ore blocked, silicon still accepting -> the class stays a finding,
+    # with a warn line naming the blocked ware
+    frames = _frames(
+        stations=[["st1", "STA-001", "Refinery"]],
+        wings=[["st1", "m1"]],
+        ships=[["m1", "miner_solid_a", "MIN-001"]],
+        tradelog=[[NOW - 1 * H, "Ore", 100, "STA-001", "MIN-001", None]],
+        cargo=[["st1", "ore", 39_610.0]],
+        limits=[["st1", "buy", "ore", 40_000.0]])
+    html, n = _mining_cards(*raw_inflow(
+        frames, _ref(), _rates([["st1", "ore", 600.0],
+                                ["st1", "silicon", 600.0]])),
+        {"st1": "Refinery (STA-001)"}, str)
+    assert n == 1
+    assert "assign +" in html
+    assert "at storage limit" in html and "storage full" not in html
+
+
 def test_typical_miner_capacity_prefers_own_fleet():
     ref = _ref(ships=[
         ["miner_solid_a", "mine", 8800.0, "solid", "M"],
@@ -219,7 +315,7 @@ def test_empty_inputs():
     assert list(df.columns) == [
         "id", "ware", "class", "observed", "own", "theoretical", "cons",
         "balance", "share", "class_cons", "class_obs", "deliveries",
-        "window_h"]
+        "window_h", "stock", "limit", "want"]
     assert list(pools.columns) == [
         "id", "class", "size", "miners", "cap", "avg_cap", "measured",
         "rate", "rate_src", "class_cons", "class_obs", "more_miners"]

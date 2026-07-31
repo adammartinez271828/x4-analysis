@@ -22,7 +22,8 @@ import pandas as pd
 from ..cli import log
 from ..config import Config
 from ..analysis.frames import Frames
-from ..analysis.mining import OBSERVED_WINDOW_H, raw_inflow
+from ..analysis.mining import (OBSERVED_WINDOW_H, raw_inflow,
+                               storage_blocked)
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import _station_rates
@@ -55,14 +56,26 @@ def _rate_label(p) -> str:
     return f"~{p['rate']:.2f} loads/h assumed"
 
 
+def _stock_cell(r) -> str:
+    """Held units, as a fill against the ware's ceiling when one is known."""
+    lim = r.get("limit")
+    stock = float(r.get("stock") or 0.0)
+    if pd.notna(lim) and float(lim) > 0:
+        return f"{stock:,.0f} / {float(lim):,.0f}"
+    return f"{stock:,.0f}"
+
+
 def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
                   wname) -> tuple[str, int]:
     """Raw-supply cards, one per station: per hold class (solid/liquid)
     the OVERALL shortfall — raw consumption not covered by current inflow
     — as a coverage bar, headlined by the miners that would close it,
     quoted per ship size ("assign +32 M or +12 L miners", each size at
-    its own measured rate); the per-ware rates are fine print. Returns
-    (html, number of class pools that need miners)."""
+    its own measured rate); the per-ware rates are fine print. A class
+    whose consumed wares have all hit their storage ceiling is flagged
+    instead: its inflow is limited by space, not by miners, so no advice
+    is quoted and it is not counted. Returns (html, number of class pools
+    that need miners)."""
     if inflow.empty:
         return "", 0
     n_need = 0
@@ -77,8 +90,22 @@ def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
             cons, obs = float(r0["class_cons"]), float(r0["class_obs"])
             short = cons > 0 and obs < cons
 
+            # deliveries stop when there is nowhere to put them: a class
+            # whose consumed wares are all at their ceiling is space-
+            # limited, and more miners would not change its inflow
+            used = grp[grp["cons"] > 0]
+            blocked = {r["ware"] for _i, r in used.iterrows()
+                       if storage_blocked(r)}
+            all_blocked = short and not used.empty \
+                and len(blocked) == len(used)
+            short = short and not all_blocked
+
             opts = pgrp[pgrp["more_miners"] > 0] if short else pgrp.iloc[0:0]
-            if short:
+            if all_blocked:
+                head = ("<span class='warn'>⚠ storage full — the station "
+                        "accepts no more (space or deliveries already "
+                        "under way), not a miner shortfall</span>")
+            elif short:
                 n_need += 1
                 if opts.empty:
                     head = ("<span class='neg'>shortfall, but no known "
@@ -121,19 +148,29 @@ def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
                         f"<div class='mnums'>{p['size']} option: "
                         f"{p['avg_cap']:,.0f} m³ hold @ {_rate_label(p)} "
                         f"· each adds ≈ {per_miner:,.0f} m³/h</div>")
+            if blocked and not all_blocked:
+                lines.append(
+                    "<div class='mnums warn'>⚠ "
+                    + ", ".join(sorted(wname(w) for w in blocked))
+                    + f" at storage limit — {'their' if len(blocked) > 1 else 'its'}"
+                    " inflow is space-limited</div>")
 
             wrows = "".join(
-                f"<tr><td>{wname(r['ware'])}</td>"
+                f"<tr><td>{wname(r['ware'])}"
+                f"{' ⚠' if r['ware'] in blocked else ''}</td>"
                 f"<td>{r['observed']:,.0f}</td><td>{r['cons']:,.0f}</td>"
                 f"<td class='{'pos' if r['balance'] >= 0 else 'neg'}'>"
-                f"{r['balance']:+,.0f}</td></tr>"
+                f"{r['balance']:+,.0f}</td>"
+                f"<td class='{'warn' if r['ware'] in blocked else ''}'>"
+                f"{_stock_cell(r)}</td></tr>"
                 for _, r in grp.iterrows())
             blocks.append(
                 f"<div class='mclass'><div class='mhead'>"
                 f"<b>{str(cls).capitalize()}</b>{head}</div>{bar}"
                 + "".join(lines)
                 + "<table class='mwares'><tr><th>ware</th><th>in /h</th>"
-                f"<th>used /h</th><th>&Delta; /h</th></tr>{wrows}</table>"
+                f"<th>used /h</th><th>&Delta; /h</th><th>stock</th></tr>"
+                f"{wrows}</table>"
                 "</div>")
         cards.append((total_need,
                       f"<div class='mcard'><h4>{st_name.get(sid, sid)}</h4>"
@@ -482,7 +519,11 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "full-load rate (≈ = borrowed from your other fleets of that "
          "size, ~ = assumed, nothing measured). One solid pool feeds all "
          "mineral wares and one liquid pool all gases — the per-ware "
-         "rates are the fine print inside each card", inflow, "t8"),
+         "rates are the fine print inside each card. A pool whose consumed "
+         "wares have all hit their storage ceiling (buy offer at 0, or "
+         "stock at its allocation / manual limit) is flagged as space-"
+         "limited instead of counted as a miner shortfall — its deliveries "
+         "have nowhere to go", inflow, "t8"),
         ("Output piling up",
          f"products holding more than {OUTPUT_PILE_H:g}h of production — "
          "sell it or production will choke", piling, "t2"),
