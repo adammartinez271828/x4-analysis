@@ -323,8 +323,9 @@ reproduce it to the cent across two factions, two tiers, eleven wares, both
 sides and both books (E-142): twelve on the width branch, plus UDX-946's
 refined metals — the one observed price-below-width case (deep glut, wide
 band) — on the price branch, read −9.1 % (2026-07-27) and −9.2 % (2026-07-31)
-where an uncapped width law would say −12.0 %. PENDING on one graphene-glut
-discriminator; EBT-957's old microlattice line is the lone outlier.
+where an uncapped width law would say −12.0 %. CONFIRMED via the graphene-glut pair (PYQ-132 −9.2 % against an uncapped
+width's −12.0 %; OHU-068 −3.0 % against −4.0 %); EBT-957's old microlattice
+line is the lone recorded exception (E-142).
 
 **The panel rounds its percentages UP [EXP].** Tidebreak displays "Low Supply
 +9.2 %" against a true +9.109 %. A panel figure is a *ceiling* on the true

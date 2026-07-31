@@ -607,11 +607,12 @@ the place to check what the current parameter values actually are.
   amount is `tier × min(offer_price, price_max − price_min)` — band
   WIDTH, capped by the price itself — shown as a % of avg, applied
   against the player on buy offers under the "Discount offset" label.
-  Thirteen panels exact (E-142): twelve on the width branch, and
-  UDX-946's refined metals (the one case with price < width, deep glut
-  on a wide band) on the price branch, read −9.1% and re-read −9.2%.
-  Still PENDING on one graphene-glut discriminator; EBT-957's old
-  microlattice line is the lone outlier.
+  Fifteen panels exact (E-142 CONFIRMED): twelve on the width branch,
+  and three on the price branch — UDX-946's refined metals (−9.1% and
+  −9.2% across two epochs) plus the settling graphene-glut pair,
+  PYQ-132 −9.2% (vs an uncapped width's −12.0%) and OHU-068 −3.0%
+  (vs −4.0%). EBT-957's old microlattice line is the lone recorded
+  exception.
 - **Layer 4 — buy side: the modifier is a COSINE in fill.** Measured
   2026-07-28 over 5,428 buy offers, on the normalised coordinate
   (`s = price/avg − 1` divided by the band half-width on the relevant side, so
