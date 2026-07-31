@@ -88,9 +88,12 @@ stated with what would falsify it.
    model 37,227.6 on 71) is explained either by a lazy recompute lagging a
    recent efficiency change (E-051) or by war-pressure efficiency entering the
    rate but never the allocation (E-053). Thirteen archived saves spanning
-   game time 61,949–82,688 show whether its `efficiency` changed recently and
+   game time 69,324–84,643 (measured by the Phase 1 corpus build, 2026-07-30;
+   the save *files* have been overwritten since the DB's older imports, so the
+   61,949-era versions of save_006/save_008 that some register entries cite no
+   longer exist on disk) show whether its `efficiency` changed recently and
    whether the offer-implied allocation ever drifted. Constant efficiency +
-   constant implied allocation across ~20,000 s kills the lag. *Plan item P6.*
+   constant implied allocation across ~15,300 s kills the lag. *Plan item P6.*
 
 7. **Repo hygiene: `v_station_supply_position` is defined in `db/schema.py`
    but absent from the analysis DB** — the view set has not been refreshed
