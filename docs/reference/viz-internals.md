@@ -104,15 +104,17 @@ that cannot be bought.
 
 ## Empire audit & station P&L (`viz/audit.py`, `viz/pnl.py`, `analysis/mining.py`)
 
-Empire bottleneck audit: input starvation, raw resource supply, output
-pile-up, storage saturation via modcaps.csv, waiting constructions, idle
-ships from parsed order queues, staffing, crew gaps. Section order groups
+Empire bottleneck audit: input starvation, raw resource supply, storage
+saturation via modcaps.csv, waiting constructions, idle ships from parsed
+order queues, staffing, crew gaps. Section order groups
 the station findings first and the ship findings (idle ships, crew gaps)
-last; the DataTables ids (`t1`…`t8`) are historical and do NOT follow the
-displayed order. Every section names the SECTOR: a station id → sector name
+last; the DataTables ids (`t1`…`t8`) are historical, do NOT follow the
+displayed order, and are never renumbered — `t2` (the retired "output
+piling up" section, folded into storage saturation) is simply unused.
+Every section names the SECTOR: a station id → sector name
 map (from `frames.stations['sector.id']` via the sectors frame, `"?"` when
 unknown) feeds a Sector column right after Station in the starvation,
-pile-up, saturation and staffing tables and for the station rows of crew
+saturation and staffing tables and for the station rows of crew
 gaps; ship rows (idle ships, crew gaps) resolve their own
 `frames.ships['sector.id']`; the raw-supply cards carry it as muted fine
 print in the card header (`_mining_cards(inflow, pools, st_name, st_sector,
@@ -146,6 +148,28 @@ is headlined "⚠ storage full — inflow limited by space, not miners", drops
 the "+N miners" advice, and is excluded from the section's finding count;
 partially blocked classes keep the advice plus a warn line naming the
 blocked wares. The per-ware fine print shows stock as `held / ceiling`.
+
+Storage saturation flags any (station, cargo class) above
+`STORAGE_FULL_PCT` = **80%** of built-module capacity and adds **Hours to
+full**: `audit.hours_to_full(capacity, used, net_m3_h)` — remaining space
+divided by the station's OWN net rate for that class, Σ over its wares of
+(prod − cons) × ware volume from `_station_rates`. It returns `0.0` when
+used ≥ capacity (rendered "full") and `None` when the net rate is ≤ 0
+(rendered "—": not filling; external trade flows are deliberately NOT
+counted, so a class fed only by purchases reads as not filling). Rows sort
+soonest-to-fill first, non-filling last. This section subsumes the retired
+"output piling up" table: a product stock that keeps growing is exactly a
+class heading for full.
+
+Constructions waiting for materials lists a Site and a Sector column. A
+build plot has no name of its own, so the Site label is
+`Likely {station name} (CODE)` for the first own station in the same
+sector, falling back to `Build plot (CODE)` when the sector holds none;
+the Sector comes from the build storage's `sector.macro`. A plot whose
+offers are all at 0 units (or absent) gets the "site inactive" row ONLY if
+`_remaining_construction` minus materials already delivered still leaves
+something > 0.5 units — the remaining-materials estimate is computed first
+and gates the whole site, so a finished-but-idle plot does not show up.
 
 ## The sector map (`viz/map.py` + `viz/map_page.js`)
 

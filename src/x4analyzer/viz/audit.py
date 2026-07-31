@@ -3,9 +3,10 @@
 Sections (see docs/plans/analytics-ideas.md #5):
 - production input starvation: hours of input cover per station, from stock
   vs the station's own recipe consumption rates;
-- output pile-up: product stock measured in hours of production;
-- storage saturation: per transport class, stock volume vs module capacity;
-- constructions waiting for materials (insufficient blocks on own sites);
+- storage saturation: per transport class, stock volume vs module capacity,
+  plus the hours until full at the station's own net production rate;
+- constructions waiting for materials (own build sites that still need
+  something; sites whose plan is already covered are not listed);
 - idle ships: empty order queue, a Wait/DockAndWait-style standing order,
   or a standing order that is not running; excludes fleet subordinates;
 - staffing: workforce vs what production modules want vs housing;
@@ -33,8 +34,7 @@ _DT_JS = "lib/datatables.min.js"
 _JQ_JS = "lib/jquery.min.js"
 
 INPUT_LOW_H = 3.0        # input cover below this is flagged, 0 = stalled
-OUTPUT_PILE_H = 8.0      # product stock above this many hours of production
-STORAGE_FULL_PCT = 85.0  # storage fill considered saturated
+STORAGE_FULL_PCT = 80.0  # storage fill considered saturated
 IDLE_DEFAULTS = {"Wait", "HoldPosition", "DockAndWait", "DockAt"}
 PILOT_SKILL_LOW = 3
 
@@ -45,6 +45,20 @@ def _table(df: pd.DataFrame, tid: str) -> str:
     return df.to_html(index=False, border=0, table_id=tid,
                       classes="display nowrap", justify="left", escape=False,
                       float_format=lambda v: f"{v:,.1f}")
+
+
+def hours_to_full(capacity: float, used: float,
+                  net_m3_h: float) -> float | None:
+    """Hours until a storage class fills at its own net production rate.
+
+    0.0 when it is already at (or over) capacity, None when it is not
+    filling at all (net production ≤ 0 — external trade is not counted).
+    """
+    if used >= capacity:
+        return 0.0
+    if net_m3_h <= 0:
+        return None
+    return (capacity - used) / net_m3_h
 
 
 def _rate_label(p) -> str:
@@ -286,28 +300,6 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     mining_html, n_need = _mining_cards(inflow, pools, st_name, st_sector,
                                         wname)
 
-    # ---- 2. output pile-up ---------------------------------------------------
-    rows = []
-    sell_price = {}
-    off = frames.trade_offers
-    if not off.empty:
-        mine = off[(off["side"] == "sell") & off["id"].isin(st_ids)]
-        sell_price = dict(zip(zip(mine["id"], mine["ware"]), mine["price"]))
-    for r in my_rates[my_rates["prod"] > 0].itertuples(index=False):
-        stock = float(held.get((r.id, r.ware), 0.0))
-        hours = stock / r.prod
-        if hours > OUTPUT_PILE_H:
-            price = sell_price.get((r.id, r.ware))
-            rows.append({"Station": st_name.get(r.id, r.id),
-                         "Sector": st_sector.get(r.id, "?"),
-                         "Product": wname(r.ware), "Makes/h": round(r.prod),
-                         "Stock": round(stock),
-                         "Hours of output": round(hours, 1),
-                         "Asking": f"{price:,.0f} Cr" if price else "no offer"})
-    piling = (pd.DataFrame(rows).sort_values("Hours of output",
-                                             ascending=False)
-              if rows else pd.DataFrame())
-
     # ---- 3. storage saturation ----------------------------------------------
     caps = ref.modcaps.copy()
     caps["cargo_max"] = pd.to_numeric(caps["cargo_max"], errors="coerce")
@@ -317,6 +309,12 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                         pd.to_numeric(ref.wares["volume"], errors="coerce")
                         .fillna(1)))
     ware_trans = dict(zip(ref.wares["id"], ref.wares["transport"]))
+    # the station's OWN net production per ware, in m³/h — what keeps
+    # filling the class once it is saturated (trade flows not counted)
+    net_m3 = {}
+    for r in my_rates.itertuples(index=False):
+        net = (float(r.prod) - float(r.cons)) * ware_vol.get(r.ware, 1)
+        net_m3.setdefault(r.id, []).append((r.ware, net))
     rows = []
     if not mods.empty:
         inst = mods[mods["id"].isin(st_ids)].merge(storage, on="macro")
@@ -331,12 +329,19 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
                        if ware_trans.get(w, "") in cls)
             pct = 100.0 * used / capacity
             if pct > STORAGE_FULL_PCT:
+                net = sum(v for w, v in net_m3.get(sid, [])
+                          if ware_trans.get(w, "") in cls)
+                h = hours_to_full(capacity, used, net)
                 rows.append({"Station": st_name.get(sid, sid),
                              "Sector": st_sector.get(sid, "?"),
                              "Storage": cls, "Capacity (m³)": round(capacity),
                              "Used (m³)": round(used),
-                             "Fill": f"<span class='neg'>{pct:.0f}%</span>"})
-    saturated = pd.DataFrame(rows)
+                             "Fill": f"<span class='neg'>{pct:.0f}%</span>",
+                             "Hours to full": ("full" if h == 0 else "—"
+                                               if h is None else f"{h:,.1f}"),
+                             "_sort": 1e18 if h is None else h})
+    saturated = (pd.DataFrame(rows).sort_values("_sort").drop(columns="_sort")
+                 if rows else pd.DataFrame())
 
     # ---- 4. constructions waiting for materials ------------------------------
     # construction demand = the plot's build storage buy offers: the game's
@@ -357,10 +362,14 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             own_station_in.setdefault(st["sector.id"], st_name[st["id"]])
 
         def _site_label(sid):
-            sector = smacro_name.get(uni["sector.macro"].get(sid), "?")
+            # a build plot has no name of its own; the own station in the
+            # same sector is the best available handle on which site it is
             hint = own_station_in.get(uni["sector.id"].get(sid))
-            return (f"Build plot in {sector} ({uni['code'].get(sid, '?')})"
-                    + (f" — likely {hint}" if hint else ""))
+            return (f"Likely {hint}" if hint
+                    else f"Build plot ({uni['code'].get(sid, '?')})")
+
+        def _site_sector(sid):
+            return smacro_name.get(uni["sector.macro"].get(sid), "?")
 
         offered_sites = set(site_offers["id"])
         silent_sites = [sid for sid in bs_mine - offered_sites
@@ -373,38 +382,45 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             if not active.empty:
                 for r in active.itertuples(index=False):
                     rows.append({"Site": _site_label(sid),
+                                 "Sector": _site_sector(sid),
                                  "Missing": wname(r.ware),
                                  "Still needed": round(r.amount)})
             else:
-                # offers exist but all at 0 units: the plot is not buying —
-                # unfunded, or "buy from others" disabled. Estimate what
-                # completion takes from the queued modules' build recipes,
-                # minus materials already delivered to the site.
-                rows.append({
-                    "Site": _site_label(sid),
-                    "Missing": "—",
-                    "Still needed":
-                        "<span class='neg'>site inactive — no funded "
-                        "material orders (fund the plot / enable buying)"
-                        "</span>",
-                })
+                # offers exist but all at 0 units (or none at all): the plot
+                # is not buying — unfunded, or "buy from others" disabled.
+                # Estimate what completion takes from the queued modules'
+                # build recipes, minus materials already delivered to the
+                # site; a site that needs nothing is not a finding at all.
                 est = _remaining_construction(frames, ref, {sid})
                 delivered = (frames.station_cargo[
                     frames.station_cargo["id"] == sid]
                     .set_index("ware")["amount"]
                     if not frames.station_cargo.empty
                     else pd.Series(dtype=float))
-                for r in est.groupby("ware")["amount"].sum().items():
-                    ware_id, amt = r
+                left_rows = []
+                for ware_id, amt in est.groupby("ware")["amount"].sum().items():
                     left = amt - float(delivered.get(ware_id, 0.0))
                     if left > 0.5:
-                        rows.append({
+                        left_rows.append({
                             "Site": _site_label(sid),
+                            "Sector": _site_sector(sid),
                             "Missing": wname(ware_id),
                             "Still needed":
                                 f"≈ {left:,.0f} <span class='note'>"
                                 "(estimated from build plan)</span>",
                         })
+                if not left_rows:
+                    continue   # nothing left to deliver — site is fine
+                rows.append({
+                    "Site": _site_label(sid),
+                    "Sector": _site_sector(sid),
+                    "Missing": "—",
+                    "Still needed":
+                        "<span class='neg'>site inactive — no funded "
+                        "material orders (fund the plot / enable buying)"
+                        "</span>",
+                })
+                rows.extend(left_rows)
     waiting = pd.DataFrame(rows)
 
     # ---- 5. idle ships --------------------------------------------------------
@@ -538,15 +554,18 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
          "stock at its allocation / manual limit) is flagged as space-"
          "limited instead of counted as a miner shortfall — its deliveries "
          "have nowhere to go", inflow, "t8"),
-        ("Output piling up",
-         f"products holding more than {OUTPUT_PILE_H:g}h of production — "
-         "sell it or production will choke", piling, "t2"),
         ("Storage saturated",
-         f"storage classes above {STORAGE_FULL_PCT:g}% of module capacity",
-         saturated, "t3"),
+         f"storage classes above {STORAGE_FULL_PCT:g}% of module capacity — "
+         "output piling up shows here, since a full class stalls the "
+         "modules feeding it. Hours to full = time to fill the remaining "
+         "space at the station's OWN net production rate (production − "
+         "consumption of the wares in that class); external trade flows "
+         "are not counted, so a class no longer produced into shows "
+         "&quot;—&quot;", saturated, "t3"),
         ("Constructions waiting for materials",
-         "your build sites' open material orders — still needed beyond deliveries already under way",
-         waiting, "t4"),
+         "your build sites' open material orders — still needed beyond "
+         "deliveries already under way; sites whose build plan is already "
+         "covered are not listed", waiting, "t4"),
         ("Understaffed stations",
          "workforce below 90% of what production modules want", staffing,
          "t6"),
