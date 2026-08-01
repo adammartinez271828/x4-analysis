@@ -24,6 +24,12 @@
   - **Constructions waiting for materials**: sites get a Sector column and concise "Likely *station* (CODE)" labels; inactive sites whose build plan is already fully delivered are no longer listed.
   - **Storage saturated**: threshold lowered to 80%, and each row shows **Hours to full** at the station's own net production rate (soonest first). The separate "Output piling up" section is retired — a filling storage class covers it.
 
+### Internal
+
+- **Station storage & pricing reverse-engineered end to end** — the release's research arc: how a station sizes each ware's storage allocation (hours-of-throughput per transport pool, with the degenerate equal-volume split for non-producers) and how it prices wares (band average ± a cosine in storage fill, flat modifiers on top, reputation discount at display time). Both are implemented (`analysis/storage.py`, `analysis/pricing.py`), exposed as queryable tables/views, written up as model docs (`docs/models/station-storage-model.md`, `station-pricing-model.md`), and validated against hundreds of in-game readings.
+- **Experiments register** — every reverse-engineered claim now lives in `docs/experiments/README.md` with a stable id, status (confirmed/falsified/pending/superseded) and the evidence that set it, enforced by a structural test. 1.4.0 ships with 149 entries.
+- **Schema v13 → v30** — the database grew a trend layer (per-snapshot aggregate history), committed in-flight trades (the price curve's pending term), station self-supply bookkeeping, manual per-ware limits and reference prices, resolved build methods, the engine's own per-module production multipliers, build tasks, scan levels, trade whitelists, price bands in the reference data, and the lifetime player-stats block — with fixes along the way for an entry-id collision that double-counted shared station plans and a zombie-table cleanup. All of it migrates in place (see Fixes).
+
 ## 1.3.0 — 2026-07-21
 
 ### New User Features
