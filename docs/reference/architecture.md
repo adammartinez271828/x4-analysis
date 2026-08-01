@@ -95,6 +95,15 @@ names, e.g. `seller.proxy.id`). Faithful port; R line refs in comments are
 the porting reference. All joins against reference data are defensive
 (unknown macro/faction → fallback, never crash) because saves are modded.
 
+Most frames read the current snapshot (`save_id = MAX(save_id)`) and are
+therefore already in its id space. The one frame built from the *merged*
+event history is `global_trades` (the economylog stock-flow stream behind
+every Market / Build Advisor actual-flow estimate): its rows carry the
+runtime ids of whatever save recorded them, so the builder re-keys them
+onto the current snapshot through the entity registry and bounds them at
+the current save's `game_time`. See [db-schema.md](db-schema.md)
+§ stock_event for the rule any other cross-run consumer must follow.
+
 ## db/ — SQLite store
 
 Every parsed record also lands in `x4_<guid>.sqlite` (user data dir): world

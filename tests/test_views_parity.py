@@ -528,3 +528,36 @@ def test_v_faction_standing_uses_booster_over_base(conn):
     both = want[(want["base"] != 0) & (want["booster"] != 0)]
     assert len(both) > 0
     assert (both["base"] + both["booster"] - both["effective"]).abs().max() > 1e-6
+
+
+def test_stock_stream_resolves_to_current_snapshot_via_entity(conn):
+    """The merged stock stream only reaches this snapshot's stations
+    through the entity registry.
+
+    `stock_event.owner_id` is the runtime id of the save that recorded
+    the row, and the game remaps runtime ids on every load; on this DB
+    almost none of them exist in the current snapshot, which is why
+    every consumer that joined the raw id (Market actuals, the build
+    advisor's estimated flows) read ~0. Pins the two facts the fix in
+    analysis/frames.py rests on: raw-id coverage is negligible, and the
+    entity-resolved coverage is not.
+    """
+    cur = "(SELECT MAX(save_id) FROM save)"
+    raw, ent, total = conn.execute(f"""
+        SELECT COUNT(DISTINCT CASE WHEN c1.id IS NOT NULL
+                                   THEN s.owner_id END),
+               COUNT(DISTINCT CASE WHEN c2.id IS NOT NULL
+                                   THEN s.owner_id END),
+               COUNT(DISTINCT s.owner_id)
+        FROM stock_event s
+        LEFT JOIN component c1
+               ON c1.save_id = {cur} AND c1.id = s.owner_id
+        LEFT JOIN component c2
+               ON c2.save_id = {cur} AND c2.entity_id = s.owner_entity
+        """).fetchone()
+    assert total > 1000
+    # the bug: the raw id joins for a small minority of owners
+    assert raw / total < 0.10
+    # the fix: the entity re-key recovers most of the stream's owners
+    assert ent > raw * 5
+    assert ent / total > 0.50

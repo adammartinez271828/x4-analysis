@@ -614,21 +614,52 @@ def build_frames(save: SaveData, ref: RefData,
     # each trade, NOT a trade amount; delivered volume = positive stock
     # increases between consecutive snapshots (v_stock_delta), an upper-ish
     # estimate of traded volume. dv_neg = stock leaving the station
-    # (consumption, construction draw, sales). Only the CURRENT save's
-    # window feeds the dashboards — its ids resolve against this universe
-    # and the Market rate denominators keep their meaning; the merged
-    # multi-session history stays queryable in stock_event/v_stock_delta,
-    # keyed by the save-stable identity resolved at merge time.
+    # (consumption, construction draw, sales). The frame spans the merged
+    # stream's current epoch up to the current save's game_time, resolved
+    # into the current snapshot's id space through the entity registry (see
+    # below) — every consumer (viz/market.py actual_flows /
+    # construction_rates / build_market, and the advisor through them)
+    # joins `owner` against frames.universe and built_modules, so `owner`
+    # must be a CURRENT component id, never the raw recorded one.
     row = conn.execute(
         "SELECT window_start FROM coverage WHERE stream = 'stock_event'"
         " ORDER BY epoch DESC LIMIT 1").fetchone()
+    # Upper bound: never let a LATER save's merged window leak into this
+    # snapshot's flows. The stale-save merge guard (store.merge_events)
+    # keeps an older save from overwriting newer history, so re-analyzing
+    # an older save leaves the stream reaching past its own game_time —
+    # events about a future this universe has not lived yet. A save with
+    # no game_time (synthetic test data) gets no upper bound.
+    t_end = float(save.game_time) if save.game_time else float("inf")
     gt = _read(conn, """
-        SELECT owner_id AS owner, ware, time, level AS v,
+        SELECT owner_id AS owner, owner_entity, ware, time, level AS v,
                inflow AS dv, outflow AS dv_neg
-        FROM v_stock_flow WHERE time >= ? ORDER BY time""",
-        params=(float(row[0]) if row and row[0] is not None else 0.0,))
+        FROM v_stock_flow WHERE time >= ? AND time <= ? ORDER BY time""",
+        params=(float(row[0]) if row and row[0] is not None else 0.0, t_end))
     if not gt.empty:
         gt[["dv", "dv_neg"]] = gt[["dv", "dv_neg"]].fillna(0.0)
+        # RESOLVE THE STREAM INTO THIS SNAPSHOT'S ID SPACE. stock_event
+        # rows carry the runtime component id of the save that recorded
+        # them, and the game remaps every runtime id on load — on a merged
+        # multi-session DB almost none of them exist in the current
+        # snapshot's component table (measured: 51 of 2,290), so every
+        # consumer joining `owner` against the universe silently dropped
+        # ~98% of the history. owner_entity is the save-stable registry id
+        # the merge stamped; map it back to the id THIS snapshot uses.
+        # Rows with no entity (pre-registry merges) or whose entity is
+        # absent from the snapshot (destroyed stations) keep the raw id —
+        # the removed_object resolution below still catches those.
+        ent = _read(conn, f"""
+            SELECT entity_id, id FROM component
+            WHERE save_id = {_CUR} AND entity_id IS NOT NULL""")
+        if not ent.empty:
+            ent_map = pd.Series(
+                ent["id"].values,
+                index=ent["entity_id"].astype(float).values)
+            ent_map = ent_map[~ent_map.index.duplicated()]
+            gt["owner"] = (gt["owner_entity"].astype(float).map(ent_map)
+                           .fillna(gt["owner"]))
+        gt = gt.drop(columns=["owner_entity"])
         uni_idx = universe.set_index("id")
         gt["faction"] = (gt["owner"].map(uni_idx["owner"])
                          .map(ref.faction_short).fillna(OTHER_FACTION))

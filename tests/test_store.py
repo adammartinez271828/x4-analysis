@@ -555,16 +555,54 @@ def test_v1_database_migrates_keeping_history(cfg):
 def test_global_trades_covers_only_current_window(cfg, save_data, ref, conn):
     from x4analyzer.analysis.frames import build_frames
 
-    # a later save whose window no longer overlaps the fixture's history
+    # a later save whose window no longer overlaps the fixture's history.
+    # t=6000 is past the snapshot's own game_time (5000.5) — the shape the
+    # stale-save merge guard leaves behind when an older save is
+    # re-analyzed after a newer one: history the snapshot has not lived.
     store.merge_events(conn, events_save(stock=[
-        stock_attrs("5000.0", "10", "[0x20]"),
-        stock_attrs("5100.0", "60", "[0x20]"),
+        stock_attrs("4000.0", "10", "[0x20]"),
+        stock_attrs("4100.0", "60", "[0x20]"),
+        stock_attrs("6000.0", "90", "[0x20]"),
     ]))
     frames = build_frames(save_data, ref, conn)
     # the table keeps all history; the dashboard frame sees only the
     # current window, so the Market rate denominators keep their meaning
-    assert count(conn, "stock_event") == 3
-    assert sorted(frames.global_trades["time"]) == [5000.0, 5100.0]
+    assert count(conn, "stock_event") == 4
+    assert sorted(frames.global_trades["time"]) == [4000.0, 4100.0]
+
+
+def test_global_trades_rekeys_history_onto_current_ids(cfg, save_data, ref):
+    """Regression: a stock_event carries the runtime component id of the
+    save that recorded it, and the game remaps every runtime id on load.
+    The frame must re-key the merged stream onto the CURRENT snapshot's
+    ids through the entity registry — every consumer (Market actuals, the
+    build advisor's estimated flows) joins `owner` against the universe
+    and built_modules, and on a real multi-session DB only ~2% of the
+    recorded ids still existed, so the flows came out ~0."""
+    from x4analyzer.analysis.frames import build_frames
+
+    conn = store.open_db(cfg, save_data.guid)
+    store.write_reference(conn, ref)
+    ents = store.update_entity_registry(conn, save_data, ref)
+    store.write_snapshot(conn, save_data, ref, "save.xml", ents)
+    # [0xDEAD] = the same station under a previous session's runtime id;
+    # [0xBEEF] = a pre-registry row with no entity stamp at all
+    store.merge_events(conn, events_save(stock=[
+        stock_attrs("4000.0", "10", "[0xDEAD]"),
+        stock_attrs("4100.0", "60", "[0xDEAD]"),
+        stock_attrs("4200.0", "20", "[0xBEEF]"),
+    ]), ref, None, {"[0xDEAD]": ents["[0x20]"]})
+
+    gt = build_frames(save_data, ref, conn).global_trades
+    # the entity-stamped rows land on the CURRENT id and enrich against
+    # this universe; the unstamped one keeps its raw id (and falls through
+    # to the destroyed/unknown labelling as before)
+    assert sorted(gt.loc[gt["owner"] == "[0x20]", "time"]) == [4000.0, 4100.0]
+    assert set(gt.loc[gt["owner"] == "[0x20]", "station.code"]) == {"STA-001"}
+    assert list(gt.loc[gt["time"] == 4200.0, "owner"]) == ["[0xBEEF]"]
+    # the delta actually reaches the station: +50 units of inflow
+    assert gt.loc[gt["time"] == 4100.0, "dv"].sum() == 50.0
+    conn.close()
 
 
 def test_resource_areas_status_and_mineable(save_data, ref, conn):

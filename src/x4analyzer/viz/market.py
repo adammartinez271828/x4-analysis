@@ -443,8 +443,11 @@ def build_market(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     gt = gt[gt["faction"] != "XEN"] if not gt.empty else gt
     traded = gt.groupby("ware")["dv"].agg(["sum", "count"]) if not gt.empty \
         else pd.DataFrame(columns=["sum", "count"])
-    span_h = max((time_now - gt["time"].min()) / 3600.0, 1.0) if not gt.empty \
-        else 1.0
+    # the stream's OWN extent, like construction_rates/actual_flows: the
+    # frame is bounded by the current save's game_time, while frames.time_now
+    # comes from the log stream, which a later save's merge can push past it
+    span_h = max((gt["time"].max() - gt["time"].min()) / 3600.0, 1.0) \
+        if not gt.empty else 1.0
 
     price_avg = dict(zip(
         ref.wares["id"],

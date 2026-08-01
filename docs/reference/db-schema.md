@@ -1242,6 +1242,23 @@ and dropped the guard.
 | `epoch` | INTEGER | coverage epoch | derived |
 | `owner_entity` | INTEGER, FK → `entity.entity_id` | registry id | derived |
 
+**Reading rule — never join `owner_id` against a snapshot.** `owner_id`
+is the runtime id of *the save that recorded the row*, and the game
+remaps every runtime id on load, so on a merged multi-session DB almost
+none of them exist in the current snapshot's `component` table (measured
+on the 8E0C… DB: 51 of 2,290 distinct owners). A consumer that joins
+`owner_id` to `component.id` / `frames.universe` silently drops the rest.
+Key on `owner_entity` and translate it to the target snapshot's id
+(`component.entity_id → component.id WHERE save_id = <that snapshot>`),
+falling back to the raw `owner_id` only for rows with no entity stamp
+(pre-registry merges) or whose entity is absent from that snapshot
+(destroyed — those resolve against `removed_object` instead).
+`analysis/frames.py` does exactly this when it builds
+`frames.global_trades` (the frame every Market / Build Advisor flow
+estimate reads), and additionally bounds the stream at the current
+save's `game_time`: the stale-save merge guard below means re-analyzing
+an older save leaves history *newer* than that snapshot in the table.
+
 ### money_event
 
 The economylog's **money ledger** (`<entries type="money">`, all types):
@@ -1545,7 +1562,7 @@ what it is.
 | `v_universe` | `component` + `sector_ref` + `faction` | all `component` columns + `sector_name`, `owner_code` (faction shortname) | "what exists right now, with display names" |
 | `v_fleet` | recursive over `fleet_edge` | `ship`, `cmdr`, `depth`, `is_root_edge` (1 on the edge to the top commander) | "who ultimately commands this ship" — transitive fleet membership |
 | `v_trade` | `trade_tx` + `ware` + 4× `entity` | `time`, `ware`, `ware_name`, `price_cr`, `amount`, `total_cr`, `kind`, `epoch`; per side: `{side}_faction`, `{side}_id`/`_entity`/`_name`/`_code` (commander-redirected — the "Executed by" rule), `{side}_exec_id`/`_exec_entity`/`_exec_name`/`_exec_code` (the executing ship, present only when proxied), `{side}_proxied` | "who traded what with whom, in domain terms" — commander redirection keys on `cmdr_id` (frames' rule; the csv-import path writes cmdr ids with NULL entities), display names resolve to the registry's CURRENT name, falling back to the stored merge-time name (the frames-era latest-name-per-code fallback is retired — parties without registry identity keep their merge-time name, permanently) |
-| `v_stock_flow` | window functions over `stock_event` | `owner_entity`, `owner_id`, `owner_faction`, `owner_code`, `owner_name`, `ware`, `time`, `level`, `epoch`, `inflow` (positive delta), `outflow` (negative delta) | "how much did this station actually trade" — LAG deltas partitioned by durable identity (`entity`, falling back to `faction\|code`, then `owner_id` for pre-registry rows) and by `epoch` so no delta spans a coverage gap; `rowid` breaks same-second ties in save order. Verified delta-identical to the retired text-first keying on both real DBs at introduction |
+| `v_stock_flow` | window functions over `stock_event` | `owner_entity`, `owner_id`, `owner_faction`, `owner_code`, `owner_name`, `ware`, `time`, `level`, `epoch`, `inflow` (positive delta), `outflow` (negative delta) | "how much did this station actually trade" — LAG deltas partitioned by durable identity (`entity`, falling back to `faction\|code`, then `owner_id` for pre-registry rows) and by `epoch` so no delta spans a coverage gap; `rowid` breaks same-second ties in save order. Verified delta-identical to the retired text-first keying on both real DBs at introduction. Consumers must re-key `owner_entity` onto the snapshot they join against — see § stock_event's reading rule |
 | `v_stock_delta` | `v_stock_flow` renamed | the pre-T6 spelling: `dv` = `inflow`, `dv_neg` = `outflow` (no `owner_entity`) | compat alias, kept for one release |
 | `v_entity_life` | `entity` + `component` (current snapshot) | `entity.*` + `observed_span_s` (gone_time − first_seen, or now − first_seen while alive), `alive`, `component_id` (NULL when not in the current snapshot), `sector_macro` | "entity biographies" — lifespan, liveness and current whereabouts in one row |
 | `v_station` | `component` (stations) + `sector_ref` + correlated rollups over `build_entry`/`workforce`/`cargo`+`ware` | `id`, `entity_id`, `name`, `basename`, `code`, `owner`, `sector_macro`, `sector_name`, `sx`, `sz`, `knownto`, `modules_built` (built plan entries only), `workforce` (Σ amount), `cargo_volume_m3` (Σ amount × ware volume) | "the concept *station*, assembled" — one row per station in the current snapshot with the rollups frames used to pivot in pandas |
