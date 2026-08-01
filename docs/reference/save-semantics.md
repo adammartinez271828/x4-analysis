@@ -1119,14 +1119,17 @@ Two origins are worth telling apart:
 - **Crew bail** — the ship spawned during the playthrough and lost its
   crew later, so it carries `spawntime > 0` (all six derelicts observed
   across two playthroughs: 67k–1.8M s).
-- **Pre-placed** — put in the galaxy at game start, so (by the general
-  rule that game-start objects carry `spawntime = 0`) it should read
-  `spawntime` 0 or absent.
+- **Pre-placed** — put in the galaxy at game start, reading
+  `spawntime = 0`.
 
-The `spawntime == 0` ⇒ pre-placed signature is a **HYPOTHESIS (E-144,
-PENDING)**, not a confirmed rule: no pre-placed derelict survives in any
-available save (they were claimed long ago), so the signature has never
-been observed positively. It settles by parsing a fresh new-game save.
+The `spawntime == 0` ⇒ pre-placed signature is **CONFIRMED (E-144,
+2026-07-31)**: a fresh new-game save made for the experiment carries 15
+ownerless ships — the untouched pre-placed set, incl. the Terran
+flagship, Paranid destroyer and Xenon terraformer — and every one reads
+`spawntime="0"` (15/15), while all six mid-game derelicts across the
+played saves read 67k–1.8M s. Residual caveat: a ship that spawned at
+t = 0 and bailed *later* would still read 0 and be mislabelled
+pre-placed — accepted as an edge case.
 The map's derelict overlay labels the two cases accordingly
 ([viz-internals.md](viz-internals.md) § The sector map), and the parser
 gives ownerless ships the station-style sector-local position walk so

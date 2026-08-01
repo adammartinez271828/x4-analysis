@@ -319,7 +319,8 @@ Interactivity:
   levels as amber (`#FF9F1C`) diamond-X markers — solid for a **bailed**
   derelict (`spawntime > 0`: it spawned mid-game and lost its crew, the kind
   worth flying out to claim), smaller dimmed hollow for a **pre-placed** one
-  (`spawntime` 0/absent, the game-start hypothesis E-144). Records carry
+  (`spawntime` 0/absent — the game-start signature, CONFIRMED 15/15 on a
+  fresh-start save, E-144). Records carry
   code, ship model (ref.ships `model` by macro, falling back to the macro for
   modded hulls), size (ref.ships `class`, falling back to the component
   class suffix), origin, spawntime and sector name; tooltip shows all of
