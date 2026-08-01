@@ -41,7 +41,7 @@ Entry = collections.namedtuple("Entry", "id status claim body section")
 
 
 def _entries() -> list[Entry]:
-    src = REGISTER.read_text()
+    src = REGISTER.read_text(encoding="utf-8")
     section = "(preamble)"
     out: list[Entry] = []
     heads = {m.start(): m.group(1)
@@ -81,7 +81,7 @@ def test_every_entry_cites_a_source(entries):
 
 
 def test_every_cited_file_exists():
-    src = REGISTER.read_text()
+    src = REGISTER.read_text(encoding="utf-8")
     links = sorted(set(re.findall(r"\]\((\.\./[^)#]+)", src)))
     missing = [ln for ln in links
                if not (REGISTER.parent / ln).resolve().exists()]
@@ -124,7 +124,7 @@ def test_pending_entries_say_what_would_settle_them(entries):
 def test_summary_table_matches_the_entries(entries):
     """The hand-maintained table drifts. Recompute it and print the correct
     rows on failure so the fix is copy-paste."""
-    src = REGISTER.read_text()
+    src = REGISTER.read_text(encoding="utf-8")
     per_section: dict[str, collections.Counter] = collections.defaultdict(
         collections.Counter)
     for e in entries:

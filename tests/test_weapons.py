@@ -290,7 +290,7 @@ def test_build_gamedata_dashboard(game_dir: Path, tmp_path: Path):
     cfg.game_dir = game_dir
     cfg.output_dir = tmp_path / "output"
     assert build_gamedata_dashboard(cfg) == 0
-    html = (cfg.output_dir / "gamedata_dashboard.html").read_text()
+    html = (cfg.output_dir / "gamedata_dashboard.html").read_text(encoding="utf-8")
     assert "TER S Electromagnetic Gun Mk1" in html
     assert "Slasher" in html
     # sticktime mod has no guaranteed effect on the firing cycle -> no column

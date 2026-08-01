@@ -36,7 +36,7 @@ DATA = Path(__file__).parent / "data" / "station_readings.json"
 
 
 def load() -> dict:
-    return json.loads(DATA.read_text())
+    return json.loads(DATA.read_text(encoding="utf-8"))
 
 
 def _ref(doc: dict, save=None) -> SimpleNamespace:
