@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1 — unreleased
+
+### Fixes
+
+- **No more startup crash when older game-data files are lying around** — if you ran `x4-analyzer extract-gamedata` under an earlier version, its output in your data folder was still being used by 1.4.0, which needs columns that older extracts don't have; analyzing a modded save (most saves) died immediately with `KeyError: 'work_effect'`. Out-of-date files are now detected, ignored with a warning that names the file and tells you to re-run `x4-analyzer extract-gamedata`, and the analyzer falls back to the reference data bundled with it — so it runs correctly either way, and re-extracting picks your own data straight back up. Newer-than-expected files (extra columns) keep working as before.
+
 ## 1.4.0 — 2026-08-01
 
 ### Fixes

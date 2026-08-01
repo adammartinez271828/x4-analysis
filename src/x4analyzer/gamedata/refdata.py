@@ -85,15 +85,68 @@ class RefData:
         return name
 
 
-def load_refdata(data_dir: Path) -> RefData:
+def _header(path: Path) -> list[str] | None:
+    """The CSV's column names, read cheaply (first line only). None if the
+    file cannot be read as a CSV header — never raises."""
+    import csv
+    import gzip
+    import io
+
+    try:
+        opener = gzip.open if path.suffix == ".gz" else open
+        with opener(path, "rt", encoding="utf-8", newline="") as fh:  # type: ignore[operator]
+            line = fh.readline()
+        if not line:
+            return None
+        return next(csv.reader(io.StringIO(line)), None)
+    except Exception:
+        return None
+
+
+def _missing_columns(user: Path, packaged: Path) -> list[str]:
+    """Columns the packaged CSV has that the user-dir override lacks.
+
+    Extra columns in the user file are fine — only a *shortfall* means the
+    override predates a schema addition and would break consumers."""
+    if not packaged.exists():
+        return []
+    user_cols, pkg_cols = _header(user), _header(packaged)
+    if user_cols is None or pkg_cols is None:
+        return []
+    have = set(user_cols)
+    return [c for c in pkg_cols if c not in have]
+
+
+def load_refdata(data_dir: Path, log=None) -> RefData:
     """Load reference CSVs. Files in `data_dir` (the writable user data dir,
     populated by extract-gamedata) override the copies shipped inside the
-    package, so uvx/wheel installs work out of the box."""
+    package, so uvx/wheel installs work out of the box.
+
+    A user-dir file that is MISSING columns the packaged copy has is stale
+    (written by an older release, before the column was added): it is ignored
+    with a warning in favour of the packaged copy, rather than serving a frame
+    whose consumers would KeyError."""
     from ..config import PACKAGE_DATA
+
+    def _warn(*parts: object) -> None:
+        if log is not None:
+            log(*parts)
+            return
+        from ..cli import log as _log
+        _log(*parts)
 
     def _path(name: str) -> Path:
         user = data_dir / name
-        return user if user.exists() else PACKAGE_DATA / name
+        if not user.exists():
+            return PACKAGE_DATA / name
+        missing = _missing_columns(user, PACKAGE_DATA / name)
+        if missing:
+            _warn(f"WARNING: ignoring stale {user} — it is missing "
+                  f"column(s) {', '.join(missing)} that this version needs; "
+                  f"using the copy bundled with the analyzer. Re-run "
+                  f"`x4-analyzer extract-gamedata` to refresh it.")
+            return PACKAGE_DATA / name
+        return user
 
     factions = pd.read_csv(_path("factions.csv"), dtype=str).fillna("")
     wares = pd.read_csv(_path("wares.csv"), dtype=str).fillna("")

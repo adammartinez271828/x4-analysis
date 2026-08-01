@@ -84,3 +84,31 @@ def test_defensive_against_missing_or_junk_data():
     # patching with nothing detected returns the same object
     ref = _ref()
     assert modpatch.patch_reference(_save(), ref) is ref
+
+
+def _ref_without_work_effect():
+    """A stale user-dir recipes.csv: extracted before the work_effect column
+    existed (<= 1.3.0). Every column but that one is present."""
+    ref = _ref()
+    return SimpleNamespace(recipes=ref.recipes.drop(columns=["work_effect"]))
+
+
+def test_ceiling_is_none_when_the_work_effect_column_is_absent():
+    # NOT 1.0 (work_effect assumed 0): that would make any vanilla workforce
+    # bonus look like the mod
+    assert modpatch._ware_ceiling(
+        _ref_without_work_effect().recipes, "advancedelectronics") is None
+
+
+def test_stale_recipes_frame_detects_nothing_and_does_not_raise():
+    stale = _ref_without_work_effect()
+    # a perfectly vanilla workforce bonus, which a 0-assumed ceiling of 1.0
+    # would have false-positively flagged as the mod
+    save = _save(prod=[("s1", "m", "advancedelectronics", 1.36, "producing")])
+    assert modpatch.detect(save, stale) == []
+    assert modpatch.patch_reference(save, stale) is stale
+    # and the id route still works on such a frame, without raising
+    idsave = _save(extensions=[("ws_1668472321", "571", "Econ Balance")])
+    out = modpatch.patch_reference(idsave, stale)
+    ae = out.recipes[out.recipes["ware"] == "advancedelectronics"]
+    assert set(ae["amount"]) == {65.0}

@@ -135,7 +135,25 @@ Stated once here, not repeated per file:
   places load as empty frames; a few back-compat shims patch older user-dir
   extracts (pre-spline `highways.csv` endpoint columns are converted to
   `points`; missing `sectors.highway` defaults to 0, missing
-  `ships.drag_forward` to NA). Regenerate the user copies with
+  `ships.drag_forward` to NA).
+- **Staleness rule: a user-dir override missing columns loses** (added
+  2026-08-01). Before a user-dir file is used, its header is compared with the
+  packaged copy's — headers only, first line, never content. If the override
+  lacks **any** column the packaged copy has, it was written by an older
+  release that did not extract that column: it is ignored with a warning
+  naming the file and the missing columns and telling the user to re-run
+  `x4-analyzer extract-gamedata`, and the packaged copy is loaded instead.
+  Extra columns in the user file are never a reason to reject it (a newer
+  extract stays usable). The rule is generic across every overridable CSV
+  rather than a per-column shim, because each release cycle adds columns to
+  several: 1.4.0 added `recipes.work_effect` and `wares.price_min`/
+  `price_max`, and a stale `recipes.csv` crashed startup outright
+  (`KeyError: 'work_effect'` in `modpatch._ware_ceiling`) while a stale
+  `wares.csv` would have broken pricing silently. Consumers must still be
+  defensive — `modpatch._ware_ceiling` returns "cannot fingerprint" rather
+  than assuming a missing `work_effect` is 0, which would drop the detection
+  ceiling to 1.0 and misread any vanilla workforce bonus as a mod.
+  Regenerate the user copies with
   `uv run x4-analyzer extract-gamedata`, the committed ones by adding
   `--data-dir src/x4analyzer/data`.
 

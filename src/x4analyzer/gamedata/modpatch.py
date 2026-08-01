@@ -162,8 +162,13 @@ KNOWN_MODS: tuple[ModPatch, ...] = (_ECON_BAL, _HAB_BOOST)
 
 def _ware_ceiling(recipes: pd.DataFrame, ware: str) -> float | None:
     """Highest stock `1 + work_effect` across that ware's methods."""
+    if recipes is None or "ware" not in getattr(recipes, "columns", ()):
+        return None
     rows = recipes[recipes["ware"] == ware]
-    if rows.empty:
+    if rows.empty or "work_effect" not in rows.columns:
+        # a stale user-dir recipes.csv predates the work_effect column: we
+        # cannot fingerprint. NOT a 0 default -- that would put the ceiling at
+        # 1.0 and let any vanilla workforce bonus look like the mod.
         return None
     we = pd.to_numeric(rows["work_effect"], errors="coerce").fillna(0.0)
     return 1.0 + float(we.max())
@@ -214,8 +219,13 @@ def apply_recipes(ref, mods) -> object:
         return ref
     rec = ref.recipes
     keys = {(o.ware, o.method) for o in overrides}
-    kept = rec[~rec.apply(
-        lambda r: (r["ware"], r["method"]) in keys, axis=1)] if not rec.empty else rec
+    if rec.empty or not {"ware", "method"} <= set(rec.columns):
+        # an unexpected (stale/partial) recipes frame: keep it as-is and just
+        # append the overrides rather than dropping rows we cannot key
+        kept = rec
+    else:
+        kept = rec[~rec.apply(
+            lambda r: (r["ware"], r["method"]) in keys, axis=1)]
     rows = []
     for o in overrides:
         if not o.inputs:
@@ -239,7 +249,8 @@ def apply_modcaps(ref, mods) -> object:
     """
     overrides = [o for m in mods for o in m.modcaps]
     caps = getattr(ref, "modcaps", None)
-    if not overrides or caps is None or caps.empty:
+    if not overrides or caps is None or caps.empty \
+            or "macro" not in caps.columns:
         return ref
     out = caps.copy()
     macro = out["macro"].astype(str).str.lower()
