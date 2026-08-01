@@ -104,8 +104,9 @@ def _frames(**over):
         "blueprints": ["", "turret_pir_l_mk1", ""],
     })
     # w1 (sec_a1) <-> w2 (sec_b1) are a linked pair (origin -> destination);
-    # w3 is a dormant story warp (transition, no link); w4 an inert lore
-    # anomaly (no transition) that is undiscovered
+    # w3 is a dormant story warp (transition, no link); w4 a random
+    # wormhole (no transition, no partner — exit rolled at transit, E-149)
+    # that is undiscovered
     wormholes = pd.DataFrame({
         "id": ["w1", "w2", "w3", "w4"],
         "macro": ["wormhole_v1_macro"] * 4,
@@ -474,7 +475,7 @@ def test_payload_wormholes(payload):
     assert set(ws) == {"WRP-1", "WRP-2", "WRP-3", "WRP-4"}
     assert ws["WRP-1"]["cat"] == "linked"
     assert ws["WRP-3"]["cat"] == "dormant"    # transition, no partner
-    assert ws["WRP-4"]["cat"] == "inert"      # no transition, no partner
+    assert ws["WRP-4"]["cat"] == "random"     # no transition, no partner
     # the role names the PARTNER (B4): WRP-2 owns the "destination"-role
     # link, so it is the enterable end and resolves its exit's sector;
     # WRP-1 is a pure exit and gets no dest

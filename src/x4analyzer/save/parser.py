@@ -220,8 +220,9 @@ class SaveData:
     # wormholes / anomalies for the map overlay:
     # (id, macro, code, knownto, cluster_macro, sector_macro, sx, sz,
     #  source_entry, source_class, transition_dest). transition_dest is None
-    # when the component has no <transition> (an inert lore anomaly), else the
-    # destination-state string ("0" = a dormant/story warp not yet wired up)
+    # when the component has no <transition> (a random wormhole — exit rolled
+    # at transit, never persisted; E-149), else the destination-state string
+    # ("0" = a dormant/story warp not yet wired up)
     wormholes: list = field(default_factory=list)
     # directional links between paired wormholes, one row per <connection>:
     # (wormhole_id, own_conn_id, role, target_conn_id). role is "origin"

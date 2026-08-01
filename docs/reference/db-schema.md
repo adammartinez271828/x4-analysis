@@ -818,7 +818,7 @@ savegame-structure.md § Anomalies / wormholes.
 | `sz` | REAL | sector-local z (m) | derived: offset walk |
 | `source_entry` | TEXT | placement entry id (`S2B_anomaly_01`, …) | `source@entry` |
 | `source_class` | TEXT | placement kind (`godobject` / `script`) | `source@class` |
-| `transition_dest` | TEXT | NULL = inert scenery; `"0"` = dormant story warp | `transition@destination` |
+| `transition_dest` | TEXT | NULL = random wormhole (exit rolled at transit, E-149); `"0"` = dormant story warp | `transition@destination` |
 
 #### wormhole_link
 

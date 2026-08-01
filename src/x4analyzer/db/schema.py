@@ -629,8 +629,9 @@ TABLES: dict[str, str] = {
   PRIMARY KEY (save_id, object_id)
 )""",
     # wormholes / anomalies (map overlay): every galaxy anomaly. transition_dest
-    # is NULL for an inert lore anomaly, else the destination-state string
-    # ("0" = a dormant/story warp). See docs/models/wormhole-connection-model.md
+    # is NULL for a random wormhole (exit rolled at transit, never persisted —
+    # E-149), else the destination-state string ("0" = a dormant/story warp).
+    # See docs/models/wormhole-connection-model.md
     "wormhole": """CREATE TABLE IF NOT EXISTS wormhole (
   save_id        INTEGER NOT NULL,
   object_id      TEXT NOT NULL,

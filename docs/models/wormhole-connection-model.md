@@ -23,9 +23,12 @@ while dormant), and a `<connections>` block **links it to a partner**. A
 wormhole with a partner link is an active warp; you can resolve exactly where
 it goes from the save alone. A wormhole with only a transition is a dormant
 story warp whose exit is wired up at runtime by the mission director and is
-**not** predictable from the save. A wormhole with neither is an inert
-**Unstable Warp Anomaly** — a god-placed scenery object, permanently "too
-unstable to be active."
+**not** predictable from the save. A wormhole with neither is a **random**
+wormhole — the god-placed "Unstable Warp Anomaly": flying into one
+teleports the ship to another random wormhole, the exit rolled at transit
+time, which is exactly why the save stores no destination for it
+(player-verified in game, 2026-08-01 — E-149; this doc previously called
+the tier inert scenery, which is FALSIFIED).
 
 ## The three tiers [OBS]
 
@@ -33,7 +36,7 @@ Sweeping the test save found **41** anomalies, all `class="anomaly"`:
 
 | Tier | Count | `<transition>` | `<connections>` | Meaning |
 |------|-------|----------------|-----------------|---------|
-| **inert** | 30 | — | — | **Unstable Warp Anomaly**, god-placed scenery, permanently inactive. |
+| **random** | 30 | — | — | **Unstable Warp Anomaly**, god-placed; transit exits at another random wormhole (E-149), so no destination is persisted. |
 | **dormant** | 7 | `destination="0"` | — | Story warp, destination not yet assigned. All in Avarice (`cluster_500`, Tide of Avarice `S2A_/S2B_/S2C_` entries). |
 | **linked** | 4 | some | yes | Actively paired warp — the exit is resolvable. |
 
@@ -41,12 +44,16 @@ The census is **stable across saves, except that the linked tier's *edge
 set* is tide-cycled** (see the tide-cycle section): during an Avarice wave
 window the WHT-407/IVC-752 pair temporarily gains a second, reverse link
 (4 rows instead of 2), reverting on deactivation. The tier of every
-anomaly — which of inert/dormant/linked it is — did not change in any
+anomaly — which of random/dormant/linked it is — did not change in any
 observed save: a 13-save sweep (2026-07-24, game time 64,377–78,583 s,
 ~3.9 game-hours) reproduced 30/7/4 with byte-identical link rows in every
 save, all calm-phase. [OBS]
 
-### What the inert tier actually is [OBS]
+### What the random tier actually is [OBS]
+
+*(This section was titled "What the inert tier actually is" until
+2026-08-01 — the game-file facts below all stand, but the conclusion
+drawn from them was wrong; see the correction at the end.)*
 
 Verified against the game files (not inferred). The macro
 `wormhole_v1_macro` (`assets/environments/asteroids/macros/`) is
@@ -60,8 +67,18 @@ The base game's `libraries/god.xml` statically places **exactly 30** of them,
 one per base-game sector, each `id="<sector>_anomaly_01"`
 (`thevoid_anomaly_01`, `nopileosfortune_anomaly_01`, …). A sweep of all 9,215
 game XML files finds those entry ids **only in `god.xml`** — **no script ever
-activates them.** They are permanent scenery: the "unstable" cousins of the
-functional warps, forever too unstable to be active.
+activates them.**
+
+**Correction (2026-08-01, E-149):** "no script activates them" does NOT mean
+"no warp at all" — that conclusion is **FALSIFIED** by in-game observation:
+the player flew through them repeatedly and was teleported to another
+random wormhole each time. The transit is engine-native `class="anomaly"`
+behaviour needing no script and no persisted destination — the exit is
+rolled at transit time, which is precisely why these carry neither
+`<transition>` nor `<connections>` in the save. The absence of a link
+identifies the tier; it never implied inactivity. Whether the random exit
+pool includes the dormant/linked warps or only other unpaired anomalies is
+unprobed.
 
 Every *functional* warp is a **different** object from the base-game 30 —
 but functional does **not** mean script-created (an earlier revision claimed
@@ -185,7 +202,10 @@ connections per wormhole cleanly.)*
   the save; the Tide of Avarice mission script assigns their destinations when
   the story activates them. We can identify them as dormant and name their
   `source entry`, but the exit is genuinely absent until runtime. [INF]
-- **Inert Unstable Warp Anomalies** → no warp at all, ever (verified above). [OBS]
+- **Random Unstable Warp Anomalies** → a working warp whose exit is rolled
+  at transit time and never persisted — identifiable from the save,
+  destination fundamentally unpredictable from it (E-149; the earlier "no
+  warp at all, ever" reading is FALSIFIED). [OBS in-game]
 
 The intended (but not-yet-wired) ToA pairing is visible in the entry ids:
 `S2B_anomaly_01` (the one already linked) mates the `S3_anomaly_01` end in
@@ -219,4 +239,4 @@ anomaly could appear in saves with no vanilla explanation.
   `destination`-role link, arrow entry→exit per the corrected rule),
   spoiler-filtered (an edge is dropped if either endpoint is undiscovered).
 - `viz/map_page.js` — violet ring markers (solid = linked, dashed = dormant,
-  dot = inert) and dashed arrowed link lines, one **Wormholes** legend toggle.
+  dot = random) and dashed arrowed link lines, one **Wormholes** legend toggle.

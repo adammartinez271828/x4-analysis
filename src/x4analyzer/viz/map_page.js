@@ -409,8 +409,9 @@
   // wormhole / anomaly overlay: violet ring markers in three tiers — a
   // "linked" warp (solid ring + core, joined to its partner by a dashed
   // arrowed link), a "dormant" story warp (hollow dashed ring, transition
-  // not yet wired up) and an "inert" Unstable Warp Anomaly (small dim dot,
-  // god-placed scenery, permanently "too unstable to be active"). Links are
+  // not yet wired up) and a "random" Unstable Warp Anomaly (small dim dot;
+  // flying in drops you at another random wormhole — player-verified,
+  // E-149 — so no destination exists in the save to draw). Links are
   // [ax, ay, bx, by] with the arrow pointing entry -> exit (a is the
   // enterable end, b where it drops you out)
   (D.wlinks || []).forEach(function (w) {
@@ -432,12 +433,12 @@
   var WARP_COL = "#c07df0";
   var WARP_CAT = {
     linked: "Active warp point", dormant: "Dormant warp point (story)",
-    inert: "Unstable Warp Anomaly",
+    random: "Random wormhole (Unstable Warp Anomaly)",
   };
   (D.wormholes || []).forEach(function (w) {
     var g = el("g", {}, layers.warps);
     el("circle", {r: 6, fill: "transparent"}, g);
-    if (w.cat === "inert") {
+    if (w.cat === "random") {
       el("circle", {r: 2, fill: WARP_COL, opacity: 0.5,
                     stroke: "#1e1e1e", "stroke-width": 0.5}, g);
     } else if (w.cat === "dormant") {
@@ -456,8 +457,8 @@
         h += "<br>Warps to: " + esc(w.dest);
       else if (w.cat === "dormant")
         h += "<br>Destination assigned in-mission";
-      else if (w.cat === "inert")
-        h += "<br>Too unstable to be active";
+      else if (w.cat === "random")
+        h += "<br>Warps to another random wormhole";
       if (w.entry) h += "<br><span style='opacity:0.6'>" +
         esc(w.entry) + "</span>";
       tip.innerHTML = h;

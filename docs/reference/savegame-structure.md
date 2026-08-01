@@ -1081,8 +1081,10 @@ Every galaxy anomaly — scannable lore swirls and story warps alike — is
 optional children (see `docs/models/wormhole-connection-model.md` for the full
 model):
 
-Inert (no `<transition>`, no `<connections>` — permanent scenery, one per
-base-game sector):
+Random (no `<transition>`, no `<connections>` — a working warp whose exit
+is rolled at transit time and never persisted, E-149; called "inert
+scenery" until 2026-08-01, FALSIFIED by in-game traversal. God-placed one
+per base-game sector):
 
 ```xml
 <component class="anomaly" macro="wormhole_v1_macro" connection="space" code="ICY-656" owner="ownerless" id="[0x6a52]">

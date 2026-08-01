@@ -50,8 +50,8 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 | Parser / save format (E-064…E-080, E-143…E-144) | 11 | 4 | 4 | 0 | 19 |
 | Faction / diplomacy (E-081…E-084, E-145…E-146) | 2 | 2 | 2 | 0 | 6 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
-| Other (E-098…E-111, E-139, E-147…E-148) | 6 | 6 | 5 | 0 | 17 |
-| **total** | **74** | **41** | **25** | **8** | **148** |
+| Other (E-098…E-111, E-139, E-147…E-149) | 7 | 6 | 5 | 0 | 18 |
+| **total** | **75** | **41** | **25** | **8** | **149** |
 
 Nine entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -475,10 +475,10 @@ station without being resolved.
 *Predicts:* 4 `<connection>` rows instead of 2; every save holds exactly 6 link rows (2 Avarice + 4 Freedom's Reach) and all 13 archived saves are calm-phase. A wave-window save would add one arrow, not change the 30/7/4 tier census. *Settles it:* save once while a wave is active. *Source:* [wormhole-connection-model.md](../models/wormhole-connection-model.md) § The Avarice link is tide-cycled [SCRIPT].
 
 **E-101 · FALSIFIED** — Every functional warp is script-created.
-*Killed by:* two provenances among the 11 functional warps — 9 are god-placed by DLC `god.xml` (8 Avarice `S2A_/S2B_/S2C_` including WHT-407, plus IVC-752 `S3_anomaly_01`); only the Freedom's Reach pair is `<source class="script">`. *Source:* [wormhole-connection-model.md](../models/wormhole-connection-model.md) § What the inert tier actually is [OBS].
+*Killed by:* two provenances among the 11 functional warps — 9 are god-placed by DLC `god.xml` (8 Avarice `S2A_/S2B_/S2C_` including WHT-407, plus IVC-752 `S3_anomaly_01`); only the Freedom's Reach pair is `<source class="script">`. *Source:* [wormhole-connection-model.md](../models/wormhole-connection-model.md) § What the random tier actually is [OBS].
 
 **E-102 · FALSIFIED** — The inert anomaly tier is 30 anomalies, one per base-game sector. **Documents disagree — see § Contradictions.**
-*Killed by:* the B20 refresh — 33 across 30 sectors, max 2 per sector; one-per-sector refuted. The wormhole model still states 30 / one per base-game sector. Both recorded. *Source:* [b20-number-refresh.md](../reports/b20-number-refresh.md) § Measurement table, row 11; [wormhole-connection-model.md](../models/wormhole-connection-model.md) § What the inert tier actually is [OBS].
+*Killed by:* the B20 refresh — 33 across 30 sectors, max 2 per sector; one-per-sector refuted. The wormhole model still states 30 / one per base-game sector. Both recorded. *Source:* [b20-number-refresh.md](../reports/b20-number-refresh.md) § Measurement table, row 11; [wormhole-connection-model.md](../models/wormhole-connection-model.md) § What the random tier actually is [OBS].
 
 **E-103 · CONFIRMED** — Savage Spur I → II is genuinely one-way.
 *Settled by:* player confirmation, 2026-07-24 — the reverse traversal is impossible and intentionally so (a story element relies on it). `gates.csv`'s `oneway` encoding is ground-truth-correct; `sectorgraph.py`'s undirected graph is confirmed wrong for this edge, so advisor routes may include the impossible reverse hop. *Source:* [csv-reference.md](../reference/csv-reference.md) § gates.csv.
@@ -515,6 +515,9 @@ station without being resolved.
 
 **E-148 · CONFIRMED** — The `<stats>` combat counters are PERSONAL: they count the player's own actions, not the fleet's.
 *Predicts:* `ships_destroyed` (143 on save_002) stays below the empire's total kill history — the fleet's 259 bounty-credited kills are absent from it — and `capships_destroyed` stays 0 however many capitals the fleet kills until the player lands the kill personally. Consistent with the block's personal rows (`bullets_fired` 38,961, `time_playership`), though the block mixes scopes (`trades_executed` and `stations_owned` are empire-wide), so each row's scope is an observation, not an inference. The exact boundary of "personal" (player-piloted ship only, vs. e.g. turrets firing while the player is aboard) is not probed — a finer experiment would need a controlled kill from a turret with the player docked/aboard. Related but separate: **E-080** (units of the same block's `distance_*`/`reward` fields). *Source:* [savegame-structure.md](../reference/savegame-structure.md) § `<stats>`; [db-schema.md](../reference/db-schema.md) § player_stat.
+
+**E-149 · CONFIRMED** — Unpaired anomalies (the "Unstable Warp Anomaly" tier, no `<transition>`, no `<connections>`) are RANDOM wormholes: transit teleports the ship to another random wormhole.
+*Settled by:* player observation, 2026-08-01 — repeatedly flying through them in game, exiting at a different random wormhole each time. This falsifies the model doc's earlier [OBS] conclusion that they are inert scenery, "no warp at all, ever" (a claim that never carried its own register id). The game-file facts behind that conclusion all stand — the macro defines no transition/connections and no script activates the god-placed 30 — the engine simply handles the transit natively, rolling the exit at transit time, which is exactly why the save persists no destination. Open sub-questions: whether the random exit pool includes the dormant/linked warps or only other unpaired anomalies, and whether the roll is uniform. *Source:* [wormhole-connection-model.md](../models/wormhole-connection-model.md) § What the random tier actually is [OBS].
 
 ---
 

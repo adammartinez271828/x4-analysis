@@ -710,9 +710,10 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
 
     # wormholes / anomalies for the warp overlay, spoiler-filtered like
     # everything else. Three tiers: "linked" (a resolved partner warp),
-    # "dormant" (a story <transition> not yet wired up) and "inert" (a
-    # god-placed "Unstable Warp Anomaly", never activated). Partner links
-    # resolve via the connection-id ownership
+    # "dormant" (a story <transition> not yet wired up) and "random" (a
+    # god-placed "Unstable Warp Anomaly": transit drops the ship at another
+    # random wormhole, so the save has no destination to resolve — E-149).
+    # Partner links resolve via the connection-id ownership
     # map — docs/models/wormhole-connection-model.md
     wh = getattr(frames, "wormholes", None)
     wl = getattr(frames, "wormhole_links", None)
@@ -741,7 +742,7 @@ def _payload(frames: Frames, ref: RefData, cfg: Config) -> dict:
             wid = str(r["id"])
             tdest = r["transition_dest"]
             cat = ("linked" if wid in linked_ids
-                   else "dormant" if pd.notna(tdest) else "inert")
+                   else "dormant" if pd.notna(tdest) else "random")
             rec = {
                 "id": wid, "code": str(r["code"]), "cat": cat,
                 "entry": str(r["source_entry"] or ""),

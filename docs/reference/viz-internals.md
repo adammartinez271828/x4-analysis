@@ -302,10 +302,12 @@ Interactivity:
   galaxy tiered as **linked** = violet solid ring + core with a dashed
   arrowed link to its partner, **dormant** = violet dashed ring (a story
   `<transition>` whose exit is assigned in-mission, not in the save),
-  **inert** = dim dot (a god-placed "Unstable Warp Anomaly", permanently
-  "too unstable to be active" — save-specific census, B20 2026-07-24: 33
-  of them across 30 sectors, up to 2 in one sector, so NOT one-per-sector
-  as an earlier revision claimed — never script-activated); partners
+  **random** = dim dot (a god-placed "Unstable Warp Anomaly": flying in
+  teleports the ship to another random wormhole, exit rolled at transit and
+  never persisted — player-verified, E-149; the tier was labelled "inert
+  scenery" until 2026-08-01, FALSIFIED. Save-specific census, B20
+  2026-07-24: 33 of them across 30 sectors, up to 2 in one sector, so NOT
+  one-per-sector as an earlier revision claimed); partners
   resolved by the connection-id ownership map. Direction: one arrow per
   `destination`-role link, drawn entry→exit — the role names the partner,
   so the enterable end is the one owning the `destination`-role connection
