@@ -1,6 +1,6 @@
 [project]
 name = "x4analyzer"
-version = "1.4.0"
+version = "1.4.1"
 description = "Savegame analysis and visualization for X4: Foundations (Python port of X4SaveGameAnalysis)"
 readme = "README.md"
 license = "GPL-3.0-only"

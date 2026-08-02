@@ -1,9 +1,15 @@
 # Changelog
 
-## 1.4.1 — unreleased
+## 1.4.1 — 2026-08-02
+
+### New User Features
+
+- **`x4-analyzer --version`** — the analyzer can finally tell you which version it is, in every distribution form (standalone binaries, `uvx`, source). Useful when reporting a problem.
+- **Versioned download names** — release files now carry the version in the filename (`x4-analyzer-1.4.1-windows.zip`, `x4-analyzer-1.4.1-linux`), so it's obvious which build a downloaded file is.
 
 ### Fixes
 
+- **Windows download reworked to stop Defender's false "Trojan:Win32/Sabsik" alarm** — the 1.4.0 Windows EXE was flagged by Windows Defender's machine-learning classifier. The build was a single self-extracting EXE that unpacked tens of MB of libraries to a temp folder at every launch — mechanically the same behaviour the classifier is trained to score as a malware dropper, and a brand-new unsigned binary with no version metadata starts from a bad prior. The Windows build is now an app folder shipped as `x4-analyzer-1.4.1-windows.zip` (extract completely, then run `x4-analyzer.exe` inside — a README in the zip says so too): nothing self-extracts at runtime, and the bundled libraries are the same well-known files thousands of Python apps ship, each scanned on its own reputation. The EXE also carries a proper version-info resource, UPX compression is explicitly off, and the PyInstaller version is pinned so the bootloader bytes can't silently change between releases. The Linux single-file binary is unchanged. Only code signing can remove the separate SmartScreen "unknown publisher" prompt; if Defender still complains about a future build, it should be reported at https://www.microsoft.com/en-us/wdsi/filesubmission — that clears the verdict for everyone within days.
 - **No more startup crash when older game-data files are lying around** — if you ran `x4-analyzer extract-gamedata` under an earlier version, its output in your data folder was still being used by 1.4.0, which needs columns that older extracts don't have; analyzing a modded save (most saves) died immediately with `KeyError: 'work_effect'`. Out-of-date files are now detected, ignored with a warning that names the file and tells you to re-run `x4-analyzer extract-gamedata`, and the analyzer falls back to the reference data bundled with it — so it runs correctly either way, and re-extracting picks your own data straight back up. Newer-than-expected files (extra columns) keep working as before.
 
 ## 1.4.0 — 2026-08-01

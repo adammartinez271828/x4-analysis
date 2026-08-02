@@ -22,8 +22,10 @@ jobs:
           # ubuntu-22.04: older glibc so the binary runs on most distros
           - os: ubuntu-22.04
             suffix: linux
+            pyi_mode: --onefile
           - os: windows-latest
             suffix: windows
+            pyi_mode: --onedir --version-file version_info.txt
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -37,37 +39,73 @@ jobs:
         run: |
           tag_version=${TAG#v}
           pkg_version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
-          if [ "$tag_version" != "$pkg_version" ]; then
-            echo "Tag $TAG says version $tag_version, but pyproject.toml says $pkg_version."
+          # __init__.py holds a separate hardcoded copy, and it is the one
+          # the binaries report (--version, the Windows VERSIONINFO resource).
+          init_version=$(grep -m1 '^__version__' src/x4analyzer/__init__.py | cut -d'"' -f2)
+          if [ "$tag_version" != "$pkg_version" ] || [ "$tag_version" != "$init_version" ]; then
+            echo "Tag $TAG says version $tag_version, pyproject.toml says $pkg_version, __init__.py says $init_version."
             echo "Bump the version in pyproject.toml and src/x4analyzer/__init__.py, or retag."
             exit 1
           fi
-          echo "Tag $TAG matches pyproject.toml version $pkg_version."
+          echo "Tag $TAG matches pyproject.toml and __init__.py version $pkg_version."
+      # For artifact names. pyproject.toml works on workflow_dispatch too
+      # (no tag there), and the guard above pins it to the tag on releases.
+      - name: Read package version
+        id: pkg
+        shell: bash
+        run: echo "version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
+      # PyInstaller is pinned: its prebuilt bootloader stub changes between
+      # releases, and which stub we ship affects Defender's ML verdict — an
+      # unpinned install made a clean release and a flagged one differ for
+      # reasons invisible to us.
       - name: Install package and PyInstaller
         run: |
           uv venv --clear
-          uv pip install . pyinstaller
+          uv pip install . pyinstaller==6.21.0
       - name: Run tests
         run: |
           uv pip install pytest
           uv run pytest -q
-      - name: Build one-file executable
-        run: >
-          uv run pyinstaller --onefile --name x4-analyzer
-          --collect-data x4analyzer --collect-data plotly
-          packaging/entry.py
-      - name: Rename with platform suffix
+      # Linux keeps the single-file binary. Windows builds --onedir instead
+      # (matrix.pyi_mode): the 1.4.0 one-file EXE was flagged by Defender's
+      # ML classifier (Trojan:Win32/Sabsik.TE.A!ml) because self-extracting
+      # to %TEMP% and loading DLLs from there is exactly the dropper pattern
+      # it scores. An app folder loads its libraries in place — and most of
+      # them are well-known files with established reputation, scanned
+      # individually. --noupx and a VERSIONINFO resource are further cheap
+      # FP mitigations.
+      - name: Build executable
         shell: bash
         run: |
-          cd dist
-          if [ -f x4-analyzer.exe ]; then
-            mv x4-analyzer.exe x4-analyzer-${{ matrix.suffix }}.exe
-          else
-            mv x4-analyzer x4-analyzer-${{ matrix.suffix }}
+          if [ "${{ matrix.suffix }}" = windows ]; then
+            uv run python packaging/make_version_info.py version_info.txt
           fi
+          uv run pyinstaller ${{ matrix.pyi_mode }} --noupx --name x4-analyzer \
+            --collect-data x4analyzer --collect-data plotly \
+            packaging/entry.py
+      - name: Rename with version and platform suffix (Linux)
+        if: matrix.suffix == 'linux'
+        run: mv dist/x4-analyzer dist/x4-analyzer-${{ steps.pkg.outputs.version }}-linux
+      # The zip name has no trailing dash-suffix clash with the app folder
+      # (dist/x4-analyzer), so the upload glob below picks up only the zip.
+      # The test guards fail the job loudly if PyInstaller's output layout
+      # ever drifts — `python -m zipfile` silently ignores missing sources,
+      # which would otherwise publish an empty archive. The README warns
+      # against running the EXE from inside the zip preview (onedir needs
+      # the extracted _internal/ folder next to it).
+      - name: Zip the app folder (Windows)
+        if: matrix.suffix == 'windows'
+        shell: bash
+        run: |
+          test -f dist/x4-analyzer/x4-analyzer.exe
+          test -d dist/x4-analyzer/_internal
+          cp packaging/README-windows-zip.txt dist/README.txt
+          uv run python -m zipfile -c \
+            dist/x4-analyzer-${{ steps.pkg.outputs.version }}-windows.zip \
+            dist/README.txt dist/x4-analyzer
       - uses: actions/upload-artifact@v4
         with:
           name: x4-analyzer-${{ matrix.suffix }}
@@ -82,6 +120,12 @@ jobs:
         with:
           merge-multiple: true
           path: dist
+      # The build job named the artifacts from pyproject.toml; the guard
+      # pinned that to the tag, so deriving from the tag here matches.
+      - name: Version for the release notes
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
@@ -91,11 +135,17 @@ jobs:
             Standalone builds — no Python required. Download, run, and the
             dashboard opens in your browser.
 
-            **Windows:** download `x4-analyzer-windows.exe` and double-click
-            (a console window shows progress). SmartScreen may warn because
-            the binary is unsigned — choose "More info" → "Run anyway".
+            **Windows:** download `x4-analyzer-${{ env.VERSION }}-windows.zip`
+            and **extract it completely** (right-click → Extract All…), then double-click
+            `x4-analyzer.exe` in the extracted folder (a console window
+            shows progress). Running the EXE from inside the zip preview
+            fails with "Failed to load Python DLL" — extract first.
+            SmartScreen may warn because the binary is unsigned — choose
+            "More info" → "Run anyway". (The zip replaces the old single
+            EXE, whose unpack-itself-at-launch behaviour antivirus
+            heuristics sometimes mistook for malware.)
 
-            **Linux:** `chmod +x x4-analyzer-linux && ./x4-analyzer-linux`
+            **Linux:** `chmod +x x4-analyzer-${{ env.VERSION }}-linux && ./x4-analyzer-${{ env.VERSION }}-linux`
 
             Your newest savegame is found automatically
             (`Documents\Egosoft\X4` on Windows, `~/.config/EgoSoft/X4` on

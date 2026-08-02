@@ -5,6 +5,7 @@ __pycache__/
 dist/
 *.egg-info/
 .pytest_cache/
+version_info.txt
 
 # Analyzer output and caches
 output/

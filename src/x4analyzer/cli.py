@@ -7,6 +7,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import __version__
 from .config import Config
 
 
@@ -17,13 +18,21 @@ def log(*parts: object) -> None:
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--data-dir", type=Path, help="reference CSV / cache directory")
+    # On every subparser as well as top-level, so the flag works wherever it
+    # lands — including after the analyze-shim rewrite below. The literal
+    # prefix (not %(prog)s) keeps subparsers from printing "x4-analyzer analyze".
+    parser.add_argument("--version", action="version",
+                        version=f"x4-analyzer {__version__}")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="x4-analyzer",
-        description="Analyze an X4: Foundations savegame into an HTML dashboard.",
+        description="Analyze an X4: Foundations savegame into an HTML dashboard. "
+                    "With no subcommand, `analyze` is run.",
     )
+    parser.add_argument("--version", action="version",
+                        version=f"x4-analyzer {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     p_an = sub.add_parser("analyze", help="analyze a savegame (default command)")
@@ -82,10 +91,14 @@ def main(argv: list[str] | None = None) -> int:
                       help="X4 user dir with <id>/save/")
     _add_common_args(p_se)
 
-    # default to `analyze` when no subcommand given
+    # default to `analyze` when no subcommand given — except for the flags
+    # that mean "tell me about the CLI itself": help must reach the top-level
+    # parser (the only place the subcommands are listed; analyze's own help
+    # stays at `x4-analyzer analyze -h`).
     if argv is None:
         argv = sys.argv[1:]
-    if not argv or argv[0].startswith("-"):
+    if not argv or (argv[0].startswith("-")
+                    and argv[0] not in ("-h", "--help", "--version")):
         argv = ["analyze", *argv]
     args = parser.parse_args(argv)
     try:
