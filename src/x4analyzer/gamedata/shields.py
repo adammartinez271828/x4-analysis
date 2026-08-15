@@ -18,10 +18,8 @@ import re
 
 from lxml import etree
 
-from .catalog import GameFiles
+from .catalog import GameFiles, parse_xml
 from .textdb import TextDB
-
-_PARSER = etree.XMLParser(recover=True, huge_tree=True)
 
 SHIELD_GLOB = (r"(extensions/[^/]+/)?assets/props/[Ss]urface[Ee]lements/macros/"
                r"shield_[^/]*_macro\.xml$")
@@ -46,7 +44,7 @@ def extract_shields(gf: GameFiles) -> list[dict]:
     """Every shield macro's recharge block: capacity (max), rate, delay."""
     out = []
     for path in gf.glob(SHIELD_GLOB):
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -85,7 +83,7 @@ def extract_shield_mods(gf: GameFiles, tdb: TextDB | None = None) -> list[dict]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for el in root.iter(etree.Element):
@@ -121,7 +119,7 @@ def _mod_ware_names(gf: GameFiles, tdb: TextDB | None) -> dict[str, str]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for w in root.iter("ware"):

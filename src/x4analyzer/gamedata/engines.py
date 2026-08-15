@@ -65,10 +65,8 @@ import re
 
 from lxml import etree
 
-from .catalog import GameFiles
+from .catalog import GameFiles, parse_xml
 from .textdb import TextDB
-
-_PARSER = etree.XMLParser(recover=True, huge_tree=True)
 
 ENGINE_GLOB = (r"(extensions/[^/]+/)?assets/props/[Ee]ngines/macros/"
                r"engine_[^/]*_macro\.xml$")
@@ -116,7 +114,7 @@ def extract_engine_mods(gf: GameFiles, tdb: TextDB | None = None) -> list[dict]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for el in root.iter(etree.Element):
@@ -162,7 +160,7 @@ def _mod_ware_names(gf: GameFiles, tdb: TextDB | None) -> dict[str, str]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for w in root.iter("ware"):
@@ -224,7 +222,7 @@ def extract_engines(gf: GameFiles, tdb: TextDB | None = None) -> list[dict]:
     for path in gf.glob(ENGINE_GLOB):
         if "video" in path:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -269,7 +267,7 @@ def extract_thrusters(gf: GameFiles) -> dict[str, dict]:
     canonical one, so we key by size and keep the first per size."""
     by_size: dict[str, dict] = {}
     for path in gf.glob(THRUSTER_GLOB):
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -296,7 +294,7 @@ def extract_ships(gf: GameFiles, tdb: TextDB | None = None) -> list[dict]:
     purpose. Skips ships without physics (e.g. some scenario props)."""
     out: list[dict] = []
     for path in gf.glob(SHIP_GLOB):
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):

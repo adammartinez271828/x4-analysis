@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from x4analyzer.gamedata.catalog import GameFiles
+from x4analyzer.gamedata.catalog import GameFiles, parse_xml
 
 
 def make_cat(directory: Path, name: str, files: dict[str, bytes]) -> None:
@@ -68,6 +68,44 @@ def test_glob(game_dir: Path) -> None:
         "extensions/ego_dlc_test/libraries/wares.xml",
         "libraries/wares.xml",
     ]
+
+
+def test_parse_xml_survives_mod_junk(tmp_path: Path) -> None:
+    """Mods ship emptied and truncated XML; extraction must skip those files,
+    not die on them (lxml raises "Document is empty" even with recover=True)."""
+    make_cat(tmp_path, "01", {
+        "good.xml": b"<macros><macro name='m'/></macros>",
+        "empty.xml": b"",
+        "blank.xml": b"   \n",
+        "truncated.xml": b"<macros><macro name=",
+    })
+    gf = GameFiles(tmp_path, extensions=[])
+    assert parse_xml(gf, "good.xml") is not None
+    assert parse_xml(gf, "empty.xml") is None
+    assert parse_xml(gf, "blank.xml") is None
+    assert parse_xml(gf, "missing.xml") is None
+    # truncated is recoverable: whatever lxml salvages is fine, no exception
+    parse_xml(gf, "truncated.xml")
+
+
+def test_extract_modules_skips_an_empty_mod_macro(tmp_path: Path) -> None:
+    from x4analyzer.gamedata.extract import extract_modules
+    from x4analyzer.gamedata.textdb import TextDB
+
+    make_cat(tmp_path, "01", {
+        "assets/structures/production/macros/prod_gen_energycells_macro.xml":
+            b"<macros><macro name='prod_gen_energycells_macro'>"
+            b"<properties><production><queue ware='energycells'/>"
+            b"</production></properties></macro></macros>",
+    })
+    ext = tmp_path / "extensions" / "somemod"
+    ext.mkdir(parents=True)
+    make_cat(ext, "ext_01", {
+        "assets/structures/production/macros/broken_macro.xml": b"",
+    })
+    gf = GameFiles(tmp_path, extensions=["somemod"])
+    rows = extract_modules(gf, TextDB())
+    assert [r[0] for r in rows] == ["prod_gen_energycells_macro"]
 
 
 def test_ware_price_band_is_ordered_for_economy_wares():

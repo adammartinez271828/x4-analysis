@@ -24,8 +24,16 @@ class TextDB:
         self._pages: dict[int, dict[int, str]] = {}
 
     def load_xml(self, data: bytes) -> None:
-        """Merge a t-file (plain `<language>` or extension `<diff>` form)."""
-        root = etree.fromstring(data, etree.XMLParser(recover=True, huge_tree=True))
+        """Merge a t-file (plain `<language>` or extension `<diff>` form).
+
+        Empty/unparseable t-files (mods ship those) are skipped, not fatal."""
+        if not data.strip():
+            return
+        try:
+            root = etree.fromstring(
+                data, etree.XMLParser(recover=True, huge_tree=True))
+        except etree.XMLSyntaxError:
+            return
         if root is None:
             return
         for page in root.iter("page"):

@@ -21,20 +21,10 @@ from pathlib import Path
 
 from lxml import etree
 
-from .catalog import GameFiles
+from .catalog import GameFiles, parse_xml
 from ..cli import log
 from ..config import Config
 from .textdb import TextDB
-
-_PARSER = etree.XMLParser(recover=True, huge_tree=True)
-
-
-def _parse(gf: GameFiles, path: str) -> etree._Element | None:
-    try:
-        return etree.fromstring(gf.read_bytes(path), _PARSER)
-    except FileNotFoundError:
-        return None
-
 
 def _variant_paths(gf: GameFiles, relpath: str) -> list[str]:
     """A base-game file plus each extension's version of it, in load order."""
@@ -51,7 +41,7 @@ def _iter_merged(gf: GameFiles, relpath: str, tag: str):
     versions of a library file. Extension files are usually `<diff>` patches;
     scanning descendants for the tag handles both forms."""
     for path in _variant_paths(gf, relpath):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -168,7 +158,9 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
     # cluster galaxy positions: base galaxy.xml + DLC diff patches
     clusters: dict[str, list] = {}
     for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
+        if root is None:
+            continue
         source = gf.source_of(path)
         for conn in root.iter("connection"):
             if conn.get("ref") != "clusters":
@@ -191,7 +183,7 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
     md_paths = sorted(gf.glob(r"(extensions/[^/]+/)?libraries/mapdefaults\.xml$"),
                       key=lambda p: p.startswith("extensions"))
     for path in md_paths:
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for ds in root.iter("dataset"):
@@ -215,7 +207,7 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
     splines: dict[str, list] = {}
     for path in gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
                         r"[^/]*zonehighways\.xml$"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -233,7 +225,7 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
     highway_rows: list[list] = []
     for path in gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
                         r"[^/]*sectors\.xml$"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -282,7 +274,9 @@ def extract_map(gf: GameFiles, tdb: TextDB) -> tuple[list[list], list[list]]:
         )
     ]
     for path in cluster_files:
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
+        if root is None:
+            continue
         source = gf.source_of(path)
         for macro_el in root.iter("macro"):
             if macro_el.get("class") != "cluster":
@@ -368,7 +362,7 @@ def extract_gates(gf: GameFiles) -> list[list]:
     gate_off: dict[str, dict[str, tuple[float, float]]] = {}
     for path in gf.glob(
             r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*zones\.xml$"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -395,7 +389,7 @@ def extract_gates(gf: GameFiles) -> list[list]:
     zone_pos: dict[str, tuple] = {}
     for path in gf.glob(
             r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*sectors\.xml$"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for conn in root.iter("connection"):
@@ -450,7 +444,7 @@ def extract_gates(gf: GameFiles) -> list[list]:
                              [a, b, pa[0], pa[1], pb[0], pb[1], source, oneway])
 
     for path in _variant_paths(gf, "maps/xu_ep2_universe/galaxy.xml"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -474,7 +468,7 @@ def extract_gates(gf: GameFiles) -> list[list]:
     shw_edges: list[tuple] = []   # (from, to, from_pos, to_pos, source)
     for path in gf.glob(
             r"(extensions/[^/]+/)?maps/xu_ep2_universe/[^/]*clusters\.xml$"):
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -525,7 +519,7 @@ def extract_modules(gf: GameFiles, tdb: TextDB) -> list[list]:
         r"(extensions/[^/]+/)?assets/structures/.*/macros/.*\.xml$"
     )
     for path in paths:
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -605,7 +599,7 @@ def extract_recipes(gf: GameFiles) -> list[list]:
     for path in _variant_paths(gf, "libraries/wares.xml"):
         if "extensions/" not in path:
             continue
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for add in root.iter("add"):
@@ -682,7 +676,7 @@ def extract_modcaps(gf: GameFiles) -> list[list]:
         r"(extensions/[^/]+/)*assets/structures/(.*/)?macros/.*\.xml$"
     )
     for path in paths:
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         ops = macro_attr_diffs(root)
@@ -737,7 +731,7 @@ def _ship_storages(gf: GameFiles) -> dict[str, tuple[str, str]]:
         r"|props/[Ss]torage[Mm]odules)/macros/storage_.*\.xml$"
     )
     for path in paths:
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -755,7 +749,7 @@ def extract_ships(gf: GameFiles, tdb: TextDB, prices: dict[str, str]) -> list[li
         r"(extensions/[^/]+/)?assets/units/size_[a-z]+/macros/ship_.*\.xml$"
     )
     for path in paths:
-        root = _parse(gf, path)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -809,7 +803,9 @@ def extract_regionyields(gf: GameFiles) -> tuple[list[list], list[list]]:
     a save resource area's yieldid suffix ("…_<level>_<gatherspeed>").
     Returns (yield rows: level, ware, max yield, respawndelay;
     gatherspeed rows: id, factor, rating)."""
-    root = etree.fromstring(gf.read_bytes("libraries/regionyields.xml"))
+    root = parse_xml(gf, "libraries/regionyields.xml")
+    if root is None:
+        return [], []
     yrows = []
     for y in root.findall(".//yields/yield"):
         level = y.get("id", "")

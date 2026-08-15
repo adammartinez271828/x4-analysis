@@ -18,6 +18,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from lxml import etree
+
+from ..cli import log
+
+_XML_PARSER = etree.XMLParser(recover=True, huge_tree=True)
+
 
 @dataclass(frozen=True)
 class CatEntry:
@@ -124,3 +130,26 @@ class GameFiles:
     def source_of(self, path: str) -> str:
         e = self._index.get(path)
         return e.source if e else ""
+
+
+def parse_xml(gf: GameFiles, path: str) -> etree._Element | None:
+    """Parse a game file, or None if it is missing / empty / unparseable.
+
+    Mods ship zero-byte and truncated XML — emptying a file is a common way to
+    neuter a base-game one — and `recover=True` does not save us there: an
+    empty document still raises. Skip that file rather than crash the whole
+    extraction, same defensiveness as everywhere else that meets mod data."""
+    try:
+        data = gf.read_bytes(path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        log(f"  WARNING: unreadable game file {path}: {exc}")
+        return None
+    if not data.strip():
+        return None
+    try:
+        return etree.fromstring(data, _XML_PARSER)
+    except etree.XMLSyntaxError as exc:
+        log(f"  WARNING: skipping unparseable game file {path}: {exc}")
+        return None

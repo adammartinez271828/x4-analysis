@@ -23,10 +23,9 @@ import re
 
 from lxml import etree
 
-from .catalog import GameFiles
+from .catalog import GameFiles, parse_xml
 from .textdb import TextDB
 
-_PARSER = etree.XMLParser(recover=True, huge_tree=True)
 _MOD_WARE = re.compile(r"^mod_ship_")
 
 # multiplier stats where lower is better
@@ -61,7 +60,7 @@ def extract_ship_mods(gf: GameFiles, tdb: TextDB | None = None) -> list[dict]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for el in root.iter(etree.Element):
@@ -97,7 +96,7 @@ def _mod_ware_names(gf: GameFiles, tdb: TextDB | None) -> dict[str, str]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for w in root.iter("ware"):

@@ -25,10 +25,8 @@ import re
 
 from lxml import etree
 
-from .catalog import GameFiles
+from .catalog import GameFiles, parse_xml
 from .textdb import TextDB
-
-_PARSER = etree.XMLParser(recover=True, huge_tree=True)
 
 WEAPON_GLOB = (r"(extensions/[^/]+/)?assets/.*/macros/"
                r"(weapon|turret)_[^/]*_macro\.xml$")
@@ -69,7 +67,7 @@ def _parse_bullets(gf: GameFiles) -> dict[str, dict]:
     """bullet macro name -> firing properties (see keys below)."""
     bullets: dict[str, dict] = {}
     for path in _load_order(gf, gf.glob(BULLET_GLOB)):
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for m in root.iter("macro"):
@@ -126,7 +124,7 @@ def extract_weapons(gf: GameFiles, tdb: TextDB) -> list[dict]:
     bullets = _parse_bullets(gf)
     weapons: dict[str, dict] = {}
     for path in _load_order(gf, gf.glob(WEAPON_GLOB)):
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         source = gf.source_of(path)
@@ -184,7 +182,7 @@ def extract_weapon_mods(gf: GameFiles, tdb: TextDB) -> list[dict]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for el in root.iter(etree.Element):
@@ -231,7 +229,7 @@ def _mod_ware_names(gf: GameFiles, tdb: TextDB) -> dict[str, str]:
     for path in paths:
         if path not in gf:
             continue
-        root = etree.fromstring(gf.read_bytes(path), _PARSER)
+        root = parse_xml(gf, path)
         if root is None:
             continue
         for w in root.iter("ware"):
