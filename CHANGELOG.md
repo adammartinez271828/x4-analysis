@@ -7,6 +7,7 @@
 - **Trade charts: hover shows the full ship/station label** — the stacked bar/area charts under Trade → Charts (and the faction/station charts built from the same helpers) truncated the trace name in the tooltip at plotly's default 15 characters, cutting off exactly the in-game code appended to each seller/buyer name (`Fulmekron (…`). Name truncation is now disabled, so the whole `Name (CODE)` label is readable.
 - **Trade → History: the hourly bars are readable again** — the cumulative-net line grows to hundreds of millions of credits while an hour's trading is a fraction of that, and both shared one y-axis, so the bars were flattened to nothing. The cumulative net now has its own right-hand axis and the hourly sales/buys bars scale to themselves.
 - **Trade → History: no more missing commodity labels** — the "By commodity" chart had a fixed height, so for an object trading more than about eight wares plotly silently dropped every other label and you could not tell which bar was which. The chart now grows with the number of wares (and the panel grows with it), so every commodity is labelled.
+- **Market → Overview: the "Ware detail" dropdown is alphabetical** — it used to inherit the Cr/hr ranking of the summary table above it, which made finding a specific ware a hunt. The dropdown now sorts case-insensitively by ware name; the table and charts keep their Cr/hr ordering, and the initially selected ware is still the top earner. The advisor page's ware filter was aligned to the same case-insensitive sort.
 
 ## 1.4.1 — 2026-08-02
 
