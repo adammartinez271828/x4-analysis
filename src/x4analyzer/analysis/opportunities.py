@@ -72,41 +72,17 @@ class _Router:
     local-highway flag."""
 
     def __init__(self, ref: RefData):
-        self.hw = dict(zip(ref.sectors["macro"],
-                           ref.sectors.get("highway", 0)))
-        self.sector: list[str] = []     # node -> sector macro
-        self.pos: list[tuple] = []      # node -> (x, z) metres
-        self.by_sector: dict[str, list[int]] = {}
-        self.portals: list[tuple] = []  # (node_i, node_j) free transits
-
-        def node(sector: str, p: tuple) -> int:
-            i = len(self.sector)
-            self.sector.append(sector)
-            self.pos.append(p)
-            self.by_sector.setdefault(sector, []).append(i)
-            return i
-
-        has_pts = {"ax", "az", "bx", "bz"} <= set(ref.gates.columns)
-        linked: set[tuple] = set()
-        for r in ref.gates.itertuples(index=False):
-            a, b = str(r.sector_a), str(r.sector_b)
-            pa = (float(r.ax), float(r.az)) if has_pts else (0.0, 0.0)
-            pb = (float(r.bx), float(r.bz)) if has_pts else (0.0, 0.0)
-            self.portals.append((node(a, pa), node(b, pb)))
-            linked.update([(a, b), (b, a)])
-        # belt-and-braces like build_adjacency: same-cluster pairs are
-        # mutually reachable even without an extracted sechighway row
-        for _cl, grp in ref.sectors.groupby("cluster"):
-            macros = list(grp["macro"])
-            for i, a in enumerate(macros):
-                for b in macros[i + 1:]:
-                    if (a, b) not in linked:
-                        self.portals.append(
-                            (node(a, (0.0, 0.0)), node(b, (0.0, 0.0))))
-        self.portal_of: dict[int, list[int]] = {}
-        for i, j in self.portals:
-            self.portal_of.setdefault(i, []).append(j)
-            self.portal_of.setdefault(j, []).append(i)
+        # the graph itself lives in analysis/routing.py: the Routing page
+        # ships that exact graph to the client and re-walks it in JS, so
+        # there must be exactly one construction of it
+        from .routing import build_gate_graph
+        g = build_gate_graph(ref)
+        self.hw = g.hw                  # sector macro -> highway flag
+        self.sector = g.sector          # node -> sector macro
+        self.pos = g.pos                # node -> (x, z) metres
+        self.by_sector = g.by_sector
+        self.portals = g.portals        # (node_i, node_j) free transits
+        self.portal_of = g.portal_of
         self._cache: dict[tuple, tuple | None] = {}
 
     def _w(self, sector: str, sm: bool) -> float:
@@ -365,11 +341,20 @@ def build_opportunities(frames: Frames, ref: RefData,
     return rows
 
 
-def player_trade_ships(frames: Frames, ref: RefData) -> list[dict]:
+def player_trade_ships(frames: Frames, ref: RefData,
+                       container_only: bool = True,
+                       with_location: bool = False) -> list[dict]:
     """The player's container-capable ships with their ACTUAL loadout
     travel speed: Σ(mounted engines × forward thrust × travel multiplier)
     ÷ the hull's forward drag (the in-game encyclopedia formula). Ships
-    whose engines or hull aren't in the reference data get speed None."""
+    whose engines or hull aren't in the reference data get speed None.
+
+    `container_only=False` keeps every hull (fighters, miners, ships with
+    no hold at all) — the Routing page prices a voyage, not a cargo run.
+    `with_location=True` adds `loc` to each group: where the FIRST ship of
+    the group is, as (sector macro, x, z, docked), plus `locn` = how many
+    distinct positions the group spans (the group is one row in the UI,
+    so only one of them can seed a route)."""
     uni = frames.universe
     engines = getattr(frames, "ship_engines", None)
     if uni is None or uni.empty:
@@ -397,6 +382,7 @@ def player_trade_ships(frames: Frames, ref: RefData) -> list[dict]:
     # ships with identical model/size/hold/speed are interchangeable for
     # the what-if: roll them into one entry with a count instead of
     # listing every hull of a same-loadout freighter fleet
+    locator = _Locator(uni) if with_location else None
     groups: dict[tuple, dict] = {}
     for _, r in ships.iterrows():
         macro = str(r["macro"]).lower()
@@ -405,8 +391,10 @@ def player_trade_ships(frames: Frames, ref: RefData) -> list[dict]:
         m = ref_ships.loc[macro]
         cargo = pd.to_numeric(m["cargo"], errors="coerce")
         tags = str(m["cargo_tags"] or "")
-        if not (cargo > 0) or "container" not in tags:
+        if container_only and (not (cargo > 0) or "container" not in tags):
             continue
+        if not (cargo > 0):
+            cargo = 0.0     # NaN would make every hull its own group
         speed = None
         drag = pd.to_numeric(m.get("drag_forward"), errors="coerce")
         thrust = sum(eng_travel.get(em, 0.0) * n
@@ -423,9 +411,49 @@ def player_trade_ships(frames: Frames, ref: RefData) -> list[dict]:
             "cargo": key[2], "speed": speed, "n": 0,
         })
         g["n"] += 1
+        if locator is not None:
+            loc = locator.of(r)
+            if loc is not None:
+                if "loc" not in g:
+                    g["loc"] = loc
+                    g["locn"] = 1
+                elif loc != g["loc"]:
+                    g["locn"] = g.get("locn", 1) + 1
     out = list(groups.values())
     for g in out:
         if g["n"] > 1:
             g["l"] = g["model"] + " ×" + str(g["n"])
     out.sort(key=lambda s: s["l"].lower())
     return out
+
+
+class _Locator:
+    """Where a ship is. Ships carry no sector-local position in the save
+    (sx/sz are empty for essentially every hull), so a DOCKED ship is
+    placed at its host's exact position — walking up the parent chain,
+    since a ship can sit in a carrier that sits at a station — and a
+    free-flying one only at its sector's centre."""
+
+    MAX_HOPS = 4
+
+    def __init__(self, uni: pd.DataFrame):
+        self._by_id = uni.set_index("id")
+
+    def of(self, row) -> list | None:
+        cur, docked = row, 0
+        for _ in range(self.MAX_HOPS):
+            x = pd.to_numeric(cur.get("sx"), errors="coerce")
+            z = pd.to_numeric(cur.get("sz"), errors="coerce")
+            macro = str(cur.get("sector.macro") or "")
+            if pd.notna(x) and pd.notna(z) and macro:
+                return [macro, round(float(x), 1), round(float(z), 1),
+                        docked]
+            pid = str(cur.get("parent.id") or "")
+            if not pid or pid not in self._by_id.index:
+                break
+            nxt = self._by_id.loc[pid]
+            if isinstance(nxt, pd.DataFrame):     # duplicate id: give up
+                break
+            cur, docked = nxt, 1
+        macro = str(row.get("sector.macro") or "")
+        return [macro, 0.0, 0.0, 0] if macro else None

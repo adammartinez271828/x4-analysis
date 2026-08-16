@@ -29,6 +29,7 @@ from .history import build_trade_history
 from .map import build_map
 from .market import build_market
 from .pnl import build_pnl
+from .routing import build_routing
 from .sunbursts import build_sunbursts
 from .tables import build_tables
 
@@ -175,8 +176,8 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
     # the galaxy economy, Universe = galaxy stats.
     tabs: dict[str, dict[str, list[str]]] = {
         "Map": {"": [_iframe(map_src, map_style, lazy=False)]},
-        "Trade": {"Opportunities": [], "Earnings": [], "History": [],
-                  "Charts": [], "Starburst Charts": []},
+        "Trade": {"Opportunities": [], "Routing": [], "Earnings": [],
+                  "History": [], "Charts": [], "Starburst Charts": []},
         "Empire": {"Audit": [], "Station P&L": [], "Fleet": [],
                    "Combat": [], "Standings": []},
         "Market": {"Overview": [], "Build Advisor": []},
@@ -250,6 +251,13 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
         tabs["Trade"]["Opportunities"].append(
             "<p>" + _iframe(opportunities, "width:100%;height:1600px;",
                             lazy=True) + "</p>")
+
+    log("Generating routing")
+    routing = build_routing(frames, ref, cfg, files_dir, guid)
+    if routing:
+        tabs["Trade"]["Routing"].append(
+            "<p>" + _iframe(routing, "width:100%;height:1200px;", lazy=True)
+            + "</p>")
 
     log("Generating sunburst plots")
     for src in build_sunbursts(frames, ref, cfg, files_dir, guid):

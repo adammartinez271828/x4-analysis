@@ -65,6 +65,89 @@ time at 90% travel speed (log-validated) with S/M riding highways at an
 assumed 10 km/s (one-way, no spool-up/docking). DataTables `ext.search`
 filters on this page must guard on the table id — there are two tables.
 
+## Routing pane (`viz/routing.py` + `viz/routing_page.js` + `analysis/routing.py`)
+
+Trade → Routing, the sub-tab right after Opportunities: pick one of the
+player's ships and an origin, and every station in the save gets
+**From | To | Jumps | Distance km | Time**. No financial columns — this is
+the travel half of Opportunities on its own. A "To" selector filters the
+table to a single pair; both selectors group their options in an
+`<optgroup>` per sector with a plain substring filter box above them (no
+new dependency: filtering just sets `option.hidden`, and a group whose
+options are all hidden hides too).
+
+**Why the router runs client-side.** 1,800 stations × any origin × two
+cost weightings cannot be precomputed at build time, and the origin is a
+user choice. So the graph itself is shipped and re-walked in JS:
+
+- `analysis/routing.py::build_gate_graph()` is now the ONE constructor of
+  the gate graph (gates.csv endpoint offsets as nodes, synthetic (0,0)
+  portals for same-cluster pairs without a gates row, free portal
+  transits). `opportunities._Router.__init__` consumes it — the exported
+  payload and the Python router provably walk the same graph.
+- `graph_payload(ref)` serialises it: `sec` = [sector macro, highway
+  flag], `nodes` = [sector index, x, z] in `_Router` node order, `portals`
+  = node index pairs (~16 KB for the stock galaxy: 152 sectors, 364 nodes,
+  182 portals). Sector MACROS, never display names — under
+  `spoilers_hide` no undiscovered sector's name may reach the page, and
+  the graph is needed whole regardless of what is displayed. Display names
+  travel separately in `secnames`, only for sectors that host a listed
+  station (plus the picked ship's own sector, which is player-known by
+  construction).
+- `routing_stations(frames, ref, cfg)` emits compact rows
+  `[label, factionShort, secIdx, sx, sz, flags]` (flags 1 = player owned,
+  2 = construction site), sorted by sector display name then label.
+  Player-owned build plots are destinations (you haul resources to them)
+  and are tagged *site*; NPC build storage is dropped. Under
+  `spoilers_hide` an undiscovered station is ABSENT — not listed as
+  unreachable.
+- `routing_page.js` transcribes `_Router`: array-scan Dijkstra (O(n²) over
+  ~360 nodes beats a heap here), the same `_SM_HW_COST` = 0.1 highway
+  weighting, the same plain/highway km split, plus an eight-line BFS over
+  the portal graph collapsed onto sectors for Jumps — which reproduces
+  `sectorgraph.build_adjacency` exactly, because the portals were built
+  from the same gates rows and same-cluster pairs.
+- **Self-test.** `check_routes()` embeds 16 fixed station pairs with
+  Python-computed (km_plain, km_highway), alternating the S/M and L/XL
+  weights. The page recomputes them at load and `console.warn`s on any
+  deviation > 0.5 km, so a divergence between the two implementations
+  surfaces the first time anyone opens the pane (measured worst deviation
+  on save_002: 0.001 km).
+
+Selecting an origin runs two Dijkstras (plain and highway-favouring) and
+one BFS, then fills the table with every destination, sorted by time
+ascending. Unreachable rows show an em-dash and sort last via the 1e12
+sentinel; an unresolved ship speed leaves Time as an em-dash. The
+`ext.search` handler guards on `settings.nTable.id !== 'rtroutes'`.
+`player_trade_ships(container_only=False)` supplies the ship list — every
+hull, since a voyage needs no cargo hold — and `with_location=True` adds
+each group's position.
+
+**Design decision: Routing and Opportunities share one time model, on
+purpose.** The trip arithmetic in `routing_page.js` is
+`viz/market.py`'s Opportunities code verbatim: plain km at (travel drive
+ratio × loadout travel speed), highway-sector km at the set km/s for S/M
+only, plus a flat dock overhead (2 min S/M, 5 min L/XL). Same control
+ids modulo the `rt` prefix, same defaults. **Any future refinement —
+notably a non-zero per-gate transit cost — must change BOTH panes
+together**, or the same voyage will read two different times on two
+sub-tabs of the same page.
+
+Its blind spots are inherited wholesale and stated on the page: gate and
+superhighway transits cost ZERO time; one-way gates are treated as
+two-way (the BFS does the same), so a route can be offered in a direction
+that is not flyable; hostility, travel bans and accelerator detours are
+not modelled; engine mods are not modelled. One approximation is the
+pane's own: ships carry no sector-local position in the save (`sx`/`sz`
+are NULL for essentially every hull), so the "selected ship's current
+location" origin uses the host station's exact position when the ship is
+docked (walking up the parent chain, since a ship can sit in a carrier
+docked at a station) and otherwise falls back to the sector CENTRE —
+the same approximation `advisor.py` makes, worth tens of km on the first
+leg. Ships are rolled up by (model, class, hold, speed) as in
+Opportunities, so a group spanning several places reports the location of
+one of them and says so.
+
 ## Sunbursts (`viz/sunbursts.py`, `common.Sunburst`)
 
 `Sunburst.add()` accumulates (id, label, parent, value, colour) rows and
