@@ -4,9 +4,9 @@ import pandas as pd
 
 from x4analyzer.analysis.mining import (ASSUMED_TRIPS_PER_H,
                                         OBSERVED_WINDOW_H, raw_inflow,
-                                        storage_blocked,
+                                        scrap_throughput, storage_blocked,
                                         typical_miner_capacity)
-from x4analyzer.viz.audit import _mining_cards
+from x4analyzer.viz.audit import _mining_cards, _scrap_cards
 
 NOW = 100_000.0
 H = 3600.0
@@ -343,6 +343,144 @@ def test_mining_cards_partial_block_keeps_advice():
     assert n == 1
     assert "assign +" in html
     assert "at storage limit" in html and "storage full" not in html
+
+
+def _scrap_ref():
+    """Reference data with a Scrap Processor: batch scale 150 on the
+    scrapmetal `processing` recipe (60s, rawscrap 1 + energycells 10)
+    -> 9,000 rawscrap/h and 90,000 cells/h per module."""
+    ref = _ref(ships=[
+        ["miner_solid_a", "mine", 8800.0, "solid", "M"],
+        ["tug_a", "salvage", 1360.0, "container", "M"],
+        ["trans_a", "trade", 5000.0, "container", "M"],
+    ])
+    ref.wares = pd.concat([ref.wares, pd.DataFrame([
+        ["rawscrap", "solid", "processed recycling solid", "10"],
+        ["scrapmetal", "solid", "economy recycling solid", "10"],
+    ], columns=["id", "transport", "tags", "volume"])], ignore_index=True)
+    ref.ware_name = dict(ref.ware_name, rawscrap="Raw Scrap",
+                         scrapmetal="Scrap Metal",
+                         energycells="Energy Cells")
+    ref.modules = pd.DataFrame(
+        [["proc_gen_scrapworks_macro", "Scrap Processor", "scrapmetal",
+          "processing", 150.0],
+         ["prod_gen_energycells_macro", "Solar Panel", "energycells",
+          "default", 1.0]],
+        columns=["macro", "name", "ware", "method", "scale"])
+    ref.recipes = pd.DataFrame(
+        [["scrapmetal", "processing", 60, 1, "energycells", 10],
+         ["scrapmetal", "processing", 60, 1, "rawscrap", 1],
+         ["energycells", "default", 60, 100, "", ""]],
+        columns=["ware", "method", "time", "amount", "input_ware",
+                 "input_amount"])
+    return ref
+
+
+def _scrap_frames(tradelog, modules=1, wings=(), ships=(), floating=None,
+                  time_now=NOW):
+    f = _frames(
+        stations=[["st1", "STA-001", "Recycler"]],
+        wings=list(wings), ships=list(ships), tradelog=tradelog,
+        time_now=time_now)
+    f.stations["sector.macro"] = "cluster_01_sector_01_macro"
+    f.built_modules = pd.DataFrame(
+        [["st1", "proc_gen_scrapworks_macro"]] * modules,
+        columns=["id", "macro"])
+    if floating is not None:
+        f.floating_wares = pd.DataFrame(
+            floating, columns=["sector.macro", "ware", "amount"])
+    return f
+
+
+def _scrap_rates(rows=()):
+    df = pd.DataFrame(list(rows), columns=["id", "ware", "prod"])
+    df["faction"] = "PLA"
+    df["cons"] = 0.0
+    return df
+
+
+def test_scrap_throughput_capacity_and_intake():
+    frames = _scrap_frames(
+        tradelog=[
+            [NOW - 3 * H, "Raw Scrap", 9000, "STA-001", "SAL-001", None],
+            [NOW - 1 * H, "Raw Scrap", 9000, "STA-001", "SAL-001", None],
+            # scrap metal is the OUTPUT: never an intake measurement
+            [NOW - 1 * H, "Scrap Metal", 5000, "STA-001", "OTH-001", None],
+        ],
+        wings=[["st1", "s1"], ["st1", "m1"]],
+        ships=[["s1", "tug_a", "SAL-001"], ["m1", "miner_solid_a", "MIN-001"]],
+        floating=[["cluster_01_sector_01_macro", "rawscrap", 42_000.0]])
+    df = scrap_throughput(frames, _scrap_ref(),
+                          _scrap_rates([["st1", "energycells", 12_000.0]]))
+    assert list(df["ware"]) == ["rawscrap"]     # energy cells are not feed
+    r = df.iloc[0]
+    assert r["modules"] == 1
+    assert r["capacity"] == 9000.0              # scale 150 x 1/60 x 3600
+    assert r["ec_draw"] == 90_000.0             # x 10 cells per batch
+    assert r["ec_prod"] == 12_000.0
+    assert r["window_h"] == 3.0                 # first delivery 3h ago
+    assert r["observed"] == 6000.0              # 18,000 units / 3h
+    assert r["deliveries"] == 2
+    assert round(r["utilization"], 4) == round(6000 / 9000, 4)
+    assert r["salvagers"] == 1                  # the miner does not count
+    assert r["floating"] == 42_000.0
+
+
+def test_scrap_throughput_scales_with_modules_and_clamps_future():
+    frames = _scrap_frames(
+        modules=2,
+        tradelog=[
+            [NOW - 2 * H, "Raw Scrap", 9000, "STA-001", "SAL-001", None],
+            # a newer save's deliveries already in the cross-run trade log
+            [NOW + 2 * H, "Raw Scrap", 90_000, "STA-001", "SAL-001", None],
+        ])
+    df = scrap_throughput(frames, _scrap_ref(), _scrap_rates())
+    r = df.iloc[0]
+    assert r["modules"] == 2
+    assert r["capacity"] == 18_000.0
+    assert r["window_h"] == 2.0
+    assert r["observed"] == 4500.0
+    assert round(r["utilization"], 4) == 0.25
+    assert r["ec_prod"] == 0.0
+    assert r["salvagers"] == 0
+    assert r["floating"] == 0.0
+
+
+def test_scrap_throughput_degrades_without_data():
+    ref = _scrap_ref()
+    # no processing module built -> no rows, right columns
+    plain = _scrap_frames(tradelog=[], modules=0)
+    df = scrap_throughput(plain, ref, _scrap_rates())
+    assert df.empty and list(df.columns) == [
+        "id", "ware", "modules", "capacity", "observed", "window_h",
+        "utilization", "deliveries", "ec_draw", "ec_prod", "salvagers",
+        "floating"]
+    # module present, nothing delivered and no reference recipes at all
+    bare = _scrap_frames(tradelog=[])
+    assert scrap_throughput(bare, _ref(), _scrap_rates()).empty
+    df = scrap_throughput(bare, ref, _scrap_rates())
+    assert df.iloc[0]["observed"] == 0.0
+    assert df.iloc[0]["deliveries"] == 0
+    assert df.iloc[0]["capacity"] == 9000.0
+    # a modded macro missing from the module reference is simply not counted
+    bare.built_modules = pd.DataFrame(
+        [["st1", "proc_mod_unknown_macro"]], columns=["id", "macro"])
+    assert scrap_throughput(bare, ref, _scrap_rates()).empty
+
+
+def test_scrap_cards_render_intake_side():
+    frames = _scrap_frames(
+        tradelog=[[NOW - 2 * H, "Raw Scrap", 9000, "STA-001", "SAL-001",
+                   None]])
+    html = _scrap_cards(
+        scrap_throughput(frames, _scrap_ref(), _scrap_rates()),
+        {"st1": "Recycler (STA-001)"}, {"st1": "Grand Exchange I"},
+        lambda w: {"rawscrap": "Raw Scrap"}.get(w, w))
+    assert "Recycler (STA-001)" in html and "Grand Exchange I" in html
+    assert "Scrap processing" in html
+    assert "50% of capacity" in html      # 4,500 of 9,000/h
+    assert "no production events" in html
+    assert _scrap_cards(pd.DataFrame(columns=["id"]), {}, {}, str) == ""
 
 
 def test_typical_miner_capacity_prefers_own_fleet():

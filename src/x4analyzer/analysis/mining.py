@@ -192,6 +192,185 @@ def typical_miner_capacity(frames, ref) -> dict[tuple[str, str], float]:
     return out
 
 
+def _rolling_window(grp, time_now: float):
+    """(rows inside the observed window, window length in hours) for one
+    delivery history. The window ends at the snapshot's game time — the
+    trade log is cross-run and can hold later trades — and starts at the
+    first delivery when that is more recent than OBSERVED_WINDOW_H."""
+    grp = grp[grp["time"] <= time_now]
+    if grp.empty:
+        return grp, OBSERVED_WINDOW_H
+    window_h = max(0.5, min(OBSERVED_WINDOW_H,
+                            (time_now - float(grp["time"].min())) / 3600.0))
+    return grp[grp["time"] >= time_now - window_h * 3600.0], window_h
+
+
+# recipe variant run by processing modules (scrap processors and whatever
+# a mod adds under the same rule)
+PROCESSING_METHOD = "processing"
+ENERGY_WARE = "energycells"
+
+_TCOLS = ["id", "ware", "modules", "capacity", "observed", "window_h",
+          "utilization", "deliveries", "ec_draw", "ec_prod", "salvagers",
+          "floating"]
+# one row per (player station, processing feedstock ware):
+# modules     built processing modules feeding on that ware
+# capacity    units/h those modules can consume at full rate (module scale
+#             x recipe input_amount / recipe time), from game data only
+# observed    units/h actually DELIVERED in the rolling window (the only
+#             measurement that exists — see scrap_throughput)
+# utilization observed / capacity (1.0 = saturated; can exceed 1 when the
+#             station is stockpiling faster than it processes)
+# ec_draw     energy cells/h those modules need at full rate (station-wide)
+# ec_prod     energy cells/h the station itself produces (station-wide)
+# salvagers   salvage-purpose ships assigned to the station
+# floating    units of the ware drifting in the station's SECTOR (context;
+#             sector-wide, not reserved for this station)
+
+
+def processing_capacity(frames, ref) -> dict:
+    """station id -> {input ware: units/h} its BUILT processing modules can
+    consume at full rate, plus {"_n": modules per feedstock ware}. Derived
+    entirely from ref.modules (the `processing` recipe variant and the
+    module's batch scale) x ref.recipes — never hardcoded."""
+    out: dict = {}
+    mods = frames.built_modules
+    mref = getattr(ref, "modules", None)
+    rec = getattr(ref, "recipes", None)
+    if mods is None or mods.empty or mref is None or mref.empty \
+            or rec is None or rec.empty:
+        return out
+    mref = mref[mref["method"].astype(str) == PROCESSING_METHOD]
+    if mref.empty:
+        return out
+    scale = {str(m): (float(s) if pd.notna(s) and float(s) > 0 else 1.0)
+             for m, s in zip(mref["macro"],
+                             pd.to_numeric(mref["scale"], errors="coerce"))}
+    ware_of = dict(zip(mref["macro"].astype(str), mref["ware"].astype(str)))
+
+    rec = rec[rec["method"].astype(str) == PROCESSING_METHOD].copy()
+    for col in ("time", "input_amount"):
+        rec[col] = pd.to_numeric(rec[col], errors="coerce")
+    rec = rec[(rec["time"] > 0) & rec["input_ware"].astype(str).ne("")]
+    inputs: dict = {}
+    for r in rec.itertuples(index=False):
+        inputs.setdefault(str(r.ware), []).append(
+            (str(r.input_ware), float(r.input_amount) / float(r.time) * 3600.0))
+
+    inst = mods[mods["macro"].isin(scale)]
+    for (sid, macro), grp in inst.groupby(["id", "macro"]):
+        units = scale[str(macro)] * len(grp)
+        per_station = out.setdefault(sid, {"_n": {}})
+        for inp, per_unit in inputs.get(ware_of.get(str(macro), ""), []):
+            per_station[inp] = per_station.get(inp, 0.0) + per_unit * units
+            per_station["_n"][inp] = per_station["_n"].get(inp, 0) + len(grp)
+    return out
+
+
+def scrap_throughput(frames, ref, rates: pd.DataFrame) -> pd.DataFrame:
+    """Are the station's processing modules (scrap processors) actually
+    fed? One row per (player station, feedstock ware) — see _TCOLS.
+
+    The game records NOTHING about processing modules' own activity: they
+    emit no production events, no efficiency and no state in the save, and
+    their output (scrap metal) never appears in the trade or stock-event
+    streams because it is produced inside the station. Utilization is
+    therefore measured on the INTAKE side only — feedstock deliveries in
+    the trade log (salvage deliveries are ordinary trades with the station
+    as buyer) against the modules' recipe capacity. Output is not a second
+    measurement: the recipe is 1:1, so it would just restate the intake.
+    """
+    empty = pd.DataFrame(columns=_TCOLS)
+    stations = frames.stations
+    if stations is None or stations.empty:
+        return empty
+    cap_by_station = processing_capacity(frames, ref)
+    if not cap_by_station:
+        return empty
+
+    wares = ref.wares
+    economy = {str(w): ("economy" in str(t))
+               for w, t in zip(wares["id"], wares.get("tags", ""))}
+    # tradelog carries display names; map them back to ware ids
+    name_to_id = {ref.ware_name.get(w, w): w for w in wares["id"]}
+    for w in wares["id"]:
+        name_to_id.setdefault(w, w)
+
+    tl = frames.tradelog
+    raw = (tl[tl["commodity"].isin(name_to_id)].copy()
+           if tl is not None and not tl.empty else None)
+    if raw is not None and not raw.empty:
+        raw["ware"] = raw["commodity"].map(name_to_id)
+        raw["amount"] = pd.to_numeric(raw["amount"],
+                                      errors="coerce").fillna(0.0)
+    else:
+        raw = None
+
+    # salvage-purpose subordinates, per station
+    rs = ref.ships
+    purpose = dict(zip(rs["macro"].astype(str),
+                       rs.get("purpose", pd.Series(dtype=str)).fillna("")))
+    ships = frames.ships
+    macro_of = (dict(zip(ships["id"], ships["macro"].astype(str)))
+                if ships is not None and not ships.empty else {})
+    wings = frames.wings
+
+    fw = getattr(frames, "floating_wares", None)
+    floating: dict = {}
+    if fw is not None and not fw.empty and "sector.macro" in fw.columns:
+        amt = pd.to_numeric(fw["amount"], errors="coerce").fillna(0.0)
+        for sec, w, a in zip(fw["sector.macro"], fw["ware"], amt):
+            floating[(str(sec), str(w))] = \
+                floating.get((str(sec), str(w)), 0.0) + float(a)
+
+    time_now = frames.time_now
+    rows: list[dict] = []
+    for _, st in stations.iterrows():
+        sid = st["id"]
+        caps = cap_by_station.get(sid)
+        if not caps:
+            continue
+        n_mod = caps.get("_n", {})
+        feed = [w for w in caps if w != "_n" and not economy.get(w, True)] \
+            or [w for w in caps if w != "_n"]
+        ec_draw = float(caps.get(ENERGY_WARE, 0.0))
+        ec_prod = 0.0
+        if rates is not None and not rates.empty:
+            own = rates[(rates["id"] == sid) & (rates["ware"] == ENERGY_WARE)]
+            ec_prod = float(own["prod"].sum()) if not own.empty else 0.0
+        followers = (wings[wings["leader"] == sid]["follower"]
+                     if wings is not None and not wings.empty else ())
+        salvagers = sum(1 for fid in followers
+                        if purpose.get(macro_of.get(fid, ""), "") == "salvage")
+        # sector-local scrap is context only: it is not reserved for this
+        # station, and the save gives no per-station claim on it
+        sec_macro = str(st.get("sector.macro", "") or "")
+        code = str(st["code"])
+
+        for w in sorted(feed):
+            cap = float(caps.get(w, 0.0))
+            deliv = (raw[(raw["buyer.code"] == code) & (raw["ware"] == w)]
+                     if raw is not None else None)
+            if deliv is None or deliv.empty:
+                observed, window_h, n_deliv = 0.0, OBSERVED_WINDOW_H, 0
+            else:
+                recent, window_h = _rolling_window(deliv, time_now)
+                observed = float(recent["amount"].sum()) / window_h
+                n_deliv = int(len(recent))
+            rows.append({
+                "id": sid, "ware": w, "modules": int(n_mod.get(w, 0)),
+                "capacity": cap, "observed": observed, "window_h": window_h,
+                "utilization": observed / cap if cap > 0 else math.nan,
+                "deliveries": n_deliv, "ec_draw": ec_draw,
+                "ec_prod": ec_prod, "salvagers": salvagers,
+                "floating": floating.get((sec_macro, w), 0.0),
+            })
+    if not rows:
+        return empty
+    return (pd.DataFrame(rows)[_TCOLS]
+            .sort_values(["utilization", "id"], ignore_index=True))
+
+
 def raw_inflow(frames, ref,
                rates: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Returns (per-ware frame, per-pool frame) — see _COLS/_PCOLS.
@@ -323,10 +502,7 @@ def raw_inflow(frames, ref,
         window: dict[str, float] = {}
         for ware, grp in (deliveries.groupby("ware")
                           if not deliveries.empty else ()):
-            window_h = max(0.5, min(
-                OBSERVED_WINDOW_H,
-                (time_now - float(grp["time"].min())) / 3600.0))
-            recent = grp[grp["time"] >= time_now - window_h * 3600.0]
+            recent, window_h = _rolling_window(grp, time_now)
             mine_own = recent[recent["exec.code"].isin(code_pool)]
             observed[ware] = float(recent["amount"].sum()) / window_h
             own[ware] = float(mine_own["amount"].sum()) / window_h

@@ -197,7 +197,10 @@ order queues, staffing, crew gaps. Section order groups
 the station findings first and the ship findings (idle ships, crew gaps)
 last; the DataTables ids (`t1`…`t8`) are historical, do NOT follow the
 displayed order, and are never renumbered — `t2` (the retired "output
-piling up" section, folded into storage saturation) is simply unused.
+piling up" section, folded into storage saturation) is simply unused, and
+`t9` is the next free id. Tables page at 25 rows with a
+10/25/100/All length menu: at the old fixed 10 the section heading's true
+count read as a cap on the analysis.
 Every section names the SECTOR: a station id → sector name
 map (from `frames.stations['sector.id']` via the sectors frame, `"?"` when
 unknown) feeds a Sector column right after Station in the starvation,
@@ -212,6 +215,20 @@ arrays (`[label, sector, trades, …]`) and every `columnDefs` target is an
 index into that array, so inserting a column means shifting them all; the
 cumulative-net chart keeps plain station labels as series names (no sector)
 to keep the legend readable.
+
+Input starvation (`t1`) SELECTS and ORDERS rows on GROSS cover (stock ÷
+`_station_rates` `cons`, below `INPUT_LOW_H`), but reports on NET demand:
+the row carries `Produces/h` (the same rates row's `prod`, which the
+section used to ignore) and a `Net status` computed from `cons - prod` —
+"self-supplied" when the station makes at least as much as it burns
+(deliberately NOT phrased as "fine": the producing module can be starved
+upstream in turn), else STALLED / hours-left against net demand. A hidden
+trailing flag column (1 = net-covered) plus a `t1`-guarded
+`ext.search` handler back the "hide inputs the station produces itself"
+checkbox, default off — the same pattern as crew gaps' `hideS`. Wares
+without the `economy` tag are skipped entirely: processor feedstock is
+never held (see [csv-reference](csv-reference.md) and `storage.py`), so a
+stock-based cover reads STALLED forever.
 
 Raw resource supply (`analysis/mining.py`) renders per-station cards: per
 hold class (solid/liquid — one shared miner pool each) the overall
@@ -244,6 +261,31 @@ is headlined "⚠ storage full — inflow limited by space, not miners", drops
 the "+N miners" advice, and is excluded from the section's finding count;
 partially blocked classes keep the advice plus a warn line naming the
 blocked wares. The per-ware fine print shows stock as `held / ceiling`.
+
+**Scrap processing** (`mining.scrap_throughput()` → `audit._scrap_cards()`)
+is a second card block inside the same section — one card per player
+station with a built processing module, one row per feedstock ware.
+Capacity is pure game data: every built module whose `modules.csv` recipe
+`method` is `processing`, its batch `scale` × the recipe's
+`input_amount / time × 3600` (a Scrap Processor, scale 150 on
+`scrapmetal,processing,60,1` + rawscrap 1 / energycells 10, eats 9,000
+rawscrap/h and 90,000 cells/h) — computed generically, never hardcoded;
+feedstock = the non-`economy` inputs, energy = the `energycells` input.
+**Utilization is intake-side ONLY**, and the section says so: processing
+modules emit no production event, no `efficiency` and no `state` in the
+save (0 of 16 appear in `module_production`), and their output never
+reaches `trade_tx`/`stock_event` because it is produced inside the
+station, so the only measurable quantity is feedstock ARRIVING —
+salvage deliveries are ordinary trades with the station as buyer — over
+the same clamped rolling window as raw supply, divided by capacity. Output
+is deliberately not shown as a second measurement: the recipe is 1:1, so
+it would restate the intake. The card adds context that is NOT a
+measurement of the module: assigned salvagers (fleet followers whose
+ships.csv `purpose` is `salvage`), scrap floating in the station's sector
+(`frames.floating_wares`, sector-wide and unreserved), and the energy
+check (recipe cell draw vs the station's own cell production from
+`_station_rates`). Over-100% intake is shown as "▲ intake above capacity"
+with the bar capped.
 
 Storage saturation flags any (station, cargo class) above
 `STORAGE_FULL_PCT` = **80%** of built-module capacity and adds **Hours to

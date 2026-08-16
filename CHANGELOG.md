@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New User Features
+
+- **Empire audit: scrap-processing throughput** — the Raw resource supply section gains a **Scrap processing** card block for every station with a Scrap Processor (or any other processing module, including modded ones): how much feedstock actually arrives per hour against what the modules could eat, as a coverage bar — one live station reads 8,374 of 9,000 Raw Scrap/h, 93% of capacity — plus how many salvage ships are assigned, how much scrap is drifting in that sector, and whether the station makes the energy cells its processors need (90,000/h for one Scrap Processor). Capacity comes from the module's own batch scale and recipe, so it is right for any processing module. The card is explicit about what it can and cannot know: the game records no production events and no live state for processing modules and their output never leaves the station, so utilization is measured on the intake side only — deliveries in the trade log against recipe capacity.
+
 ### Fixes
 
 - **Raw resource supply: rates no longer count trades from the future** — the observed-inflow window had a start but no end, while the trade history spans every save ever imported. Analysing an older save after a newer one (or after `seed-trends` walked your archive) therefore counted deliveries that happen *later* than the save being looked at, inflating every raw-supply figure — one live run read raw scrap arriving at 148% of the station's processing capacity where the true, clamped answer is 84%. The window now ends at the loaded save's own game time, for both the rate and the window length.

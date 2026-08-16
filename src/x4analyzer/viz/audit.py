@@ -6,6 +6,9 @@ Sections (see docs/plans/analytics-ideas.md #5):
   production of that input shown beside it (a self-supplied input holds no
   stock by design); wares the station never stores (processor feedstock)
   are skipped;
+- raw resource supply, incl. scrap-processing throughput: feedstock
+  deliveries vs the processing modules' recipe capacity (the only
+  measurable side — the save records nothing about these modules);
 - storage saturation: per transport class, stock volume vs module capacity,
   plus the hours until full at the station's own net production rate;
 - constructions waiting for materials (own build sites that still need
@@ -27,7 +30,7 @@ from ..cli import log
 from ..config import Config
 from ..analysis.frames import Frames
 from ..analysis.mining import (OBSERVED_WINDOW_H, raw_inflow,
-                               storage_blocked)
+                               scrap_throughput, storage_blocked)
 from ..gamedata.refdata import RefData
 from .common import DARK_BG, DARK_FG, DARK_MUTED
 from .market import _station_rates
@@ -199,6 +202,78 @@ def _mining_cards(inflow: pd.DataFrame, pools: pd.DataFrame, st_name: dict,
             + "</div>"), n_need
 
 
+def _scrap_cards(scrap: pd.DataFrame, st_name: dict, st_sector: dict,
+                 wname) -> str:
+    """Processing-module throughput cards, one per station with a built
+    processing module (scrap processors). The game exposes no production,
+    efficiency or state for these modules and their output never leaves
+    the station, so the ONLY measurement is the intake side: feedstock
+    deliveries in the trade log against the modules' recipe capacity."""
+    if scrap.empty:
+        return ""
+    cards = []
+    for sid, grp in scrap.groupby("id", sort=False):
+        blocks = []
+        for _i, r in grp.iterrows():
+            cap = float(r["capacity"])
+            obs = float(r["observed"])
+            pct = 100.0 * obs / cap if cap > 0 else 0.0
+            over = pct > 100.0
+            colour = ("#4ecf71" if pct >= 90 else "#e8b84e" if pct >= 50
+                      else "#ff6b6b")
+            head = (f"<span class='pos'>▲ intake above capacity "
+                    f"({pct:.0f}%)</span>" if over
+                    else f"<span class='{'pos' if pct >= 90 else 'warn'}'>"
+                         f"{pct:.0f}% of capacity</span>")
+            bar = (f"<div class='mbar'><div style='width:"
+                   f"{min(pct, 100.0):.0f}%;background:{colour}'></div></div>"
+                   f"<div class='mnums'>{obs:,.0f} of {cap:,.0f} "
+                   f"{wname(r['ware'])}/h delivered "
+                   f"({int(r['modules'])} processing "
+                   f"module{'s' if int(r['modules']) != 1 else ''})</div>")
+            lines = [f"<div class='mnums'>{int(r['deliveries'])} deliveries "
+                     f"in the last {float(r['window_h']):.1f}h — the "
+                     "measured side; the module's own rate is not recorded"
+                     "</div>"]
+            if over:
+                lines.append("<div class='mnums'>more arrives than the "
+                             "modules can process — the surplus waits "
+                             "(or the window caught a delivery burst)</div>")
+            sal = int(r["salvagers"])
+            lines.append(
+                f"<div class='mnums'>{sal} salvage ship"
+                f"{'s' if sal != 1 else ''} assigned · "
+                f"{float(r['floating']):,.0f} {wname(r['ware'])} floating "
+                "in the sector <span class='note'>(sector-wide, not "
+                "reserved for this station)</span></div>")
+            draw, prod = float(r["ec_draw"]), float(r["ec_prod"])
+            if draw > 0:
+                short = prod < draw
+                cls_e = " warn" if short else ""
+                lines.append(
+                    f"<div class='mnums{cls_e}'>"
+                    f"{'⚠ ' if short else ''}energy: processors want "
+                    f"{draw:,.0f} cells/h, the station makes {prod:,.0f}"
+                    + (" — the rest must be bought in</div>" if short
+                       else "</div>"))
+            blocks.append(
+                "<div class='mclass'><div class='mhead'>"
+                f"<b>{wname(r['ware'])}</b>{head}</div>{bar}"
+                + "".join(lines) + "</div>")
+        cards.append(f"<div class='mcard'><h4>{st_name.get(sid, sid)} "
+                     f"<span class='msector'>· {st_sector.get(sid, '?')}"
+                     "</span></h4>" + "".join(blocks) + "</div>")
+    return ("<h4 class='sub'>Scrap processing</h4>"
+            "<p class='note'>Are your processing modules actually fed? The "
+            "game records no production events and no live state for "
+            "processing modules, and their output never leaves the station, "
+            "so utilization is measured on the INTAKE side: feedstock "
+            "deliveries in the trade log (salvage deliveries are ordinary "
+            "trades) against the modules' recipe capacity (batch scale × "
+            "recipe input rate, no efficiency scaling).</p>"
+            "<div class='mcards'>" + "".join(cards) + "</div>")
+
+
 def _remaining_construction(frames: Frames, ref: RefData,
                             host_ids: set) -> pd.DataFrame:
     """Estimated materials to finish each station's queued modules:
@@ -324,6 +399,10 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
     inflow, pools = raw_inflow(frames, ref, rates)
     mining_html, n_need = _mining_cards(inflow, pools, st_name, st_sector,
                                         wname)
+    # scrap processors live in the same section: same question (is the raw
+    # material arriving fast enough), different measurement
+    scrap_html = _scrap_cards(scrap_throughput(frames, ref, rates),
+                              st_name, st_sector, wname)
 
     # ---- 3. storage saturation ----------------------------------------------
     caps = ref.modcaps.copy()
@@ -630,6 +709,7 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         if tid == "t8":
             body.append(mining_html
                         or "<p class='ok'>Nothing found — all clear.</p>")
+            body.append(scrap_html)
         else:
             body.append(_table(df, tid))
 
@@ -680,6 +760,7 @@ h3{{margin:22px 0 2px 0;}} h3 small{{color:{DARK_MUTED};font-weight:normal;}}
 .chip{{display:inline-block;padding:3px 10px;border-radius:12px;margin:2px;
   font-size:12px;border:1px solid #444;}}
 .chip0{{color:{DARK_MUTED};}} .chip1{{color:#e8b84e;border-color:#e8b84e;}}
+h4.sub{{margin:18px 0 2px 0;}}
 .mcards{{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;}}
 .mcard{{background:#252525;border:1px solid #3a3a3a;border-radius:8px;
   padding:10px 14px;flex:1 1 340px;max-width:520px;}}
