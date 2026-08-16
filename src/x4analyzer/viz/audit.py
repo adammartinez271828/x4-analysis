@@ -599,13 +599,15 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
             body.append(_table(df, tid))
 
     tables_js = "\n".join(
-        f"$('#{tid}').DataTable({{order: [], pageLength: 10}});"
+        f"$('#{tid}').DataTable({{order: [], pageLength: 25, "
+        f"lengthMenu: [[10, 25, 100, -1], [10, 25, 100, 'All']]}});"
         for _t, _d, df, tid in sections
         if not df.empty and tid not in ("t7", "t8"))
     if not crew.empty:
         flag_idx = len(crew.columns) - 1
         tables_js += f"""
-$('#t7').DataTable({{order: [], pageLength: 10,
+$('#t7').DataTable({{order: [], pageLength: 25,
+  lengthMenu: [[10, 25, 100, -1], [10, 25, 100, 'All']],
   columnDefs: [{{targets: {flag_idx}, visible: false, searchable: false}}]}});
 $.fn.dataTable.ext.search.push(function(settings, data, idx, rowData) {{
   if (settings.nTable.id !== 't7') return true;
