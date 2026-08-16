@@ -187,12 +187,15 @@ function render() {{
     {{type:'bar', name:'Buys', x:hours, y:hours.map(h => (buys[h] || 0) / 1e6),
       marker:{{color:'#ff6b6b'}}}},
     {{type:'scatter', name:'Cumulative net', x:hours, y:net, mode:'lines',
-      line:{{color:'#e8e8e8', dash:'dash'}}}},
+      yaxis:'y2', line:{{color:'#e8e8e8', dash:'dash'}}}},
   ], Object.assign({{}}, LAYOUT(), {{
     title:{{text: obj + ' — hourly trade volume', font:{{size:15}}}},
     barmode:'relative',
     xaxis:{{title:'Hours until Now', gridcolor:'#3a3a3a'}},
     yaxis:{{title:'Credits (millions)', gridcolor:'#3a3a3a'}},
+    yaxis2:{{title:'Cumulative net (millions)', overlaying:'y', side:'right',
+      showgrid:false, zeroline:false, gridcolor:'#3a3a3a'}},
+    margin:{{t:40,l:60,r:70,b:40}},
   }}), CFG);
 
   // per-commodity totals
@@ -203,6 +206,10 @@ function render() {{
   }});
   const cs = Object.keys(byC).sort(
     (a, b) => (byC[b].sale + byC[b].buy) - (byC[a].sale + byC[a].buy));
+  // grow the plot (and, via the ResizeObserver, the iframe) with the ware
+  // count — a fixed height makes plotly cull category labels past ~8 wares
+  const H = Math.max(300, 100 + 26 * cs.length);
+  document.getElementById('bycommodity').style.height = H + 'px';
   Plotly.react('bycommodity', [
     {{type:'bar', name:'Sales', orientation:'h', y:cs.slice().reverse(),
       x:cs.slice().reverse().map(c => byC[c].sale / 1e6),
@@ -214,6 +221,8 @@ function render() {{
     title:{{text:'By commodity', font:{{size:15}}}},
     barmode:'relative',
     xaxis:{{title:'Credits (millions)', gridcolor:'#3a3a3a'}},
+    yaxis:{{automargin:true, gridcolor:'#3a3a3a'}},
+    height:H,
     margin:{{t:40,l:170,r:20,b:40}},
   }}), CFG);
 

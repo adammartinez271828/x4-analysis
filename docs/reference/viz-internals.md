@@ -27,6 +27,19 @@ Self-contained interactive pages: trade data embedded as JSON, rendered
 client-side with a selector (per-object trade history; global per-ware
 market stats).
 
+The history page's two charts: the hourly-volume chart puts the cumulative
+net line on a secondary right-hand y-axis (`yaxis2`, `overlaying:'y'`) so it
+does not autoscale-squash the hourly bars — the two axes are deliberately
+NOT zero-aligned, and the layout override restates `margin` in full
+(`r:70`) because `Object.assign` replaces `LAYOUT()`'s whole margin object.
+The by-commodity chart's height is computed per render
+(`max(300, 100 + 26 × wares)`, no cap) and set on both the container div and
+`layout.height` on every `Plotly.react` call — unconditionally, since once
+`layout.height` is set, omitting it on a later call drops plotly back to the
+container size. Without it plotly tick-culls the category labels past ~8
+wares. The iframe follows automatically via the page's
+ResizeObserver/postMessage self-sizing.
+
 `build_market` also emits the **Trade → Opportunities** page (lanes +
 per-ware "buy here / sell here" offer charts + top trading stations — the
 actionable views, with the offer books moved OUT of the market payload; a
