@@ -156,6 +156,32 @@ def test_rolling_window_excludes_old_deliveries():
     assert pl.at[("solid", "L"), "more_miners"] == 1
 
 
+def test_future_trades_are_ignored():
+    # the trade history is cross-run: re-analysing an OLDER save leaves
+    # deliveries recorded after its game time in the log. They must not
+    # count, and must not stretch the window either
+    frames = _frames(
+        stations=[["st1", "STA-001", "Refinery"]],
+        wings=[["st1", "m1"]],
+        ships=[["m1", "miner_solid_a", "MIN-001"]],
+        tradelog=[
+            [NOW - 2 * H, "Ore", 880, "STA-001", "MIN-001", None],
+            [NOW + 1 * H, "Ore", 8800, "STA-001", "MIN-001", None],
+            [NOW + 5 * H, "Ore", 8800, "STA-001", "MIN-001", None],
+        ],
+    )
+    df, pools = raw_inflow(frames, _ref(), _rates([["st1", "ore", 600.0]]))
+    r = df.set_index("ware").loc["ore"]
+    # only the 880 units delivered 2h ago, over a 2h window
+    assert r["window_h"] == 2.0
+    assert r["observed"] == 440.0
+    assert r["own"] == 440.0
+    assert r["deliveries"] == 1
+    # the measured pool rate follows the clamped inflow, not the future
+    pl = pools.set_index(["class", "size"])
+    assert pl.at[("solid", "M"), "measured"] == 4400.0 / 8800.0
+
+
 def test_modded_miner_capacity_fallbacks():
     # macro absent from ships.csv: hold volume falls back to the ship's
     # biggest observed delivery in m³ (via the proxy "Executed by" code),

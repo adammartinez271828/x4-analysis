@@ -62,7 +62,10 @@ ASSUMED_TRIPS_PER_H = {"S": 3.0, "M": 2.0, "L": 1.0, "XL": 0.8}
 
 # Observed inflow is a rolling rate over this window, clamped down to the
 # time since the first delivery of that ware to that station — a mining
-# operation started mid-window would otherwise look diluted.
+# operation started mid-window would otherwise look diluted. The window
+# ends at the loaded save's game time: the trade history spans every save
+# ever imported, so trades from the FUTURE (an older save re-analysed
+# after a newer one) must not count.
 OBSERVED_WINDOW_H = 6.0
 
 # ship sizes offered as "you could assign N of these instead" even when
@@ -305,7 +308,15 @@ def raw_inflow(frames, ref,
             pool_n[key] = pool_n.get(key, 0) + 1
             code_pool[str(ship_info.at[fid, "code"])] = key
 
-        deliveries = raw[raw["buyer.code"] == code] if not raw.empty else raw
+        # the trade history is CROSS-RUN and can hold trades newer than the
+        # save being analysed (re-importing an older save, or seed-trends
+        # walking archives out of order). Both the window length and the
+        # rate must therefore be clamped to the snapshot's own clock —
+        # unclamped, future deliveries inflated every rate (raw scrap read
+        # 148% of processing capacity where the clamped answer is 84%).
+        deliveries = (raw[(raw["buyer.code"] == code)
+                          & (raw["time"] <= time_now)]
+                      if not raw.empty else raw)
         observed: dict[str, float] = {}
         own: dict[str, float] = {}
         n_deliv: dict[str, int] = {}

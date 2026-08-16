@@ -224,6 +224,11 @@ for that size, then per-size ASSUMED_TRIPS_PER_H). Ship cargo capacity
 lives on storage macros linked from the ship macro's connections —
 extract-gamedata resolves it into ships.csv `cargo`/`cargo_tags` (solid vs
 liquid identifies miner type); `cargo` is hold VOLUME in m³, not units.
+The observed rate runs over a rolling window of at most
+`OBSERVED_WINDOW_H`, ending at the LOADED SAVE's game time and starting no
+earlier than the ware's first delivery. Both bounds matter: the trade log
+is cross-run, so re-analysing an older save after a newer one leaves
+future-dated deliveries in it, and counting them overstates every rate.
 
 A station with no ROOM for a ware also shows low inflow, so each ware
 carries `stock` / `limit` / `want`: held units, its effective ceiling
