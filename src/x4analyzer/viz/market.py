@@ -843,7 +843,10 @@ function faded(hex) {{
 let ACT = false;   // false = theoretical capacity, true = estimated actual
 
 const sel = document.getElementById('ware');
-ROWS.forEach(r => {{
+// dropdown is alphabetical for lookup; the table below stays Cr/hr-ranked
+// (sort a COPY — sorting ROWS in place would reorder the DataTable)
+ROWS.slice().sort((a, b) =>
+    a[0].localeCompare(b[0], undefined, {{sensitivity:'base'}})).forEach(r => {{
   const o = document.createElement('option');
   o.value = r[19]; o.textContent = r[0]; sel.appendChild(o);
 }});

@@ -587,7 +587,8 @@ const rows = DATA.rows.map(r => {{
   return Object.assign(r, {{det}});
 }});
 
-[...new Set(rows.map(r => r.ware))].sort().forEach(w =>
+[...new Set(rows.map(r => r.ware))].sort((a, b) =>
+  a.localeCompare(b, undefined, {{sensitivity:'base'}})).forEach(w =>
   $('#wsel').append(`<option>${{w}}</option>`));
 
 const table = $('#adv').DataTable({{
