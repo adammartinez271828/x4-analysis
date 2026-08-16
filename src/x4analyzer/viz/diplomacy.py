@@ -7,6 +7,10 @@ branches on the payload's `view`. Everything comes from the savegame's
 `universe/factions` block (frames.faction_*): the effective standing is the
 active booster when the pair has one, else the base relation, clamped to
 [-1, 1], as of the save (E-145). See docs/models/faction-relations-model.md.
+
+`build_standing_history` is the odd one out: a plain plotly widget (dark
+theme via common.save_widget) stacked under the standings table, drawn from
+the LOG's absolute per-event rank readings rather than the save's relations.
 """
 
 from __future__ import annotations
@@ -15,10 +19,13 @@ import json
 import math
 from pathlib import Path
 
+import plotly.graph_objects as go
+
 from ..config import Config
 from ..analysis.frames import Frames
 from ..gamedata.refdata import RefData
-from .common import DARK_BG, DARK_FG, DARK_MUTED, fullscreen_button_html
+from .common import (DARK_BG, DARK_FG, DARK_MUTED,
+                     fullscreen_button_html, save_widget)
 
 # Canonical roster + display order, grouped by allegiance (player first). Only
 # factions present in this save's data are emitted; the rest silently drop, so
@@ -237,3 +244,95 @@ def build_diplomacy(frames: Frames, ref: RefData, cfg: Config,
     relations = _write_page(_relations_payload(frames, ref), files_dir, guid,
                             "Diplomacy relations")
     return standings, relations
+
+
+# ---------------------------------------------------------------------------
+# Standing over time (Empire -> Standings, below the standings table)
+# ---------------------------------------------------------------------------
+
+def build_standing_history(frames: Frames, ref: RefData, files_dir: Path,
+                           guid: str) -> str | None:
+    """A step line per faction of the player's standing rank over time.
+
+    Every point is a HARD reading: the game's "Reputation gained/lost" log
+    entries carry the absolute -30..+30 rank AFTER the change
+    (frames.reputation_events), so the line is measured, never accumulated
+    from deltas — most entries carry no numeric delta at all, which is also
+    why there is deliberately no contribution-by-type breakdown here.
+
+    The log is a rolling window, so the chart only reaches as far back as
+    the merged history goes; the covered span (coverage table, stream
+    `log:`) is stated in the subtitle. Each line is extended flat from its
+    last event to the right edge at the last known rank — that tail is an
+    assumption of "nothing changed", not a measurement.
+
+    Returns the widget src, or None when the history holds no reputation
+    entries.
+    """
+    ev = getattr(frames, "reputation_events", None)
+    if ev is None or len(ev) == 0:
+        return None
+    ev = ev.dropna(subset=["current_rank"]).sort_values("time")
+    if ev.empty:
+        return None
+
+    t_end = max(float(ev["time"].max()), float(frames.time_now or 0.0))
+    order = {fid: i for i, fid in enumerate(_ORDER)}
+    latest = ev.groupby("faction")["current_rank"].last()
+    # strongest feelings first, so the legend opens on what matters
+    factions = sorted(latest.index,
+                      key=lambda f: (-abs(float(latest[f])),
+                                     order.get(f, len(order)), f))
+
+    fig = go.Figure()
+    for fid in factions:
+        meta = _fac_meta(ref, fid)
+        g = ev[ev["faction"] == fid]
+        xs = [float(t) / 3600.0 for t in g["time"]]
+        ys = [float(v) for v in g["current_rank"]]
+        hover = []
+        for _, r in g.iterrows():          # dotted column names: no itertuples
+            reason = r["reason"] if isinstance(r["reason"], str) else "unknown"
+            step = ("sub-rank tick" if bool(r["subunit"])
+                    else f"{float(r['delta']):+.0f}")
+            hover.append(f"{reason}<br>{step}")
+        if xs[-1] < t_end / 3600.0:        # flat carry to the right edge
+            xs.append(t_end / 3600.0)
+            ys.append(ys[-1])
+            hover.append("no further change logged")
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys, name=f"{meta['short']} {meta['name']}",
+            mode="lines", line={"shape": "hv", "width": 2,
+                                "color": meta["colour"]},
+            text=hover,
+            hovertemplate=("%{fullData.name}<br>%{x:.1f} h &mdash; rank "
+                           "%{y:.0f}<br>%{text}<extra></extra>"),
+        ))
+
+    cov = list(getattr(frames, "log_coverage", []) or [])
+    if cov:
+        spans = ", ".join(f"{a / 3600.0:.0f}&ndash;{b / 3600.0:.0f}"
+                          for a, b in cov)
+        note = (f"log history covers game hours {spans}"
+                + (" (gaps between spans: the game discarded that stretch)"
+                   if len(cov) > 1 else ""))
+    else:
+        note = (f"log history covers game hours "
+                f"{float(ev['time'].min()) / 3600.0:.0f}&ndash;"
+                f"{t_end / 3600.0:.0f}")
+    note += ("; every point is the rank the game logged after the event, "
+             "lines carried flat to the right edge")
+
+    fig.update_layout(
+        title={"text": "Faction standing over time<br>"
+                       f"<span style='font-size:11px;color:{DARK_MUTED}'>"
+                       f"{note}</span>"},
+        xaxis={"title": "game time (hours)"},
+        yaxis={"title": "standing rank", "range": [-30, 30],
+               "zeroline": True, "zerolinecolor": DARK_MUTED,
+               "dtick": 10},
+        hovermode="closest",
+        legend={"title": {"text": "faction"}},
+        margin={"l": 60, "r": 20, "t": 70, "b": 50},
+    )
+    return save_widget(fig, files_dir, "Standing history", guid)

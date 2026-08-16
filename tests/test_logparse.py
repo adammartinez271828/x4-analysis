@@ -5,7 +5,8 @@ from x4analyzer.save import logparse
 
 def log_df(rows):
     df = pd.DataFrame(rows)
-    for col in ("time", "category", "title", "text", "money", "component"):
+    for col in ("time", "category", "title", "text", "money", "component",
+                "faction"):
         if col not in df.columns:
             df[col] = pd.NA
     df["category"] = df["category"].fillna("")
@@ -341,3 +342,94 @@ def test_empty_log_gives_empty_frames():
     assert logparse.parse_ship_services(
         df, "Ship constructed", " finished construction at station: ",
         "Ship construction").empty
+
+
+# {20203,<id>} -> factions.csv identity, as analysis/frames.py builds it
+REP_FACTIONS = {
+    "{20203,2901}": {"id": "pioneers", "short": "PIO",
+                     "name": "Segaris Pioneers"},
+    "{20203,201}": {"id": "argon", "short": "ARG",
+                    "name": "Argon Federation"},
+}
+REP_REASONS = {"Trade Completed": 1200, "Destroyed Enemy": 200,
+               "Mission Completed": 100}
+
+
+def test_reputation_v9_wording():
+    # verbatim v9 shapes: sub-rank tick (no +-N in the title), an explicit
+    # gain, an explicit loss, and an unknown reason string
+    df = log_df([
+        {"time": 964.024, "category": "", "title": "Reputation gained",
+         "faction": "{20203,2901}",
+         "text": r"Reason: Trade Completed[\012]Current reputation: 0"},
+        {"time": 1056.998, "category": "", "title": "Reputation gained: +1",
+         "faction": "{20203,2901}",
+         "text": r"Reason: Trade Completed[\012]Current reputation: 1"},
+        {"time": 2000.0, "category": "", "title": "Reputation lost: -3",
+         "faction": "{20203,201}",
+         "text": r"Reason: Unauthorised Kill[\012]Current reputation: -2"},
+        {"time": 3000.0, "category": "", "title": "Reputation gained: +2",
+         "faction": "{20203,9999}",
+         "text": r"Reason: Bribed The Council[\012]Current reputation: 4"},
+    ])
+    out = logparse.parse_reputation(df, REP_FACTIONS, REP_REASONS)
+    assert list(out.columns) == logparse.REPUTATION_COLS
+    assert len(out) == 4
+
+    tick = out.iloc[0]
+    assert tick["faction"] == "pioneers"
+    assert tick["faction.short"] == "PIO"
+    assert tick["faction.name"] == "Segaris Pioneers"
+    assert tick["faction.ref"] == "{20203,2901}"
+    assert pd.isna(tick["delta"])          # no +-N: sub-rank-point change
+    assert bool(tick["subunit"]) is True
+    assert tick["reason"] == "Trade Completed"
+    assert tick["reason_id"] == 1200
+    assert tick["current_rank"] == 0.0
+
+    gain = out.iloc[1]
+    assert gain["delta"] == 1.0
+    assert bool(gain["subunit"]) is False
+    assert gain["current_rank"] == 1.0
+
+    loss = out.iloc[2]
+    assert loss["faction"] == "argon"
+    assert loss["delta"] == -3.0
+    assert loss["current_rank"] == -2.0    # absolute rank, not the step
+    assert pd.isna(loss["reason_id"])      # not in the known vocabulary
+    assert loss["reason"] == "Unauthorised Kill"
+
+    # unknown faction ref (modded faction): the raw ref survives
+    odd = out.iloc[3]
+    assert odd["faction"] == "{20203,9999}"
+    assert odd["faction.short"] == ""
+    assert odd["faction.name"] == ""
+    assert odd["reason"] == "Bribed The Council"
+    assert pd.isna(odd["reason_id"])
+
+
+def test_reputation_missing_reason_line_still_parsed():
+    df = log_df([{"time": 5.0, "category": "", "title": "Reputation gained",
+                  "faction": "{20203,201}",
+                  "text": "Current reputation: 12"}])
+    out = logparse.parse_reputation(df, REP_FACTIONS, REP_REASONS)
+    assert len(out) == 1
+    assert out.iloc[0]["current_rank"] == 12.0
+    assert pd.isna(out.iloc[0]["reason"])
+    assert pd.isna(out.iloc[0]["reason_id"])
+
+
+def test_reputation_unparsed_wording_skips_and_dumps(capsys):
+    df = log_df([{"time": 1.0, "category": "", "title": "Reputation gained",
+                  "faction": "{20203,201}", "text": "reworded rep text"}])
+    out = logparse.parse_reputation(df, REP_FACTIONS, REP_REASONS)
+    assert out.empty
+    assert list(out.columns) == logparse.REPUTATION_COLS
+    assert "reworded rep text" in capsys.readouterr().err
+
+
+def test_reputation_empty_log_gives_empty_frame():
+    df = log_df([{"time": 1.0, "category": "", "title": "Nothing"}])
+    out = logparse.parse_reputation(df, REP_FACTIONS, REP_REASONS)
+    assert out.empty
+    assert list(out.columns) == logparse.REPUTATION_COLS

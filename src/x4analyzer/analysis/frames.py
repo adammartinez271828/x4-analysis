@@ -52,6 +52,20 @@ class Frames:
     combat_rewards: pd.DataFrame = None
     ship_claims: pd.DataFrame = None
     pilot_bails: pd.DataFrame = None
+    # player standing history (Empire -> Standings), parsed from the merged
+    # log's "Reputation gained/lost" entries: time, faction (factions.csv
+    # id, or the raw {20203,id} ref when unknown), faction.short,
+    # faction.name, faction.ref, delta (NaN when the change was smaller
+    # than a rank point — `subunit`), reason / reason_id (textdb page
+    # 20217), current_rank. current_rank is the ABSOLUTE -30..+30 rank
+    # after the event and the only trustworthy number here: the titles'
+    # +-N does not always equal the step between readings, so never sum
+    # deltas (savegame-structure.md § Reputation entries).
+    reputation_events: pd.DataFrame = None
+    # covered [t_min, t_max] windows of the uncategorised log stream that
+    # feeds reputation_events, oldest first (the game's log is a rolling
+    # window; several entries mean the history has gaps)
+    log_coverage: list = field(default_factory=list)
     # the save's lifetime <stats> counters for the CURRENT snapshot:
     # id -> value (float). The combat counters are the player's PERSONAL
     # record, not the fleet's — E-148.
@@ -532,8 +546,8 @@ def build_frames(save: SaveData, ref: RefData,
     log("Preparing log entries -> log")
     df_log = _read(conn, """
         SELECT time, category, title, text, money_cr * 100.0 AS money,
-               component_id AS component
-        FROM log_entry ORDER BY time""", fill=["category"])
+               component_id AS component, faction
+        FROM log_entry ORDER BY time""", fill=["category", "faction"])
     df_log = df_log[
         (df_log["category"] == "")
         | ((df_log["category"] == "upkeep") & (df_log["title"] != "Trade Completed"))
@@ -583,6 +597,35 @@ def build_frames(save: SaveData, ref: RefData,
     pirates = logparse.parse_pirates(df_log, sectors_for_join)
     name_to_short = {ref.faction_name[o]: s for o, s in ref.faction_short.items()}
     police = logparse.parse_police(df_log, sectors_for_join, name_to_short)
+
+    # player standing history: log entries reference the faction as a
+    # {20203,<id>} textdb ref, which round-trips through the display name
+    # to the factions.csv id. Built here (not in logparse) so the parser
+    # stays free of RefData; unknown refs simply do not resolve.
+    name_to_id = {name: fid for fid, name in ref.faction_name.items()}
+    faction_by_ref = {}
+    for tid, disp in ref.textdb.page(20203).items():
+        name = ref.resolve_name(disp) or disp
+        fid = name_to_id.get(name)
+        if fid is None:
+            continue
+        faction_by_ref[f"{{20203,{tid}}}"] = {
+            "id": fid, "short": ref.faction_short.get(fid, ""), "name": name}
+    reason_ids = {
+        text: tid for tid, text
+        in ref.textdb.page(logparse.REPUTATION_REASON_PAGE).items()}
+    reputation_events = logparse.parse_reputation(
+        df_log, faction_by_ref, reason_ids)
+    # reputation entries carry no category, so their coverage is the
+    # 'log:' stream's (one row per epoch; >1 means the history has gaps)
+    try:
+        _cov = conn.execute(
+            "SELECT t_min, t_max FROM coverage WHERE stream = 'log:'"
+            " ORDER BY epoch").fetchall()
+    except sqlite3.Error:
+        _cov = []
+    log_coverage = [(float(a), float(b)) for a, b in _cov
+                    if a is not None and b is not None]
 
     # combat history (Empire -> Combat). All three titles live in the
     # categories df_log already keeps: "Combat Reward" and "Found
@@ -752,6 +795,7 @@ def build_frames(save: SaveData, ref: RefData,
         transfers=transfers, pirates=pirates, police=police,
         combat_rewards=combat_rewards, ship_claims=ship_claims,
         pilot_bails=pilot_bails,
+        reputation_events=reputation_events, log_coverage=log_coverage,
         player_stats=player_stats,
         entities=entities,
         station_modules=module_list, global_trades=gt,

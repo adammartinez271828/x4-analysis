@@ -1459,6 +1459,31 @@ both playthroughs' archived history where events exist):
   if possible`. It records the SIGHTING and the standing response, never
   the outcome — `<stats>`' `ships_claimed` is the only total of
   successful claims.
+- Player standing changes (title `Reputation gained` / `Reputation lost`,
+  **no category**; v9-verified 2026-08-15, 831/831 rows of the reference
+  playthrough's merged history): the title may be suffixed `: +N` / `: -N`,
+  and its **absence means the change did not move a whole rank point** (a
+  sub-rank-point tick — 724/831 rows here). The text is
+  `Reason: <reason>[\012]Current reputation: <int>`, where the integer is
+  the **absolute -30..+30 standing rank after the event** (the value the
+  standings UI shows, truncated to an integer). The entry's `faction`
+  attribute is a `{20203,<id>}` textdb reference identifying whose
+  standing moved; page 20203 is the faction display-name page, so it
+  round-trips to a `factions.csv` id through the name. `<reason>` comes
+  from textdb page 20217, a closed 15-entry vocabulary (`Trade Completed`,
+  `Mission Completed`, `Destroyed Enemy`, `Unauthorised Kill`, …).
+
+  ```xml
+  <entry time="1056.998" title="Reputation gained: +1" text="Reason: Trade Completed[\012]Current reputation: 1" faction="{20203,2901}"/>
+  ```
+
+  **The title's ±N is not the step.** Comparing consecutive
+  `Current reputation` readings per faction in the reference DB, 3/92
+  explicit-delta transitions (3.3%) disagree with the title's number, and
+  19/724 sub-rank-point ticks moved the rank by a whole point anyway —
+  booster decay and off-log adjustments (diplomatic agent actions log
+  separately under `category="diplomacy"`) move the same quantity. Only
+  `Current reputation` is a measurement; never accumulate the deltas.
 - Pilots forced to bail (`category="upkeep"` — **not** `alerts`; 45 + 64
   rows across both playthroughs): the whole record is the title,
   `Forced pilot to leave ship <ship> in sector <sector>.`, and the text

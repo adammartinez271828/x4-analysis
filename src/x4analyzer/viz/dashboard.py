@@ -24,7 +24,7 @@ from .charts import build_charts
 from .combat import build_combat
 from .common import DARK_BG, DARK_FG, DARK_MUTED, ensure_lib
 from .audit import build_audit
-from .diplomacy import build_diplomacy
+from .diplomacy import build_diplomacy, build_standing_history
 from .history import build_trade_history
 from .map import build_map
 from .market import build_market
@@ -233,6 +233,12 @@ def build_dashboard(cfg: Config, save: SaveData, ref: RefData,
         tabs["Universe"]["Relations"].append(
             "<p>" + _iframe(relations_src, "width:100%;height:900px;",
                             lazy=True) + "</p>")
+    # stacked below the standings table on the same sub-tab
+    history = build_standing_history(frames, ref, files_dir, guid)
+    if history:
+        tabs["Empire"]["Standings"].append(
+            "<p>" + _iframe(history, "width:100%;height:620px;", lazy=True)
+            + "</p>")
 
     log("Generating market overview")
     market, opportunities = build_market(frames, ref, cfg, files_dir, guid)

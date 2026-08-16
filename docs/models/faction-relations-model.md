@@ -94,6 +94,37 @@ Friend ≥0.1, Friendly ≥0.01, Neutral, Enemy, Hostile ≤−0.32, War =−1 �
 single-label reduction of the game's overlapping behaviour bands
 (self/ally/member/friend/neutral/enemy/killmilitary/kill/nemesis).
 
+## The log as an independent channel [OBS]
+
+The save's `<relations>` block gives the standing at ONE instant. The
+player logbook gives a *time series* of the same quantity: every
+`Reputation gained` / `Reputation lost` entry writes
+`Current reputation: <int>` — the −30..+30 rank **after** that event —
+tagged with the faction and the game time (entry shape in
+[savegame-structure.md](../reference/savegame-structure.md) § Log text
+formats). It is an independent observation channel: it neither reads nor
+depends on `base`/`booster`, yet it lands on the same number the
+composition + rank transform above produce (**E-150** — 13/15 factions
+within ±1 on the reference DB, residuals systematically positive because
+the log truncates to an integer, the two outliers being factions whose
+last logged event was hours before the snapshot).
+
+Two consequences for this model:
+
+- It measures the composed, decayed value directly, so a stretch with no
+  logged events for a faction is a **free decay measurement** — the
+  cheapest available lever on the open E-146 questions (does the booster
+  replace the base, and does it drift toward the base or toward 0).
+- Only the absolute reading counts. The titles' ±N disagrees with the
+  step between consecutive readings in 3.3 % of explicit-delta
+  transitions, and 19/724 "sub-rank-point" ticks moved a whole point, so
+  deltas must never be accumulated into a standing.
+
+The dashboard consumes it as the Empire → Standings history chart
+([viz-internals.md](../reference/viz-internals.md) § Faction standing over
+time); the log is a rolling window, so it reaches back only as far as the
+merged `coverage` says.
+
 ## Rejected — do not re-test without new evidence
 
 | candidate | how it died |

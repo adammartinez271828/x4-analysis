@@ -209,6 +209,85 @@ def parse_combat_rewards(df_log: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)[COMBAT_REWARD_COLS]
 
 
+REPUTATION_COLS = ["time", "faction", "faction.short", "faction.name",
+                   "faction.ref", "delta", "subunit", "reason", "reason_id",
+                   "current_rank"]
+
+# reason strings live on textdb page 20217 (a closed 15-entry vocabulary)
+REPUTATION_REASON_PAGE = 20217
+
+
+def parse_reputation(df_log: pd.DataFrame, faction_by_ref: dict,
+                     reason_ids: dict) -> pd.DataFrame:
+    """Player standing changes, with the ABSOLUTE rank after each event.
+
+    v9 wording: title `Reputation gained` / `Reputation lost`, optionally
+    suffixed `: +N` / `: -N`; the suffix is ABSENT when the change did not
+    move a whole rank point (the game's "sub-rank-point" tick). The text is
+    `Reason: <reason>[\\012]Current reputation: <int>`, where the integer is
+    the -30..+30 rank value **after** the event, and the entry's `faction`
+    attribute is a `{20203,<id>}` textdb reference to the faction whose
+    standing moved.
+
+    `current_rank` is the only measurement here: the title's +-N does NOT
+    reliably equal the step between consecutive `Current reputation`
+    readings (booster decay and off-log adjustments move it too), so
+    never accumulate `delta` — read the absolute value.
+
+    `faction_by_ref` maps the raw ref string to
+    `{"id": <factions.csv id>, "short": <3-letter>, "name": <display>}`;
+    an unknown ref (modded faction) keeps the raw ref as the faction and
+    leaves the resolved fields empty. `reason_ids` maps a reason string to
+    its textdb id on page 20217; an unrecognised reason keeps its text with
+    a NaN `reason_id`.
+    """
+    title = df_log["title"].fillna("")
+    df = df_log[title.str.startswith("Reputation ")]
+    if df.empty:
+        return _empty(REPUTATION_COLS)
+    df = df.copy()
+    text = (df["text"] if "text" in df
+            else pd.Series("", index=df.index)).fillna("")
+    rank = pd.to_numeric(
+        text.str.extract(r"Current reputation:\s*(-?\d+)", expand=False),
+        errors="coerce")
+    ok = rank.notna()
+    _dump_unparsed("reputation log entries",
+                   (df["title"].fillna("") + " :: " + text)[~ok])
+    df, text, rank = df[ok], text[ok], rank[ok]
+    if df.empty:
+        return _empty(REPUTATION_COLS)
+
+    parts = df["title"].fillna("").str.extract(
+        r"^Reputation (gained|lost)(?::\s*([+-]?\d+))?")
+    delta = pd.to_numeric(parts[1], errors="coerce")
+    # no explicit +-N: the change was smaller than one rank point
+    subunit = parts[1].isna()
+    reason = text.str.extract(r"Reason: ([^[]+)", expand=False).str.strip()
+    ref_raw = ((df["faction"] if "faction" in df
+                else pd.Series("", index=df.index)).fillna("").astype(str))
+
+    resolved = ref_raw.map(lambda r: faction_by_ref.get(r) or {})
+    reason_id = pd.to_numeric(
+        pd.Series([reason_ids.get(r) if isinstance(r, str) else None
+                   for r in reason]), errors="coerce")
+    out = pd.DataFrame({
+        "time": df["time"].values,
+        # unknown/modded refs stay visible rather than vanishing
+        "faction": [d.get("id") or r for d, r
+                    in zip(resolved, ref_raw)],
+        "faction.short": [d.get("short", "") for d in resolved],
+        "faction.name": [d.get("name", "") for d in resolved],
+        "faction.ref": ref_raw.values,
+        "delta": delta.values,
+        "subunit": subunit.values,
+        "reason": reason.values,
+        "reason_id": reason_id.values,
+        "current_rank": rank.astype(float).values,
+    })[REPUTATION_COLS]
+    return out
+
+
 SHIP_CLAIM_COLS = ["time", "finder", "finder.code", "sector", "claimed",
                    "claimed.code"]
 

@@ -482,6 +482,38 @@ constants. NO spoiler handling — relations are global state, not
 exploration-gated. Curated faction order/roster (`_ORDER`, real factions
 only — excludes visitor###/civilian/ownerless).
 
+### Faction standing over time (`diplomacy.build_standing_history`)
+
+Stacked **below** the standings table on the same Empire → Standings
+sub-tab (the shell's sub-tabs hold a list of widget iframes, so no new
+sub-tab was needed). Unlike its two neighbours this is an ordinary plotly
+widget through `common.save_widget()` — dark theme for free, no `_PAGE`
+templating.
+
+Data source is the **log**, not the save's relations:
+`frames.reputation_events` (parsed by `logparse.parse_reputation`, wording
+in [savegame-structure.md](savegame-structure.md) § Log text formats).
+Every point is the *absolute* rank the game wrote in
+`Current reputation:` after an event, so the line is measured rather than
+integrated — one `line_shape:'hv'` step trace per faction that has at
+least one reputation entry, y fixed to −30..+30 with a zero line, x in
+game hours, faction colours taken from `_fac_meta` so the two widgets
+agree, legend ordered by |latest rank| descending. Each line is carried
+flat from its last event to the right edge (same line style, no separate
+trace): that tail is "nothing further was logged", not a reading.
+
+The subtitle states the covered span from `frames.log_coverage`
+(the `coverage` table, stream `log:` — reputation entries carry no
+category), listing every epoch so a gap in the rolling window is visible
+instead of being interpolated across. NO spoiler handling: reputation
+entries name no object or sector.
+
+**Deliberate scope cut:** no contribution-by-type breakdown and no stacked
+chart. 724 of 831 entries in the reference history carry no numeric delta
+at all (sub-rank-point ticks), and the titles that do carry one disagree
+with the observed step 3.3% of the time — attributing "how much rank did
+trading earn me" would be estimation, not measurement.
+
 ## Weapon-mod dashboard (`viz/weaponmods.py` + `gamedata/weapons.py`/`weaponsim.py`)
 
 The `gamedata-dashboard` subcommand: a static GAME-FILE analysis page (no

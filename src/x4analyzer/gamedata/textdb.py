@@ -51,6 +51,11 @@ class TextDB:
     def raw(self, page: int, tid: int) -> str | None:
         return self._pages.get(page, {}).get(tid)
 
+    def page(self, page: int) -> dict[int, str]:
+        """A whole page as {id: raw text} (empty when the page is absent).
+        Callers that need display strings must still `resolve()` them."""
+        return dict(self._pages.get(page, {}))
+
     def items(self):
         """All (page, tid, text) triples (for the analysis database)."""
         for page, entries in self._pages.items():
