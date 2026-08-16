@@ -38,6 +38,7 @@ def _bar_figure(series: pd.DataFrame, avg: pd.DataFrame, title: str,
         xaxis_title="Hours until Now", yaxis_title="Credits/hour (millions)",
         legend={"orientation": "h", "y": -0.15, "title": legend_title,
                 "traceorder": "normal"},
+        hoverlabel={"namelength": -1},
         margin={"t": 50},
     )
     return fig
@@ -56,6 +57,7 @@ def _area_figure(series: pd.DataFrame, title: str, legend_title: str,
         yaxis_title="Credits (millions)",
         legend={"orientation": "h", "y": -0.15, "title": legend_title,
                 "traceorder": "normal"},
+        hoverlabel={"namelength": -1},
         margin={"t": 50},
     )
     return fig

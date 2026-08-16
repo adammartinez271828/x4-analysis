@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- **Trade charts: hover shows the full ship/station label** — the stacked bar/area charts under Trade → Charts (and the faction/station charts built from the same helpers) truncated the trace name in the tooltip at plotly's default 15 characters, cutting off exactly the in-game code appended to each seller/buyer name (`Fulmekron (…`). Name truncation is now disabled, so the whole `Name (CODE)` label is readable.
+
 ## 1.4.1 — 2026-08-02
 
 ### New User Features
