@@ -2,7 +2,10 @@
 
 Sections (see docs/plans/analytics-ideas.md #5):
 - production input starvation: hours of input cover per station, from stock
-  vs the station's own recipe consumption rates;
+  vs the station's own recipe consumption rates, with the station's OWN
+  production of that input shown beside it (a self-supplied input holds no
+  stock by design); wares the station never stores (processor feedstock)
+  are skipped;
 - storage saturation: per transport class, stock volume vs module capacity,
   plus the hours until full at the station's own net production rate;
 - constructions waiting for materials (own build sites that still need
@@ -276,18 +279,41 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         return ref.ware_name.get(w, w)
 
     # ---- 1. input starvation ----------------------------------------------
+    # only economy-tagged wares are ever HELD: processor feedstocks
+    # (rawscrap, rawkhaakscrap, modded equivalents) go straight into the
+    # processing module, so the station holds exactly 0 of them and a
+    # stock-based cover reads STALLED forever — see storage.py:130.
+    economy = {w: "economy" in str(t)
+               for w, t in zip(ref.wares["id"], ref.wares["tags"])}
     rows = []
     for r in my_rates[my_rates["cons"] > 0].itertuples(index=False):
+        if not economy.get(r.ware, True):
+            continue
         stock = float(held.get((r.id, r.ware), 0.0))
-        cover = stock / r.cons
+        cover = stock / r.cons          # GROSS cover: what picks the rows
         if cover < INPUT_LOW_H:
-            state = ("<span class='neg'>STALLED</span>" if stock <= 0
-                     else f"<span class='warn'>{cover:.1f}h left</span>")
+            prod = float(r.prod)
+            net = float(r.cons) - prod   # what the station must buy in
+            if net <= 0:
+                # the station makes at least as much as it burns — the
+                # producing module can still be starved upstream, so this
+                # is "produced here", not "you are fine"
+                state = (f"<span class='pos'>self-supplied "
+                         f"(+{prod - r.cons:,.0f}/h)</span>")
+                net_covered = 1
+            elif stock <= 0:
+                state = "<span class='neg'>STALLED</span>"
+                net_covered = 0
+            else:
+                state = (f"<span class='warn'>{stock / net:.1f}h left"
+                         "</span>")
+                net_covered = 0
             rows.append({"Station": st_name.get(r.id, r.id),
                          "Sector": st_sector.get(r.id, "?"),
                          "Input": wname(r.ware), "Consumes/h": round(r.cons),
-                         "Stock": round(stock), "Status": state,
-                         "_sort": cover})
+                         "Produces/h": round(prod) if prod > 0 else "—",
+                         "Stock": round(stock), "Net status": state,
+                         "_sort": cover, "_f": net_covered})
     starving = (pd.DataFrame(rows).sort_values("_sort").drop(columns="_sort")
                 if rows else pd.DataFrame())
 
@@ -537,8 +563,17 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
 
     sections = [
         ("Production starving for inputs",
-         f"inputs below {INPUT_LOW_H:g}h of cover at your stations "
-         "(STALLED = stock is empty)", starving, "t1"),
+         f"inputs below {INPUT_LOW_H:g}h of cover at your stations, counting "
+         "only the stock on hand (STALLED = stock is empty). "
+         "<b>Net status</b> then subtracts what the station makes of that "
+         "input itself: &quot;self-supplied&quot; means the station produces "
+         "this ware at least as fast as it burns it, so the empty warehouse "
+         "is normal — it is NOT a promise that all is well, since the module "
+         "producing it can be starved upstream in turn. Wares the station "
+         "never stores (processor feedstock such as raw scrap, delivered "
+         "straight into the processing module) are not listed at all "
+         "&nbsp; <label><input type='checkbox' id='hideSelf'> hide inputs "
+         "the station produces itself</label>", starving, "t1"),
         ("Raw resource supply",
          "how many more miners to assign, per station and hold class: "
          "shortfall = raw consumption not covered by current inflow (own "
@@ -602,7 +637,23 @@ def build_audit(frames: Frames, ref: RefData, cfg: Config, files_dir: Path,
         f"$('#{tid}').DataTable({{order: [], pageLength: 25, "
         f"lengthMenu: [[10, 25, 100, -1], [10, 25, 100, 'All']]}});"
         for _t, _d, df, tid in sections
-        if not df.empty and tid not in ("t7", "t8"))
+        if not df.empty and tid not in ("t1", "t7", "t8"))
+    if not starving.empty:
+        # the last (hidden) column flags inputs the station produces itself
+        # (net consumption <= 0), so the checkbox can drop them while the
+        # genuinely externally-supplied starving inputs stay visible
+        self_idx = len(starving.columns) - 1
+        tables_js += f"""
+$('#t1').DataTable({{order: [], pageLength: 25,
+  lengthMenu: [[10, 25, 100, -1], [10, 25, 100, 'All']],
+  columnDefs: [{{targets: {self_idx}, visible: false, searchable: false}}]}});
+$.fn.dataTable.ext.search.push(function(settings, data, idx, rowData) {{
+  if (settings.nTable.id !== 't1') return true;
+  if (!document.getElementById('hideSelf').checked) return true;
+  // searchable:false columns are blank in `data`; use the raw row data
+  return String(rowData[{self_idx}]).trim() !== '1';
+}});
+$('#hideSelf').on('change', function() {{ $('#t1').DataTable().draw(); }});"""
     if not crew.empty:
         flag_idx = len(crew.columns) - 1
         tables_js += f"""
