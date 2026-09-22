@@ -47,6 +47,7 @@ class RefData:
     recipes: pd.DataFrame    # ware production recipes (long: one row/input)
     modcaps: pd.DataFrame    # module housing/workers/cargo capacities
     gates: pd.DataFrame      # sector pairs joined by a gate/accelerator
+    zones: pd.DataFrame      # static zone offsets: sector, macro, x, y, z
     textdb: TextDB
 
     # resource replenishment (regionyields.xml): (level, ware) -> (max
@@ -171,11 +172,18 @@ def load_refdata(data_dir: Path, log=None) -> RefData:
                         ["macro", "class", "housing", "workers", "cargo_max",
                          "cargo_tags", "unit_storage"])
     gates = _optional("gates.csv", ["sector_a", "sector_b", "source"])
+    zones = _optional("zones.csv",
+                      ["sector", "macro", "x", "y", "z", "source"])
+    if not zones.empty:
+        # macros are lowercased at every boundary (save vs game-file case);
+        # astype(str) first: a user-dir CSV whose column parsed numeric
+        # would otherwise crash the whole run on the .str accessor
+        zones["macro"] = zones["macro"].astype(str).str.lower()
     engines = _optional("engines.csv",
                         ["macro", "size", "type", "mk", "forward",
                          "travel_thrust"])
     if not engines.empty:
-        engines["macro"] = engines["macro"].str.lower()
+        engines["macro"] = engines["macro"].astype(str).str.lower()
     highways = _optional("highways.csv", ["sector", "points", "source"])
     if "points" not in highways.columns and {"x1", "z1", "x2", "z2"} \
             <= set(highways.columns):
@@ -227,9 +235,39 @@ def load_refdata(data_dir: Path, log=None) -> RefData:
         factions=factions, wares=wares, clusters=clusters, sectors=sectors,
         ships=ships, engines=engines, highways=highways,
         modules=modules, recipes=recipes,
-        modcaps=modcaps, gates=gates, textdb=textdb,
+        modcaps=modcaps, gates=gates, zones=zones, textdb=textdb,
         region_yields=region_yields, gatherspeeds=gatherspeeds,
         faction_short=faction_short, faction_name=faction_name,
         faction_colour=faction_colour, ware_name=ware_name,
         economy_wares=economy_wares,
     )
+
+
+def zone_offsets(ref: RefData) -> dict[str, tuple[float, float, float]]:
+    """Zone macro -> its sector-local (x, y, z) offset in metres.
+
+    A module-level helper rather than a cached RefData field: modpatch
+    rebuilds RefData with `dataclasses.replace`, which would carry a
+    stale cache across. Callers that need it per run build it once and
+    pass it down (analyze.py, save/find.py).
+    """
+    zones = getattr(ref, "zones", None)
+    if zones is None or zones.empty:
+        return {}
+
+    def _f(v) -> float:
+        # mod CSVs reach here too: a missing/garbage axis is 0.0, never a
+        # crash (NaN would silently poison every summed position)
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return 0.0
+        return 0.0 if f != f else f          # NaN -> 0.0
+
+    out: dict[str, tuple[float, float, float]] = {}
+    for macro, x, y, z in zip(zones["macro"], zones["x"], zones["y"],
+                              zones["z"]):
+        if not isinstance(macro, str) or not macro:
+            continue
+        out[macro.lower()] = (_f(x), _f(y), _f(z))
+    return out

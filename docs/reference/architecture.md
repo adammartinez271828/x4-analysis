@@ -22,7 +22,19 @@ record type (~22 s / ~400 MB peak for an 85 MB .gz save; B20 re-measure
 (cluster/sector/parent object) is tracked via explicit stacks; each stack
 frame also keeps the component's own `<offset><position>`, so stations and
 build plots get sector-local sx/sz (interposed zone offsets summed in — the
-landmarks.py chain, folded into the single pass). The station attribute
+landmarks.py chain, folded into the single pass). A `class="zone"` frame is
+SEEDED at the component's start event from `zones.csv`
+(`refdata.zone_offsets()`, passed in as `parse_savegame(..., zone_offsets=)`):
+static zones keep their sector-local offset in the game files, never in the
+save (E-151), and seeding at start also covers the one static zone that
+carries no `<offset>` element at all. A real `<offset><position>` in the save
+arrives later and overwrites the seed — the save always wins, which is what
+keeps tempzones correct. A zone with neither (a modded sector, or reference
+data older than the game) falls back to the sector centre, lands in
+`SaveData.unknown_zone_macros` and is reported in ONE summary warning after
+the sweep, not once per zone. The three offset walks (stations/derelicts,
+data vaults, wormholes) are unchanged: they just sum the frames. The station
+attribute
 `factionheadquarters="1"` (one station per faction, where its representative
 sits) is captured.
 
@@ -54,10 +66,16 @@ A small SEPARATE iterparse sweep (~18 s; B20 re-measure 2026-07-24) that locates
 regex and reports sector-relative km coordinates — a reimplementation of the
 community "Erlking data vault locator" batch script (forum p5116566). It
 keeps its own offset chain because positions in a save are parent-relative
-(galaxy → cluster → sector → zone → object, any link possibly
-`<offset default="1"/>` = zero) and summing from the sector down gives the
-coordinates the in-game map shows — `parser.py` deliberately drops both
-zones and positions, so this stays out of the hot path.
+(galaxy → cluster → sector → zone → object) and summing from the sector down
+gives the coordinates the in-game map shows. It is separate from `parser.py`
+not because the parser lacks that chain — it keeps the same offsets on its
+own stack — but because this is a generic macro-REGEX lookup at arbitrary
+depth with pickup attribution, which has no place in the hot path. Both
+sweeps read the static zone offsets from the same map
+(`refdata.zone_offsets()`; `find.py` loads the reference data before the
+sweep to build it), so `find` and the sector map agree on placement. Only the
+parser reports unknown zone macros (`SaveData.unknown_zone_macros` plus one
+warning line); `find` falls back silently.
 
 Pickup contents (`blueprints=` on child components) are captured at the
 CHILD's end event, before the parent's end clears them; a vault whose

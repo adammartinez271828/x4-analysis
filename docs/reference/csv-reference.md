@@ -162,7 +162,7 @@ Files and row counts (committed copies): `clusters.csv` 127 ·
 `gatherspeeds.csv` 5 · `highways.csv` 55 · `modcaps.csv` 247 ·
 `modules.csv` 68 · `recipes.csv` 5,171 · `regionyields.csv` 45 ·
 `sectors.csv` 152 · `ships.csv` 358 · `wares.csv` 1,915 ·
-`textdb.csv.gz` 71,508.
+`zones.csv` 840 · `textdb.csv.gz` 71,508.
 
 ## factions.csv
 
@@ -252,9 +252,50 @@ the full file.
 | Column | Meaning | Provenance |
 |---|---|---|
 | `sector_a`, `sector_b` | the joined sector macros | inter-cluster: `galaxy.xml` `connection[@ref="destination"]` — both endpoints' zone paths embed the sector connection names; intra-cluster accelerators: cluster macros' `sechighways` connections (entrypoint/exitpoint paths, same trick) |
-| `ax`, `az` / `bx`, `bz` | each gate's sector-local position, metres (0/0 when unresolved) | derived: zone offset (sector macro's `zones` connection) **plus** the gate object's offset inside the zone (`*zones.xml`, matched by gate connection name — one zone can host two gates tens of km apart, and zone centres alone sat up to 77 km off) |
+| `ax`, `az` / `bx`, `bz` | each gate's sector-local position, metres (0/0 when unresolved) | derived: zone offset (sector macro's `zones` connection) **plus** the gate object's offset inside the zone (`*zones.xml`, matched by gate connection name — one zone can host two gates tens of km apart, and zone centres alone sat up to 77 km off). Same zone offsets as `zones.csv`, read here by connection *name* rather than by macro because the galaxy paths name connections; since the parser reads `zones.csv`, gates and everything else on the map are finally placed from one set of numbers (E-151) |
 | `source` | contributing extension | derived: archive source |
 | `oneway` | empty = two-way; else the sector macro traffic flows **to** | derived: `sechighways` connections are directional (one per direction); a pair is one-way when its reverse connection is absent. Galaxy jump gates are stored once and inherently two-way, so the test applies to accelerators only. The galaxy's sole case: Savage Spur I → II (`cluster_112`) — **in-game confirmed** (player, 2026-07-24): the reverse II → I traversal is impossible, intentionally (a story element relies on it). Consumer gotcha: `sectorgraph.py` still builds an undirected graph, so advisor routes may include the impossible reverse hop (X20, backlog B21) |
+
+## zones.csv
+
+Sector-local offsets of the zones defined in game data. One row per
+`ref="zones"` connection of a sector macro; key `macro`. Not loaded into the
+DB — it is consumed in memory by the save parser and by `find`.
+
+This file exists because **a savegame never stores a static zone's offset**:
+the zone component writes `<offset default="1"/>` (or omits `<offset>`
+entirely), which means "no save-side override", not "at the sector centre"
+(E-151, savegame-structure.md § conventions). Only tempzones carry their own
+offset in the save. Without this table every station, data vault, derelict
+and wormhole sitting in a static zone was placed as if its zone sat at the
+sector's centre — 100–190 km out for the Erlking vaults, up to 675 km for a
+station on the live save; the largest offset in the galaxy is ~1,240 km.
+
+| Column | Meaning | Provenance |
+|---|---|---|
+| `sector` | the sector macro the zone belongs to, lowercased; empty when a mod's `<diff>` op did not name one | `maps/xu_ep2_universe/*sectors.xml` `macro[@class="sector"]@name`, or the `sel=` of the patching `<add>`/`<replace>` |
+| `macro` | the zone macro, lowercased — the key, unique galaxy-wide | `connection[@ref="zones"]/macro@ref` |
+| `x`, `y`, `z` | sector-local offset in metres; a missing axis or a missing `<offset>` is 0.0 | `connection/offset/position` |
+| `source` | contributing extension (empty = base game) | derived: archive source |
+
+Notes:
+
+- **Load order**: the extractor sorts base-game files first, then extensions
+  in `GameFiles.extensions` order, so the extension loaded last wins.
+  (`GameFiles.glob` sorts lexically, which puts `extensions/…` *before*
+  `maps/…` and mods in name order — neither is what is wanted.)
+- **Mods**: `<diff>` patches are walked as well as plain macro definitions,
+  and a row whose sector could not be resolved is kept anyway — consumers key
+  on the zone macro. Only ops that carry a whole `<connection>` are read: a
+  `<replace>` that targets just a zone's `offset/position` is not followed,
+  so such a mod keeps the stock offset (no installed mod does this). A zone
+  macro that is in the save but not here falls back
+  to the sector centre and is reported once per run
+  (`SaveData.unknown_zone_macros`); on this playthrough's 840 static zones,
+  with ~60 mods loaded, that count is 0.
+- **Staleness**: like every CSV here, this is a snapshot of the installed
+  game. A patch that adds sectors makes it incomplete until
+  `extract-gamedata` is re-run; the fallback keeps the run going.
 
 ## highways.csv
 

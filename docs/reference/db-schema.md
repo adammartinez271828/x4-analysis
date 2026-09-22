@@ -494,8 +494,8 @@ component tree.
 | `cluster_macro` | TEXT, FK → `cluster_ref.macro` | enclosing cluster's macro | derived: ancestor stack |
 | `sector_id` | TEXT, FK → `component.id` | enclosing sector's runtime id | derived: ancestor stack |
 | `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector's macro | derived: ancestor stack |
-| `sx` | REAL | sector-local x in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
-| `sz` | REAL | sector-local z in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets |
+| `sx` | REAL | sector-local x in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets, static zones resolved through `zones.csv` (E-151) |
+| `sz` | REAL | sector-local z in metres (stations/build plots only) | derived: own `offset/position` + interposed zone offsets, static zones resolved through `zones.csv` (E-151) |
 | `faction_hq` | INTEGER | 1 = the faction representative sits here | `component@factionheadquarters` |
 | `entity_id` | INTEGER, FK → `entity.entity_id` | durable identity (the entity spine): NULL outside the registry domain (clusters, sectors) or when the registry skipped the import | derived: entity registry (which runs before the snapshot write) |
 | `known` | INTEGER | deeper discovery flag (v20); 1 when present. Attribute-wide it is broad (31,408 elements in save_008), but among KEPT classes it marks only 133 stations + 108 sectors + 103 clusters, 343/344 also `knownto` — i.e. nearly a subset of `knownto`, plausibly "visited/encyclopedia-known" **(semantics unverified)** | `component@known` |
@@ -791,8 +791,8 @@ savegame-structure.md § Data vaults.
 | `code` | TEXT | display code | `component@code` |
 | `knownto` | TEXT | `player` = discovered | `component@knownto` |
 | `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector | derived: ancestor stack |
-| `sx` | REAL | sector-local x (m) | derived: offset walk |
-| `sz` | REAL | sector-local z (m) | derived: offset walk |
+| `sx` | REAL | sector-local x (m) | derived: offset walk (static zone offsets from `zones.csv`) |
+| `sz` | REAL | sector-local z (m) | derived: offset walk (static zone offsets from `zones.csv`) |
 | `unlocked` | INTEGER | 1 = opened | derived: child `unlock@state` = `"unlocked"` |
 | `loot` | INTEGER | count of uncollected pickup children | derived: `collectablewares`/`collectableblueprints` descendants |
 | `blueprints` | TEXT | comma-separated blueprint ware ids still inside (Erlking) — all-NULL in the reference DB (everything collected) | descendant `component@blueprints` |
@@ -814,8 +814,8 @@ savegame-structure.md § Anomalies / wormholes.
 | `knownto` | TEXT | `player` = discovered | `component@knownto` |
 | `cluster_macro` | TEXT, FK → `cluster_ref.macro` | enclosing cluster | derived: ancestor stack |
 | `sector_macro` | TEXT, FK → `sector_ref.macro` | enclosing sector | derived: ancestor stack |
-| `sx` | REAL | sector-local x (m) | derived: offset walk |
-| `sz` | REAL | sector-local z (m) | derived: offset walk |
+| `sx` | REAL | sector-local x (m) | derived: offset walk (static zone offsets from `zones.csv`) |
+| `sz` | REAL | sector-local z (m) | derived: offset walk (static zone offsets from `zones.csv`) |
 | `source_entry` | TEXT | placement entry id (`S2B_anomaly_01`, …) | `source@entry` |
 | `source_class` | TEXT | placement kind (`godobject` / `script`) | `source@class` |
 | `transition_dest` | TEXT | NULL = random wormhole (exit rolled at transit, E-149); `"0"` = dormant story warp | `transition@destination` |

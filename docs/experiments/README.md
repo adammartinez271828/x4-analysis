@@ -47,11 +47,11 @@ carry the reasoning) and are replayed by `tests/readings.py`.
 |---|---:|---:|---:|---:|---:|
 | Pricing (E-001…E-036, E-112…E-118, E-129…E-135, E-141…E-142) | 24 | 15 | 7 | 6 | 52 |
 | Storage allocation (E-037…E-063, E-119…E-128, E-136…E-138, E-140) | 25 | 11 | 3 | 2 | 41 |
-| Parser / save format (E-064…E-080, E-143…E-144) | 11 | 4 | 4 | 0 | 19 |
+| Parser / save format (E-064…E-080, E-143…E-144, E-151) | 12 | 4 | 4 | 0 | 20 |
 | Faction / diplomacy (E-081…E-084, E-145…E-146, E-150) | 3 | 2 | 2 | 0 | 7 |
 | Resources (E-085…E-097) | 6 | 3 | 4 | 0 | 13 |
 | Other (E-098…E-111, E-139, E-147…E-149) | 7 | 6 | 5 | 0 | 18 |
-| **total** | **76** | **41** | **25** | **8** | **150** |
+| **total** | **77** | **41** | **25** | **8** | **151** |
 
 Nine entries carried a documented disagreement between sources; five were
 settled on 2026-07-29 and are listed with their resolution at the foot of the
@@ -401,6 +401,9 @@ station without being resolved.
 
 **E-144 · CONFIRMED** — Pre-placed (game-start) derelicts carry `spawntime = 0`, crew-bail derelicts `spawntime > 0`.
 *Predicts:* a game-start derelict reads `spawntime` 0, per the general rule that game-start objects spawn at t = 0; a mid-game bail reads its spawn time. Confirmed 2026-07-31 on a fresh new-game save (slot 20, made for this experiment): all **15** ownerless ships — the untouched pre-placed set, incl. the Terran flagship, the Paranid destroyer and the Xenon terraformer — carry `spawntime="0"`, 15/15, zero exceptions; against them, all six mid-game derelicts observed across the two played-through saves carry `spawntime` 67k–1.8M s. *Source:* [save-semantics.md](../reference/save-semantics.md) § Derelict ships.
+
+**E-151 · CONFIRMED** — A `class="zone"` component's `<offset default="1"/>` (or absent `<offset>`) means "no save-side override", not "at the sector centre": a static zone's sector-local offset is game data, the sector macro's `connection[@ref="zones"]/offset/position` in `maps/xu_ep2_universe/*sectors.xml`.
+*Predicts:* static zones never store an offset in the save (the offset is game data), tempzones do, and every static macro resolves against the game files. Confirmed 2026-09-21 on `autosave_03` (~60 mods, `modified="1"`): 839 static zones with `<offset default="1"/>` + 1 static zone with no `<offset>` element at all, and **zero** static zones with a save-side `<position>`; 1,561 tempzones, 1,559 with a real `<position>` and 2 with no `<offset>` element (those genuinely sit at their sector's centre, and are the reason the rule is keyed on static-vs-temp, not on the presence of `<offset>`); the stock game (base + 7 DLC) defines 840 `ref="zones"` connections, zone macros are unique galaxy-wide, and 840/840 of the save's static macros resolve, with no stock `*sectors.xml` being a `<diff>` and no installed mod shipping one. Objects hang off zones only (2,810/2,810 sector→station/buildstorage paths are exactly `sector → zone → object`). Applying the offsets moves 1,505 of the save's 2,826 positioned components (the largest by 675 km: build storage VUF-424 in Nopileos' Fortune II, (−29.2, 12.7) → (416.8, 519.0) km; the galaxy's largest zone offset is ~1,240 km) and 3 of the 5 Erlking vaults by 100–190 km — blueprint 2 (−5.1, 17.4) → (−120.9, −78.7) km, 3 (34.6, −17.9) → (145.0, −10.6), 4 (25.3, −36.6) → (−159.1, −40.0) — and leaves the two tempzone vaults bit-identical, which is the discriminating prediction: a blanket offset would have moved those too. *Source:* [savegame-structure.md](../reference/savegame-structure.md) § Conventions.
 
 ## Faction / diplomacy
 

@@ -263,6 +263,11 @@ class SaveData:
     # False when the save was started with local (ring) highways
     # disabled: such saves contain no class="highway" components
     has_highways: bool = False
+    # zone macros the parser could not place: the save gave no offset and
+    # the macro is not in zones.csv (a modded sector, or reference data
+    # older than the game). Objects in them fall back to the sector
+    # centre. Empty when parsing without a zone-offset map.
+    unknown_zone_macros: set[str] = field(default_factory=set)
 
 
 def _open_save(path: Path) -> IO[bytes]:
@@ -364,16 +369,30 @@ def _nearest_host(comp_stack: list) -> str:
     return ""
 
 
-def parse_savegame(path: Path, progress=None) -> SaveData:
+def parse_savegame(path: Path, progress=None, zone_offsets=None) -> SaveData:
+    """Parse a savegame in one streaming pass.
+
+    `zone_offsets` is the zone macro -> (x, y, z) map from zones.csv
+    (gamedata.refdata.zone_offsets); it defaults to None so every
+    existing caller keeps working. STATIC zones do not store their
+    offset in the save — `<offset default="1"/>` means "no save-side
+    override", not "at the sector centre" (E-151) — so without the map
+    every object in one is placed as if its zone sat at the sector
+    centre: 100-190 km out for the Erlking vaults, up to ~675 km for
+    stations (the largest zone offset in the galaxy is ~1,240 km).
+    """
     data = SaveData()
     d = data  # short alias
 
     tag_stack: list[str] = []
     # ancestry of open <component> elements: [clazz, id, macro, offset].
     # offset is the component's own <offset><position> as (x, z), or None
-    # (<offset default="1"/> = at the parent's origin) — kept so stations
-    # get sector-local coordinates summed over the interposed zones
+    # (no offset element / <offset default="1"/> AND no game-data offset
+    # for the macro) — kept so stations get sector-local coordinates
+    # summed over the interposed zones
     comp_stack: list[list] = []
+    # zone macros with neither a save offset nor a zones.csv entry
+    unknown_zones: set = set()
     # nearest open station/ship component id, for posts/workforce/modules
     object_stack: list[str] = []
     npc_stack: list[list] = []       # open npc records awaiting <skills>
@@ -424,16 +443,28 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 if tag == "component":
                     clazz = elem.get("class", "")
                     cid = elem.get("id", "")
-                    comp_stack.append([clazz, cid, elem.get("macro", ""),
-                                       None])
+                    macro = elem.get("macro", "")
+                    # static zones carry their sector-local offset in the
+                    # GAME FILES, never in the save: seed it here, at
+                    # START, so the one zone that has no <offset> element
+                    # at all is covered too. A real <offset><position> in
+                    # the save arrives later and overwrites this — the
+                    # save always wins (tempzones are only ever placed
+                    # that way).
+                    zoff = None
+                    if clazz == "zone" and zone_offsets:
+                        z3 = zone_offsets.get(macro.lower())
+                        if z3 is not None:
+                            zoff = (z3[0], z3[2])   # the parser is 2-D
+                    comp_stack.append([clazz, cid, macro, zoff])
                     if clazz == "highway":
                         d.has_highways = True
-                    if _VAULT_RE.match(elem.get("macro", "").lower()):
+                    if _VAULT_RE.match(macro.lower()):
                         # [comp_stack depth, unlocked, loot, blueprints]
                         vault_stack.append([len(comp_stack), 0, 0, []])
                     elif clazz == _ANOMALY_CLASS:
                         wormhole_stack.append([len(comp_stack), {
-                            "id": cid, "macro": elem.get("macro", "").lower(),
+                            "id": cid, "macro": macro.lower(),
                             "code": elem.get("code", ""),
                             "knownto": elem.get("knownto", ""),
                             "source_entry": "", "source_class": "",
@@ -442,7 +473,7 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     if clazz == "station" or _SHIP_RE.match(clazz):
                         object_stack.append(cid)
                     elif clazz == "sector":
-                        sector_macro_stack.append(elem.get("macro", ""))
+                        sector_macro_stack.append(macro)
                     elif clazz == "npc" and elem.get("owner") == "player":
                         npc_stack.append([
                             cid, elem.get("name", ""), elem.get("code", ""),
@@ -623,6 +654,17 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
 
             elif tag == "component":
                 clazz, cid, macro, own_pos = comp_stack.pop()
+                if clazz == "zone" and zone_offsets \
+                        and own_pos is None and macro.lower() != "tempzone":
+                    # no save offset and no game-data offset: a modded
+                    # sector, or reference data older than the game.
+                    # Objects inside fall back to the sector centre;
+                    # warned about once, after the sweep. Truthiness, not
+                    # `is not None`, to match the seed above: with an
+                    # EMPTY map (a header-only zones.csv shadowing the
+                    # packaged one) nothing is seeded, and listing all
+                    # 840 static zones as "modded" would mislead.
+                    unknown_zones.add(macro.lower())
                 if elem.get("construction") \
                         and elem.get("state") != "construction":
                     # in-progress modules carry state="construction"; their
@@ -672,7 +714,10 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                     # DERELICT ships (owner="ownerless" — the map's derelict
                     # overlay needs to place them; owned ships move constantly
                     # and are deliberately left position-less): own offset plus
-                    # any zone offsets between sector and here
+                    # any zone offsets between sector and here. The walk
+                    # itself needs no knowledge of static zones: the frame
+                    # offsets on comp_stack are already seeded from
+                    # zones.csv at component start.
                     # (landmarks.py does the same walk for the find cmd)
                     sx = sz = None
                     if (clazz in ("station", "buildstorage")
@@ -1099,4 +1144,12 @@ def parse_savegame(path: Path, progress=None) -> SaveData:
                 while elem.getprevious() is not None:
                     del parent[0]
 
+    # ONE line, not one per zone: a modded galaxy can hold hundreds
+    d.unknown_zone_macros = unknown_zones
+    if unknown_zones and progress:
+        sample = ", ".join(sorted(unknown_zones)[:3])
+        progress(f"  WARNING: {len(unknown_zones)} zone macro(s) have no "
+                 f"offset in the save and no entry in zones.csv (modded "
+                 f"sectors, or re-run `extract-gamedata`?); objects in "
+                 f"them are placed at the sector centre: {sample}")
     return data

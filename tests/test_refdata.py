@@ -10,7 +10,7 @@ import shutil
 import pandas as pd
 
 from x4analyzer.config import PACKAGE_DATA
-from x4analyzer.gamedata.refdata import load_refdata
+from x4analyzer.gamedata.refdata import load_refdata, zone_offsets
 
 
 def _user_dir(tmp_path, name, frame):
@@ -79,3 +79,25 @@ def test_a_gzipped_override_is_header_checked_too(tmp_path):
     msgs = []
     load_refdata(d, log=lambda *p: msgs.append(" ".join(map(str, p))))
     assert msgs == []       # an identical copy is not stale
+
+
+# --- static zone offsets (E-151) ---------------------------------------
+
+def test_packaged_zones_csv_places_every_static_zone():
+    """The committed zones.csv is what stops objects in static zones being
+    drawn at their sector's centre; the save never carries these offsets."""
+    import dataclasses
+    from pathlib import Path
+
+    ref = load_refdata(Path("/nonexistent"))     # the packaged copies
+    assert len(ref.zones) == 840                 # stock base + 7 DLC
+
+    offs = zone_offsets(ref)
+    assert len(offs) == 840                      # macros unique galaxy-wide
+    pos = offs["zone003_cluster_500_sector003_macro"]
+    assert len(pos) == 3 and all(isinstance(v, float) for v in pos)
+
+    # no zones.csv at all (a data dir from before this release): every
+    # consumer must still work, just without the static offsets
+    empty = dataclasses.replace(ref, zones=ref.zones.iloc[0:0])
+    assert zone_offsets(empty) == {}

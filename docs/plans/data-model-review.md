@@ -448,6 +448,11 @@ vault/collectable handling, and entity-registry description verified.
   Severity: wrong + internal contradiction. Blast: invites a needless
   second sweep; the real justification for landmarks.py (generic macro
   lookup at arbitrary depth) goes unstated.
+  **RESOLVED 2026-09-21**: §find now states the real rationale (generic
+  macro-regex lookup at arbitrary depth with pickup attribution) and both
+  landmarks.py's docstring and §parser say the two sweeps share the same
+  offset chain — including the static zone offsets from zones.csv, which
+  neither had before (E-151).
 - **F2. gamedata module attribution wrong.** The gamedata dashboard calls
   only weapons.py + weaponsim.py; `engines.py`'s docstring says it feeds
   an external harness, and `shields.py`/`shipmods.py` are imported by

@@ -10,6 +10,7 @@ Outputs into the data directory:
                    cargo_tags, crew, price, drag_forward, source
     engines.csv    macro, size, type, mk, forward, travel_thrust
     highways.csv   sector, points (local-highway spline "x z;x z;..." track)
+    zones.csv      sector, macro, x, y, z, source (static zone offsets)
     textdb.csv.gz  full page/id/text dump for resolving names in savegames
 """
 
@@ -498,6 +499,92 @@ def extract_gates(gf: GameFiles) -> list[list]:
     return list(pairs.values())
 
 
+# a <diff> op's sel= naming the sector macro it patches, e.g.
+# sel="//macro[@name='cluster_500_sector003_macro']/connections"
+_SEL_MACRO = re.compile(r"macro\[@name=['\"]([^'\"]+)['\"]\]")
+
+
+def extract_zones(gf: GameFiles) -> list[list]:
+    """Sector-local offsets of the zones defined in game data.
+
+    A savegame NEVER repeats these. A static zone component carries
+    `<offset default="1"/>` (or no `<offset>` at all), which means "no
+    save-side override", not "at the sector centre": its real offset is
+    the sector macro's `connection[@ref="zones"]` offset, right here in
+    the map files (E-151). Only tempzones, created at runtime, store
+    their own offset in the save. Objects hang off zones, so without
+    this table every station/vault/derelict in a static zone is placed
+    as if its zone sat at the sector's centre — up to ~675 km out on a
+    live save; the largest offset in the galaxy is ~1,240 km.
+
+    Keyed by the ZONE MACRO, which is unique galaxy-wide.
+    `extract_gates`/`extract_map` read the same connections but key them
+    by connection NAME, because the galaxy paths they follow name
+    connections, not macros; both readings are kept rather than merged.
+    """
+    rows: dict[str, list] = {}
+
+    def add(conn, sector: str, source: str) -> None:
+        if conn.get("ref") != "zones":
+            return
+        ref_el = conn.find("macro")
+        macro = (ref_el.get("ref") or "").lower() if ref_el is not None else ""
+        if not macro:
+            return
+        pos = conn.find("offset/position")
+
+        def f(axis: str) -> float:
+            if pos is None:
+                return 0.0
+            try:
+                return float(pos.get(axis) or 0)
+            except ValueError:
+                return 0.0
+
+        # later files win (see the base-first ordering below)
+        rows[macro] = [sector, macro, f("x"), f("y"), f("z"), source]
+
+    # base game FIRST, then extensions in LOAD order (gf.extensions):
+    # gf.glob sorts lexically, so "extensions/..." would sort ahead of
+    # "maps/..." and the base file would overwrite an extension's, and
+    # among extensions a mod named "aaa" would lose to "zzz" regardless
+    # of which the game loads last.
+    def _rank(p: str) -> tuple[int, int]:
+        if not p.startswith("extensions/"):
+            return (0, 0)
+        ext = p.split("/", 2)[1]
+        exts = gf.extensions
+        return (1, exts.index(ext) if ext in exts else len(exts))
+    paths = sorted(gf.glob(r"(extensions/[^/]+/)?maps/xu_ep2_universe/"
+                           r"[^/]*sectors\.xml$"), key=_rank)
+    for path in paths:
+        root = parse_xml(gf, path)
+        if root is None:
+            continue
+        source = gf.source_of(path)
+        # <diff> patches first: no stock sectors file is a diff, but a mod
+        # may add zones to an existing sector. Resolve the sector from the
+        # op's sel= when it names one; otherwise keep the row anyway with
+        # an empty sector — consumers key on the zone macro, so the offset
+        # still places objects. A diff that adds a whole <macro> is
+        # re-read by the walk below, which knows the sector and wins.
+        for op in root.iter("add", "replace"):
+            sector = ""
+            m = _SEL_MACRO.search(op.get("sel") or "")
+            if m:
+                sector = m.group(1).lower()
+            for conn in op.iter("connection"):
+                add(conn, sector, source)
+        for macro_el in root.iter("macro"):
+            if macro_el.get("class") != "sector":
+                continue
+            smacro = (macro_el.get("name") or "").lower()
+            for conn in macro_el.iter("connection"):
+                add(conn, smacro, source)
+
+    return sorted(rows.values(), key=lambda r: (r[0], r[1]))
+
+
 _SIZE_BY_CLASS = {
     "ship_xs": "XS", "ship_s": "S", "ship_m": "M",
     "ship_l": "L", "ship_xl": "XL",
@@ -892,6 +979,13 @@ def extract_gamedata(cfg: Config, include_mods: bool = False) -> int:
         cfg.data_dir / "gates.csv",
         ["sector_a", "sector_b", "ax", "az", "bx", "bz", "source", "oneway"],
         extract_gates(gf),
+    )
+
+    log("Extracting zone offsets")
+    _write_csv(
+        cfg.data_dir / "zones.csv",
+        ["sector", "macro", "x", "y", "z", "source"],
+        extract_zones(gf),
     )
 
     log("Extracting production modules")

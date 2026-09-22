@@ -12,7 +12,7 @@ from .analysis.frames import build_frames, station_types_from_db
 from .analysis.storage import station_storage
 from .analysis.drones import station_munition
 from .gamedata.modpatch import patch_reference
-from .gamedata.refdata import load_refdata
+from .gamedata.refdata import load_refdata, zone_offsets
 from .save.parser import parse_savegame, peek_save_info
 
 
@@ -22,7 +22,13 @@ def run_analysis(cfg: Config) -> int:
     ref = load_refdata(cfg.data_dir)
 
     log("Parsing savegame:", save_file)
-    save = parse_savegame(save_file, progress=log)
+    # static zones store their sector-local offset in the game files, not
+    # in the save (E-151). Built from the UNPATCHED ref on purpose: the
+    # patch_reference call below rebinds `ref` to the mod-patched copy,
+    # and modpatch only ever touches recipes/modcaps — zones is the same
+    # frame either way.
+    save = parse_savegame(save_file, progress=log,
+                          zone_offsets=zone_offsets(ref))
     log(f"Game version {save.game_version}, GUID {save.guid}")
     log(f"Player: {save.player_name} ({save.player_faction_name or 'Player'})")
     if save.modified:
@@ -125,6 +131,7 @@ def run_seed(cfg: Config, files: list[Path] | None = None) -> int:
 
     log("Loading reference data from", cfg.data_dir)
     ref = load_refdata(cfg.data_dir)
+    zoffs = zone_offsets(ref)       # hoisted: the same map for every save
     rc = 0
     for guid in sorted({i[0] for i in infos}):
         batch = sorted((i for i in infos if i[0] == guid),
@@ -166,7 +173,7 @@ def run_seed(cfg: Config, files: list[Path] | None = None) -> int:
             for gtime, f in todo:
                 log(f"Seeding {guid} from {f.name} "
                     f"(game time {gtime:.0f})")
-                save = parse_savegame(f, progress=log)
+                save = parse_savegame(f, progress=log, zone_offsets=zoffs)
                 entities = store.update_entity_registry(conn, save, ref)
                 save_id = store.write_snapshot(conn, save, ref, f,
                                                entities)

@@ -9,7 +9,7 @@ installed game, so DLC and mod content resolve on their own.
 from __future__ import annotations
 
 from ..config import Config
-from ..gamedata.refdata import load_refdata
+from ..gamedata.refdata import load_refdata, zone_offsets
 from .landmarks import ERLKING_VAULTS, find_landmarks
 
 
@@ -17,12 +17,16 @@ def run_find(cfg: Config, macro: str | None = None) -> int:
     save_file = cfg.find_savegame()
     print(f"save: {save_file}")
 
-    hits = find_landmarks(save_file, macro or ERLKING_VAULTS)
+    # reference data first: static zones keep their sector-local offset in
+    # the game files, not in the save (E-151), so the sweep needs zones.csv
+    # to place anything that sits in one
+    ref = load_refdata(cfg.data_dir)
+    hits = find_landmarks(save_file, macro or ERLKING_VAULTS,
+                          zone_offsets=zone_offsets(ref))
     if not hits:
         print("no matching objects found")
         return 0
 
-    ref = load_refdata(cfg.data_dir)
     sector_name = dict(zip(ref.sectors["macro"].str.lower(), ref.sectors["name"]))
     ware_name = dict(zip(ref.wares["id"], ref.wares["name"]))
 

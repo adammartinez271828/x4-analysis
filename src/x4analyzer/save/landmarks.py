@@ -6,10 +6,10 @@ matches a pattern is reported with its sector and its sector-relative
 position, i.e. the km coordinates the in-game map shows.
 
 Separate from `parser.py` on purpose. That parser makes ONE sweep collecting
-everything the dashboard needs and deliberately drops zone components and
-positions; this is a small standalone sweep for a targeted lookup, so it can
-keep the offset chain (including the zones the analysis pipeline skips)
-without complicating the hot path.
+everything the dashboard needs, and its record handlers are fixed; this is a
+generic macro-REGEX lookup at arbitrary depth, with pickup contents attributed
+to the matched object, so it stays out of the hot path. Both walks sum the
+same offset chain and share the static-zone offsets from zones.csv.
 """
 
 from __future__ import annotations
@@ -60,13 +60,21 @@ def _pos(elem) -> tuple[float, float, float]:
     return (f("x"), f("y"), f("z"))
 
 
-def find_landmarks(path: Path, pattern: str = ERLKING_VAULTS) -> list[Landmark]:
+def find_landmarks(path: Path, pattern: str = ERLKING_VAULTS,
+                   zone_offsets=None) -> list[Landmark]:
     """Stream the save, returning every component whose macro matches.
 
     Positions in a save are relative to the parent component, and the chain
-    runs galaxy -> cluster -> sector -> zone -> object with any link possibly
-    carrying `<offset default="1"/>` (= no offset). Summing from the sector
-    down gives the sector-relative coordinates the game displays.
+    runs galaxy -> cluster -> sector -> zone -> object. Summing from the
+    sector down gives the sector-relative coordinates the game displays.
+
+    A link may carry `<offset default="1"/>`, or no `<offset>` at all, which
+    means "no offset stored HERE" — for a static zone the offset is game
+    data, the sector macro's `connection[@ref="zones"]` offset, and lives in
+    zones.csv (E-151); `zone_offsets` is that macro -> (x, y, z) map from
+    `gamedata.refdata.zone_offsets`. Without it, objects in static zones come
+    out as if their zone sat at the sector centre — 100-190 km off for the
+    Erlking vaults, up to ~675 km for stations.
     """
     macro_re = re.compile(pattern, re.IGNORECASE)
     found: list[Landmark] = []
@@ -87,9 +95,15 @@ def find_landmarks(path: Path, pattern: str = ERLKING_VAULTS) -> list[Landmark]:
                 tag_stack.append(tag)
                 if tag == "component":
                     macro = elem.get("macro", "").lower()
+                    clazz = elem.get("class", "")
+                    # seed a static zone's frame from the game data; the
+                    # save's own <offset><position>, if it has one (only
+                    # tempzones do), overwrites it at its end event
+                    off = (0.0, 0.0, 0.0)
+                    if clazz == "zone" and zone_offsets:
+                        off = zone_offsets.get(macro) or off
                     comp_stack.append([
-                        elem.get("class", ""), elem.get("id", ""), macro,
-                        (0.0, 0.0, 0.0),
+                        clazz, elem.get("id", ""), macro, off,
                     ])
                     # matched on START: the pickups to attribute to it, and
                     # its own <offset>, are all still ahead of us

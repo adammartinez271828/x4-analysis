@@ -649,3 +649,157 @@ def test_top_level_stats_are_collected_and_planet_stats_are_not(
     # the planet's nested <stats> block is NOT collected: the same id in
     # the top-level block is the only "population" row that lands
     assert stats["population"] == "7"
+
+
+# --- v31: static zones take their offset from the game data ------------
+# A static zone's sector-local offset is NOT in the save: it writes
+# <offset default="1"/> (or no <offset> at all), which means "no save-side
+# override", and the real offset lives in the map files -> zones.csv
+# (E-151). Tempzones, created at runtime, do store theirs and must keep
+# winning. Its own fixture so the shared FIXTURE's row counts
+# (test_store.py) stay put, like STATS_FIXTURE.
+ZONE_FIXTURE = """<?xml version="1.0"?>
+<savegame>
+  <info>
+    <save name="#001" date="1700000000"/>
+    <game guid="ZON-1" version="900" time="10.0"/>
+    <player name="P" money="1"/>
+  </info>
+  <universe>
+    <component class="galaxy" id="[0x1]" connection="space">
+      <connections><connection connection="galaxy">
+      <component class="cluster" macro="cluster_01_macro" id="[0x10]" connection="galaxy">
+        <connections><connection connection="cluster">
+        <component class="sector" macro="cluster_01_sector001_macro" id="[0x11]"
+                   connection="cluster">
+        <connections><connection connection="sector">
+        <component class="zone" macro="zone009_macro" id="[0x15]" connection="sector">
+          <offset default="1"/>
+          <connections><connection connection="zone">
+          <component class="station" macro="station_macro" id="[0x20]"
+                     owner="player" code="STA-009" connection="zone">
+            <offset><position x="500" y="0" z="250"/></offset>
+            <connections/>
+          </component>
+          <component class="object" macro="landmarks_vault_09_macro"
+                     code="VLT-009" knownto="player" connection="zone">
+            <offset><position x="-100" y="0" z="-50"/></offset>
+            <connections/>
+          </component>
+          <component class="anomaly" macro="anomaly_wormhole_macro"
+                     code="WRM-009" knownto="player" id="[0x23]" connection="zone">
+            <offset><position x="10" y="0" z="20"/></offset>
+            <connections/>
+          </component>
+          </connection></connections>
+        </component>
+        <component class="zone" macro="zone010_macro" id="[0x18]" connection="sector">
+          <connections><connection connection="zone">
+          <component class="station" macro="station_macro" id="[0x24]"
+                     owner="player" code="STA-010" connection="zone">
+            <offset><position x="7" y="0" z="8"/></offset>
+            <connections/>
+          </component>
+          </connection></connections>
+        </component>
+        <component class="zone" macro="tempzone" id="[0x16]" connection="sector">
+          <offset><position x="3000" y="0" z="4000"/></offset>
+          <connections><connection connection="zone">
+          <component class="station" macro="station_macro" id="[0x21]"
+                     owner="player" code="STA-TMP" connection="zone">
+            <offset><position x="100" y="0" z="200"/></offset>
+            <connections/>
+          </component>
+          </connection></connections>
+        </component>
+        <component class="zone" macro="zone_modded_macro" id="[0x17]"
+                   connection="sector">
+          <offset default="1"/>
+          <connections><connection connection="zone">
+          <component class="station" macro="station_macro" id="[0x22]"
+                     owner="player" code="STA-MOD" connection="zone">
+            <offset><position x="42" y="0" z="43"/></offset>
+            <connections/>
+          </component>
+          </connection></connections>
+        </component>
+        </connection></connections>
+        </component>
+        </connection></connections>
+      </component>
+      </connection></connections>
+    </component>
+  </universe>
+</savegame>
+"""
+
+ZONE_OFFSETS = {
+    "zone009_macro": (100000.0, 0.0, -200000.0),
+    # the real save has one static zone with NO <offset> element at all —
+    # the reason the seed happens at component START, not in the
+    # <offset> handler
+    "zone010_macro": (50000.0, 0.0, 60000.0),
+    # a tempzone macro is not unique and is never static; an entry for it
+    # must not override what the save says
+    "tempzone": (999000.0, 0.0, 999000.0),
+}
+
+
+def _zone_save(tmp_path: Path) -> Path:
+    p = tmp_path / "save.xml"
+    p.write_text(ZONE_FIXTURE)
+    return p
+
+
+def test_static_zone_offsets_come_from_the_game_data(tmp_path: Path) -> None:
+    msgs: list[str] = []
+    d = parse_savegame(_zone_save(tmp_path),
+                       progress=lambda *p: msgs.append(" ".join(map(str, p))),
+                       zone_offsets=ZONE_OFFSETS)
+    by_code = {c[4]: c for c in d.components if c[4]}
+
+    # zone offset from zones.csv (y dropped) + the station's own offset
+    assert (by_code["STA-009"][16], by_code["STA-009"][17]) \
+        == (100500.0, -199750.0)
+    # the vault walk (a second, independent offset sum) agrees
+    vault = {v[2]: v for v in d.datavaults}["VLT-009"]
+    assert (vault[5], vault[6]) == (99900.0, -200050.0)
+    # ... and so does the wormhole walk, the third one
+    worm = {w[2]: w for w in d.wormholes}["WRM-009"]
+    assert (worm[6], worm[7]) == (100010.0, -199980.0)
+    # a zone with no <offset> element at all is seeded just the same
+    assert (by_code["STA-010"][16], by_code["STA-010"][17]) \
+        == (50007.0, 60008.0)
+    # a tempzone's own offset always wins over any map entry
+    assert (by_code["STA-TMP"][16], by_code["STA-TMP"][17]) == (3100.0, 4200.0)
+    # an unknown (modded) zone falls back to the sector centre: the station
+    # keeps its own offset and is reported once, not once per object
+    assert (by_code["STA-MOD"][16], by_code["STA-MOD"][17]) == (42.0, 43.0)
+    assert d.unknown_zone_macros == {"zone_modded_macro"}
+    warnings = [m for m in msgs if "WARNING" in m]
+    assert len(warnings) == 1, warnings
+    assert "zone_modded_macro" in warnings[0]
+
+
+def test_without_game_data_static_zones_fall_back_to_the_sector(
+        tmp_path: Path) -> None:
+    """The pre-fix behaviour, kept explicit: every existing caller that
+    passes no map still parses, just without the static offsets."""
+    d = parse_savegame(_zone_save(tmp_path))
+    by_code = {c[4]: c for c in d.components if c[4]}
+
+    assert (by_code["STA-009"][16], by_code["STA-009"][17]) == (500.0, 250.0)
+    assert (by_code["STA-010"][16], by_code["STA-010"][17]) == (7.0, 8.0)
+    assert (by_code["STA-TMP"][16], by_code["STA-TMP"][17]) == (3100.0, 4200.0)
+    assert d.unknown_zone_macros == set()
+
+
+def test_an_empty_offset_map_is_not_a_modded_galaxy(tmp_path: Path) -> None:
+    """A header-only zones.csv in the user data dir yields {} — that must
+    behave exactly like no map, not list every static zone as unknown."""
+    msgs: list[str] = []
+    d = parse_savegame(_zone_save(tmp_path),
+                       progress=lambda *p: msgs.append(" ".join(map(str, p))),
+                       zone_offsets={})
+    assert d.unknown_zone_macros == set()
+    assert not [m for m in msgs if "WARNING" in m]

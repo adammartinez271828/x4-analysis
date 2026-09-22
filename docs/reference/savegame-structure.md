@@ -60,10 +60,31 @@ Conventions that hold throughout the tree:
   against game data must be case-insensitive.
 - **Positions are parent-relative** down the component tree (galaxy → cluster
   → sector → zone → object), in metres; the in-game map shows km. Any link of
-  the chain may be `<offset default="1"/>` (= at the parent's origin) and
-  `<position>` omits zero axes (`y` missing = 0). An object's sector-local
-  position is the sum of its own offset plus every interposed offset below
-  the sector (typically the zone's).
+  the chain may be `<offset default="1"/>` and `<position>` omits zero axes
+  (`y` missing = 0). An object's sector-local position is the sum of its own
+  offset plus every interposed offset below the sector (typically the
+  zone's).
+- **`<offset default="1"/>` means "nothing stored HERE", not "at the parent's
+  origin"** — and for a `class="zone"` component the difference is 100+ km
+  (E-151). A STATIC zone (`zone003_cluster_500_sector003_macro`, …) is
+  defined in game data, and its sector-local offset is the sector macro's
+  `connection[@ref="zones"]/offset/position` in
+  `maps/xu_ep2_universe/*sectors.xml`; the save never repeats it. Only
+  **tempzones** (`macro="tempzone"`, created at runtime around a fleet or a
+  plot) carry a real offset in the save. The census in `autosave_03`: 839
+  static zones with `<offset default="1"/>` + 1 static zone with no
+  `<offset>` element at all, and none with a save-side `<position>`; 1,561
+  tempzones, 1,559 with a real `<position>` and 2 with no `<offset>` element
+  (those do sit at the sector centre). So the rule keys on static-vs-temp,
+  not on whether `<offset>` is present. The stock game (base + 7 DLC) defines 840
+  `ref="zones"` connections, zone macros are unique galaxy-wide, and all 840
+  static macros in the save resolve against them even with ~60 mods loaded.
+  The offsets are large: 100–190 km for the Erlking vaults, up to 675 km for
+  a station on this save, and the galaxy's largest is ~1,240 km.
+  The analyzer extracts them to `zones.csv` and seeds the parser's offset
+  chain from it (csv-reference.md § zones.csv). Objects only ever hang off a
+  zone or the sector directly: 2,810/2,810 sector→station/buildstorage paths
+  are exactly `sector → zone → object`.
 
 ## Top of the tree
 
@@ -343,8 +364,10 @@ Every component may carry its own `<offset>` right under itself:
 </offset>
 ```
 
-or the no-offset form `<offset default="1"/>` (178,450 occurrences here).
-Positions are metres relative to the parent component (see conventions).
+or the no-offset form `<offset default="1"/>` (178,450 occurrences here),
+which means the save stores no offset for this component — for a
+`class="zone"` component the offset is game data instead, not zero (see
+conventions, E-151). Positions are metres relative to the parent component.
 
 Other recurring child blocks of components, not detailed further:
 
