@@ -1,11 +1,18 @@
 """Station build advisor (docs/plans/analytics-ideas.md #2).
 
-Scores "build a factory for ware W in sector S" for every producible
-economy ware and every known, non-hostile sector. The score decomposes
-into visible factors — demand nearby, input availability, competition,
-danger, workforce food supply — each distance-discounted over the gate
-graph (sectorgraph.py), normalized per ware, and weighted client-side
-with sliders so the ranking is never an opaque oracle.
+Weighs "build a factory for ware W in sector S" for every producible
+economy ware and every known, non-hostile sector, on visible factors —
+demand nearby, input availability, competition, danger, workforce food
+supply — each distance-discounted over the gate graph (sectorgraph.py).
+
+The page shows no score. A fixed-weight, per-ware-normalized score
+survives only server-side, in `_preview()`, as the cut to TOP_SECTORS
+sectors per ware: normalizing every factor against the best sector FOR
+THAT WARE makes the result incomparable across wares, while an
+unfiltered score-sorted table invited exactly that reading (a ware
+oversupplied everywhere still had a 1.0 leader, so rows with a negative
+shortfall ranked near the top). What the table ranks on instead is in
+real units — Untapped Cr/h, Modules, Haul m³/h.
 
 Unit conventions: production/consumption are capacity units/h (from the
 market tab's station rates); open buy offers are a one-off unit backlog,
@@ -233,7 +240,10 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
             pavg = 0.0
         r0 = def_rec[def_rec["ware"] == wid]
         time, amount = float(r0.iloc[0]["time"]), float(r0.iloc[0]["amount"])
-        out_h = amount / time * 3600.0
+        # one production module's yield — the divisor behind the Modules
+        # column. Defensive against a modded recipe with time 0 (the page
+        # falls back to an em-dash rather than dividing by zero).
+        out_h = amount / time * 3600.0 if time > 0 else 0.0
         inputs = [(str(x.input_ware), float(x.input_amount) / time * 3600.0)
                   for x in r0.itertuples()
                   if isinstance(x.input_ware, str) and x.input_ware]
@@ -375,11 +385,12 @@ def compute_advice(frames: Frames, ref: RefData, cfg: Config) -> dict:
                 "hostile_d": c["hostile_d"],
                 "food_h": round(c["food_h"]),
                 "vol": vol, "in_m3h": round(in_m3h, 1),
+                "out_h": round(out_h, 2),
                 "km_p": c["km_p"], "km_h": c["km_h"],
-                "nd": round(c["nd"], 4), "ni": round(c["ni"], 4),
-                "nc": round(c["nc"], 4), "ns": round(c["ns"], 4),
-                "nw": round(c["nw"], 4),
-                "nda": round(c["nda"], 4), "nca": round(c["nca"], 4),
+                # the normalized factors (nd/ni/nc/ns/nw/nda/nca) are NOT
+                # shipped: _preview() reads them off the candidate dict
+                # above, and nothing on the page consumes them since the
+                # score column went.
                 "detail": c["detail"],
             })
 
@@ -413,10 +424,8 @@ h3{{margin:4px 0;}}
 .controls{{display:flex;gap:18px;flex-wrap:wrap;align-items:center;
   background:#262626;padding:8px 12px;border-radius:8px;margin:8px 0;}}
 .controls label{{font-size:12px;color:{DARK_MUTED};}}
-.controls input[type=range]{{vertical-align:middle;width:110px;}}
 .controls select{{background:#2a2a2a;color:{DARK_FG};border:1px solid #555;
   padding:3px;}}
-.wv{{display:inline-block;width:24px;text-align:right;color:{DARK_FG};}}
 td.det{{cursor:pointer;color:#7ab8ff;}}
 .childrow{{background:#20242a !important;font-size:12px;color:{DARK_MUTED};}}
 .childrow ul{{margin:4px 0 4px 18px;padding:0;}}
@@ -435,17 +444,25 @@ table.dataTable thead th, table.dataTable.no-footer{{border-color:#555;}}
   background:#2a2a2a;color:{DARK_FG};border:1px solid #555;}}
 </style></head><body>
 <h3>Station build advisor</h3>
-<p class='note'>Where to build what: every producible ware scored per known
-sector. Demand, competition and input supply are capacity within
-{RADIUS} gates, discounted by distance (÷(1+hops)); open buy orders count
-as backlog. The <b>estimated actual flows</b> checkbox swaps
-demand/competition/shortfall/untapped (and the balance table) between
-theoretical capacity and stock-flow ESTIMATES of what really happens —
-starved factories run far below capacity. Input ratios always use actual
+<p class='note'>Where to build what: for every producible ware, the sectors
+within {RADIUS} gates that most want it. Demand, competition and input
+supply are discounted by distance (÷(1+hops)); open buy orders count
+as backlog. The page opens on <b>estimated actual flows</b> &mdash;
+stock-flow ESTIMATES of what really happens, since starved factories run
+far below capacity; untick the box for theoretical module capacity
+instead. The checkbox swaps demand/competition/shortfall/modules/untapped
+and the balance table. Input ratios always use actual
 net flow (production minus existing consumption nearby): starved
 producers' capacity cannot be bought. Demand includes estimated
-construction intake at shipyards/wharves in both modes. Untapped Cr/h
-values the shortfall at average game price. <b>Haul m&sup3;/h</b> is that
+construction intake at shipyards/wharves in both modes.
+<b>Shortfall/h</b> is demand minus competition &mdash; negative means the
+neighbourhood already makes more than it uses. <b>Untapped Cr/h</b> values
+that shortfall at average game price, and <b>Modules</b> divides it by
+what ONE production module of this ware makes per hour (its default
+recipe &mdash; the same yield as &ldquo;1 module makes/h&rdquo; in the
+balance table below): +2.4 means the nearby gap would keep about two and a
+half modules busy, &minus;1.0 means one module's worth too much is already
+there. <b>Haul m&sup3;/h</b> is that
 same shortfall in cargo volume (units &times; ware m&sup3;), and
 <b>&asymp; Traders</b> divides it by what one of your ships moves per
 hour on this route: distances are real routes between sector CENTRES over
@@ -454,9 +471,11 @@ the sectors that want the ware, with demand in the build sector itself
 charged a flat {IN_SECTOR_KM:.0f} km leg. Trips run at 0.9 &times; the
 ship's loadout travel speed (S/M cross highway sectors at 10 km/s) with
 <i>no</i> docking or spool-up overhead &mdash; a floor, so round up.
-Factors are normalized per
-ware — scores compare sectors for the same ware, and the weights below
-are yours to tune. Click a row's &#9432; for the reasoning.</p>
+There is deliberately no overall score. Rows open sorted by Untapped
+Cr/h, which &mdash; like Modules &mdash; is in real units and so compares
+across wares; demand, competition and input supply are per-ware readings
+that only compare sectors for the same ware, so pick a ware above and read
+down. Click a row's &#9432; for the reasoning.</p>
 <div class='controls'>
   <label>Ware <select id='wsel'><option value=''>All wares</option></select></label>
   <label title='sizes the &asymp; Traders column: cargo hold and loadout
@@ -464,22 +483,14 @@ are yours to tune. Click a row's &#9432; for the reasoning.</p>
     <select id='ssel'></select></label>
   <label style='color:{DARK_FG};font-size:13px;border:1px solid #e8b84e;
     border-radius:6px;padding:4px 8px'>
-    <input type='checkbox' id='actual'> estimated <b>actual</b>
+    <input type='checkbox' id='actual' checked> estimated <b>actual</b>
     flows</label>
-  <label>Demand <input type='range' id='w_d' min='0' max='100' value='35'>
-    <span class='wv' id='v_d'>35</span></label>
-  <label>Inputs <input type='range' id='w_i' min='0' max='100' value='25'>
-    <span class='wv' id='v_i'>25</span></label>
-  <label>Competition &minus;<input type='range' id='w_c' min='0' max='100' value='15'>
-    <span class='wv' id='v_c'>15</span></label>
-  <label>Safety <input type='range' id='w_s' min='0' max='100' value='15'>
-    <span class='wv' id='v_s'>15</span></label>
-  <label>Workforce <input type='range' id='w_w' min='0' max='100' value='10'>
-    <span class='wv' id='v_w'>10</span></label>
 </div>
 <table id='adv' class='display nowrap' style='width:100%'>
-<thead><tr><th></th><th>Score</th><th>Ware</th><th>Sector</th><th>Owner</th>
+<thead><tr><th></th><th>Ware</th><th>Sector</th><th>Owner</th>
 <th>Demand/h</th><th>Competition/h</th><th>Shortfall/h</th>
+<th title='nearby shortfall &divide; what one production module of this
+ware makes per hour (default recipe)'>Modules</th>
 <th>Untapped Cr/h</th><th>Haul m&sup3;/h</th><th>&asymp; Traders</th>
 <th>Backlog</th><th>Hostile (hops)</th></tr></thead>
 </table>
@@ -493,7 +504,7 @@ worth building at all. Output/h is one production module's yield.</p>
 </table>
 <script>
 const DATA = {payload};
-let ACT = false;   // false = theoretical capacity, true = estimated actual
+let ACT = true;    // false = theoretical capacity, true = estimated actual
 function fmt(n) {{ return Math.round(n).toLocaleString('en-US'); }}
 const numCol = (d, t) => t === 'display' ? fmt(d) : d;
 const est = (v) => "<span class=warn title='estimated actual flows "
@@ -509,6 +520,10 @@ const cOf = r => ACT ? r.comp_act : r.comp_h;
 const CRUISE = 0.9, HW_MS = 10000;
 let SHIP = DATA.ships[0] || null;
 const haulOf = r => (dOf(r) - cOf(r)) * r.vol;
+// the shortfall expressed in production modules of the ware's default
+// recipe. `undefined > 0` is false, so a payload without out_h renders
+// an em-dash rather than NaN.
+const modOf = r => (r.out_h > 0) ? (dOf(r) - cOf(r)) / r.out_h : null;
 function tripSeconds(r) {{   // round trip, seconds
   if (!SHIP || !SHIP.speed || r.km_p === null) return null;
   const v = CRUISE * SHIP.speed;
@@ -566,17 +581,6 @@ function logisticsHtml(r) {{
   return h;
 }}
 
-function weights() {{
-  return {{d: +$('#w_d').val(), i: +$('#w_i').val(), c: +$('#w_c').val(),
-           s: +$('#w_s').val(), w: +$('#w_w').val()}};
-}}
-function score(r, W) {{
-  const total = W.d + W.i + W.c + W.s + W.w || 1;
-  const nd = ACT ? r.nda : r.nd, nc = ACT ? r.nca : r.nc;
-  return 100 * (W.d * nd + W.i * r.ni + W.s * r.ns + W.w * r.nw
-                - W.c * nc) / total;
-}}
-
 const rows = DATA.rows.map(r => {{
   const det = '<b>Inputs</b><ul>' +
     r.detail.inputs.map(x => '<li>' + x + '</li>').join('') + '</ul>' +
@@ -592,12 +596,10 @@ const rows = DATA.rows.map(r => {{
   $('#wsel').append(`<option>${{w}}</option>`));
 
 const table = $('#adv').DataTable({{
-  data: rows, pageLength: 15, order: [[1, 'desc']],
+  data: rows, pageLength: 15, order: [[8, 'desc']],
   columns: [
     {{data: null, orderable: false, defaultContent: '&#9432;',
       className: 'det', width: '18px'}},
-    {{data: r => score(r, weights()), render: (d, t) =>
-        t === 'display' ? d.toFixed(1) : d}},
     {{data: 'ware'}},
     {{data: 'sector'}},
     {{data: 'owner'}},
@@ -608,6 +610,14 @@ const table = $('#adv').DataTable({{
     {{data: r => dOf(r) - cOf(r), render: (d, t) => t === 'display'
         ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
           + '</span>' + (ACT ? " <span class=warn>~</span>" : "") : d}},
+    {{data: r => modOf(r), render: (d, t) => t === 'display'
+        ? (d === null
+           ? "<span class='note' title='no module output rate known'>"
+             + '&mdash;</span>'
+           : (d >= 0 ? "<span class=pos>+" : "<span class=neg>")
+             + d.toFixed(1) + '</span>'
+             + (ACT ? " <span class=warn>~</span>" : ""))
+        : (d === null ? -1e9 : d)}},
     {{data: r => (dOf(r) - cOf(r)) * r.price,
       render: (d, t) => t === 'display'
         ? (d >= 0 ? "<span class=pos>+" : "<span class=neg>") + fmt(d)
@@ -653,13 +663,8 @@ ssel.on('change', function() {{
 }});
 
 $('#wsel').on('change', function() {{
-  table.column(2).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(
+  table.column(1).search(this.value ? '^' + $.fn.dataTable.util.escapeRegex(
     this.value) + '$' : '', true, false).draw();
-}});
-$('.controls input[type=range]').on('input', function() {{
-  ['d','i','c','s','w'].forEach(k =>
-    $('#v_' + k).text($('#w_' + k).val()));
-  table.rows().invalidate('data').draw(false);
 }});
 
 function balRows() {{
@@ -682,12 +687,15 @@ const bal = $('#bal').DataTable({{
   ],
 }});
 
-$('#actual').on('change', function() {{
-  ACT = this.checked;
+// one source of truth for the basis: the page opens with the checkbox
+// CHECKED, so this must also run once at load or the headers would ship
+// the capacity spellings while ACT is already true.
+function applyBasis() {{
   const th = $('#adv thead th');
-  th.eq(5).text(ACT ? '~Demand/h (act)' : 'Demand/h');
-  th.eq(6).text(ACT ? '~Competition/h (act)' : 'Competition/h');
-  th.eq(7).text(ACT ? '~Shortfall/h (act)' : 'Shortfall/h');
+  th.eq(4).text(ACT ? '~Demand/h (act)' : 'Demand/h');
+  th.eq(5).text(ACT ? '~Competition/h (act)' : 'Competition/h');
+  th.eq(6).text(ACT ? '~Shortfall/h (act)' : 'Shortfall/h');
+  th.eq(7).text(ACT ? '~Modules (act)' : 'Modules');
   th.eq(8).text(ACT ? '~Untapped Cr/h (act)' : 'Untapped Cr/h');
   th.eq(9).html(ACT ? '~Haul m&sup3;/h (act)' : 'Haul m&sup3;/h');
   const bh = $('#bal thead th');
@@ -696,7 +704,12 @@ $('#actual').on('change', function() {{
   bh.eq(4).text(ACT ? '~Balance/h (act)' : 'Balance/h');
   table.rows().invalidate('data').draw(false);
   bal.clear().rows.add(balRows()).draw(false);
+}}
+$('#actual').on('change', function() {{
+  ACT = this.checked;
+  applyBasis();
 }});
+applyBasis();
 
 (function() {{
   function post() {{

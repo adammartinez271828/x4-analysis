@@ -224,17 +224,35 @@ player's own assets and the log text the game wrote for them.
 
 ## Build Advisor (`viz/advisor.py` + `analysis/sectorgraph.py`)
 
-Scores "build ware W in sector S" for every producible economy ware ×
+Weighs "build ware W in sector S" for every producible economy ware ×
 known sector. Sector adjacency = `gates.csv` (see
 [csv-reference.md](csv-reference.md) for how the pairs and endpoint gate
 positions are extracted) + same-cluster pairs; factors (demand,
 competition, input supply incl. mining yields, hostile distance, workforce
-food) are BFS-hop-discounted (÷(1+hops), radius 4), normalized per ware,
-weighted client-side with sliders (never an opaque score — each row expands
-into its reasoning). Buy-offer backlog counts as amount/24 per hour next to
+food) are BFS-hop-discounted (÷(1+hops), radius 4) and normalized per ware.
+Each row expands into its reasoning.
+
+**There is no score on the page.** The fixed-weight score (0.35 demand +
+0.25 inputs + 0.15 safety + 0.10 workforce − 0.15 competition, taken on
+whichever basis ranks higher) survives ONLY server-side, in `_preview()`,
+as the cut to `TOP_SECTORS` = 10 sectors per ware. The Score column and its
+five weight sliders were removed because per-ware normalization — each
+sector divided by the best sector *for that ware* — makes the number
+incomparable across wares, while an unfiltered, score-sorted default table
+invited exactly that comparison: a ware oversupplied in every reachable
+sector still gets a 1.0 leader, so rows with a NEGATIVE shortfall ranked
+near the top. The table sorts by **Untapped Cr/h** descending instead;
+that column and **Modules** are the two in real units, hence the only two
+that compare across wares.
+
+Buy-offer backlog counts as amount/24 per hour next to
 capacity rates. An "estimated actual flows" checkbox (mirroring the Market
-tab's) swaps demand/competition/shortfall/untapped and the balance table
-between capacity and stock-flow actuals (`market.actual_flows`); input
+tab's, but **checked by default** here) swaps
+demand/competition/shortfall/modules/untapped and the balance table
+between capacity and stock-flow actuals (`market.actual_flows`); a single
+`applyBasis()` runs the header relabels and both table redraws, and is
+called once at load so the checked-by-default state is not a second source
+of truth. Input
 ratios ALWAYS use actual net flow (production − existing consumption
 nearby) — capacity-based input ratios would count starved producers' output
 that cannot be bought.
@@ -243,6 +261,18 @@ that cannot be bought.
 machinery rather than duplicating it: `opportunities._Router` for route
 km and `opportunities.player_trade_ships` for the presets.
 
+- **Modules** — the active-basis shortfall ÷ `out_h`, one production
+  module's hourly yield from the ware's `default`-method recipe, emitted
+  per row and identical to the balance table's "1 module makes/h".
+  Computed client-side (`modOf`), so it follows the actual-flows checkbox
+  like Haul m³/h; rendered signed to one decimal with the usual
+  `.pos`/`.neg` colouring — negative means the neighbourhood is already
+  oversupplied by that many modules' worth — and an em-dash when
+  `out_h ≤ 0` (a modded recipe with `time` 0), which sorts to the bottom
+  via a `-1e9` sort key. Deliberately the `default` recipe, NOT a
+  faction-resolved build method: the input ratios and input haul on the
+  same page use `default`, so the three cannot disagree. Recipe-variant
+  (closed-loop / Terran) toggles were considered and deferred.
 - **Haul m³/h** — the active-basis shortfall (demand − competition, so it
   follows the actual-flows checkbox) × the ware's `volume` from
   `wares.csv` (defensively 1 m³ when missing/unparseable — never 0).
@@ -270,7 +300,9 @@ km and `opportunities.player_trade_ships` for the presets.
 The row's ℹ detail gains a **Logistics** block: the weighted one-way
 route, the preset's round-trip/m³-per-hour arithmetic, and the INPUT haul
 (Σ recipe inputs/h × their volumes) — the latter stated **per production
-module**, since the advisor sizes no station.
+module**: the advisor still sizes no station, but the Modules column says
+how many modules the nearby gap would fill, and the input haul scales
+linearly with that count.
 
 ## Empire audit & station P&L (`viz/audit.py`, `viz/pnl.py`, `analysis/mining.py`)
 

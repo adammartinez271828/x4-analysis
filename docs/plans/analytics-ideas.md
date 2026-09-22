@@ -50,6 +50,15 @@ availability (habitat food supply chains nearby).
   3 gates, silicon at 152 Cr 1 gate away, 0 hostile events logged").
 - **Risks:** recommendation quality is judgement-laden; mitigate with the
   decomposable-factors principle and tunable weights.
+- **Update 2026-09-22:** the tunable weights are gone. Because every factor
+  is normalized per ware, the composite score only ever compared sectors
+  for the same ware, while the default view shipped unfiltered and sorted
+  by it — so oversupplied wares still showed a 1.0 leader. The weights now
+  survive only as the fixed server-side cut to the 10 best sectors per
+  ware; the page ranks on Untapped Cr/h and a new Modules column, both in
+  real units. Decomposable factors are unchanged — each row still expands
+  into its reasoning. See
+  [viz-internals.md](../reference/viz-internals.md) § Build Advisor.
 
 ### 3. Blueprint ROI calculator — feasibility: HIGH
 

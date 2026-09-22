@@ -203,6 +203,26 @@ def test_rows_carry_volume_haul_inputs_and_route():
     assert (c["km_p"], c["km_h"]) == (IN_SECTOR_KM, 0.0)
 
 
+def test_rows_carry_one_module_output_for_the_modules_column():
+    data = compute_advice(_frames(), _ref(), _cfg())
+    rows = _rows(data)
+    a, c = rows["Alpha"], rows["Gamma"]
+    # advanced electronics: 100 per 600 s out of ONE module = 600/h, the
+    # divisor behind the page's Modules column and the same number the
+    # global balance table shows as "1 module makes/h"
+    assert a["out_h"] == c["out_h"] == 600.0
+    assert next(w for w in data["wares"]
+                if w["ware"] == "Advanced Electronics")["out_h"] == 600
+    # the client divides the shortfall by it: one hull-parts module in
+    # sec_c wants 120 AE/h, so building in Gamma fills 0.2 of a module;
+    # the same demand seen from Alpha is 2 hops away (÷3 = 40/h) -> 0.07
+    assert c["demand_h"] / c["out_h"] == 0.2
+    assert round(a["demand_h"] / a["out_h"], 2) == 0.07
+    # the per-ware normalized factors lost their only consumer when the
+    # score column went, and are no longer shipped
+    assert not {"nd", "ni", "nc", "ns", "nw", "nda", "nca"} & set(a)
+
+
 def test_advice_route_is_weighted_across_demand_sectors():
     plain = _rows(compute_advice(_frames(), _ref(), _cfg()))["Alpha"]
     two = _rows(compute_advice(
